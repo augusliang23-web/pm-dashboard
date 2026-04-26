@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Dashboard · LITEON Edition</title>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  FIREBASE SETUP (Optional)
+// ═══════════════════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+</script>
+<script type="module" id="firebaseModule"></script>
+
+<style>
+/* 導入 LITEON 常用的 Noto Sans TC 思源黑體 */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+
+:root {
+  /* LITEON Ultra-Low Saturation (Pastel) Theme */
+  --bg:          #F7F9FB; 
+  --s1:          #FFFFFF; 
+  --s2:          #FAFBFC; 
+  --s3:          #F0F3F7;
+  --border:      #E6EAEF;
+  --border2:     #D0D7E0;
+  --text:        #3A4859; 
+  --text-light:  #6B7A8D;
+  --muted:       #9AA6B5; 
+  --muted2:      #C0C8D1;
+  
+  --accent:      #78B395; /* Ultra Soft Green */
+  --accent-hov:  #639A7D;
+  --green:       #88C9AC; /* Pastel Green */
+  --yellow:      #E4CC8F; /* Pastel Yellow/Sand */
+  --red:         #E39A9A; /* Pastel Red/Rose */
+  
+  --gdim:        rgba(136, 201, 172, 0.15);
+  --ydim:        rgba(228, 204, 143, 0.15);
+  --rdim:        rgba(227, 154, 154, 0.15);
+  --adim:        rgba(120, 179, 149, 0.15);
+  
+  --radius:      8px;
+  --shadow:      0 2px 8px rgba(0,0,0,0.02), 0 8px 16px rgba(0,0,0,0.02);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans TC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── HEADER ───────────────────────────────────────────────────── */
+.hdr {
+  position: sticky; top: 0; z-index: 90;
+  background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border); padding: 0 32px; height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.015);
+}
+.hdr-brand { display: flex; align-items: baseline; gap: 10px; }
+.hdr-logo { font-size: 15px; font-weight: 700; letter-spacing: .06em; color: var(--accent-hov); }
+.hdr-sub { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+
+.pm-select {
+  font-family: 'Noto Sans TC', sans-serif; font-size: 13px; font-weight: 600;
+  padding: 6px 12px; border-radius: 6px; background: var(--s1); color: var(--text);
+  border: 1px solid var(--border2); cursor: pointer; outline: none; transition: all .2s;
+}
+.pm-select:hover, .pm-select:focus { border-color: var(--accent); }
+.pm-select.disabled { opacity: 0.5; background: var(--s3); cursor: not-allowed; border-color: var(--border); }
+
+.week-nav { display: flex; align-items: center; gap: 4px; background: var(--s1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.week-nav button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 8px; font-size: 14px; transition: color .15s; }
+.week-nav button:hover { color: var(--text); }
+.week-nav .wlabel { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text); min-width: 110px; text-align: center; font-weight: 600;}
+
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); flex-shrink: 0; transition: background .3s; }
+.sync-dot.ok { background: var(--green); }
+.sync-dot.warn { background: var(--yellow); box-shadow: 0 0 6px rgba(228, 204, 143, 0.5); }
+
+.btn {
+  font-family: 'Noto Sans TC', sans-serif; font-size: 13px; font-weight: 600;
+  padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border2); transition: all .2s; letter-spacing: .02em;
+}
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hov); border-color: var(--accent-hov); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost { background: var(--s1); color: var(--text-light); border-color: var(--border2); }
+.btn-ghost:hover { color: var(--text); background: var(--s2); border-color: var(--muted); }
+.btn-ghost.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+/* ── MAIN ─────────────────────────────────────────────────────── */
+.main { max-width: 1400px; margin: 0 auto; padding: 24px 32px 80px; }
+
+.wk-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 28px; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.wk-banner h2 { font-size: 18px; font-weight: 700; color: var(--text); }
+.wk-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.pills { display: flex; gap: 10px; flex-wrap: wrap; }
+.pill { padding: 6px 12px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.pill-g { background: var(--gdim); color: var(--accent-hov); }
+.pill-y { background: var(--ydim); color: #B3923E; }
+.pill-r { background: var(--rdim); color: #B35858; }
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* NORMAL VIEW: PROJECTS GRID */
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 24px; margin-bottom: 18px; }
+
+.proj-card {
+  background: var(--s1); border: 1px solid var(--border); box-shadow: var(--shadow);
+  border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
+  animation: fadeUp .3s ease both; position: relative;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+.card-stripe { height: 4px; }
+.card-stripe.green  { background: var(--green); }
+.card-stripe.yellow { background: var(--yellow); }
+.card-stripe.red    { background: var(--red); }
+
+.card-body { padding: 24px; flex: 1; } 
+.card-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; z-index: 2; }
+.action-icon {
+  background: transparent; border: 1px solid transparent; color: var(--muted2);
+  width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; transition: all .2s;
+}
+.action-icon:hover { color: var(--text); background: var(--s3); border-color: var(--border2); }
+
+.card-hdr { margin-bottom: 20px; padding-right: 75px;}
+.proj-name { font-size: 16px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.proj-code { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; display: inline-block; background: var(--bg); padding: 2px 6px; border-radius: 4px;}
+
+/* Section 1: Background & Milestones (Read-Only Look) */
+.card-section-bg { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px dashed var(--border); }
+.proj-bg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;}
+.info-box { display: flex; flex-direction: column; gap: 2px; }
+.info-lbl { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.info-val { font-size: 13px; color: var(--text); font-weight: 500;}
+.info-val.owner { color: var(--accent-hov); font-weight: 700; }
+
+.ms-dash-container { position: relative; margin-left: 6px; border-left: 2px dashed var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 14px; }
+.ms-node { position: relative; display: flex; align-items: center; justify-content: space-between; }
+.ms-dot { position: absolute; left: -23px; width: 12px; height: 12px; border-radius: 50%; background: var(--s1); border: 2px solid var(--border2); }
+.ms-node.in-progress .ms-dot { background: var(--accent); border-color: var(--s1); box-shadow: 0 0 0 2px var(--gdim); }
+.ms-node.to-do .ms-dot { background: var(--border2); border-color: var(--s1); }
+.ms-node.at-risk .ms-dot { background: var(--red); border-color: var(--s1); box-shadow: 0 0 0 2px var(--rdim); }
+.ms-node-left { display: flex; flex-direction: column; }
+.ms-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.ms-date { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
+.ms-status-badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+.ms-status-badge.in-progress { background: var(--gdim); color: var(--accent-hov); }
+.ms-status-badge.to-do { background: var(--bg); color: var(--muted); }
+.ms-status-badge.at-risk { background: var(--rdim); color: #B35858; }
+
+/* Section 2: Weekly Progress (Read-Only Look) */
+.card-section-prog { padding: 0; }
+.rag-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rag { padding: 4px 10px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+.rag.green  { background: var(--gdim); color: var(--accent-hov); }
+.rag.yellow { background: var(--ydim); color: #B3923E; }
+.rag.red    { background: var(--rdim); color: #B35858; }
+
+.prog-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.prog-track { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+.prog-fill.green  { background: var(--green); }
+.prog-fill.yellow { background: var(--yellow); }
+.prog-fill.red    { background: var(--red); }
+.prog-pct { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-light); min-width: 35px; text-align: right; font-weight: 600;}
+
+.slabel { font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 4px; margin-top: 16px; text-transform: uppercase; letter-spacing: 0.05em;}
+.stext { font-size: 13px; color: var(--text); line-height: 1.6; white-space: pre-wrap; margin-bottom: 8px;}
+.stext.empty { color: var(--muted2); font-style: italic; }
+.stext.risk { color: #B35858; font-weight: 600; }
+
+/* OVERVIEW (BOSS MODE) */
+.exec-view { animation: fadeUp .3s ease both; display: none; }
+.exec-summary-box { background: var(--s1); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
+.exec-summary-title { font-size: 12px; font-weight: 700; color: var(--accent-hov); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;}
+.exec-summary-text { font-size: 14px; color: var(--text); line-height: 1.6; white-space: pre-wrap;}
+
+.exec-group { margin-bottom: 32px; }
+.exec-group-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); color: var(--text);}
+.exec-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--s1); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow);}
+.exec-table th { background: var(--s2); font-size: 11px; font-weight: 600; color: var(--muted); padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.exec-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); vertical-align: top; }
+.exec-table tr:last-child td { border-bottom: none; }
+.exec-pname { font-weight: 700; color: var(--text); margin-bottom: 4px; display: block; font-size: 14px;}
+.exec-powner { font-size: 10px; color: var(--accent-hov); background: var(--adim); padding: 3px 8px; border-radius: 4px; display: inline-block; font-weight: 600; margin-top: 6px;}
+
+.mini-prog-wrapper { display: flex; align-items: center; gap: 8px; margin-top: 8px;}
+.mini-prog { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.mini-prog-fill { height: 100%; border-radius: 3px; }
+.mini-prog-fill.green { background: var(--green); }
+.mini-prog-fill.yellow { background: var(--yellow); }
+.mini-prog-fill.red { background: var(--red); }
+.mini-pct { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; color: var(--text-light);}
+
+/* MODALS (Input Settings) */
+.overlay { position: fixed; inset: 0; background: rgba(30,41,59,.5); backdrop-filter: blur(3px); z-index: 200; display: none; align-items: center; justify-content: center; }
+.overlay.open { display: flex; }
+.modal { background: var(--s1); border: 1px solid var(--border2); border-radius: 12px; width: 840px; max-width: 96vw; max-height: 90vh; overflow-y: auto; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); }
+.modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);}
+.modal-title { font-size: 18px; font-weight: 700; color: var(--text);}
+.modal-x { background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; padding: 0 4px; line-height: 1; transition: color .2s;}
+.modal-x:hover { color: var(--red); }
+
+.fsec { margin-bottom: 24px; }
+.fsec-title { font-size: 12px; font-weight: 700; color: var(--accent-hov); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; background: var(--s2); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);}
+.frow { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.fg { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 140px; }
+.fl { font-size: 11px; color: var(--text-light); font-weight: 600; }
+.fi, .fs, .ft { background: var(--s1); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; padding: 10px 14px; font-size: 13px; font-family: 'Noto Sans TC', sans-serif; transition: all .2s; width: 100%; outline: none;}
+.fi:focus, .fs:focus, .ft:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--adim); }
+.fi:disabled { background: var(--bg); color: var(--muted); cursor: not-allowed; border-color: var(--border);}
+.ft { resize: vertical; min-height: 80px; line-height: 1.5;}
+.fi.error-date { background: #FCEDED; color: #B35858; border-color: var(--red); }
+
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+/* MILESTONE EDITOR (Drag & Drop with Animation) */
+.ms-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: var(--s1); padding: 10px; border-radius: 6px; border: 1px solid var(--border2); transition: transform 0.2s ease, opacity 0.2s, background 0.2s;}
+.ms-row.dragging { opacity: 0.4; background: var(--s3); }
+.ms-row.drag-over-top { transform: translateY(8px); border-top: 2px solid var(--accent); }
+.ms-row.drag-over-bottom { transform: translateY(-8px); border-bottom: 2px solid var(--accent); }
+.ms-grip { cursor: grab; color: var(--muted2); font-size: 16px; padding: 0 4px; user-select: none; }
+.ms-grip:active { cursor: grabbing; }
+.ms-btn { background: var(--s1); border: 1px solid var(--border2); border-radius: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); transition: all 0.2s;}
+.ms-btn:hover { background: var(--bg); color: var(--text); }
+.ms-btn.del:hover { background: var(--rdim); color: var(--red); border-color: var(--red);}
+.add-btn { width: 100%; padding: 12px; background: var(--s1); border: 1px dashed var(--border2); color: var(--accent-hov); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 700; transition: all .2s; }
+.add-btn:hover { background: var(--adim); border-color: var(--accent); }
+
+/* PM MANAGEMENT MODAL */
+.pm-modal-wrapper { width: 420px; padding: 24px; }
+.pm-list-item { display: flex; justify-content: space-between; align-items: center; background: var(--s2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; font-weight: 600;}
+.pm-del-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 14px; transition: color 0.2s; }
+.pm-del-btn:hover { color: var(--red); }
+.pm-add-area { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);}
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); grid-column: 1 / -1; }
+.empty h3 { font-size: 15px; color: var(--text-light); margin-bottom: 8px; }
+
+/* PRINT STYLES FOR PDF */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .hdr, .no-print, .card-actions { display: none !important; }
+  body { background: #fff; }
+  .main { padding: 0; max-width: 100%; }
+  #normalView { display: none !important; } /* Force Overview in PDF */
+  #execView { display: block !important; }
+  .exec-table { box-shadow: none; border: 1px solid var(--border2); break-inside: avoid; }
+  .wk-banner { box-shadow: none; border: 1px solid var(--border2); }
+  .exec-summary-box { box-shadow: none; border: 1px solid var(--border2); }
+}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="setupHelpModal">
+<div class="modal" style="max-width: 600px;">
+  <div class="modal-hdr">
+    <div class="modal-title">Firebase Setup Guide</div>
+    <button class="modal-x" onclick="document.getElementById('setupHelpModal').classList.remove('open')">×</button>
+  </div>
+  <div style="font-size:13px;line-height:1.7;color:var(--text-light)">
+    <ol style="padding-left:20px; display:flex; flex-direction:column; gap:10px;">
+      <li>Go to <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent-hov); font-weight:700;">console.firebase.google.com</a> → Create project</li>
+      <li>Firestore Database → Create database (start in test mode)</li>
+      <li>Project Settings → Your apps → Add web app → Copy config</li>
+      <li>Open this HTML file, find <code style="color:var(--accent-hov);background:var(--bg);padding:2px 6px;border-radius:4px; font-family:'IBM Plex Mono', monospace;">FIREBASE_CONFIG</code> at the top, replace values</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="pmManageModal">
+<div class="modal pm-modal-wrapper">
+  <div class="modal-hdr" style="margin-bottom: 16px; padding-bottom: 12px;">
+    <div class="modal-title" style="font-size: 16px;">Manage Team Members</div>
+    <button class="modal-x" onclick="document.getElementById('pmManageModal').classList.remove('open')">×</button>
+  </div>
+  <div id="pmListContainer"></div>
+  <div class="pm-add-area">
+    <input type="text" id="newPmInput" class="fi" placeholder="Add New PM Name...">
+    <button class="btn btn-primary" onclick="addNewPM()">Add</button>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="newWeekOverlay">
+<div class="modal" style="max-width: 500px;">
+  <div class="modal-hdr">
+    <div class="modal-title">Create New Week</div>
+    <button class="modal-x" onclick="document.getElementById('newWeekOverlay').classList.remove('open')">×</button>
+  </div>
+  <div class="frow">
+    <div class="fg">
+      <label class="fl">Year</label>
+      <input type="number" class="fi" id="nw_year" min="2020" max="2100" onchange="previewNewWeek()" onkeyup="previewNewWeek()">
+    </div>
+    <div class="fg">
+      <label class="fl">Week Number (1-52)</label>
+      <input type="number" class="fi" id="nw_week" min="1" max="52" onchange="previewNewWeek()" onkeyup="previewNewWeek()">
+    </div>
+  </div>
+  <div class="frow" style="margin-top:10px;">
+    <div class="fg">
+      <label class="fl">Date Range Reference (Auto-calculated)</label>
+      <input type="text" class="fi" id="nw_date_ref" disabled style="background:var(--s2); font-weight:600; color:var(--text);">
+    </div>
+  </div>
+  <div id="nw_error" style="color:#B35858; font-size:13px; font-weight:bold; margin-top:12px; display:none;">⚠️ This week already exists! Please select another.</div>
+  <div class="modal-foot">
+    <button class="btn btn-ghost" onclick="document.getElementById('newWeekOverlay').classList.remove('open')">Cancel</button>
+    <button class="btn btn-primary" id="btn_create_week" onclick="submitNewWeek()">Create Week</button>
+  </div>
+</div>
+</div>
+
+<header class="hdr no-print">
+  <div class="hdr-brand">
+    <span class="hdr-logo">Project Command</span>
+    <span class="hdr-sub">V10 LITEON Final</span>
+  </div>
+  <div class="hdr-right">
+    <div class="sync-dot" id="syncDot" title="Offline — Firebase not connected" onclick="document.getElementById('setupHelpModal').classList.add('open')" style="cursor:pointer;flex-shrink:0;"></div>
+    <select id="topPmSelect" class="pm-select" onchange="handleTopPmChange()"></select>
+    
+    <div class="week-nav">
+      <button onclick="navWeek(-1)">‹</button>
+      <span class="wlabel" id="wNavLabel">—</span>
+      <button onclick="navWeek(1)">›</button>
+    </div>
+    
+    <button class="btn btn-ghost" onclick="toggleOverview()" id="btnOverview">Overview</button>
+    <button class="btn btn-ghost" onclick="triggerPrint()">🖨️ PDF</button>
+    <button class="btn btn-ghost" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
+    <button class="btn btn-ghost" onclick="openProjSettings('', true)">+ New Project</button>
+    <button class="btn btn-primary" onclick="openNewWeekModal()">+ New Week</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="wk-banner" id="wkBanner">
+    <div>
+      <h2 id="bannerTitle">—</h2>
+      <div class="wk-meta" id="bannerMeta">Click + New Week to begin</div>
+    </div>
+    <div class="pills" id="bannerPills"></div>
+  </div>
+
+  <div id="normalView"><div class="proj-grid" id="projGrid"></div></div>
+  <div id="execView" class="exec-view"></div>
+</div>
+
+<div class="overlay" id="weekInfoOverlay">
+<div class="modal" style="max-width: 600px;">
+  <div class="modal-hdr"><div class="modal-title">Edit Week Info</div><button class="modal-x" onclick="document.getElementById('weekInfoOverlay').classList.remove('open')">×</button></div>
+  <div class="frow">
+    <div class="fg" style="flex:1">
+      <label class="fl">Week Label</label>
+      <input class="fi" id="w_label_ro" disabled style="background:var(--bg); font-weight:bold; color:var(--text);">
+    </div>
+    <div class="fg" style="flex:1">
+      <label class="fl">Date Range</label>
+      <input class="fi" id="w_date_ro" disabled style="background:var(--bg); font-weight:bold; color:var(--text);">
+    </div>
+  </div>
+  <div class="fg" style="margin-top:16px">
+    <label class="fl">Overview Summary (Team level)</label>
+    <textarea class="ft" id="w_summary" rows="5" placeholder="Key wins and team pulse..."></textarea>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-ghost" onclick="document.getElementById('weekInfoOverlay').classList.remove('open')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveWeekInfo()">Save Info</button>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="projSettingsOverlay">
+<div class="modal">
+  <div class="modal-hdr">
+    <div class="modal-title" id="psTitle">Project Background Info</div>
+    <button class="modal-x" onclick="document.getElementById('projSettingsOverlay').classList.remove('open')">×</button>
+  </div>
+  <div class="fsec">
+    <div class="fsec-title">🎯 Basic Details</div>
+    <div class="frow">
+      <div class="fg" style="flex:2"><label class="fl">Name</label><input class="fi" id="ps_name" placeholder="e.g. Edge AI DC"></div>
+      <div class="fg" style="flex:1"><label class="fl">Code</label><input class="fi" id="ps_code" placeholder="PRJ-001"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Owner</label><select class="fs" id="ps_owner"></select></div>
+      <div class="fg"><label class="fl">Deputy</label><select class="fs" id="ps_deputy"></select></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Customer</label><input class="fi" id="ps_customer" placeholder="Client Name"></div>
+      <div class="fg"><label class="fl">Location</label><input class="fi" id="ps_location" placeholder="e.g. Taiwan"></div>
+    </div>
+  </div>
+  
+  <div class="fsec">
+    <div class="fsec-title">📍 Milestones Roadmap (Drag ☰ to reorder)</div>
+    <div id="msListContainer" style="margin-bottom: 12px;"></div>
+    <button class="add-btn" onclick="addMilestoneRow()">+ Add Milestone</button>
+  </div>
+
+  <div class="modal-foot">
+    <button class="btn btn-ghost" onclick="document.getElementById('projSettingsOverlay').classList.remove('open')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveProjSettings()">Save Settings</button>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="projUpdateOverlay">
+<div class="modal">
+  <div class="modal-hdr">
+    <div class="modal-title" id="puTitle">Weekly Progress Update</div>
+    <button class="modal-x" onclick="document.getElementById('projUpdateOverlay').classList.remove('open')">×</button>
+  </div>
+  <div class="frow">
+    <div class="fg"><label class="fl">RAG Status</label>
+      <select class="fs" id="pu_status" style="font-weight: 600;">
+        <option value="green">🟢 On Track</option>
+        <option value="yellow">🟡 At Risk</option>
+        <option value="red">🔴 Critical</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Progress %</label><input class="fi" id="pu_progress" type="number" min="0" max="100"></div>
+  </div>
+  <div class="fg" style="margin-top:16px"><label class="fl">This Week Highlight</label><textarea class="ft" id="pu_highlight" rows="3" placeholder="What was achieved this week?"></textarea></div>
+  <div class="frow" style="margin-top:16px">
+    <div class="fg"><label class="fl">Next Steps</label><textarea class="ft" id="pu_next" rows="3" placeholder="What's coming next?"></textarea></div>
+    <div class="fg"><label class="fl">Risk / Blocker</label><textarea class="ft" id="pu_risk" rows="3" placeholder="Any issues blocking progress?"></textarea></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-ghost" onclick="document.getElementById('projUpdateOverlay').classList.remove('open')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveProjUpdate()">Save Update</button>
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  STATE & PM MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+const LS_KEY      = 'pm_cmd_liteon_v10';
+const PM_KEY      = 'pm_cmd_identity_v10';
+const PMLIST_KEY  = 'pm_cmd_list_v10';
+let allWeeks      = [];
+let currentIdx    = -1;
+let currentPM     = localStorage.getItem(PM_KEY) || 'all';
+let isOverview    = false;
+
+// Edit state
+let editingProjCode = null;
+let isCreatingNewProject = false;
+
+function getPMList() {
+  try { return JSON.parse(localStorage.getItem(PMLIST_KEY)) || ["Augus", "Josiah", "Bonnie"]; }
+  catch { return ["Augus", "Josiah", "Bonnie"]; }
+}
+function savePMList(list) { localStorage.setItem(PMLIST_KEY, JSON.stringify(list)); }
+
+function renderTopPmSelect() {
+  const list = getPMList();
+  const select = document.getElementById('topPmSelect');
+  let html = `<option value="all">Team View (All PMs)</option>`;
+  list.forEach(pm => { html += `<option value="${pm}" ${pm === currentPM ? 'selected' : ''}>Filter: ${pm}</option>`; });
+  html += `<option disabled>──────────</option><option value="MANAGE">⚙️ Manage PMs...</option>`;
+  select.innerHTML = html;
+}
+
+function handleTopPmChange() {
+  const select = document.getElementById('topPmSelect');
+  const val = select.value;
+  if (val === 'MANAGE') {
+    select.value = currentPM; 
+    openPmManager();
+  } else {
+    currentPM = val;
+    localStorage.setItem(PM_KEY, currentPM);
+    render();
+  }
+}
+
+function openPmManager() {
+  renderPmManagerList();
+  document.getElementById('pmManageModal').classList.add('open');
+}
+
+function renderPmManagerList() {
+  const list = getPMList();
+  const c = document.getElementById('pmListContainer');
+  c.innerHTML = list.map((pm, i) => `
+    <div class="pm-list-item">
+      <span>${pm}</span>
+      <button class="pm-del-btn" onclick="deletePM(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function addNewPM() {
+  const input = document.getElementById('newPmInput');
+  const val = input.value.trim();
+  if(!val) return;
+  const list = getPMList();
+  if(!list.includes(val)) {
+    list.push(val);
+    savePMList(list);
+    currentPM = val; 
+    localStorage.setItem(PM_KEY, currentPM);
+  }
+  input.value = '';
+  renderPmManagerList();
+  renderTopPmSelect();
+  render();
+}
+
+function deletePM(idx) {
+  const list = getPMList();
+  const pmToDelete = list[idx];
+
+  let isOwner = false;
+  for (let w of allWeeks) {
+    if (w.projects && w.projects.some(p => p.owner === pmToDelete)) {
+      isOwner = true; break;
+    }
+  }
+
+  if (isOwner) {
+    alert(`無法刪除：【${pmToDelete}】目前仍是某些專案的負責人 (Owner)。\n請先將其專案轉交給其他人後再進行刪除。`);
+    return;
+  }
+
+  if(confirm(`確定要移除 Team Member：${pmToDelete} 嗎？`)) {
+    if(pmToDelete === currentPM) { currentPM = 'all'; localStorage.setItem(PM_KEY, 'all'); }
+    list.splice(idx, 1);
+    savePMList(list);
+    renderPmManagerList();
+    renderTopPmSelect();
+    render();
+  }
+}
+
+function getPMOptionsHTML(selected) {
+  const list = getPMList(); let opts = `<option value="">-- Select --</option>`;
+  list.forEach(pm => { opts += `<option value="${pm}" ${pm===selected?'selected':''}>${pm}</option>`; });
+  return opts;
+}
+
+// ── LOCAL STORAGE ──
+function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } }
+function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(allWeeks)); }
+
+// ── DUMMY DATA GENERATOR (Req 7: 5 Projects, 3 PMs, 3 Weeks) ──
+function generateDummyData() {
+  const p1 = { name: "HEMS Gateway V3", code: "HEMS-03", owner: "Augus", deputy: "Bonnie", customer: "Internal", location: "Singapore" };
+  const p2 = { name: "Microgrid Pilot Phase 2", code: "MG-202", owner: "Augus", deputy: "Bonnie", customer: "Enterprise B", location: "Texas" };
+  const p3 = { name: "Optical Module NPI", code: "OPT-10", owner: "Josiah", deputy: "Augus", customer: "Auto OEM", location: "Taiwan" };
+  const p4 = { name: "LiDAR Assembly Line", code: "LIDAR-A2", owner: "Josiah", deputy: "Augus", customer: "Auto OEM", location: "California" };
+  const p5 = { name: "VPP Dashboard Cloud", code: "VPP-05", owner: "Bonnie", deputy: "Augus", customer: "Internal", location: "Global" };
+
+  const ms1 = [{name:"Architecture", date:"2026-04-05", status:"done"}, {name:"Backend", date:"2026-04-20", status:"in-progress"}, {name:"Release", date:"2026-05-15", status:"to-do"}];
+  const ms2 = [{name:"Survey", date:"2026-04-10", status:"done"}, {name:"Procurement", date:"2026-04-25", status:"at-risk"}, {name:"Install", date:"2026-06-01", status:"to-do"}];
+  const ms3 = [{name:"EVT Build", date:"2026-04-15", status:"in-progress"}, {name:"DVT", date:"2026-05-10", status:"to-do"}];
+  const ms4 = [{name:"Vendor Selection", date:"2026-04-08", status:"done"}, {name:"Tooling", date:"2026-05-01", status:"in-progress"}];
+  const ms5 = [{name:"UI/UX Review", date:"2026-04-12", status:"done"}, {name:"Alpha Launch", date:"2026-05-05", status:"in-progress"}];
+
+  return [
+    {
+      weekLabel: "W15 2026", weekDate: "Apr 06 – Apr 10", summary: "Q2 Kickoff. Solid progress across hardware modules. Procurement facing slight delays.", savedBy: "System",
+      projects: [
+        { ...p1, milestones: JSON.parse(JSON.stringify(ms1)), status: "green", progress: 20, highlight: "Architecture signed off.", next: "Begin backend API logic.", risk: "" },
+        { ...p2, milestones: JSON.parse(JSON.stringify(ms2)), status: "yellow", progress: 10, highlight: "Site survey completed by local team.", next: "Order inverters.", risk: "Vendor lead times are increasing." },
+        { ...p3, milestones: JSON.parse(JSON.stringify(ms3)), status: "green", progress: 15, highlight: "EVT materials prepared.", next: "Start SMT build.", risk: "" },
+        { ...p4, milestones: JSON.parse(JSON.stringify(ms4)), status: "green", progress: 30, highlight: "Vendor selected and contract signed.", next: "Kickoff tooling design.", risk: "" },
+        { ...p5, milestones: JSON.parse(JSON.stringify(ms5)), status: "green", progress: 25, highlight: "UI wireframes drafted.", next: "Review with stakeholders.", risk: "" }
+      ]
+    },
+    {
+      weekLabel: "W16 2026", weekDate: "Apr 13 – Apr 17", summary: "Hardware builds starting. Supply chain risks flagged in Microgrid project.", savedBy: "System",
+      projects: [
+        { ...p1, milestones: JSON.parse(JSON.stringify(ms1)), status: "green", progress: 35, highlight: "API endpoints 50% complete.", next: "Database integration.", risk: "" },
+        { ...p2, milestones: JSON.parse(JSON.stringify(ms2)), status: "red", progress: 15, highlight: "PO issued for inverters.", next: "Escalate delivery date.", risk: "Vendor confirmed 3-week delay." },
+        { ...p3, milestones: JSON.parse(JSON.stringify(ms3)), status: "green", progress: 25, highlight: "SMT build running smoothly.", next: "Initial optical tests.", risk: "" },
+        { ...p4, milestones: JSON.parse(JSON.stringify(ms4)), status: "yellow", progress: 40, highlight: "Tooling design under review.", next: "Approve 3D models.", risk: "Minor spec mismatch found." },
+        { ...p5, milestones: JSON.parse(JSON.stringify(ms5)), status: "green", progress: 40, highlight: "UI approved.", next: "Begin Frontend dev sprint.", risk: "" }
+      ]
+    },
+    {
+      weekLabel: "W17 2026", weekDate: "Apr 20 – Apr 24", summary: "Recovery plans in place for MG project. Optical modules showing excellent yield.", savedBy: "System",
+      projects: [
+        { ...p1, milestones: JSON.parse(JSON.stringify(ms1)), status: "green", progress: 50, highlight: "Backend API finished and deployed to staging.", next: "Begin frontend connection.", risk: "" },
+        { ...p2, milestones: JSON.parse(JSON.stringify(ms2)), status: "yellow", progress: 20, highlight: "Alternative vendor found for partial delivery.", next: "Receive first batch.", risk: "Still tracking overall schedule delay." },
+        { ...p3, milestones: JSON.parse(JSON.stringify(ms3)), status: "green", progress: 40, highlight: "First articles tested. Yield > 95%.", next: "Compile EVT report.", risk: "" },
+        { ...p4, milestones: JSON.parse(JSON.stringify(ms4)), status: "green", progress: 55, highlight: "Spec mismatch resolved. Tooling cut started.", next: "Wait for T0 samples.", risk: "" },
+        { ...p5, milestones: JSON.parse(JSON.stringify(ms5)), status: "green", progress: 60, highlight: "Frontend Sprint 1 deployed.", next: "Alpha testing prep.", risk: "" }
+      ]
+    }
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FIREBASE INIT
+// ═══════════════════════════════════════════════════════════════════
+async function initFirebase() {
+  if (FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+    setSyncDot('warn', 'Offline — Firebase not configured');
+    return;
+  }
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const { getFirestore, collection, onSnapshot, orderBy, query, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const app = initializeApp(FIREBASE_CONFIG); db = getFirestore(app);
+    onSnapshot(query(collection(db, 'weeks'), orderBy('weekLabel')), snap => {
+      allWeeks = snap.docs.map(d => d.data());
+      if (currentIdx < 0) currentIdx = allWeeks.length - 1;
+      setSyncDot('ok', 'Connected to Firebase ✓');
+      render();
+    }, err => {
+      setSyncDot('warn', 'Firebase error: ' + err.code);
+    });
+  } catch(e) {
+    setSyncDot('warn', 'Firebase failed to load');
+    console.warn("Firebase fall back to local.", e);
+  }
+}
+
+function setSyncDot(state, tip) {
+  const dot = document.getElementById('syncDot');
+  if (!dot) return;
+  dot.className = 'sync-dot ' + state;
+  dot.title = tip || (state === 'ok' ? 'Connected' : 'Offline');
+}
+async function persistWeek(week) {
+  if (db) {
+    try {
+      const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      await setDoc(doc(db, 'weeks', week.weekLabel.replace(/\s/g,'-')), week);
+    } catch(e) { saveLocal(); }
+  } else { saveLocal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDER & INTERACTIONS
+// ═══════════════════════════════════════════════════════════════════
+function toggleOverview() {
+  isOverview = !isOverview;
+  const btn = document.getElementById('btnOverview');
+  const pmSelect = document.getElementById('topPmSelect');
+  
+  if (isOverview) {
+    btn.textContent = "Exit Overview";
+    btn.classList.add('active');
+    pmSelect.classList.add('disabled');
+    pmSelect.disabled = true;
+  } else {
+    btn.textContent = "Overview";
+    btn.classList.remove('active');
+    pmSelect.classList.remove('disabled');
+    pmSelect.disabled = false;
+  }
+  render();
+}
+
+function triggerPrint() {
+  const originalState = isOverview;
+  isOverview = true;
+  render();
+  setTimeout(() => {
+    window.print();
+    isOverview = originalState;
+    render();
+  }, 100);
+}
+
+function render() {
+  const week = allWeeks[currentIdx];
+  document.getElementById('wNavLabel').textContent = week ? week.weekLabel : 'No data';
+
+  if (!week) {
+    document.getElementById('bannerTitle').textContent = 'No data yet';
+    document.getElementById('bannerMeta').textContent  = 'Click + New Week to begin';
+    document.getElementById('projGrid').innerHTML      = `<div class="empty"><h3>No weeks saved</h3></div>`;
+    document.getElementById('execView').style.display  = 'none';
+    return;
+  }
+
+  document.getElementById('bannerTitle').textContent = week.weekLabel;
+  let meta = week.weekDate || '';
+  let modifierText = `Last edited by ${week.lastModifiedBy || week.savedBy || 'System'}`;
+  if (week.lastModifiedAt) {
+      const modDate = new Date(week.lastModifiedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      modifierText += ` (${modDate})`;
+  }
+  meta += (meta ? '  ·  ' : '') + modifierText;
+  document.getElementById('bannerMeta').innerHTML = meta;
+
+  const allProjs = week.projects || [];
+  let viewProjs = allProjs;
+  
+  // STRICT FILTERING BY OWNER ONLY (When not in Overview)
+  if (currentPM && currentPM !== 'all') {
+    const safePM = currentPM.trim().toLowerCase();
+    viewProjs = allProjs.filter(p => (p.owner && p.owner.trim().toLowerCase() === safePM));
+  }
+
+  renderExecView(week, allProjs);
+  renderNormalView(week, viewProjs);
+
+  if (isOverview) {
+    document.getElementById('normalView').style.display = 'none';
+    document.getElementById('execView').style.display = 'block';
+  } else {
+    document.getElementById('normalView').style.display = 'block';
+    document.getElementById('execView').style.display = 'none';
+  }
+
+  const activeProjsForPills = isOverview ? allProjs : viewProjs;
+  const cnt = { green:0, yellow:0, red:0 };
+  activeProjsForPills.forEach(p => cnt[p.status]++);
+  document.getElementById('bannerPills').innerHTML = [
+    cnt.green  ? `<div class="pill pill-g"><div class="pill-dot"></div>${cnt.green} On Track</div>`:'',
+    cnt.yellow ? `<div class="pill pill-y"><div class="pill-dot"></div>${cnt.yellow} At Risk</div>` :'',
+    cnt.red    ? `<div class="pill pill-r"><div class="pill-dot"></div>${cnt.red} Critical</div>`   :'',
+  ].join('');
+}
+
+function renderNormalView(week, projs) {
+  const grid = document.getElementById('projGrid');
+  if (!projs.length) { 
+    grid.innerHTML = `<div class="empty"><h3>No projects owned by selected PM this week.</h3></div>`; 
+    return; 
+  }
+  
+  grid.innerHTML = projs.map((p) => {
+    const msArr = p.milestones || [];
+    const msHtml = msArr.length ? msArr.map(m => {
+      let badgeClass = 'to-do'; let badgeText = 'TO DO';
+      if(m.status === 'in-progress') { badgeClass = 'in-progress'; badgeText = 'IN PROG'; }
+      if(m.status === 'at-risk') { badgeClass = 'at-risk'; badgeText = 'RISK'; }
+      if(m.status === 'done') { badgeClass = 'in-progress'; badgeText = 'DONE'; } 
+      
+      return `
+      <div class="ms-node ${badgeClass}">
+        <div class="ms-dot"></div>
+        <div class="ms-node-left">
+          <span class="ms-name">${m.name}</span>
+          <span class="ms-date">${m.date||'TBD'}</span>
+        </div>
+        <span class="ms-status-badge ${badgeClass}">${badgeText}</span>
+      </div>`;
+    }).join('') : `<div style="font-size:12px; color:var(--muted2); font-style:italic;">No milestones set</div>`;
+
+    return `
+    <div class="proj-card">
+      <div class="card-stripe ${p.status}"></div>
+      
+      <div class="card-actions">
+        <button class="action-icon" onclick="openProjSettings('${p.code}', false)" title="Background Info & Milestones">⚙️</button>
+        <button class="action-icon update" onclick="openProjUpdate('${p.code}')" title="Weekly Status">📝</button>
+      </div>
+
+      <div class="card-body">
+        <div class="card-hdr">
+          <div class="proj-name">${p.name}</div>
+          <div class="proj-code">${p.code}</div>
+        </div>
+        
+        <div class="card-section-bg">
+          <div class="proj-bg-grid">
+            <div class="info-box"><span class="info-lbl">OWNER</span><span class="info-val owner">${p.owner||'—'}</span></div>
+            <div class="info-box"><span class="info-lbl">DEPUTY</span><span class="info-val">${p.deputy||'—'}</span></div>
+            <div class="info-box"><span class="info-lbl">CUSTOMER</span><span class="info-val">${p.customer||'—'}</span></div>
+            <div class="info-box"><span class="info-lbl">LOCATION</span><span class="info-val">${p.location||'—'}</span></div>
+          </div>
+          <div class="info-lbl" style="margin-bottom:8px;">MILESTONES ROADMAP</div>
+          <div class="ms-dash-container">${msHtml}</div>
+        </div>
+
+        <div class="card-section-prog">
+          <div class="rag-row">
+            <div class="info-lbl">CURRENT STATUS</div>
+            <div class="rag ${p.status}">${p.status==='green'?'ON TRACK':p.status==='yellow'?'AT RISK':'CRITICAL'}</div>
+          </div>
+
+          <div class="prog-row">
+            <div class="prog-track"><div class="prog-fill ${p.status}" style="width:${p.progress||0}%"></div></div>
+            <div class="prog-pct">${p.progress||0}%</div>
+          </div>
+          
+          <div class="slabel">HIGHLIGHT</div>
+          <div class="stext ${!p.highlight?'empty':''}">${p.highlight||'No updates.'}</div>
+          
+          <div class="slabel">NEXT STEPS</div>
+          <div class="stext ${!p.next?'empty':''}">${p.next||'None.'}</div>
+          
+          ${p.risk ? `<div class="slabel">RISK / BLOCKER</div><div class="stext risk">${p.risk}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderExecView(week, projs) {
+  const container = document.getElementById('execView');
+  let html = '';
+  if (week.summary) {
+    html += `<div class="exec-summary-box"><div class="exec-summary-title">EXECUTIVE SUMMARY</div><div class="exec-summary-text">${week.summary}</div></div>`;
+  }
+  const critical = projs.filter(p => p.status === 'red');
+  const atRisk   = projs.filter(p => p.status === 'yellow');
+  const onTrack  = projs.filter(p => p.status === 'green');
+
+  const buildTable = (projects, isRisk) => {
+    if (!projects.length) return `<div style="font-size:14px; color:var(--muted); padding:10px 0;">None at this time.</div>`;
+    return `<table class="exec-table">
+      <thead><tr><th style="width:22%">Project</th><th style="width:15%">Progress</th><th style="width:35%">Highlight / Status</th><th style="width:28%">${isRisk ? 'Key Risk / Blocker' : 'Next Steps'}</th></tr></thead>
+      <tbody>${projects.map(p => `<tr>
+        <td>
+          <span class="exec-pname">${p.name}</span>
+          <span class="exec-powner">${p.owner||'No Owner'}</span>
+        </td>
+        <td>
+          <div class="mini-pct">${p.progress||0}%</div>
+          <div class="mini-prog-wrapper"><div class="mini-prog"><div class="mini-prog-fill ${p.status}" style="width:${p.progress||0}%"></div></div></div>
+        </td>
+        <td>${p.highlight || '—'}</td>
+        <td class="${isRisk && p.risk ? 'stext risk' : ''}" style="${isRisk && p.risk ? 'padding:8px; border-radius:6px;' : ''}">${(isRisk ? p.risk : p.next) || '—'}</td>
+      </tr>`).join('')}</tbody></table>`;
+  };
+
+  html += `<div class="exec-group"><div class="exec-group-title"><div class="pill-dot" style="background:var(--red);"></div> Critical Projects</div>${buildTable(critical, true)}</div>
+           <div class="exec-group"><div class="exec-group-title"><div class="pill-dot" style="background:var(--yellow);"></div> At Risk Projects</div>${buildTable(atRisk, true)}</div>
+           <div class="exec-group"><div class="exec-group-title"><div class="pill-dot" style="background:var(--green);"></div> On Track Projects</div>${buildTable(onTrack, false)}</div>`;
+  container.innerHTML = html;
+}
+
+function navWeek(dir) { if (!allWeeks.length) return; currentIdx = Math.max(0, Math.min(allWeeks.length-1, currentIdx+dir)); render(); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  WEEK CREATION & EDITING
+// ═══════════════════════════════════════════════════════════════════
+function openNewWeekModal() {
+  let maxYear = new Date().getFullYear();
+  let maxWk = 1;
+  if (allWeeks.length > 0) {
+     const last = allWeeks[allWeeks.length - 1];
+     const match = last.weekLabel.match(/W(\d+)\s+(\d+)/);
+     if (match) {
+         maxWk = parseInt(match[1]) + 1;
+         maxYear = parseInt(match[2]);
+         if (maxWk > 52) { maxWk = 1; maxYear++; }
+     }
+  }
+  document.getElementById('nw_year').value = maxYear;
+  document.getElementById('nw_week').value = maxWk;
+  previewNewWeek();
+  document.getElementById('newWeekOverlay').classList.add('open');
+}
+
+function previewNewWeek() {
+  const y = parseInt(document.getElementById('nw_year').value);
+  const w = parseInt(document.getElementById('nw_week').value);
+  
+  if(!y || !w) return;
+
+  const d1 = new Date(y, 0, 4);
+  const day = d1.getDay() || 7; 
+  d1.setDate(d1.getDate() - day + 1); 
+  d1.setDate(d1.getDate() + (w - 1) * 7); 
+  const d2 = new Date(d1);
+  d2.setDate(d2.getDate() + 4); 
+  
+  const fmt = dt => dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const range = `${fmt(d1)} – ${fmt(d2)}`;
+  const label = `W${w} ${y}`;
+  
+  document.getElementById('nw_date_ref').value = range;
+
+  const exists = allWeeks.some(week => week.weekLabel === label);
+  const btn = document.getElementById('btn_create_week');
+  const err = document.getElementById('nw_error');
+
+  if (exists) {
+      err.style.display = 'block';
+      btn.disabled = true;
+  } else {
+      err.style.display = 'none';
+      btn.disabled = false;
+  }
+}
+
+async function submitNewWeek() {
+  const y = parseInt(document.getElementById('nw_year').value);
+  const w = parseInt(document.getElementById('nw_week').value);
+  const label = `W${w} ${y}`;
+  const range = document.getElementById('nw_date_ref').value;
+
+  const lastWeek = allWeeks[allWeeks.length - 1];
+  let clonedProjects = [];
+  if (lastWeek && lastWeek.projects) {
+    clonedProjects = JSON.parse(JSON.stringify(lastWeek.projects)).map(p => ({
+       ...p, highlight: '', next: '', risk: ''
+    }));
+  }
+
+  const newWeekData = {
+    weekLabel: label, weekDate: range, summary: "",
+    savedBy: currentPM === 'all' ? 'System' : currentPM,
+    savedAt: new Date().toISOString(), projects: clonedProjects
+  };
+
+  allWeeks.push(newWeekData);
+  currentIdx = allWeeks.length - 1;
+  await persistWeek(newWeekData);
+  document.getElementById('newWeekOverlay').classList.remove('open');
+  render();
+}
+
+function openWeekInfoEdit() {
+  const week = allWeeks[currentIdx];
+  if(!week) { alert("Please create a week first."); return; }
+  
+  document.getElementById('w_label_ro').value = week.weekLabel || '';
+  document.getElementById('w_date_ro').value = week.weekDate || '';
+  document.getElementById('w_summary').value = week.summary || '';
+  document.getElementById('weekInfoOverlay').classList.add('open');
+}
+
+async function saveWeekInfo() {
+  const week = allWeeks[currentIdx];
+  week.summary = document.getElementById('w_summary').value.trim();
+  week.lastModifiedBy = currentPM === 'all' ? 'System' : currentPM; 
+  week.lastModifiedAt = new Date().toISOString();
+  
+  await persistWeek(week);
+  document.getElementById('weekInfoOverlay').classList.remove('open'); 
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROJECT SETTINGS & MILESTONES (Drag & Drop with Animation)
+// ═══════════════════════════════════════════════════════════════════
+function renderMilestoneRows(milestones) {
+  const c = document.getElementById('msListContainer');
+  c.innerHTML = '';
+  if(!milestones || milestones.length === 0) { addMilestoneRow(); return; }
+  milestones.forEach(m => addMilestoneRow(m.name, m.date, m.status));
+}
+
+function addMilestoneRow(name='', date='', status='to-do') {
+  const c = document.getElementById('msListContainer');
+  const div = document.createElement('div');
+  div.className = 'ms-row';
+  div.setAttribute('draggable', 'true');
+  
+  div.innerHTML = `
+    <div class="ms-grip" title="Drag to reorder">☰</div>
+    <input class="fi ms-name" value="${name}" placeholder="Name (e.g. EVT)" style="flex:2">
+    <input class="fi ms-date" type="date" value="${date}" onchange="validateMilestoneDates()" style="flex:1">
+    <select class="fs ms-status" style="flex:1">
+      <option value="to-do" ${status==='to-do'?'selected':''}>To Do</option>
+      <option value="in-progress" ${status==='in-progress'?'selected':''}>In Prog</option>
+      <option value="at-risk" ${status==='at-risk'?'selected':''}>At Risk</option>
+      <option value="done" ${status==='done'?'selected':''}>Done</option>
+    </select>
+    <button class="ms-btn del" onclick="this.closest('.ms-row').remove(); validateMilestoneDates()" title="Delete">✕</button>
+  `;
+  
+  div.addEventListener('dragstart', handleDragStart);
+  div.addEventListener('dragend', handleDragEnd);
+  div.addEventListener('dragenter', handleDragEnter);
+  div.addEventListener('dragleave', handleDragLeave);
+  div.addEventListener('dragover', handleDragOver);
+  div.addEventListener('drop', handleDrop);
+  
+  c.appendChild(div);
+  validateMilestoneDates();
+}
+
+let dragSrcEl = null;
+
+function handleDragStart(e) {
+  dragSrcEl = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/html', this.innerHTML);
+  this.classList.add('dragging');
+}
+function handleDragEnter(e) {
+  if(this === dragSrcEl) return;
+  const list = Array.from(this.parentNode.children);
+  const srcIdx = list.indexOf(dragSrcEl);
+  const tgtIdx = list.indexOf(this);
+  if (srcIdx < tgtIdx) this.classList.add('drag-over-bottom');
+  else this.classList.add('drag-over-top');
+}
+function handleDragLeave(e) {
+  this.classList.remove('drag-over-top');
+  this.classList.remove('drag-over-bottom');
+}
+function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+function handleDrop(e) {
+  e.stopPropagation(); 
+  this.classList.remove('drag-over-top'); this.classList.remove('drag-over-bottom');
+  if (dragSrcEl !== this) {
+    const list = Array.from(this.parentNode.children);
+    const srcIdx = list.indexOf(dragSrcEl);
+    const tgtIdx = list.indexOf(this);
+    if (srcIdx < tgtIdx) this.parentNode.insertBefore(dragSrcEl, this.nextSibling);
+    else this.parentNode.insertBefore(dragSrcEl, this);
+    validateMilestoneDates();
+  }
+  return false;
+}
+function handleDragEnd(e) {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.ms-row').forEach(row => { row.classList.remove('drag-over-top'); row.classList.remove('drag-over-bottom'); });
+}
+
+function validateMilestoneDates() {
+  const rows = document.querySelectorAll('#msListContainer .ms-row');
+  let prevDateStr = null;
+  for(let i=0; i<rows.length; i++) {
+    const dateInput = rows[i].querySelector('.ms-date');
+    dateInput.classList.remove('error-date'); 
+    const currDateStr = dateInput.value;
+    if (currDateStr) {
+      if (prevDateStr && currDateStr < prevDateStr) dateInput.classList.add('error-date');
+      else prevDateStr = currDateStr;
+    }
+  }
+}
+
+function openProjSettings(code, isNew=false) {
+  const week = allWeeks[currentIdx];
+  if(!week) { alert("Please create a week first."); return; }
+
+  isCreatingNewProject = isNew;
+  editingProjCode = code;
+
+  let p = {};
+  if (!isNew) {
+    p = week.projects.find(x => x.code === code);
+    document.getElementById('psTitle').textContent = `Settings: ${p.name}`;
+    document.getElementById('ps_code').disabled = true;
+  } else {
+    document.getElementById('psTitle').textContent = `Create New Project`;
+    document.getElementById('ps_code').disabled = false;
+    p.owner = currentPM === 'all' ? '' : currentPM; 
+  }
+
+  document.getElementById('ps_name').value = p.name || '';
+  document.getElementById('ps_code').value = p.code || '';
+  document.getElementById('ps_owner').innerHTML = getPMOptionsHTML(p.owner);
+  document.getElementById('ps_deputy').innerHTML = getPMOptionsHTML(p.deputy);
+  document.getElementById('ps_customer').value = p.customer || '';
+  document.getElementById('ps_location').value = p.location || '';
+  
+  renderMilestoneRows(p.milestones || []);
+  document.getElementById('projSettingsOverlay').classList.add('open');
+}
+
+async function saveProjSettings() {
+  const name = document.getElementById('ps_name').value.trim();
+  const code = document.getElementById('ps_code').value.trim();
+  if(!name || !code) { alert("Name and Code are required."); return; }
+
+  const codeUpper = code.toUpperCase();
+  const week = allWeeks[currentIdx];
+
+  // UNIQUE CODE VALIDATION LOGIC
+  let isDuplicate = false;
+  for (let p of week.projects) {
+      if (!isCreatingNewProject && p.code === editingProjCode) { continue; } // Skip self
+      if (p.code && p.code.trim().toUpperCase() === codeUpper) { isDuplicate = true; break; }
+  }
+
+  if (isDuplicate) {
+      alert(`Project code "${code}" already exists! Please use a unique code.`);
+      return;
+  }
+
+  const msRows = document.querySelectorAll('#msListContainer .ms-row');
+  const milestones = [];
+  msRows.forEach(row => {
+    const mName = row.querySelector('.ms-name').value.trim();
+    const mDate = row.querySelector('.ms-date').value;
+    const mStatus = row.querySelector('.ms-status').value;
+    if(mName) milestones.push({name: mName, date: mDate, status: mStatus});
+  });
+
+  if (isCreatingNewProject) {
+    week.projects.push({
+      name, code, owner: document.getElementById('ps_owner').value, deputy: document.getElementById('ps_deputy').value,
+      customer: document.getElementById('ps_customer').value.trim(), location: document.getElementById('ps_location').value.trim(),
+      milestones: milestones, status: "green", progress: 0, highlight: "", next: "", risk: ""
+    });
+  } else {
+    const idx = week.projects.findIndex(p => p.code === editingProjCode);
+    if(idx > -1) {
+      week.projects[idx].name = name; 
+      week.projects[idx].code = code; // safe to assign
+      week.projects[idx].owner = document.getElementById('ps_owner').value;
+      week.projects[idx].deputy = document.getElementById('ps_deputy').value; 
+      week.projects[idx].customer = document.getElementById('ps_customer').value.trim();
+      week.projects[idx].location = document.getElementById('ps_location').value.trim(); 
+      week.projects[idx].milestones = milestones;
+    }
+  }
+
+  week.lastModifiedBy = currentPM === 'all' ? 'System' : currentPM; 
+  week.lastModifiedAt = new Date().toISOString();
+  await persistWeek(week);
+  
+  document.getElementById('projSettingsOverlay').classList.remove('open');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROJECT WEEKLY UPDATE 
+// ═══════════════════════════════════════════════════════════════════
+function openProjUpdate(code) {
+  editingProjCode = code;
+  const week = allWeeks[currentIdx];
+  const p = week.projects.find(x => x.code === code);
+  if(!p) return;
+
+  document.getElementById('puTitle').textContent = `Update: ${p.name}`;
+  document.getElementById('pu_status').value = p.status || 'green';
+  document.getElementById('pu_progress').value = p.progress || 0;
+  document.getElementById('pu_highlight').value = p.highlight || '';
+  document.getElementById('pu_next').value = p.next || '';
+  document.getElementById('pu_risk').value = p.risk || '';
+
+  document.getElementById('projUpdateOverlay').classList.add('open');
+}
+
+async function saveProjUpdate() {
+  const week = allWeeks[currentIdx];
+  const idx = week.projects.findIndex(p => p.code === editingProjCode);
+  if(idx > -1) {
+    week.projects[idx].status = document.getElementById('pu_status').value;
+    week.projects[idx].progress = parseInt(document.getElementById('pu_progress').value)||0;
+    week.projects[idx].highlight = document.getElementById('pu_highlight').value.trim();
+    week.projects[idx].next = document.getElementById('pu_next').value.trim();
+    week.projects[idx].risk = document.getElementById('pu_risk').value.trim();
+    
+    week.lastModifiedBy = currentPM === 'all' ? 'System' : currentPM; 
+    week.lastModifiedAt = new Date().toISOString();
+    await persistWeek(week);
+  }
+  document.getElementById('projUpdateOverlay').classList.remove('open');
+  render();
+}
+
+// ── Overlays Click Outside to Close ──
+['weekInfoOverlay', 'projSettingsOverlay', 'projUpdateOverlay', 'setupHelpModal', 'pmManageModal', 'newWeekOverlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+(async function boot() {
+  renderTopPmSelect();
+  allWeeks = loadLocal();
+  if (allWeeks.length === 0) { allWeeks = generateDummyData(); saveLocal(); }
+  currentIdx = allWeeks.length - 1;
+  render(); 
+  await initFirebase();
+})();
+</script>
+</body>
+</html>
