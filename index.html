@@ -136,13 +136,27 @@ body {
 .info-val { font-size: 13px; font-weight: 600; }
 .info-val.owner { color: var(--accent-hov); }
 
+/* Milestone Styling 修正 3 & 4: 狀態對應專案顏色 */
 .ms-container { border-left: 2px dashed var(--border); margin-left: 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 14px; }
 .ms-node { position: relative; display: flex; align-items: center; justify-content: space-between; }
-.ms-dot { position: absolute; left: -25px; width: 12px; height: 12px; border-radius: 50%; background: var(--s1); border: 2px solid var(--border2); }
+.ms-dot { position: absolute; left: -25px; width: 12px; height: 12px; border-radius: 50%; background: var(--s1); border: 2px solid var(--border2); transition: 0.3s; }
+.ms-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; transition: 0.3s; }
+
+/* to-do (灰色) */
+.ms-node.to-do .ms-dot { border-color: var(--border2); }
+.ms-status.to-do { background: var(--s3); color: var(--muted); }
+
+/* in-progress (綠色) */
+.ms-node.in-progress .ms-dot { background: var(--accent); border-color: var(--s1); box-shadow: 0 0 0 2px var(--adim); }
+.ms-status.in-progress { background: var(--adim); color: var(--accent-hov); }
+
+/* done (淺綠色) */
 .ms-node.done .ms-dot { background: var(--green); border-color: var(--s1); box-shadow: 0 0 0 2px var(--gdim); }
-.ms-node.in-progress .ms-dot { background: var(--accent); border-color: var(--s1); }
-.ms-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; background: var(--s3); color: var(--muted); }
-.ms-status.done { background: var(--gdim); color: var(--accent-hov); }
+.ms-status.done { background: var(--gdim); color: var(--accent-hov); opacity: 0.8; }
+
+/* at-risk (黃色對應專案 At Risk) */
+.ms-node.at-risk .ms-dot { background: var(--yellow); border-color: var(--s1); box-shadow: 0 0 0 2px var(--ydim); }
+.ms-status.at-risk { background: var(--ydim); color: #B09854; }
 
 .prog-section { margin-top: 20px; }
 .prog-bar-bg { height: 6px; background: var(--bg); border-radius: 3px; margin: 10px 0; overflow: hidden; }
@@ -175,7 +189,6 @@ body {
 .exec-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
 .exec-table th { background: var(--s2); padding: 14px; text-align: left; font-size: 11px; color: var(--muted); }
 .exec-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
-/* 讓 Bullet point 的行高更好看 */
 .exec-table td ul { margin: 0; padding-left: 16px; list-style-type: disc; }
 .exec-table td ul li { margin-bottom: 4px; }
 .exec-table td ul li:last-child { margin-bottom: 0; }
@@ -491,10 +504,8 @@ function canEditProject(proj) {
          deputy.includes(userPrefix) || deputy.includes(userAlias);
 }
 
-// ── OVERVIEW BULLET POINT FORMATTER ──
 function formatBullets(text) {
   if (!text || !text.trim()) return '-';
-  // 將文字依換行符號切割，並自動濾除開頭可能已經手打的 - 或 *
   const lines = text.split('\n').map(l => l.trim().replace(/^[-*•]\s*/, '')).filter(l => l);
   if (lines.length === 0) return '-';
   return `<ul>` + lines.map(l => `<li>${l}</li>`).join('') + `</ul>`;
@@ -543,13 +554,13 @@ function renderNormal(projs) {
         </div>
         <div class="ms-container">
           ${(p.milestones || []).map(m => `
-            <div class="ms-node ${m.status==='done'?'done':'in-progress'}">
+            <div class="ms-node ${m.status || 'to-do'}">
               <div class="ms-dot"></div>
               <div style="display:flex; flex-direction:column;">
                 <div style="font-size:12px; font-weight:600;">${m.name}</div>
                 <div style="font-size:9px; color:var(--muted);">${m.date || 'No Date'}</div>
               </div>
-              <div class="ms-status ${m.status==='done'?'done':''}">${m.status}</div>
+              <div class="ms-status ${m.status || 'to-do'}">${m.status || 'to-do'}</div>
             </div>
           `).join('')}
         </div>
@@ -680,11 +691,17 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
   div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', ''); e.target.classList.add('dragging'); };
   div.ondragend = (e) => { e.target.classList.remove('dragging'); checkMsDates(); };
   
+  // 修正 2: 加入 at-risk 選項
   div.innerHTML = `
     <span style="cursor:grab; color:var(--muted)">☰</span>
     <input class="fi ms-name" style="flex:2" value="${name}" placeholder="Milestone Name">
     <input type="date" class="fi ms-date" value="${dateStr}" onchange="checkMsDates()">
-    <select class="fs ms-status"><option ${status==='to-do'?'selected':''}>to-do</option><option ${status==='in-progress'?'selected':''}>in-progress</option><option ${status==='done'?'selected':''}>done</option></select>
+    <select class="fs ms-status">
+      <option ${status==='to-do'?'selected':''}>to-do</option>
+      <option ${status==='in-progress'?'selected':''}>in-progress</option>
+      <option ${status==='at-risk'?'selected':''}>at-risk</option>
+      <option ${status==='done'?'selected':''}>done</option>
+    </select>
     <button onclick="this.parentElement.remove(); checkMsDates();" style="border:none; background:none; cursor:pointer;">🗑️</button>
   `;
   document.getElementById('msListContainer').appendChild(div);
@@ -812,19 +829,31 @@ function getIsoWeekData(baseDate, offsetWeeks) {
   };
 }
 
+// 修正 1: 只產生最新一週的「下一週」
 window.openNewWeekModal = () => {
   const sel = document.getElementById('nw_label');
   sel.innerHTML = '';
-  const now = new Date();
   
-  for(let i=0; i<15; i++) {
-    const wkData = getIsoWeekData(now, i);
-    const opt = document.createElement('option');
-    opt.value = wkData.label;
-    opt.dataset.date = wkData.dateStr;
-    opt.textContent = wkData.label;
-    sel.appendChild(opt);
+  // 找出目前系統中的最新週數作為基準日
+  let baseDate = new Date();
+  if (allWeeks.length > 0) {
+    const lastWk = allWeeks[allWeeks.length - 1];
+    const yearMatch = lastWk.weekLabel.match(/\d{4}/);
+    const year = yearMatch ? yearMatch[0] : new Date().getFullYear();
+    const monthDay = lastWk.weekDate.split('-')[0].trim();
+    const parsedDate = new Date(`${monthDay}, ${year}`);
+    if (!isNaN(parsedDate)) {
+       baseDate = parsedDate;
+    }
   }
+  
+  // 只計算 +1 週
+  const wkData = getIsoWeekData(baseDate, 1);
+  const opt = document.createElement('option');
+  opt.value = wkData.label;
+  opt.dataset.date = wkData.dateStr;
+  opt.textContent = wkData.label;
+  sel.appendChild(opt);
   
   window.updateNwDate();
   document.getElementById('newWeekOverlay').classList.add('open');
@@ -833,7 +862,7 @@ window.openNewWeekModal = () => {
 window.updateNwDate = () => {
   const sel = document.getElementById('nw_label');
   const opt = sel.options[sel.selectedIndex];
-  document.getElementById('nw_date').value = opt.dataset.date;
+  if(opt) document.getElementById('nw_date').value = opt.dataset.date;
 };
 
 window.createNewWeek = async () => {
