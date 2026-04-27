@@ -84,6 +84,8 @@ body {
 .display-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .role-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: var(--s3); color: var(--muted); text-transform: uppercase; }
 .role-badge.admin { background: var(--adim); color: var(--accent-hov); }
+/* VIP 專屬金牌 */
+.role-badge.vip { background: var(--ydim); color: #B09854; }
 
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); transition: background 0.3s; }
 .sync-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--gdim); }
@@ -136,7 +138,7 @@ body {
 .info-val { font-size: 13px; font-weight: 600; }
 .info-val.owner { color: var(--accent-hov); }
 
-/* Milestone Styling 修正 3 & 4: 狀態對應專案顏色 */
+/* Milestone Styling */
 .ms-container { border-left: 2px dashed var(--border); margin-left: 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 14px; }
 .ms-node { position: relative; display: flex; align-items: center; justify-content: space-between; }
 .ms-dot { position: absolute; left: -25px; width: 12px; height: 12px; border-radius: 50%; background: var(--s1); border: 2px solid var(--border2); transition: 0.3s; }
@@ -154,7 +156,7 @@ body {
 .ms-node.done .ms-dot { background: var(--green); border-color: var(--s1); box-shadow: 0 0 0 2px var(--gdim); }
 .ms-status.done { background: var(--gdim); color: var(--accent-hov); opacity: 0.8; }
 
-/* at-risk (黃色對應專案 At Risk) */
+/* at-risk (黃色) */
 .ms-node.at-risk .ms-dot { background: var(--yellow); border-color: var(--s1); box-shadow: 0 0 0 2px var(--ydim); }
 .ms-status.at-risk { background: var(--ydim); color: #B09854; }
 
@@ -231,7 +233,7 @@ body {
   </div>
 
   <div class="hdr-mid">
-    <select id="topPmSelect" class="pm-select" onchange="handleTopPmChange()"></select>
+    <select id="topPmSelect" class="pm-select vip-hidden" onchange="handleTopPmChange()"></select>
     <div class="week-nav">
       <button onclick="navWeek(-1)">‹</button>
       <span class="wlabel" id="wNavLabel">—</span>
@@ -240,11 +242,11 @@ body {
   </div>
 
   <div class="hdr-right">
-    <button class="btn btn-ghost" onclick="toggleOverview()" id="btnOverview">Overview</button>
-    <button class="btn btn-ghost" onclick="window.print()">🖨️ PDF</button>
-    <button class="btn btn-ghost" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
-    <button class="btn btn-ghost" onclick="openProjSettings('', true)">+ New Project</button>
-    <button class="btn btn-primary" onclick="openNewWeekModal()">+ New Week</button>
+    <button class="btn btn-ghost vip-hidden" onclick="toggleOverview()" id="btnOverview">Overview</button>
+    <button class="btn btn-ghost vip-hidden" onclick="window.print()">🖨️ PDF</button>
+    <button class="btn btn-ghost vip-hidden" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
+    <button class="btn btn-ghost vip-hidden" onclick="openProjSettings('', true)">+ New Project</button>
+    <button class="btn btn-primary vip-hidden" onclick="openNewWeekModal()">+ New Week</button>
     
     <div class="user-block">
       <span id="displayUser" class="display-name">...</span>
@@ -468,7 +470,28 @@ function setupUI() {
   document.getElementById('displayUser').textContent = currentUser.email.split('@')[0].toUpperCase();
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
-  if(currentRole === 'admin') rBadge.classList.add('admin');
+  
+  // 每次重置 UI 狀態，避免登出後換帳號殘留前一個帳號的畫面設定
+  rBadge.className = 'role-badge';
+  document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
+  isOverview = false;
+  document.getElementById('btnOverview').classList.remove('active');
+  document.getElementById('normalView').style.display = 'block';
+  document.getElementById('execView').style.display = 'none';
+  
+  if(currentRole === 'admin') {
+    rBadge.classList.add('admin');
+  } 
+  // VIP 權限邏輯
+  else if (currentRole === 'vip') {
+    rBadge.classList.add('vip');
+    // 隱藏不必要的按鈕 (包含 PM選單, Overview切換, PDF, 設定按鈕)
+    document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = 'none');
+    // 強制鎖定在 Overview 畫面
+    isOverview = true;
+    document.getElementById('normalView').style.display = 'none';
+    document.getElementById('execView').style.display = 'block';
+  }
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">Team View (All PMs)</option>` + 
@@ -486,6 +509,7 @@ function initData() {
 
 function canEditProject(proj) {
   if (currentRole === 'admin') return true;
+  if (currentRole === 'vip') return false; // VIP 完全沒有編輯權限
   if (!currentUser) return false;
   
   const userEmail = currentUser.email.toLowerCase();
@@ -529,6 +553,16 @@ function render() {
 
   renderNormal(projs);
   renderExec(projs, week.summary);
+  
+  // 確保 VIP 切換週數時不會跑版，永遠鎖定在 Overview
+  if (currentRole === 'vip') {
+    document.getElementById('normalView').style.display = 'none';
+    document.getElementById('execView').style.display = 'block';
+  } else {
+    // Admin/PM 狀態下，遵守 isOverview 的切換狀態
+    document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
+    document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+  }
 }
 
 function renderNormal(projs) {
@@ -622,6 +656,7 @@ window.handleTopPmChange = () => {
   render();
 };
 window.toggleOverview = () => {
+  if (currentRole === 'vip') return; // 防呆：避免 VIP 透過 console 呼叫切換
   isOverview = !isOverview;
   document.getElementById('btnOverview').classList.toggle('active');
   document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
@@ -691,7 +726,6 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
   div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', ''); e.target.classList.add('dragging'); };
   div.ondragend = (e) => { e.target.classList.remove('dragging'); checkMsDates(); };
   
-  // 修正 2: 加入 at-risk 選項
   div.innerHTML = `
     <span style="cursor:grab; color:var(--muted)">☰</span>
     <input class="fi ms-name" style="flex:2" value="${name}" placeholder="Milestone Name">
@@ -829,12 +863,10 @@ function getIsoWeekData(baseDate, offsetWeeks) {
   };
 }
 
-// 修正 1: 只產生最新一週的「下一週」
 window.openNewWeekModal = () => {
   const sel = document.getElementById('nw_label');
   sel.innerHTML = '';
   
-  // 找出目前系統中的最新週數作為基準日
   let baseDate = new Date();
   if (allWeeks.length > 0) {
     const lastWk = allWeeks[allWeeks.length - 1];
@@ -847,7 +879,6 @@ window.openNewWeekModal = () => {
     }
   }
   
-  // 只計算 +1 週
   const wkData = getIsoWeekData(baseDate, 1);
   const opt = document.createElement('option');
   opt.value = wkData.label;
