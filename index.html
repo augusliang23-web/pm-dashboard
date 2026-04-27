@@ -53,6 +53,11 @@ body {
   background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; 
 }
 
+/* ── LOADER (新增過場動畫) ── */
+#globalLoader { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease; }
+.spinner { width: 44px; height: 44px; border: 4px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .login-card { width: 380px; padding: 40px; background: var(--s1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
@@ -84,24 +89,17 @@ body {
 .display-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .role-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: var(--s3); color: var(--muted); text-transform: uppercase; }
 .role-badge.admin { background: var(--adim); color: var(--accent-hov); }
-/* VIP 專屬金牌 */
 .role-badge.vip { background: var(--ydim); color: #B09854; }
 
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); transition: background 0.3s; }
 .sync-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--gdim); }
 
-.pm-select {
-  font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 6px; 
-  background: var(--s1); border: 1px solid var(--border2); color: var(--text); outline: none;
-}
+.pm-select { font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 6px; background: var(--s1); border: 1px solid var(--border2); color: var(--text); outline: none; }
 .week-nav { display: flex; align-items: center; gap: 4px; background: var(--s1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
 .week-nav button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 8px; font-size: 16px; }
 .wlabel { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; min-width: 100px; text-align: center; }
 
-.btn {
-  font-size: 12px; font-weight: 700; padding: 8px 12px; border-radius: 6px; cursor: pointer;
-  border: 1px solid var(--border2); transition: all .2s; white-space: nowrap;
-}
+.btn { font-size: 12px; font-weight: 700; padding: 8px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; }
 .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-primary:hover { background: var(--accent-hov); }
 .btn-ghost { background: var(--s1); color: var(--text-light); }
@@ -110,17 +108,14 @@ body {
 
 /* ── MAIN ── */
 .main { max-width: 1500px; margin: 0 auto; padding: 24px 32px; }
-.wk-banner {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); 
-  padding: 24px 32px; margin-bottom: 24px;
-}
+.wk-banner { display: flex; align-items: center; justify-content: space-between; background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 32px; margin-bottom: 24px; }
 .wk-banner h2 { font-size: 20px; font-weight: 700; }
 .wk-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 /* PROJ CARD */
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 24px; }
-.proj-card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.proj-card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: var(--shadow); cursor: pointer; transition: 0.2s; }
+.proj-card:hover { border-color: var(--muted2); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .card-stripe { height: 4px; }
 .card-stripe.green { background: var(--green); }
 .card-stripe.yellow { background: var(--yellow); }
@@ -144,19 +139,12 @@ body {
 .ms-dot { position: absolute; left: -25px; width: 12px; height: 12px; border-radius: 50%; background: var(--s1); border: 2px solid var(--border2); transition: 0.3s; }
 .ms-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; transition: 0.3s; }
 
-/* to-do (灰色) */
 .ms-node.to-do .ms-dot { border-color: var(--border2); }
 .ms-status.to-do { background: var(--s3); color: var(--muted); }
-
-/* in-progress (綠色) */
 .ms-node.in-progress .ms-dot { background: var(--accent); border-color: var(--s1); box-shadow: 0 0 0 2px var(--adim); }
 .ms-status.in-progress { background: var(--adim); color: var(--accent-hov); }
-
-/* done (淺綠色) */
 .ms-node.done .ms-dot { background: var(--green); border-color: var(--s1); box-shadow: 0 0 0 2px var(--gdim); }
 .ms-status.done { background: var(--gdim); color: var(--accent-hov); opacity: 0.8; }
-
-/* at-risk (黃色) */
 .ms-node.at-risk .ms-dot { background: var(--yellow); border-color: var(--s1); box-shadow: 0 0 0 2px var(--ydim); }
 .ms-status.at-risk { background: var(--ydim); color: #B09854; }
 
@@ -181,6 +169,11 @@ body {
 .fi, .fs, .ft { padding: 10px; border: 1px solid var(--border2); border-radius: 6px; outline: none; font-family: inherit; }
 .fi:focus { border-color: var(--accent); }
 
+/* Read-Only Project Detail Layout */
+#projDetailOverlay .modal { width: 950px; }
+.detail-grid { display: grid; grid-template-columns: 2fr 1.2fr; gap: 32px; }
+.detail-right { background: var(--s2); padding: 24px; border-radius: 8px; border: 1px solid var(--border); height: fit-content; }
+
 /* Milestone Drag CSS */
 .ms-row { padding: 4px; border-radius: 4px; transition: 0.2s; background: var(--s1); }
 .ms-row.dragging { opacity: 0.5; background: var(--s3); }
@@ -190,10 +183,19 @@ body {
 .exec-view { display: none; animation: fadeIn 0.3s; }
 .exec-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
 .exec-table th { background: var(--s2); padding: 14px; text-align: left; font-size: 11px; color: var(--muted); }
-.exec-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+.exec-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; transition: 0.2s; }
+.exec-table tr:hover td { background: var(--s2); }
 .exec-table td ul { margin: 0; padding-left: 16px; list-style-type: disc; }
 .exec-table td ul li { margin-bottom: 4px; }
 .exec-table td ul li:last-child { margin-bottom: 0; }
+
+/* Metrics Card */
+.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.metric-card { background: var(--s1); padding: 20px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; }
+.metric-title { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.metric-val { font-size: 32px; font-weight: 700; margin-top: 8px; }
+.metric-val.red { color: var(--red); }
+.metric-val.yellow { color: #B09854; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -207,6 +209,11 @@ body {
 </style>
 </head>
 <body>
+
+<div id="globalLoader">
+  <div class="spinner"></div>
+  <div style="margin-top: 16px; font-weight: 600; color: var(--text-light); font-size: 13px;">Connecting to Secure System...</div>
+</div>
 
 <div id="loginOverlay">
   <div class="login-card">
@@ -244,14 +251,14 @@ body {
   <div class="hdr-right">
     <button class="btn btn-ghost vip-hidden" onclick="toggleOverview()" id="btnOverview">Overview</button>
     <button class="btn btn-ghost vip-hidden" onclick="window.print()">🖨️ PDF</button>
-    <button class="btn btn-ghost vip-hidden" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
-    <button class="btn btn-ghost vip-hidden" onclick="openProjSettings('', true)">+ New Project</button>
-    <button class="btn btn-primary vip-hidden" onclick="openNewWeekModal()">+ New Week</button>
+    <button class="btn btn-ghost vip-hidden admin-only" style="display:none;" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
+    <button class="btn btn-ghost vip-hidden admin-only" style="display:none;" onclick="openProjSettings('', true)">+ New Project</button>
+    <button class="btn btn-primary vip-hidden admin-only" style="display:none;" onclick="openNewWeekModal()">+ New Week</button>
     
     <div class="user-block">
       <span id="displayUser" class="display-name">...</span>
       <span id="displayRole" class="role-badge">USER</span>
-      <button onclick="handleResetPasswordLoggedIn()" class="btn btn-ghost" style="margin-left:8px;" title="Reset Password">🔑 Password</button>
+      <button onclick="openChangePassword()" class="btn btn-ghost" style="margin-left:8px;" title="Change Password">🔑 Password</button>
       <button onclick="handleLogout()" class="btn btn-ghost" style="margin-left:4px;" title="Logout">Logout</button>
     </div>
   </div>
@@ -268,6 +275,55 @@ body {
 
   <div id="normalView"><div class="proj-grid" id="projGrid"></div></div>
   <div id="execView" class="exec-view"></div>
+</div>
+
+<div class="overlay" id="projDetailOverlay">
+<div class="modal">
+  <div class="modal-hdr">
+    <h3 id="pd_title" style="font-size:22px; color:var(--text);">Project Name</h3>
+    <button class="modal-x" onclick="closeModal('projDetailOverlay')">×</button>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-left">
+      <div class="info-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        <div><div class="info-lbl">Owner</div><div class="info-val owner" id="pd_owner"></div></div>
+        <div><div class="info-lbl">Deputy</div><div class="info-val" id="pd_deputy"></div></div>
+        <div><div class="info-lbl">Customer</div><div class="info-val" id="pd_customer"></div></div>
+        <div><div class="info-lbl">Location</div><div class="info-val" id="pd_location"></div></div>
+      </div>
+      <div style="border-top: 1px dashed var(--border); padding-top: 24px;">
+        <div class="info-lbl" style="color:var(--accent-hov)">Highlight</div>
+        <div class="stext" id="pd_highlight"></div>
+        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk / Blocker</div>
+        <div class="stext" id="pd_risk"></div>
+        <div class="info-lbl" style="color:var(--text-light); margin-top:20px;">Next Steps</div>
+        <div class="stext" id="pd_next"></div>
+      </div>
+    </div>
+    <div class="detail-right">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <span class="role-badge" id="pd_status_badge" style="font-size: 11px; padding: 4px 10px;">STATUS</span>
+        <div style="text-align: right;">
+          <div class="info-lbl">Progress</div>
+          <div style="font-weight:700; font-size:20px; line-height:1;" id="pd_progress">0%</div>
+        </div>
+      </div>
+      <div class="info-lbl" style="margin-bottom:16px;">Milestones Roadmap</div>
+      <div class="ms-container" id="pd_milestones"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="changePwdOverlay">
+<div class="modal" style="width:400px">
+  <div class="modal-hdr"><h3>Change Password</h3><button class="modal-x" onclick="closeModal('changePwdOverlay')">×</button></div>
+  <div class="fg"><label class="fl">New Password (min 6 characters)</label><input type="password" class="fi" id="cp_new"></div>
+  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+    <button class="btn btn-ghost" onclick="closeModal('changePwdOverlay')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveNewPassword()">Update</button>
+  </div>
+</div>
 </div>
 
 <div class="overlay" id="projUpdateOverlay">
@@ -351,7 +407,8 @@ body {
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// 加入 updatePassword 模組
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -373,8 +430,10 @@ window.handleLogin = async () => {
   const email = document.getElementById('email').value.trim();
   const pass = document.getElementById('password').value;
   try {
+    document.getElementById('globalLoader').style.display = 'flex';
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (e) {
+    document.getElementById('globalLoader').style.display = 'none';
     const msg = document.getElementById('authMsg');
     msg.className = "auth-msg error";
     msg.textContent = "Login Failed: Check email/password";
@@ -382,6 +441,7 @@ window.handleLogin = async () => {
   }
 };
 
+// 給未登入狀態用的忘記密碼寄信功能
 window.handleResetPassword = async () => {
   const email = document.getElementById('email').value.trim();
   const msg = document.getElementById('authMsg');
@@ -403,13 +463,26 @@ window.handleResetPassword = async () => {
   }
 };
 
-window.handleResetPasswordLoggedIn = async () => {
-  if (!currentUser) return;
+// 新增：登入狀態下直接修改密碼
+window.openChangePassword = () => {
+  document.getElementById('cp_new').value = '';
+  document.getElementById('changePwdOverlay').classList.add('open');
+};
+
+window.saveNewPassword = async () => {
+  const newPwd = document.getElementById('cp_new').value;
+  if(newPwd.length < 6) return alert("Password must be at least 6 characters long.");
+  
   try {
-    await sendPasswordResetEmail(auth, currentUser.email);
-    alert(`Password reset email sent to ${currentUser.email}.\n\n⚠️ IMPORTANT: Please check your Spam or Junk folder if you don't see it within a few minutes.`);
-  } catch (e) {
-    alert("Error: " + e.message);
+    await updatePassword(currentUser, newPwd);
+    alert("Password updated successfully!");
+    closeModal('changePwdOverlay');
+  } catch(e) {
+    if(e.code === 'auth/requires-recent-login') {
+      alert("Security rule: Please log out and log back in to change your password.");
+    } else {
+      alert("Error: " + e.message);
+    }
   }
 };
 
@@ -431,6 +504,7 @@ onAuthStateChanged(auth, async user => {
     setupUI();
     initData();
   } else {
+    document.getElementById('globalLoader').style.display = 'none';
     document.getElementById('loginOverlay').style.display = 'flex';
     dot.classList.remove('ok');
   }
@@ -471,7 +545,6 @@ function setupUI() {
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
   
-  // 每次重置 UI 狀態，避免登出後換帳號殘留前一個帳號的畫面設定
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   isOverview = false;
@@ -482,12 +555,9 @@ function setupUI() {
   if(currentRole === 'admin') {
     rBadge.classList.add('admin');
   } 
-  // VIP 權限邏輯
   else if (currentRole === 'vip') {
     rBadge.classList.add('vip');
-    // 隱藏不必要的按鈕 (包含 PM選單, Overview切換, PDF, 設定按鈕)
     document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = 'none');
-    // 強制鎖定在 Overview 畫面
     isOverview = true;
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
@@ -504,12 +574,17 @@ function initData() {
     allWeeks = snap.docs.map(d => d.data());
     if (currentIdx < 0) currentIdx = allWeeks.length - 1;
     render();
+    
+    // 資料載入完畢，淡出過場動畫
+    const loader = document.getElementById('globalLoader');
+    loader.style.opacity = '0';
+    setTimeout(() => loader.style.display = 'none', 400);
   });
 }
 
 function canEditProject(proj) {
   if (currentRole === 'admin') return true;
-  if (currentRole === 'vip') return false; // VIP 完全沒有編輯權限
+  if (currentRole === 'vip') return false; 
   if (!currentUser) return false;
   
   const userEmail = currentUser.email.toLowerCase();
@@ -532,8 +607,46 @@ function formatBullets(text) {
   if (!text || !text.trim()) return '-';
   const lines = text.split('\n').map(l => l.trim().replace(/^[-*•]\s*/, '')).filter(l => l);
   if (lines.length === 0) return '-';
-  return `<ul>` + lines.map(l => `<li>${l}</li>`).join('') + `</ul>`;
+  return `<ul style="margin: 0; padding-left: 16px; list-style-type: disc;">` + lines.map(l => `<li style="margin-bottom: 4px;">${l}</li>`).join('') + `</ul>`;
 }
+
+// 新增：雙擊開啟唯讀專案詳情
+window.openProjDetail = (code) => {
+  const week = allWeeks[currentIdx];
+  const p = week.projects.find(x => x.code === code);
+  if(!p) return;
+  
+  document.getElementById('pd_title').innerHTML = `${p.name} <span class="proj-code" style="margin-left:8px; font-size:13px;">${p.code}</span>`;
+  document.getElementById('pd_owner').textContent = p.owner || '-';
+  document.getElementById('pd_deputy').textContent = p.deputy || '-';
+  document.getElementById('pd_customer').textContent = p.customer || '-';
+  document.getElementById('pd_location').textContent = p.location || '-';
+  
+  document.getElementById('pd_highlight').innerHTML = formatBullets(p.highlight);
+  document.getElementById('pd_risk').innerHTML = formatBullets(p.risk);
+  document.getElementById('pd_next').innerHTML = formatBullets(p.next);
+  
+  const smap = {'green':'ON TRACK', 'yellow':'AT RISK', 'red':'CRITICAL'};
+  const badge = document.getElementById('pd_status_badge');
+  badge.textContent = smap[p.status] || p.status.toUpperCase();
+  badge.style.background = `var(--${p.status})`;
+  badge.style.color = '#fff';
+  
+  document.getElementById('pd_progress').textContent = (p.progress || 0) + '%';
+  
+  document.getElementById('pd_milestones').innerHTML = (p.milestones || []).map(m => `
+    <div class="ms-node ${m.status || 'to-do'}">
+      <div class="ms-dot"></div>
+      <div style="display:flex; flex-direction:column;">
+        <div style="font-size:13px; font-weight:600;">${m.name}</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${m.date || 'No Date'}</div>
+      </div>
+      <div class="ms-status ${m.status || 'to-do'}">${m.status || 'to-do'}</div>
+    </div>
+  `).join('');
+  
+  document.getElementById('projDetailOverlay').classList.add('open');
+};
 
 // ── RENDER ──
 function render() {
@@ -554,12 +667,10 @@ function render() {
   renderNormal(projs);
   renderExec(projs, week.summary);
   
-  // 確保 VIP 切換週數時不會跑版，永遠鎖定在 Overview
   if (currentRole === 'vip') {
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
   } else {
-    // Admin/PM 狀態下，遵守 isOverview 的切換狀態
     document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
     document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
   }
@@ -568,12 +679,12 @@ function render() {
 function renderNormal(projs) {
   const grid = document.getElementById('projGrid');
   grid.innerHTML = projs.map(p => `
-    <div class="proj-card">
+    <div class="proj-card" ondblclick="openProjDetail('${p.code}')" title="Double click for details">
       <div class="card-stripe ${p.status}"></div>
       ${canEditProject(p) ? `
         <div class="card-actions">
-          <button class="action-icon" onclick="openProjSettings('${p.code}')">⚙️</button>
-          <button class="action-icon" onclick="openProjUpdate('${p.code}')">📝</button>
+          <button class="action-icon" onclick="event.stopPropagation(); openProjSettings('${p.code}')">⚙️</button>
+          <button class="action-icon" onclick="event.stopPropagation(); openProjUpdate('${p.code}')">📝</button>
         </div>` : ''}
       <div class="card-body">
         <div class="card-hdr">
@@ -614,22 +725,59 @@ function renderNormal(projs) {
 function renderExec(projs, summary) {
   const view = document.getElementById('execView');
   
-  const statusMap = {
-    'green': 'On Track',
-    'yellow': 'At Risk',
-    'red': 'Critical'
-  };
+  const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
+
+  // 自動統計與摘要 (Metrics)
+  const total = projs.length;
+  const critical = projs.filter(p => p.status === 'red').length;
+  const atRisk = projs.filter(p => p.status === 'yellow').length;
+  const onTrack = total - critical - atRisk;
+  
+  // 提取風險原因
+  const delayedProjects = projs.filter(p => p.status !== 'green' && p.risk && p.risk.trim() !== '');
+  let riskSummaryHtml = '<span style="color:var(--muted2)">No major risks reported.</span>';
+  if (delayedProjects.length > 0) {
+    riskSummaryHtml = `<ul style="margin:0; padding-left:16px;">` + 
+      delayedProjects.map(p => `<li style="margin-bottom:6px;"><b>${p.name}</b>: ${p.risk}</li>`).join('') + 
+      `</ul>`;
+  }
 
   view.innerHTML = `
-    <div style="background:#fff; padding:24px; border-radius:8px; border:1px solid var(--border); margin-bottom:24px;">
-      <div class="info-lbl" style="color:var(--accent-hov)">Executive Summary</div>
-      <div class="stext">${summary || 'No week summary provided.'}</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-title">Total Projects</div>
+        <div class="metric-val">${total}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Critical Issues</div>
+        <div class="metric-val red">${critical}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">At Risk</div>
+        <div class="metric-val yellow">${atRisk}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">On Track</div>
+        <div class="metric-val" style="color:var(--green)">${onTrack}</div>
+      </div>
     </div>
+
+    <div style="background:#fff; padding:24px; border-radius:8px; border:1px solid var(--border); margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+      <div>
+        <div class="info-lbl" style="color:var(--accent-hov)">Executive Summary</div>
+        <div class="stext">${summary || 'No week summary provided.'}</div>
+      </div>
+      <div style="border-left: 1px dashed var(--border); padding-left: 32px;">
+        <div class="info-lbl" style="color:var(--red)">Risk & Delay Root Causes (Auto-extracted)</div>
+        <div class="stext">${riskSummaryHtml}</div>
+      </div>
+    </div>
+
     <table class="exec-table">
       <thead><tr><th style="width:15%">Project</th><th style="width:10%">Status</th><th style="width:10%">Progress</th><th style="width:25%">Highlight</th><th style="width:20%">Risk / Blocker</th><th style="width:20%">Next Steps</th></tr></thead>
       <tbody>
         ${projs.map(p => `
-          <tr>
+          <tr ondblclick="openProjDetail('${p.code}')" style="cursor:pointer;" title="Double click for details">
             <td><b>${p.name}</b><br><small>${p.owner}</small></td>
             <td><span class="role-badge" style="background:var(--${p.status});color:#fff">${(statusMap[p.status] || p.status).toUpperCase()}</span></td>
             <td>
@@ -656,7 +804,7 @@ window.handleTopPmChange = () => {
   render();
 };
 window.toggleOverview = () => {
-  if (currentRole === 'vip') return; // 防呆：避免 VIP 透過 console 呼叫切換
+  if (currentRole === 'vip') return; 
   isOverview = !isOverview;
   document.getElementById('btnOverview').classList.toggle('active');
   document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
