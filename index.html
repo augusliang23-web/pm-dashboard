@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -43,6 +43,9 @@ const FIREBASE_CONFIG = {
   --ydim:        rgba(228, 204, 143, 0.15);
   --rdim:        rgba(227, 154, 154, 0.15);
   --adim:        rgba(120, 179, 149, 0.15);
+  --blue:        #7EAAC8;
+  --bdim:        rgba(126, 170, 200, 0.18);
+  --blue-text:   #4E7FA3;
   --radius:      8px;
   --shadow:      0 2px 8px rgba(0,0,0,0.02), 0 8px 16px rgba(0,0,0,0.02);
 }
@@ -53,10 +56,22 @@ body {
   background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; 
 }
 
-/* ── LOADER (新增過場動畫) ── */
-#globalLoader { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease; }
+/* ── LOADER ── */
+#globalLoader { position: fixed; inset: 0; background: rgba(247, 249, 251, 0.8); backdrop-filter: blur(4px); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease; }
 .spinner { width: 44px; height: 44px; border: 4px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SAVE TOAST ── */
+#saveToast {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: #fff; padding: 12px 24px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+  z-index: 10000; opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+#saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
 
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -84,7 +99,7 @@ body {
 .hdr-mid { display: flex; align-items: center; gap: 12px; flex: 1; justify-content: center; }
 .hdr-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-/* User Block */
+/* User Block & Online Badge */
 .user-block { display: flex; align-items: center; gap: 8px; padding-left: 12px; border-left: 1px solid var(--border); }
 .display-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .role-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: var(--s3); color: var(--muted); text-transform: uppercase; }
@@ -94,23 +109,66 @@ body {
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); transition: background 0.3s; }
 .sync-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--gdim); }
 
+/* Online Users Dropdown CSS */
+.online-users-wrapper { position: relative; display: flex; align-items: center; cursor: pointer; margin-right: 12px; padding-right: 12px; border-right: 1px solid var(--border); }
+.online-users-trigger { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; background: var(--s2); border: 1px solid var(--border); transition: 0.2s; }
+.online-users-trigger:hover { background: var(--s3); border-color: var(--border2); }
+.online-users-trigger span { font-size: 11px; font-weight: 700; color: var(--text); }
+.pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 4px var(--green); transition: 0.3s; }
+.pulse-dot.idle { background: var(--muted2); box-shadow: none; }
+.online-dropdown { display: none; position: absolute; top: 115%; right: 12px; background: var(--s1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; box-shadow: var(--shadow); flex-direction: column; gap: 4px; min-width: 140px; z-index: 100; }
+.online-users-wrapper:hover .online-dropdown { display: flex; }
+
+.online-badge {
+  background: var(--s2); color: var(--accent-hov); font-size: 11px; font-weight: 700;
+  padding: 6px 10px; border-radius: 6px; border: 1px solid var(--green);
+  display: flex; align-items: center; gap: 8px; white-space: nowrap; transition: 0.3s;
+}
+.online-badge::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 4px var(--green); transition: 0.3s;
+}
+.online-badge.idle { background: var(--s1); color: var(--muted); border-color: var(--border2); }
+.online-badge.idle::before { background: var(--muted2); box-shadow: none; }
+
 .pm-select { font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 6px; background: var(--s1); border: 1px solid var(--border2); color: var(--text); outline: none; }
 .week-nav { display: flex; align-items: center; gap: 4px; background: var(--s1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
 .week-nav button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 8px; font-size: 16px; }
-.wlabel { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; min-width: 100px; text-align: center; }
 
-.btn { font-size: 12px; font-weight: 700; padding: 8px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; }
-.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* 升級版的 Week Select 下拉選單 */
+.wlabel-select { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 700; text-align: center; border: none; background: transparent; color: var(--text); cursor: pointer; outline: none; padding: 2px 4px; border-radius: 4px; transition: 0.2s; min-width: 140px; }
+.wlabel-select:hover { color: var(--accent-hov); background: var(--s2); }
+
+/* SVG Icon 樣式 */
+.btn-primary { font-size: 12px; font-weight: 700; padding: 8px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--accent); transition: all .2s; white-space: nowrap; background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hov); }
-.btn-ghost { background: var(--s1); color: var(--text-light); }
+.btn-ghost { font-size: 12px; font-weight: 700; padding: 8px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; background: var(--s1); color: var(--text-light); }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
-.btn-ghost.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border2);
+  background: var(--s1); color: var(--text-light); cursor: pointer; transition: 0.2s;
+}
+.btn-icon svg { width: 18px; height: 18px; }
+.btn-icon:hover { background: var(--s2); color: var(--accent-hov); border-color: var(--border2); }
+.btn-icon.active { background: var(--text); color: #fff; border-color: var(--text); }
 
 /* ── MAIN ── */
 .main { max-width: 1500px; margin: 0 auto; padding: 24px 32px; }
-.wk-banner { display: flex; align-items: center; justify-content: space-between; background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 32px; margin-bottom: 24px; }
+
+/* 縮小與並排的頂部區域 */
+.dashboard-top-row { display: flex; gap: 24px; margin-bottom: 24px; flex-wrap: wrap; align-items: stretch; }
+.wk-banner { display: flex; align-items: center; justify-content: space-between; background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 32px; flex: 1.2; min-width: 320px; }
 .wk-banner h2 { font-size: 20px; font-weight: 700; }
 .wk-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; flex: 2; min-width: 400px; }
+.metric-card { background: var(--s1); padding: 14px 20px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow); }
+.metric-title { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.metric-val { font-size: 24px; font-weight: 700; margin-top: 4px; }
+.metric-val.red { color: var(--red); }
+.metric-val.yellow { color: #B09854; }
 
 /* PROJ CARD */
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 24px; }
@@ -121,12 +179,15 @@ body {
 .card-stripe.yellow { background: var(--yellow); }
 .card-stripe.red { background: var(--red); }
 .card-body { padding: 24px; flex: 1; }
-.card-hdr { margin-bottom: 20px; padding-right: 80px; }
+.card-hdr { margin-bottom: 20px; padding-right: 50px; }
 .proj-name { font-size: 17px; font-weight: 700; color: var(--text); }
 .proj-code { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); background: var(--bg); padding: 2px 6px; border-radius: 4px; margin-top: 4px; display: inline-block; }
+
+/* 縮小的專案編輯按鈕 */
 .card-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; }
-.action-icon { background: var(--s1); border: 1px solid var(--border2); color: var(--muted); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
-.action-icon:hover { color: var(--text); border-color: var(--muted); background: var(--s2); }
+.card-actions .action-icon { background: var(--s1); border: 1px solid var(--border2); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.card-actions .action-icon svg { width: 14px; height: 14px; }
+.card-actions .action-icon:hover { color: var(--text); border-color: var(--muted); background: var(--s2); }
 
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px dashed var(--border); }
 .info-lbl { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
@@ -141,8 +202,8 @@ body {
 
 .ms-node.to-do .ms-dot { border-color: var(--border2); }
 .ms-status.to-do { background: var(--s3); color: var(--muted); }
-.ms-node.in-progress .ms-dot { background: var(--accent); border-color: var(--s1); box-shadow: 0 0 0 2px var(--adim); }
-.ms-status.in-progress { background: var(--adim); color: var(--accent-hov); }
+.ms-node.in-progress .ms-dot { background: var(--blue); border-color: var(--s1); box-shadow: 0 0 0 2px var(--bdim); }
+.ms-status.in-progress { background: var(--bdim); color: var(--blue-text); }
 .ms-node.done .ms-dot { background: var(--green); border-color: var(--s1); box-shadow: 0 0 0 2px var(--gdim); }
 .ms-status.done { background: var(--gdim); color: var(--accent-hov); opacity: 0.8; }
 .ms-node.at-risk .ms-dot { background: var(--yellow); border-color: var(--s1); box-shadow: 0 0 0 2px var(--ydim); }
@@ -174,6 +235,14 @@ body {
 .detail-grid { display: grid; grid-template-columns: 2fr 1.2fr; gap: 32px; }
 .detail-right { background: var(--s2); padding: 24px; border-radius: 8px; border: 1px solid var(--border); height: fit-content; }
 
+/* Settings Collapsible Style */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.settings-summary { font-weight: 700; cursor: pointer; color: var(--text-light); padding: 12px 16px; background: var(--s2); border-radius: 6px; border: 1px solid var(--border); transition: background 0.2s; user-select: none; display: flex; align-items: center; justify-content: space-between;}
+.settings-summary:hover { background: var(--s3); }
+details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; color: var(--text); }
+.settings-content { padding: 20px 16px; border: 1px solid var(--border); border-top: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background: var(--s1); }
+
 /* Milestone Drag CSS */
 .ms-row { padding: 4px; border-radius: 4px; transition: 0.2s; background: var(--s1); }
 .ms-row.dragging { opacity: 0.5; background: var(--s3); }
@@ -189,20 +258,13 @@ body {
 .exec-table td ul li { margin-bottom: 4px; }
 .exec-table td ul li:last-child { margin-bottom: 0; }
 
-/* Metrics Card */
-.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-.metric-card { background: var(--s1); padding: 20px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; }
-.metric-title { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
-.metric-val { font-size: 32px; font-weight: 700; margin-top: 8px; }
-.metric-val.red { color: var(--red); }
-.metric-val.yellow { color: #B09854; }
-
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
   .hdr, .card-actions, .no-print { display: none !important; }
   body { background: #fff; }
+  #topMetricsGrid { display: grid !important; }
   #execView { display: block !important; }
   #normalView { display: none !important; }
 }
@@ -212,7 +274,12 @@ body {
 
 <div id="globalLoader">
   <div class="spinner"></div>
-  <div style="margin-top: 16px; font-weight: 600; color: var(--text-light); font-size: 13px;">Connecting to Secure System...</div>
+  <div style="margin-top: 16px; font-weight: 600; color: var(--text-light); font-size: 13px;" id="loaderText">Connecting to Secure System...</div>
+</div>
+
+<div id="saveToast">
+  <div class="toast-check">✓</div>
+  <span id="saveToastMsg">Saved successfully</span>
 </div>
 
 <div id="loginOverlay">
@@ -240,37 +307,89 @@ body {
   </div>
 
   <div class="hdr-mid">
+    <select id="visSelect" class="pm-select admin-only" style="display:none; margin-right:8px;" onchange="render()">
+      <option value="active">👀 Show Active Only</option>
+      <option value="all">Show All (Inc. Hidden)</option>
+    </select>
     <select id="topPmSelect" class="pm-select vip-hidden" onchange="handleTopPmChange()"></select>
     <div class="week-nav">
-      <button onclick="navWeek(-1)">‹</button>
-      <span class="wlabel" id="wNavLabel">—</span>
-      <button onclick="navWeek(1)">›</button>
+      <button onclick="navWeek(-1)" title="Previous Week">‹</button>
+      <select id="wNavSelect" class="wlabel-select" onchange="jumpToWeek(this.value)"></select>
+      <button onclick="navWeek(1)" title="Next Week">›</button>
     </div>
   </div>
 
   <div class="hdr-right">
-    <button class="btn btn-ghost vip-hidden" onclick="toggleOverview()" id="btnOverview">Overview</button>
-    <button class="btn btn-ghost vip-hidden" onclick="window.print()">🖨️ PDF</button>
-    <button class="btn btn-ghost vip-hidden admin-only" style="display:none;" onclick="openWeekInfoEdit()">⚙️ Week Info</button>
-    <button class="btn btn-ghost vip-hidden admin-only" style="display:none;" onclick="openProjSettings('', true)">+ New Project</button>
-    <button class="btn btn-primary vip-hidden admin-only" style="display:none;" onclick="openNewWeekModal()">+ New Week</button>
+    
+    <div id="onlineUsersContainer" class="online-users-wrapper" style="display:none;">
+      <div class="online-users-trigger">
+        <div class="pulse-dot" id="onlinePulse"></div>
+        <span>(<span id="onlineCount">0</span>)</span>
+      </div>
+      <div class="online-dropdown" id="onlineDropdown">
+        <div id="onlineUsersList" style="display:flex; flex-direction:column; gap:4px;"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:6px; margin-right:12px; padding-right:12px; border-right:1px solid var(--border);">
+      <button class="btn-icon vip-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+      </button>
+      
+      <button class="btn-icon vip-hidden" onclick="window.print()" title="Export PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      
+      <button class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
+
+      <button class="btn-icon vip-hidden" onclick="openProjEdit('', true)" title="Add New Project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+      </button>
+    </div>
     
     <div class="user-block">
       <span id="displayUser" class="display-name">...</span>
       <span id="displayRole" class="role-badge">USER</span>
-      <button onclick="openChangePassword()" class="btn btn-ghost" style="margin-left:8px;" title="Change Password">🔑 Password</button>
-      <button onclick="handleLogout()" class="btn btn-ghost" style="margin-left:4px;" title="Logout">Logout</button>
+      <button onclick="openChangePassword()" class="btn-icon" style="margin-left:8px;" title="Change Password">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      </button>
+      <button onclick="handleLogout()" class="btn-icon" style="margin-left:4px;" title="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
     </div>
   </div>
 </header>
 
 <div class="main">
-  <div class="wk-banner" id="wkBanner">
-    <div>
-      <h2 id="bannerTitle">Loading...</h2>
-      <div class="wk-meta" id="bannerMeta">Connecting to Firebase...</div>
+  <div class="dashboard-top-row">
+    <div class="wk-banner" id="wkBanner">
+      <div>
+        <h2 id="bannerTitle">Loading...</h2>
+        <div class="wk-meta" id="bannerMeta">Connecting to Firebase...</div>
+      </div>
+      <div style="display:flex; gap:10px;" id="bannerPills"></div>
     </div>
-    <div style="display:flex; gap:10px;" id="bannerPills"></div>
+    
+    <div class="metrics-grid" id="topMetricsGrid" style="display:none;">
+      <div class="metric-card">
+        <div class="metric-title">Total Projects</div>
+        <div class="metric-val" id="m_total">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Critical Issues</div>
+        <div class="metric-val red" id="m_critical">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">At Risk</div>
+        <div class="metric-val yellow" id="m_atrisk">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">On Track</div>
+        <div class="metric-val" style="color:var(--green)" id="m_ontrack">0</div>
+      </div>
+    </div>
   </div>
 
   <div id="normalView"><div class="proj-grid" id="projGrid"></div></div>
@@ -318,6 +437,7 @@ body {
 <div class="overlay" id="changePwdOverlay">
 <div class="modal" style="width:400px">
   <div class="modal-hdr"><h3>Change Password</h3><button class="modal-x" onclick="closeModal('changePwdOverlay')">×</button></div>
+  <div class="fg"><label class="fl">Current Password</label><input type="password" class="fi" id="cp_current"></div>
   <div class="fg"><label class="fl">New Password (min 6 characters)</label><input type="password" class="fi" id="cp_new"></div>
   <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
     <button class="btn btn-ghost" onclick="closeModal('changePwdOverlay')">Cancel</button>
@@ -326,89 +446,96 @@ body {
 </div>
 </div>
 
-<div class="overlay" id="projUpdateOverlay">
-<div class="modal">
-  <div class="modal-hdr"><h3 id="puTitle">Update Status</h3><button class="modal-x" onclick="closeModal('projUpdateOverlay')">×</button></div>
+<div class="overlay" id="projEditOverlay">
+<div class="modal" style="width:850px">
+  <div class="modal-hdr"><h3 id="peTitle">Edit Project</h3><button class="modal-x" onclick="closeModal('projEditOverlay')">×</button></div>
+  
   <div style="display:flex; gap:16px;">
-    <div class="fg"><label class="fl">RAG Status</label><select class="fs" id="pu_status"><option value="green">🟢 On Track</option><option value="yellow">🟡 At Risk</option><option value="red">🔴 Critical</option></select></div>
-    <div class="fg"><label class="fl">Progress %</label><input class="fi" type="number" id="pu_progress" min="0" max="100"></div>
+    <div class="fg"><label class="fl">RAG Status</label><select class="fs" id="pe_status"><option value="green">🟢 On Track</option><option value="yellow">🟡 At Risk</option><option value="red">🔴 Critical</option></select></div>
+    <div class="fg"><label class="fl">Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100"></div>
   </div>
-  <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pu_highlight" rows="3"></textarea></div>
+  <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3"></textarea></div>
   <div style="display:flex; gap:16px;">
-    <div class="fg"><label class="fl">Next Steps (Press Enter for new bullet point)</label><textarea class="ft" id="pu_next" rows="3"></textarea></div>
-    <div class="fg"><label class="fl">Risk / Blocker (Press Enter for new bullet point)</label><textarea class="ft" id="pu_risk" rows="3"></textarea></div>
+    <div class="fg"><label class="fl">Risk / Blocker (Press Enter for new bullet point)</label><textarea class="ft" id="pe_risk" rows="3"></textarea></div>
+    <div class="fg"><label class="fl">Next Steps (Press Enter for new bullet point)</label><textarea class="ft" id="pe_next" rows="3"></textarea></div>
   </div>
-  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-    <button class="btn btn-ghost" onclick="closeModal('projUpdateOverlay')">Cancel</button>
-    <button class="btn btn-primary" onclick="saveProjUpdate()">Save Update</button>
-  </div>
-</div>
-</div>
 
-<div class="overlay" id="projSettingsOverlay">
-<div class="modal">
-  <div class="modal-hdr"><h3 id="psTitle">Project Settings</h3><button class="modal-x" onclick="closeModal('projSettingsOverlay')">×</button></div>
-  <div style="display:flex; gap:16px; margin-bottom:10px;">
-    <div class="fg" style="flex:2"><label class="fl">Project Name</label><input class="fi" id="ps_name"></div>
-    <div class="fg"><label class="fl">Code</label><input class="fi" id="ps_code"></div>
-  </div>
-  <div style="display:flex; gap:16px;">
-    <div class="fg"><label class="fl">Owner</label><select class="fs" id="ps_owner"></select></div>
-    <div class="fg"><label class="fl">Deputy</label><select class="fs" id="ps_deputy"></select></div>
-  </div>
-  <div style="display:flex; gap:16px; margin-top:10px;">
-    <div class="fg"><label class="fl">Customer</label><input class="fi" id="ps_customer"></div>
-    <div class="fg"><label class="fl">Location</label><input class="fi" id="ps_location"></div>
-  </div>
-  <div style="margin-top:20px;">
-    <label class="fl">Milestones</label>
-    <div id="msListContainer" style="margin-top:10px;"></div>
-    <button class="btn btn-ghost" onclick="addMilestoneRow()" style="width:100%; margin-top:10px;">+ Add Milestone</button>
-  </div>
+  <details id="pe_details" style="margin-top: 24px;">
+    <summary class="settings-summary">
+      <span>⚙️ Project setting</span>
+      <span style="font-size:10px; color:var(--muted2);">▼ Click to expand</span>
+    </summary>
+    <div class="settings-content">
+      <div style="display:flex; gap:16px; margin-bottom:10px;">
+        <div class="fg" style="flex:2"><label class="fl">Project Name</label><input class="fi" id="pe_name"></div>
+        <div class="fg"><label class="fl">Code</label><input class="fi" id="pe_code"></div>
+      </div>
+      <div style="display:flex; gap:16px;">
+        <div class="fg"><label class="fl">Owner</label><select class="fs" id="pe_owner"></select></div>
+        <div class="fg"><label class="fl">Deputy</label><select class="fs" id="pe_deputy"></select></div>
+      </div>
+      <div style="display:flex; gap:16px; margin-top:10px;">
+        <div class="fg"><label class="fl">Customer</label><input class="fi" id="pe_customer"></div>
+        <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location"></div>
+      </div>
+      <div style="margin-top:20px;">
+        <label class="fl">Milestones</label>
+        <div id="msListContainer" style="margin-top:10px;"></div>
+        <button class="btn btn-ghost" onclick="addMilestoneRow()" style="width:100%; margin-top:10px;">+ Add Milestone</button>
+      </div>
+      
+      <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border);" id="adminProjActions">
+        <label class="fl" style="color:var(--red);">Admin Actions</label>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+          <select class="fs" id="pe_visibility" style="width:130px; font-weight:600;">
+            <option value="active">🟢 Active</option>
+            <option value="hidden">👻 Hidden</option>
+            <option value="archived">📦 Archived</option>
+          </select>
+          <button class="btn btn-ghost" id="pe_btn_delete" style="color:var(--red); border-color:var(--red);" onclick="deleteProject()">🗑️ Delete Project</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
   <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:32px;">
-    <button class="btn btn-ghost" onclick="closeModal('projSettingsOverlay')">Cancel</button>
-    <button class="btn btn-primary" onclick="saveProjSettings()">Save Project</button>
+    <button class="btn btn-ghost" onclick="closeModal('projEditOverlay')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveProjEdit()">Save Project</button>
   </div>
 </div>
 </div>
 
-<div class="overlay" id="weekInfoOverlay">
-<div class="modal" style="width:600px">
-  <div class="modal-hdr"><h3>Edit Week Info</h3><button class="modal-x" onclick="closeModal('weekInfoOverlay')">×</button></div>
-  <div class="fg"><label class="fl">Week Label (System Linked)</label><input class="fi" id="wi_label" disabled style="background:var(--s3); color:var(--muted); border-color:var(--border);"></div>
-  <div class="fg"><label class="fl">Date Range (System Linked)</label><input class="fi" id="wi_date" disabled style="background:var(--s3); color:var(--muted); border-color:var(--border);"></div>
-  <div class="fg"><label class="fl">Executive Summary</label><textarea class="ft" id="wi_summary" rows="5"></textarea></div>
-  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-    <button class="btn btn-ghost" onclick="closeModal('weekInfoOverlay')">Cancel</button>
-    <button class="btn btn-primary" onclick="saveWeekInfo()">Save Settings</button>
+<div class="overlay" id="weekManageOverlay">
+<div class="modal" style="width:650px">
+  <div class="modal-hdr"><h3>Week Management</h3><button class="modal-x" onclick="closeModal('weekManageOverlay')">×</button></div>
+  
+  <div style="background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;">
+    <h4 style="margin-bottom:16px; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
+      <span id="wm_current_title" style="font-weight:700;">Current Week</span>
+    </h4>
+    <div class="fg"><label class="fl">Executive Summary</label><textarea class="ft" id="wm_summary" rows="4"></textarea></div>
+    <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+      <button class="btn btn-primary" onclick="saveWeekSummary()">Update Summary</button>
+    </div>
   </div>
-</div>
-</div>
 
-<div class="overlay" id="newWeekOverlay">
-<div class="modal" style="width:500px">
-  <div class="modal-hdr"><h3>Create New Week</h3><button class="modal-x" onclick="closeModal('newWeekOverlay')">×</button></div>
-  <p style="font-size:13px; color:var(--text-light); margin-bottom:16px;">This will create a new week and automatically copy all projects from the current week over.</p>
-  <div class="fg">
-    <label class="fl">New Week Label</label>
-    <select class="fs" id="nw_label" onchange="updateNwDate()"></select>
+  <div style="background:var(--s1); border:1px solid var(--border); border-radius:8px; padding:20px;">
+    <h4 style="margin-bottom:8px; font-size:14px; color:var(--text); font-weight:700;">Create Next Week</h4>
+    <p style="font-size:12px; color:var(--text-light); margin-bottom:16px;">Generate the next week and copy all active projects over automatically.</p>
+    <div style="display:flex; gap:16px; align-items:flex-end;">
+      <div class="fg" style="flex:1"><label class="fl">Week Label</label><select class="fs" id="wm_nw_label" onchange="updateWmDate()"></select></div>
+      <div class="fg" style="flex:1"><label class="fl">Date Range</label><input class="fi" id="wm_nw_date" readonly style="background:var(--s3); color:var(--muted); border-color:var(--border);"></div>
+      <button class="btn btn-ghost" style="color:var(--accent-hov); border-color:var(--accent-hov); height:38px; margin-bottom:16px;" onclick="createNewWeekFromManage()">+ Create Week</button>
+    </div>
   </div>
-  <div class="fg">
-    <label class="fl">Date Range (Monday - Friday)</label>
-    <input class="fi" id="nw_date" readonly style="background:var(--s3); color:var(--muted); border-color:var(--border);">
-  </div>
-  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-    <button class="btn btn-ghost" onclick="closeModal('newWeekOverlay')">Cancel</button>
-    <button class="btn btn-primary" onclick="createNewWeek()">Create Week</button>
-  </div>
+
 </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// 加入 updatePassword 模組
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -424,30 +551,185 @@ let isOverview = false;
 let editingProjCode = null;
 let isCreatingNew = false;
 let PM_LIST = []; 
+let jumpToLatestOnNextRender = false;
+
+// ── IDLE DETECTION ──
+let heartbeatInterval = null;
+let presenceUnsub = null;
+let idleTimer = null;
+let isIdle = false;
+let latestPresenceDocs = []; 
+let presenceUITimer = null;  
+const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
+let activityThrottle = null;
+const handleUserActivity = () => {
+  if (activityThrottle) return;
+  activityThrottle = setTimeout(() => { activityThrottle = null; }, 2000);
+
+  if (!currentUser) return;
+  if (isIdle) {
+    isIdle = false;
+    if(heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(pingPresence, 60000);
+    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+      name: getUserDisplayName(currentUser.email),
+      role: currentRole,
+      status: 'active',
+      lastActive: Date.now()
+    }, { merge: true }).catch(()=>{});
+  }
+  
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    isIdle = true;
+    if(heartbeatInterval) clearInterval(heartbeatInterval); 
+    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+      status: 'idle',
+      lastActive: Date.now()
+    }, { merge: true }).catch(()=>{});
+  }, IDLE_TIMEOUT);
+};
+
+// ── UI HELPERS ──
+const showLoader = (text = "Processing...") => {
+  document.getElementById('loaderText').textContent = text;
+  document.getElementById('globalLoader').style.display = 'flex';
+  document.getElementById('globalLoader').style.opacity = '1';
+};
+const hideLoader = () => {
+  document.getElementById('globalLoader').style.opacity = '0';
+  setTimeout(() => document.getElementById('globalLoader').style.display = 'none', 300);
+};
+let _toastTimer = null;
+const showSaveToast = (msg = "Saved successfully") => {
+  const toast = document.getElementById('saveToast');
+  document.getElementById('saveToastMsg').textContent = msg;
+  if (_toastTimer) clearTimeout(_toastTimer);
+  toast.classList.add('show');
+  _toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+};
+
+// ── PRESENCE SYSTEM ──
+const pingPresence = () => {
+  if (!currentUser || isIdle) return;
+  setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+    name: getUserDisplayName(currentUser.email),
+    role: currentRole,
+    status: 'active',
+    lastActive: Date.now()
+  }, { merge: true }).catch(e => console.warn("Presence ping failed:", e));
+};
+
+function updatePresenceUI() {
+  if (!currentUser) return;
+  const now = Date.now();
+  const onlineUsers = [];
+  const myName = getUserDisplayName(currentUser.email);
+
+  latestPresenceDocs.forEach(data => {
+    if (data.name !== myName) { 
+      if (data.status === 'idle' && now - data.lastActive < 4 * 60 * 60 * 1000) { 
+        onlineUsers.push({name: data.name, idle: true});
+      } 
+      else if (data.status === 'active' && now - data.lastActive < 180000) {
+        onlineUsers.push({name: data.name, idle: false});
+      }
+    }
+  });
+  renderOnlineUsers(onlineUsers);
+}
+
+function startPresenceSystem() {
+  pingPresence();
+  heartbeatInterval = setInterval(pingPresence, 60000);
+
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, handleUserActivity, { passive: true });
+  });
+  handleUserActivity();
+
+  presenceUnsub = onSnapshot(collection(db, "presence"), snap => {
+    latestPresenceDocs = snap.docs.map(d => d.data());
+    updatePresenceUI(); 
+  }, err => {
+    console.error("Presence DB Error:", err);
+  });
+
+  presenceUITimer = setInterval(updatePresenceUI, 10000);
+}
+
+function stopPresenceSystem() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  if (presenceUITimer) clearInterval(presenceUITimer);
+  if (idleTimer) clearTimeout(idleTimer);
+  if (presenceUnsub) presenceUnsub();
+  
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    window.removeEventListener(evt, handleUserActivity);
+  });
+
+  if (currentUser) {
+    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), { lastActive: 0 }, { merge: true }).catch(()=>{});
+  }
+}
+
+function renderOnlineUsers(users) {
+  const container = document.getElementById('onlineUsersList');
+  const countSpan = document.getElementById('onlineCount');
+  const pulseDot = document.getElementById('onlinePulse');
+  if (!container || !countSpan || !pulseDot) return;
+  
+  const uniqueMap = new Map();
+  users.forEach(u => {
+    if (!uniqueMap.has(u.name)) uniqueMap.set(u.name, u.idle);
+    else if (!u.idle) uniqueMap.set(u.name, false); 
+  });
+  
+  const finalUsers = Array.from(uniqueMap.keys()).sort().map(name => {
+    return { name, idle: uniqueMap.get(name) };
+  });
+  
+  countSpan.textContent = finalUsers.length;
+  if (finalUsers.length === 0) {
+    pulseDot.classList.add('idle');
+    container.innerHTML = '<div style="font-size:11px; color:var(--muted2); font-weight:600; padding:4px 8px;">Only you</div>';
+  } else {
+    pulseDot.classList.remove('idle');
+    container.innerHTML = finalUsers.map(u => 
+      `<div class="online-badge ${u.idle ? 'idle' : ''}">${u.name}</div>`
+    ).join('');
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (currentUser) {
+    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), { lastActive: 0 }, { merge: true });
+  }
+});
 
 // ── AUTH ──
 window.handleLogin = async () => {
   const email = document.getElementById('email').value.trim();
   const pass = document.getElementById('password').value;
   try {
-    document.getElementById('globalLoader').style.display = 'flex';
+    showLoader("Authenticating...");
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (e) {
-    document.getElementById('globalLoader').style.display = 'none';
+    hideLoader();
     const msg = document.getElementById('authMsg');
     msg.className = "auth-msg error";
-    msg.textContent = "Login Failed: Check email/password";
+    msg.textContent = "Login Failed: Please check your email and password.";
     msg.style.display = 'block';
   }
 };
 
-// 給未登入狀態用的忘記密碼寄信功能
 window.handleResetPassword = async () => {
   const email = document.getElementById('email').value.trim();
   const msg = document.getElementById('authMsg');
   if (!email) {
     msg.className = "auth-msg error";
-    msg.textContent = "Please enter your email first to reset password.";
+    msg.textContent = "Please enter your email first to reset your password.";
     msg.style.display = 'block';
     return;
   }
@@ -463,30 +745,51 @@ window.handleResetPassword = async () => {
   }
 };
 
-// 新增：登入狀態下直接修改密碼
 window.openChangePassword = () => {
+  document.getElementById('cp_current').value = '';
   document.getElementById('cp_new').value = '';
   document.getElementById('changePwdOverlay').classList.add('open');
 };
 
 window.saveNewPassword = async () => {
+  const currentPwd = document.getElementById('cp_current').value;
   const newPwd = document.getElementById('cp_new').value;
-  if(newPwd.length < 6) return alert("Password must be at least 6 characters long.");
   
+  if(!currentPwd) return alert("Please enter your current password.");
+  if(newPwd.length < 6) return alert("New password must be at least 6 characters long.");
+  
+  showLoader("Updating Password...");
   try {
+    const credential = EmailAuthProvider.credential(currentUser.email, currentPwd);
+    await reauthenticateWithCredential(currentUser, credential);
     await updatePassword(currentUser, newPwd);
-    alert("Password updated successfully!");
+    await new Promise(r => setTimeout(r, 600)); 
+    hideLoader();
     closeModal('changePwdOverlay');
+    showSaveToast("Password updated successfully");
   } catch(e) {
-    if(e.code === 'auth/requires-recent-login') {
-      alert("Security rule: Please log out and log back in to change your password.");
+    hideLoader();
+    if(e.code === 'auth/invalid-credential') {
+      alert("Incorrect current password. Please try again.");
     } else {
       alert("Error: " + e.message);
     }
   }
 };
 
-window.handleLogout = () => signOut(auth);
+window.handleLogout = async () => {
+  showLoader("Logging out...");
+  stopPresenceSystem();
+  document.getElementById('projGrid').innerHTML = '';
+  document.getElementById('execView').innerHTML = '';
+  document.getElementById('bannerTitle').textContent = 'Loading...';
+  document.getElementById('bannerMeta').textContent = '';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  allWeeks = [];
+  currentIdx = -1;
+  await signOut(auth);
+  hideLoader();
+};
 
 onAuthStateChanged(auth, async user => {
   const dot = document.getElementById('syncDot');
@@ -500,11 +803,14 @@ onAuthStateChanged(auth, async user => {
     currentRole = userDoc.exists() ? userDoc.data().role : 'pm';
     
     await fetchDynamicPMList();
-    
     setupUI();
     initData();
+    startPresenceSystem(); 
   } else {
-    document.getElementById('globalLoader').style.display = 'none';
+    hideLoader();
+    document.getElementById('projGrid').innerHTML = '';
+    document.getElementById('execView').innerHTML = '';
+    document.getElementById('topMetricsGrid').style.display = 'none';
     document.getElementById('loginOverlay').style.display = 'flex';
     dot.classList.remove('ok');
   }
@@ -513,15 +819,8 @@ onAuthStateChanged(auth, async user => {
 function getUserDisplayName(emailStr) {
   if(!emailStr || emailStr === 'System') return 'System';
   let prefix = emailStr.split('@')[0].toLowerCase();
-  
-  const map = {
-    "augus.liang": "Augus",
-    "josiah.winkler": "Josiah",
-    "qianyun.zhu": "Bonnie"
-  };
-  
+  const map = { "augus.liang": "Augus", "josiah.winkler": "Josiah", "qianyun.zhu": "Bonnie" };
   if (map[prefix]) return map[prefix];
-  
   let n = prefix.split('.')[0];
   return n.charAt(0).toUpperCase() + n.slice(1);
 }
@@ -530,9 +829,7 @@ async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
     const pmSet = new Set();
-    snap.forEach(d => {
-      pmSet.add(getUserDisplayName(d.id));
-    });
+    snap.forEach(d => { pmSet.add(getUserDisplayName(d.id)); });
     PM_LIST = Array.from(pmSet).sort();
   } catch(e) {
     console.warn("Could not load users list, falling back.", e);
@@ -547,6 +844,8 @@ function setupUI() {
   
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  
   isOverview = false;
   document.getElementById('btnOverview').classList.remove('active');
   document.getElementById('normalView').style.display = 'block';
@@ -554,10 +853,16 @@ function setupUI() {
   
   if(currentRole === 'admin') {
     rBadge.classList.add('admin');
+    document.getElementById('onlineUsersContainer').style.display = 'flex';
+    document.getElementById('visSelect').style.display = 'inline-block';
   } 
+  else if (currentRole === 'pm') {
+    document.getElementById('onlineUsersContainer').style.display = 'flex';
+  }
   else if (currentRole === 'vip') {
     rBadge.classList.add('vip');
     document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = 'none');
+    document.getElementById('onlineUsersContainer').style.display = 'none'; 
     isOverview = true;
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
@@ -569,16 +874,28 @@ function setupUI() {
 }
 
 // ── DATA ──
+window.jumpToWeek = (idx) => {
+  currentIdx = parseInt(idx, 10);
+  render();
+};
+
 function initData() {
   onSnapshot(query(collection(db, "weeks"), orderBy("weekLabel")), snap => {
     allWeeks = snap.docs.map(d => d.data());
-    if (currentIdx < 0) currentIdx = allWeeks.length - 1;
-    render();
     
-    // 資料載入完畢，淡出過場動畫
-    const loader = document.getElementById('globalLoader');
-    loader.style.opacity = '0';
-    setTimeout(() => loader.style.display = 'none', 400);
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      currentIdx = allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    }
+
+    const sel = document.getElementById('wNavSelect');
+    if (sel) {
+      sel.innerHTML = allWeeks.map((w, i) => `<option value="${i}">${w.weekLabel} (${w.weekDate})</option>`).join('');
+      sel.value = currentIdx;
+    }
+    
+    render();
+    hideLoader();
   });
 }
 
@@ -589,18 +906,12 @@ function canEditProject(proj) {
   
   const userEmail = currentUser.email.toLowerCase();
   const userPrefix = userEmail.split('@')[0]; 
-  const aliasMap = {
-    "augus.liang": "augus",
-    "josiah.winkler": "josiah",
-    "qianyun.zhu": "bonnie"
-  };
-  
+  const aliasMap = { "augus.liang": "augus", "josiah.winkler": "josiah", "qianyun.zhu": "bonnie" };
   const owner = (proj.owner || "").toLowerCase();
   const deputy = (proj.deputy || "").toLowerCase();
   const userAlias = aliasMap[userPrefix] || userPrefix;
   
-  return owner.includes(userPrefix) || owner.includes(userAlias) || 
-         deputy.includes(userPrefix) || deputy.includes(userAlias);
+  return owner.includes(userPrefix) || owner.includes(userAlias) || deputy.includes(userPrefix) || deputy.includes(userAlias);
 }
 
 function formatBullets(text) {
@@ -610,7 +921,6 @@ function formatBullets(text) {
   return `<ul style="margin: 0; padding-left: 16px; list-style-type: disc;">` + lines.map(l => `<li style="margin-bottom: 4px;">${l}</li>`).join('') + `</ul>`;
 }
 
-// 新增：雙擊開啟唯讀專案詳情
 window.openProjDetail = (code) => {
   const week = allWeeks[currentIdx];
   const p = week.projects.find(x => x.code === code);
@@ -637,11 +947,11 @@ window.openProjDetail = (code) => {
   document.getElementById('pd_milestones').innerHTML = (p.milestones || []).map(m => `
     <div class="ms-node ${m.status || 'to-do'}">
       <div class="ms-dot"></div>
-      <div style="display:flex; flex-direction:column;">
-        <div style="font-size:13px; font-weight:600;">${m.name}</div>
+      <div style="display:flex; flex-direction:column; flex: 1; min-width: 0; margin-right: 12px;">
+        <div style="font-size:13px; font-weight:600; word-break: break-word;">${m.name}</div>
         <div style="font-size:10px; color:var(--muted); margin-top:2px;">${m.date || 'No Date'}</div>
       </div>
-      <div class="ms-status ${m.status || 'to-do'}">${m.status || 'to-do'}</div>
+      <div class="ms-status ${m.status || 'to-do'}" style="flex-shrink: 0; white-space: nowrap;">${m.status || 'to-do'}</div>
     </div>
   `).join('');
   
@@ -649,20 +959,38 @@ window.openProjDetail = (code) => {
 };
 
 // ── RENDER ──
-function render() {
+window.render = () => {
   const week = allWeeks[currentIdx];
   if (!week) return;
 
-  document.getElementById('wNavLabel').textContent = week.weekLabel;
+  const sel = document.getElementById('wNavSelect');
+  if (sel) sel.value = currentIdx;
+
   document.getElementById('bannerTitle').textContent = week.weekLabel;
-  
   const editorName = getUserDisplayName(week.lastModifiedBy);
   document.getElementById('bannerMeta').textContent = week.weekDate + " · Last edited by " + editorName;
 
   let projs = week.projects || [];
+  
+  const visFilter = document.getElementById('visSelect') ? document.getElementById('visSelect').value : 'active';
+  if (currentRole !== 'admin' || visFilter === 'active') {
+     projs = projs.filter(p => !p.visibility || p.visibility === 'active');
+  }
+
   if (currentPMFilter !== 'all' && !isOverview) {
     projs = projs.filter(p => p.owner === currentPMFilter);
   }
+
+  const total = projs.length;
+  const critical = projs.filter(p => p.status === 'red').length;
+  const atRisk = projs.filter(p => p.status === 'yellow').length;
+  const onTrack = total - critical - atRisk;
+
+  document.getElementById('m_total').textContent = total;
+  document.getElementById('m_critical').textContent = critical;
+  document.getElementById('m_atrisk').textContent = atRisk;
+  document.getElementById('m_ontrack').textContent = onTrack;
+  document.getElementById('topMetricsGrid').style.display = 'grid';
 
   renderNormal(projs);
   renderExec(projs, week.summary);
@@ -673,8 +1001,15 @@ function render() {
   } else {
     document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
     document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+    
+    const btnOverview = document.getElementById('btnOverview');
+    if (isOverview) {
+      btnOverview.classList.add('active');
+    } else {
+      btnOverview.classList.remove('active');
+    }
   }
-}
+};
 
 function renderNormal(projs) {
   const grid = document.getElementById('projGrid');
@@ -683,12 +1018,13 @@ function renderNormal(projs) {
       <div class="card-stripe ${p.status}"></div>
       ${canEditProject(p) ? `
         <div class="card-actions">
-          <button class="action-icon" onclick="event.stopPropagation(); openProjSettings('${p.code}')">⚙️</button>
-          <button class="action-icon" onclick="event.stopPropagation(); openProjUpdate('${p.code}')">📝</button>
+          <button class="action-icon" title="Project edit" onclick="event.stopPropagation(); openProjEdit('${p.code}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
         </div>` : ''}
       <div class="card-body">
         <div class="card-hdr">
-          <div class="proj-name">${p.name}</div>
+          <div class="proj-name">${p.name} ${p.visibility && p.visibility !== 'active' ? `<span style="color:var(--red); font-size:10px;">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
           <div class="proj-code">${p.code}</div>
         </div>
         <div class="info-grid">
@@ -701,11 +1037,11 @@ function renderNormal(projs) {
           ${(p.milestones || []).map(m => `
             <div class="ms-node ${m.status || 'to-do'}">
               <div class="ms-dot"></div>
-              <div style="display:flex; flex-direction:column;">
-                <div style="font-size:12px; font-weight:600;">${m.name}</div>
-                <div style="font-size:9px; color:var(--muted);">${m.date || 'No Date'}</div>
+              <div style="display:flex; flex-direction:column; flex: 1; min-width: 0; margin-right: 12px;">
+                <div style="font-size:12px; font-weight:600; word-break: break-word;">${m.name}</div>
+                <div style="font-size:9px; color:var(--muted); margin-top:2px;">${m.date || 'No Date'}</div>
               </div>
-              <div class="ms-status ${m.status || 'to-do'}">${m.status || 'to-do'}</div>
+              <div class="ms-status ${m.status || 'to-do'}" style="flex-shrink: 0; white-space: nowrap;">${m.status || 'to-do'}</div>
             </div>
           `).join('')}
         </div>
@@ -724,44 +1060,16 @@ function renderNormal(projs) {
 
 function renderExec(projs, summary) {
   const view = document.getElementById('execView');
-  
   const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
-
-  // 自動統計與摘要 (Metrics)
-  const total = projs.length;
-  const critical = projs.filter(p => p.status === 'red').length;
-  const atRisk = projs.filter(p => p.status === 'yellow').length;
-  const onTrack = total - critical - atRisk;
   
-  // 提取風險原因
   const delayedProjects = projs.filter(p => p.status !== 'green' && p.risk && p.risk.trim() !== '');
   let riskSummaryHtml = '<span style="color:var(--muted2)">No major risks reported.</span>';
   if (delayedProjects.length > 0) {
     riskSummaryHtml = `<ul style="margin:0; padding-left:16px;">` + 
-      delayedProjects.map(p => `<li style="margin-bottom:6px;"><b>${p.name}</b>: ${p.risk}</li>`).join('') + 
-      `</ul>`;
+      delayedProjects.map(p => `<li style="margin-bottom:6px;"><b>${p.name}</b>: ${p.risk}</li>`).join('') + `</ul>`;
   }
 
   view.innerHTML = `
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-title">Total Projects</div>
-        <div class="metric-val">${total}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-title">Critical Issues</div>
-        <div class="metric-val red">${critical}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-title">At Risk</div>
-        <div class="metric-val yellow">${atRisk}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-title">On Track</div>
-        <div class="metric-val" style="color:var(--green)">${onTrack}</div>
-      </div>
-    </div>
-
     <div style="background:#fff; padding:24px; border-radius:8px; border:1px solid var(--border); margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:32px;">
       <div>
         <div class="info-lbl" style="color:var(--accent-hov)">Executive Summary</div>
@@ -778,7 +1086,7 @@ function renderExec(projs, summary) {
       <tbody>
         ${projs.map(p => `
           <tr ondblclick="openProjDetail('${p.code}')" style="cursor:pointer;" title="Double click for details">
-            <td><b>${p.name}</b><br><small>${p.owner}</small></td>
+            <td><b>${p.name}</b> ${p.visibility && p.visibility !== 'active' ? `<span style="color:var(--red); font-size:10px;">[${p.visibility.toUpperCase()}]</span>` : ''}<br><small>${p.owner}</small></td>
             <td><span class="role-badge" style="background:var(--${p.status});color:#fff">${(statusMap[p.status] || p.status).toUpperCase()}</span></td>
             <td>
               <div style="display:flex; align-items:center; gap:8px;">
@@ -806,9 +1114,6 @@ window.handleTopPmChange = () => {
 window.toggleOverview = () => {
   if (currentRole === 'vip') return; 
   isOverview = !isOverview;
-  document.getElementById('btnOverview').classList.toggle('active');
-  document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
-  document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
   render();
 };
 window.navWeek = (dir) => {
@@ -817,52 +1122,104 @@ window.navWeek = (dir) => {
 };
 window.closeModal = (id) => document.getElementById(id).classList.remove('open');
 
-// ── PROJECT UPDATES ──
-window.openProjUpdate = (code) => {
-  editingProjCode = code;
-  const p = allWeeks[currentIdx].projects.find(x => x.code === code);
-  document.getElementById('puTitle').textContent = "Update: " + p.name;
-  document.getElementById('pu_status').value = p.status;
-  document.getElementById('pu_progress').value = p.progress;
-  document.getElementById('pu_highlight').value = p.highlight || '';
-  document.getElementById('pu_next').value = p.next || '';
-  document.getElementById('pu_risk').value = p.risk || '';
-  document.getElementById('projUpdateOverlay').classList.add('open');
-};
-
-window.saveProjUpdate = async () => {
-  const week = allWeeks[currentIdx];
-  const p = week.projects.find(x => x.code === editingProjCode);
-  p.status = document.getElementById('pu_status').value;
-  p.progress = document.getElementById('pu_progress').value;
-  p.highlight = document.getElementById('pu_highlight').value;
-  p.next = document.getElementById('pu_next').value;
-  p.risk = document.getElementById('pu_risk').value;
-  
-  week.lastModifiedBy = currentUser.email;
-  await setDoc(doc(db, "weeks", week.weekLabel.replace(' ','-')), week);
-  closeModal('projUpdateOverlay');
-};
-
-// ── PROJECT SETTINGS & MILESTONES ──
-window.openProjSettings = (code, isNew = false) => {
+// ── PROJECT COMBINED EDIT ──
+window.openProjEdit = (code, isNew = false) => {
   isCreatingNew = isNew;
   editingProjCode = code;
   const week = allWeeks[currentIdx];
-  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', milestones:[]} : week.projects.find(x => x.code === code);
+  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], status:'green', progress:0, highlight:'', risk:'', next:''} : week.projects.find(x => x.code === code);
   
-  document.getElementById('ps_name').value = p.name;
-  document.getElementById('ps_code').value = p.code;
-  document.getElementById('ps_owner').innerHTML = PM_LIST.map(m => `<option ${p.owner===m?'selected':''}>${m}</option>`).join('');
-  document.getElementById('ps_deputy').innerHTML = PM_LIST.map(m => `<option ${p.deputy===m?'selected':''}>${m}</option>`).join('');
-  document.getElementById('ps_customer').value = p.customer;
-  document.getElementById('ps_location').value = p.location;
+  document.getElementById('peTitle').textContent = isNew ? "New Project" : "Edit Project";
+  
+  document.getElementById('pe_status').value = p.status || 'green';
+  document.getElementById('pe_progress').value = p.progress || 0;
+  document.getElementById('pe_highlight').value = p.highlight || '';
+  document.getElementById('pe_risk').value = p.risk || '';
+  document.getElementById('pe_next').value = p.next || '';
+  
+  document.getElementById('pe_name').value = p.name || '';
+  document.getElementById('pe_code').value = p.code || '';
+  
+  const safeOwners = [...new Set([...PM_LIST, p.owner])].filter(Boolean);
+  const safeDeputys = [...new Set([...PM_LIST, p.deputy])].filter(Boolean);
+  
+  document.getElementById('pe_owner').innerHTML = safeOwners.map(m => `<option ${p.owner===m?'selected':''}>${m}</option>`).join('');
+  document.getElementById('pe_deputy').innerHTML = safeDeputys.map(m => `<option ${p.deputy===m?'selected':''}>${m}</option>`).join('');
+  
+  document.getElementById('pe_customer').value = p.customer || '';
+  document.getElementById('pe_location').value = p.location || '';
+  document.getElementById('pe_visibility').value = p.visibility || 'active';
   
   const msCont = document.getElementById('msListContainer');
   msCont.innerHTML = '';
   (p.milestones || []).forEach(m => addMilestoneRow(m.name, m.status, m.date));
   
-  document.getElementById('projSettingsOverlay').classList.add('open');
+  const actionDiv = document.getElementById('adminProjActions');
+  if (currentRole === 'admin') {
+    actionDiv.style.display = 'block';
+    document.getElementById('pe_btn_delete').style.display = isNew ? 'none' : 'inline-block';
+  } else {
+    actionDiv.style.display = 'none';
+  }
+
+  document.getElementById('pe_details').open = isNew;
+  document.getElementById('projEditOverlay').classList.add('open');
+};
+
+window.saveProjEdit = async () => {
+  closeModal('projEditOverlay');
+  showLoader("Saving Project...");
+  
+  const week = allWeeks[currentIdx];
+  const milestones = Array.from(document.querySelectorAll('.ms-row')).map(div => ({
+    name: div.querySelector('.ms-name').value,
+    date: div.querySelector('.ms-date').value,
+    status: div.querySelector('.ms-status').value
+  }));
+  
+  const pData = {
+    name: document.getElementById('pe_name').value,
+    code: document.getElementById('pe_code').value,
+    owner: document.getElementById('pe_owner').value,
+    deputy: document.getElementById('pe_deputy').value,
+    customer: document.getElementById('pe_customer').value,
+    location: document.getElementById('pe_location').value,
+    visibility: document.getElementById('pe_visibility').value || 'active',
+    milestones: milestones,
+    status: document.getElementById('pe_status').value,
+    progress: parseInt(document.getElementById('pe_progress').value) || 0,
+    highlight: document.getElementById('pe_highlight').value.trim(),
+    risk: document.getElementById('pe_risk').value.trim(),
+    next: document.getElementById('pe_next').value.trim()
+  };
+
+  if(isCreatingNew) {
+    week.projects.push(pData);
+  } else {
+    const idx = week.projects.findIndex(x => x.code === editingProjCode);
+    week.projects[idx] = {...week.projects[idx], ...pData};
+  }
+  
+  week.lastModifiedBy = currentUser.email;
+  await setDoc(doc(db, "weeks", week.weekLabel.replace(' ','-')), week);
+  
+  await new Promise(r => setTimeout(r, 600)); 
+  hideLoader();
+  showSaveToast("Project saved successfully");
+};
+
+window.deleteProject = async () => {
+  if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
+  closeModal('projEditOverlay');
+  showLoader("Deleting Project...");
+  
+  const week = allWeeks[currentIdx];
+  week.projects = week.projects.filter(x => x.code !== editingProjCode);
+  await setDoc(doc(db, "weeks", week.weekLabel.replace(' ','-')), week);
+  
+  await new Promise(r => setTimeout(r, 600));
+  hideLoader();
+  showSaveToast("Project deleted");
 };
 
 window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
@@ -933,86 +1290,15 @@ window.checkMsDates = () => {
   });
 };
 
-window.saveProjSettings = async () => {
-  const week = allWeeks[currentIdx];
-  const milestones = Array.from(document.querySelectorAll('.ms-row')).map(div => ({
-    name: div.querySelector('.ms-name').value,
-    date: div.querySelector('.ms-date').value,
-    status: div.querySelector('.ms-status').value
-  }));
-  
-  const pData = {
-    name: document.getElementById('ps_name').value,
-    code: document.getElementById('ps_code').value,
-    owner: document.getElementById('ps_owner').value,
-    deputy: document.getElementById('ps_deputy').value,
-    customer: document.getElementById('ps_customer').value,
-    location: document.getElementById('ps_location').value,
-    milestones: milestones,
-    status: 'green', progress: 0
-  };
-
-  if(isCreatingNew) week.projects.push(pData);
-  else {
-    const idx = week.projects.findIndex(x => x.code === editingProjCode);
-    week.projects[idx] = {...week.projects[idx], ...pData};
-  }
-  
-  await setDoc(doc(db, "weeks", week.weekLabel.replace(' ','-')), week);
-  closeModal('projSettingsOverlay');
-};
-
-// ── WEEK INFO LOGIC ──
-window.openWeekInfoEdit = () => {
+// ── WEEK MANAGEMENT COMBINED LOGIC ──
+window.openWeekManagement = () => {
   const week = allWeeks[currentIdx];
   if(!week) return;
-  document.getElementById('wi_label').value = week.weekLabel || '';
-  document.getElementById('wi_date').value = week.weekDate || '';
-  document.getElementById('wi_summary').value = week.summary || '';
-  document.getElementById('weekInfoOverlay').classList.add('open');
-};
-
-window.saveWeekInfo = async () => {
-  const week = allWeeks[currentIdx];
-  const id = week.weekLabel.replace(' ', '-');
   
-  week.summary = document.getElementById('wi_summary').value;
-  week.lastModifiedBy = currentUser.email;
+  document.getElementById('wm_current_title').textContent = `Editing: ${week.weekLabel}`;
+  document.getElementById('wm_summary').value = week.summary || '';
   
-  await setDoc(doc(db, "weeks", id), week);
-  closeModal('weekInfoOverlay');
-};
-
-// ── NEW WEEK LOGIC ──
-function getIsoWeekData(baseDate, offsetWeeks) {
-  let d = new Date(baseDate);
-  d.setDate(d.getDate() + (offsetWeeks * 7));
-  
-  let day = d.getDay() || 7;
-  d.setDate(d.getDate() - day + 1); // Monday
-  let mon = new Date(d);
-  
-  let fri = new Date(d);
-  fri.setDate(fri.getDate() + 4); // Friday
-  
-  let target = new Date(mon.valueOf());
-  let dayNr = (mon.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  let firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
-  let year = target.getFullYear(); 
-  
-  let format = dt => dt.toLocaleString('en-US', {month: 'short', day: 'numeric'});
-  return {
-    label: `W${weekNum} ${year}`,
-    dateStr: `${format(mon)} - ${format(fri)}`
-  };
-}
-
-window.openNewWeekModal = () => {
-  const sel = document.getElementById('nw_label');
+  const sel = document.getElementById('wm_nw_label');
   sel.innerHTML = '';
   
   let baseDate = new Date();
@@ -1034,38 +1320,89 @@ window.openNewWeekModal = () => {
   opt.textContent = wkData.label;
   sel.appendChild(opt);
   
-  window.updateNwDate();
-  document.getElementById('newWeekOverlay').classList.add('open');
+  window.updateWmDate();
+  document.getElementById('weekManageOverlay').classList.add('open');
 };
 
-window.updateNwDate = () => {
-  const sel = document.getElementById('nw_label');
+window.updateWmDate = () => {
+  const sel = document.getElementById('wm_nw_label');
   const opt = sel.options[sel.selectedIndex];
-  if(opt) document.getElementById('nw_date').value = opt.dataset.date;
+  if(opt) document.getElementById('wm_nw_date').value = opt.dataset.date;
 };
 
-window.createNewWeek = async () => {
-  const sel = document.getElementById('nw_label');
+window.saveWeekSummary = async () => {
+  closeModal('weekManageOverlay');
+  showLoader("Updating Summary...");
+  
+  const week = allWeeks[currentIdx];
+  const id = week.weekLabel.replace(' ', '-');
+  
+  week.summary = document.getElementById('wm_summary').value;
+  week.lastModifiedBy = currentUser.email;
+  
+  await setDoc(doc(db, "weeks", id), week);
+  await new Promise(r => setTimeout(r, 600));
+  hideLoader();
+  showSaveToast("Summary updated");
+};
+
+window.createNewWeekFromManage = async () => {
+  const sel = document.getElementById('wm_nw_label');
   const label = sel.value;
-  const date = document.getElementById('nw_date').value;
+  const date = document.getElementById('wm_nw_date').value;
   if (!label) return;
+  
+  closeModal('weekManageOverlay');
+  showLoader("Creating New Week...");
   
   let projects = [];
   if (allWeeks.length > 0) {
     projects = JSON.parse(JSON.stringify(allWeeks[allWeeks.length - 1].projects || []));
+    projects = projects.filter(p => !p.visibility || p.visibility === 'active');
   }
   
   const newWeek = {
     weekLabel: label,
     weekDate: date,
-    summary: '',
+    summary: '', 
     lastModifiedBy: currentUser.email,
     projects: projects
   };
   
+  jumpToLatestOnNextRender = true;
   await setDoc(doc(db, "weeks", label.replace(' ', '-')), newWeek);
-  closeModal('newWeekOverlay');
+  
+  await new Promise(r => setTimeout(r, 600));
+  hideLoader();
+  showSaveToast("New week created");
 };
+
+function getIsoWeekData(baseDate, offsetWeeks) {
+  let d = new Date(baseDate);
+  d.setDate(d.getDate() + (offsetWeeks * 7));
+  
+  let day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1); 
+  let mon = new Date(d);
+  
+  let fri = new Date(d);
+  fri.setDate(fri.getDate() + 4); 
+  
+  let target = new Date(mon.valueOf());
+  let dayNr = (mon.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  let firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+  let year = target.getFullYear(); 
+  
+  let format = dt => dt.toLocaleString('en-US', {month: 'short', day: 'numeric'});
+  return {
+    label: `W${weekNum} ${year}`,
+    dateStr: `${format(mon)} - ${format(fri)}`
+  };
+}
 
 </script>
 </body>
