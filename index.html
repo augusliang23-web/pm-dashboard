@@ -83,7 +83,7 @@ body {
 .auth-msg.error { color: #B35858; background: #FCEDED; border: 1px solid #E39A9A; }
 .auth-msg.success { color: #78B395; background: #E6F3EC; border: 1px solid #78B395; }
 
-/* ── HEADER (Slimmed Down) ── */
+/* ── HEADER ── */
 .hdr {
   position: sticky; top: 0; z-index: 90;
   background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px);
@@ -823,7 +823,15 @@ onAuthStateChanged(auth, async user => {
 function getUserDisplayName(emailStr) {
   if(!emailStr || emailStr === 'System') return 'System';
   let prefix = emailStr.split('@')[0].toLowerCase();
-  const map = { "augus.liang": "Augus", "josiah.winkler": "Josiah", "qianyun.zhu": "Bonnie" };
+  
+  // 在這裡加入新 PM 的對應 (請替換為真實的 Email 前綴與名字)
+  const map = { 
+    "augus.liang": "Augus", 
+    "josiah.winkler": "Josiah", 
+    "qianyun.zhu": "Bonnie",
+    "huichong.kong": "Huichong"  // <--- 修改這裡
+  };
+  
   if (map[prefix]) return map[prefix];
   let n = prefix.split('.')[0];
   return n.charAt(0).toUpperCase() + n.slice(1);
@@ -833,11 +841,17 @@ async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
     const pmSet = new Set();
-    snap.forEach(d => { pmSet.add(getUserDisplayName(d.id)); });
+    snap.forEach(d => { 
+      // 💡 新增過濾條件：只要角色不是 vip，才加入 PM 名單中
+      if (d.data().role !== 'vip') {
+        pmSet.add(getUserDisplayName(d.id)); 
+      }
+    });
     PM_LIST = Array.from(pmSet).sort();
   } catch(e) {
     console.warn("Could not load users list, falling back.", e);
-    PM_LIST = ["Augus", "Bonnie", "Josiah"];
+    // 網路異常備援名單 (請記得替換為真實的 PM 名字，不要把 Jason 寫在這裡)
+    PM_LIST = ["Augus", "Bonnie", "Josiah", "New PM Name"]; 
   }
 }
 
