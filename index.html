@@ -851,7 +851,7 @@ async function fetchDynamicPMList() {
   } catch(e) {
     console.warn("Could not load users list, falling back.", e);
     // 網路異常備援名單 (請記得替換為真實的 PM 名字，不要把 Jason 寫在這裡)
-    PM_LIST = ["Augus", "Bonnie", "Josiah", "New PM Name"]; 
+    PM_LIST = ["Augus", "Bonnie", "Josiah", "Huichong"]; 
   }
 }
 
@@ -956,7 +956,15 @@ function canEditProject(proj) {
   
   const userEmail = currentUser.email.toLowerCase();
   const userPrefix = userEmail.split('@')[0]; 
-  const aliasMap = { "augus.liang": "augus", "josiah.winkler": "josiah", "qianyun.zhu": "bonnie" };
+  
+  // 💡 加入 huichong.kong 的別名，這樣系統就知道 Huichong 就是他
+  const aliasMap = { 
+    "augus.liang": "augus", 
+    "josiah.winkler": "josiah", 
+    "qianyun.zhu": "bonnie",
+    "huichong.kong": "huichong"
+  };
+  
   const owner = (proj.owner || "").toLowerCase();
   const deputy = (proj.deputy || "").toLowerCase();
   const userAlias = aliasMap[userPrefix] || userPrefix;
