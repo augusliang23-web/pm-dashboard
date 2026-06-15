@@ -635,7 +635,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -662,6 +662,7 @@ let isIdle = false;
 let latestPresenceDocs = []; 
 let presenceUITimer = null;  
 const IDLE_TIMEOUT = 10 * 60 * 1000; 
+let weeksUnsub = null;
 
 let activityThrottle = null;
 const handleUserActivity = () => {
@@ -673,7 +674,7 @@ const handleUserActivity = () => {
     isIdle = false;
     if(heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(pingPresence, 60000);
-    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       name: getUserDisplayName(currentUser.email),
       role: currentRole,
       status: 'active',
@@ -685,7 +686,7 @@ const handleUserActivity = () => {
   idleTimer = setTimeout(() => {
     isIdle = true;
     if(heartbeatInterval) clearInterval(heartbeatInterval); 
-    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: Date.now()
     }, { merge: true }).catch(()=>{});
@@ -711,10 +712,62 @@ const showSaveToast = (msg = "Saved successfully") => {
   _toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
 };
 
+function getEmailKey(userOrEmail) {
+  const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail?.email;
+  return (email || '').trim().toLowerCase();
+}
+
+function normalizeRole(role) {
+  const normalized = (role || 'pm').toString().trim().toLowerCase();
+  return ['admin', 'pm', 'vip'].includes(normalized) ? normalized : 'pm';
+}
+
+function getDashboardRole(userDoc) {
+  if (!userDoc.exists()) {
+    throw new Error('missing-dashboard-role');
+  }
+  return normalizeRole(userDoc.data().role);
+}
+
+function showAuthError(message) {
+  const msg = document.getElementById('authMsg');
+  msg.className = "auth-msg error";
+  msg.textContent = message;
+  msg.style.display = 'block';
+}
+
+function sortWeeksByLabel(weeks) {
+  return [...weeks].sort((a, b) => (a.weekLabel || '').localeCompare(b.weekLabel || '', undefined, { numeric: true }));
+}
+
+function isWeekReleased(week) {
+  return week?.isReleased === true;
+}
+
+function showDataLoadError(error) {
+  console.error("Weeks DB Error:", error);
+  hideLoader();
+  allWeeks = [];
+  currentIdx = -1;
+  document.getElementById('bannerTitle').textContent = "Unable to load dashboard";
+  document.getElementById('bannerMeta').textContent = error?.code === 'permission-denied'
+    ? "This account does not have permission to read the requested dashboard data."
+    : "Please refresh and try again.";
+  document.getElementById('bannerPills').innerHTML = "";
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  document.getElementById('projGrid').innerHTML = '';
+  document.getElementById('execView').innerHTML = `
+    <div class="empty-state">
+      <span>Dashboard data could not be loaded.</span>
+    </div>`;
+  document.getElementById('normalView').style.display = currentRole === 'vip' ? 'none' : 'block';
+  document.getElementById('execView').style.display = currentRole === 'vip' ? 'block' : 'none';
+}
+
 // ── PRESENCE SYSTEM ──
 const pingPresence = () => {
   if (!currentUser || isIdle) return;
-  setDoc(doc(db, "presence", currentUser.email.toLowerCase()), {
+  setDoc(doc(db, "presence", getEmailKey(currentUser)), {
     name: getUserDisplayName(currentUser.email),
     role: currentRole,
     status: 'active',
@@ -771,7 +824,7 @@ function stopPresenceSystem() {
   });
 
   if (currentUser) {
-    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), { lastActive: 0 }, { merge: true }).catch(()=>{});
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true }).catch(()=>{});
   }
 }
 
@@ -805,7 +858,7 @@ function renderOnlineUsers(users) {
 
 window.addEventListener('beforeunload', () => {
   if (currentUser) {
-    setDoc(doc(db, "presence", currentUser.email.toLowerCase()), { lastActive: 0 }, { merge: true });
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true });
   }
 });
 
@@ -881,6 +934,10 @@ window.saveNewPassword = async () => {
 window.handleLogout = async () => {
   showLoader("Logging out...");
   stopPresenceSystem();
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
   document.getElementById('projGrid').innerHTML = '';
   document.getElementById('execView').innerHTML = '';
   document.getElementById('bannerTitle').textContent = 'Loading...';
@@ -895,20 +952,37 @@ window.handleLogout = async () => {
 onAuthStateChanged(auth, async user => {
   const dot = document.getElementById('syncDot');
   if (user) {
-    currentUser = user;
-    document.getElementById('loginOverlay').style.display = 'none';
-    dot.classList.add('ok');
-    dot.title = "Connected as " + user.email;
-    
-    const userDoc = await getDoc(doc(db, "users", user.email));
-    currentRole = userDoc.exists() ? userDoc.data().role : 'pm';
-    
-    await fetchDynamicPMList();
-    setupUI();
-    initData();
-    startPresenceSystem(); 
+    try {
+      currentUser = user;
+      document.getElementById('loginOverlay').style.display = 'none';
+      dot.classList.add('ok');
+      dot.title = "Connected as " + user.email;
+
+      const userDoc = await getDoc(doc(db, "users", getEmailKey(user)));
+      currentRole = getDashboardRole(userDoc);
+
+      await fetchDynamicPMList();
+      setupUI();
+      initData();
+      startPresenceSystem();
+    } catch (e) {
+      console.error("Login initialization failed:", e);
+      hideLoader();
+      dot.classList.remove('ok');
+      document.getElementById('loginOverlay').style.display = 'flex';
+      showAuthError(e.message === 'missing-dashboard-role'
+        ? "Login succeeded, but this account has not been assigned a dashboard role yet."
+        : "Login succeeded, but this account cannot load dashboard access settings. Please verify its user role and Firestore permissions.");
+      await signOut(auth).catch(() => {});
+    }
   } else {
     hideLoader();
+    if (weeksUnsub) {
+      weeksUnsub();
+      weeksUnsub = null;
+    }
+    currentUser = null;
+    currentRole = 'pm';
     document.getElementById('projGrid').innerHTML = '';
     document.getElementById('execView').innerHTML = '';
     document.getElementById('topMetricsGrid').style.display = 'none';
@@ -940,7 +1014,7 @@ async function fetchDynamicPMList() {
     const pmSet = new Set();
     snap.forEach(d => { 
       // 💡 新增過濾條件：只要角色不是 vip，才加入 PM 名單中
-      if (d.data().role !== 'vip') {
+      if (normalizeRole(d.data().role) !== 'vip') {
         pmSet.add(getUserDisplayName(d.id)); 
       }
     });
@@ -953,7 +1027,7 @@ async function fetchDynamicPMList() {
 }
 
 function setupUI() {
-  document.getElementById('displayUser').textContent = currentUser.email.split('@')[0].toUpperCase();
+  document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
   
@@ -998,7 +1072,7 @@ window.toggleReleaseWeek = async () => {
   const week = allWeeks[currentIdx];
   if(!week) return;
   
-  const isCurrentlyReleased = week.isReleased !== false;
+  const isCurrentlyReleased = isWeekReleased(week);
   const newStatus = !isCurrentlyReleased;
   
   showLoader(newStatus ? "Releasing to VIP..." : "Reverting to Draft...");
@@ -1015,14 +1089,19 @@ window.toggleReleaseWeek = async () => {
 };
 
 function initData() {
-  onSnapshot(query(collection(db, "weeks"), orderBy("weekLabel")), snap => {
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
+
+  const weeksRef = collection(db, "weeks");
+  const weeksQuery = currentRole === 'vip'
+    ? query(weeksRef, where("isReleased", "==", true))
+    : query(weeksRef, orderBy("weekLabel"));
+
+  weeksUnsub = onSnapshot(weeksQuery, snap => {
     let fetchedWeeks = snap.docs.map(d => d.data());
-    
-    if (currentRole === 'vip') {
-      fetchedWeeks = fetchedWeeks.filter(w => w.isReleased !== false);
-    }
-    
-    allWeeks = fetchedWeeks;
+    allWeeks = sortWeeksByLabel(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
       currentIdx = allWeeks.length - 1;
@@ -1043,7 +1122,7 @@ function initData() {
     
     render();
     hideLoader();
-  });
+  }, showDataLoadError);
 }
 
 function canEditProject(proj) {
@@ -1051,7 +1130,7 @@ function canEditProject(proj) {
   if (currentRole === 'vip') return false; 
   if (!currentUser) return false;
   
-  const userEmail = currentUser.email.toLowerCase();
+  const userEmail = getEmailKey(currentUser);
   const userPrefix = userEmail.split('@')[0]; 
   
   // 💡 加入 huichong.kong 的別名，這樣系統就知道 Huichong 就是他
@@ -1174,7 +1253,7 @@ window.render = () => {
   if (currentRole === 'vip') {
     bannerPills.innerHTML = ''; 
   } else {
-    const isReleased = week.isReleased !== false;
+    const isReleased = isWeekReleased(week);
     if (isReleased) {
       bannerPills.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
