@@ -1234,12 +1234,12 @@ function getUserDisplayName(emailStr) {
   if(!emailStr || emailStr === 'System') return 'System';
   let prefix = emailStr.split('@')[0].toLowerCase();
   
-  // 在這裡加入新 PM 的對應 (請替換為真實的 Email 前綴與名字)
+  // Add new PM aliases here. Replace these placeholders with real email prefixes and names.
   const map = { 
     "augus.liang": "Augus", 
     "josiah.winkler": "Josiah", 
     "qianyun.zhu": "Bonnie",
-    "huichong.kong": "Huichong"  // <--- 修改這裡
+    "huichong.kong": "Huichong"  // Update here
   };
   
   if (map[prefix]) return map[prefix];
@@ -1252,7 +1252,7 @@ async function fetchDynamicPMList() {
     const snap = await getDocs(collection(db, "users"));
     const pmSet = new Set();
     snap.forEach(d => { 
-      // 💡 新增過濾條件：只要角色不是 vip，才加入 PM 名單中
+      // Only non-VIP roles are included in the PM list.
       if (normalizeRole(d.data().role) !== 'vip') {
         pmSet.add(getUserDisplayName(d.id)); 
       }
@@ -1260,7 +1260,7 @@ async function fetchDynamicPMList() {
     PM_LIST = Array.from(pmSet).sort();
   } catch(e) {
     console.warn("Could not load users list, falling back.", e);
-    // 網路異常備援名單 (請記得替換為真實的 PM 名字，不要把 Jason 寫在這裡)
+    // Fallback list for network issues. Replace with real PM names.
     PM_LIST = ["Augus", "Bonnie", "Josiah", "Huichong"]; 
   }
 }
@@ -1372,7 +1372,7 @@ function canEditProject(proj) {
   const userEmail = getEmailKey(currentUser);
   const userPrefix = userEmail.split('@')[0]; 
   
-  // 💡 加入 huichong.kong 的別名，這樣系統就知道 Huichong 就是他
+  // Include the huichong.kong alias so the system can match Huichong correctly.
   const aliasMap = { 
     "augus.liang": "augus", 
     "josiah.winkler": "josiah", 
@@ -1428,13 +1428,13 @@ function getQuarterlyMilestones(p) {
 }
 
 const STRATEGIC_TRACKS = [
-  { id:'all', label:'全部戰略主題', description:'All executive strategic tracks' },
-  { id:'track-a', label:'Track A: 核心營收與市場擴展', description:'客戶交付、新產品上市' },
-  { id:'track-b', label:'Track B: 技術創新與系統整合', description:'架構優化、零組件標準化' },
-  { id:'track-c', label:'Track C: 軟體定義與數位轉型', description:'能源管理系統、軟體平台迭代' }
+  { id:'all', label:'All Strategic Tracks', description:'All executive strategic tracks' },
+  { id:'track-a', label:'Track A: Core Revenue & Market Expansion', description:'Customer delivery and new product launch' },
+  { id:'track-b', label:'Track B: Technology Innovation & System Integration', description:'Architecture optimization and component standardization' },
+  { id:'track-c', label:'Track C: Software-defined & Digital Transformation', description:'Energy management systems and software platform iteration' }
 ];
 
-const UNIVERSAL_CHECKPOINTS = ['1. 規格定義', '2. 概念驗收', '3. 系統整合', '4. 客戶交付'];
+const UNIVERSAL_CHECKPOINTS = ['1. Specification Definition', '2. Concept Validation', '3. System Integration', '4. Customer Delivery'];
 const HEALTH_LABELS = { schedule:'Schedule', resource:'Resource', risk:'Risk' };
 const HEALTH_OPTIONS = [
   ['green', 'On Track'],
