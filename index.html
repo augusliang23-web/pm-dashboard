@@ -479,6 +479,34 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .detail-qms-quarter { font-size:12px; font-weight:800; color:var(--text); }
 .detail-qms-goal { font-size:12px; line-height:1.5; color:var(--text-light); word-break:break-word; }
 .detail-qms-meta { margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted); }
+.strategy-layer { background:#fff; border:1px solid var(--border); border-radius:14px; padding:18px 22px; box-shadow:var(--shadow); margin-bottom:20px; }
+.strategy-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.strategy-title { font-size:16px; font-weight:800; color:var(--text); margin-top:3px; }
+.strategy-track-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+.strategy-track-chip { border:1px solid var(--border2); background:#fff; color:var(--text-light); border-radius:999px; padding:8px 12px; font-size:11px; font-weight:800; cursor:pointer; transition:.16s ease; }
+.strategy-track-chip:hover { border-color:var(--accent); color:var(--accent-hov); }
+.strategy-track-chip.active { background:#EDF5FB; color:#47799A; border-color:#B8D5E8; box-shadow:inset 0 0 0 1px rgba(71,121,154,.08); }
+.quarter-exec-head { display:grid; gap:8px; padding:11px 13px; background:#EDF5FB; border-bottom:1px solid var(--border); }
+.quarter-exec-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.quarter-exec-summary { font-size:11px; line-height:1.45; color:var(--text-light); }
+.quarter-health { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.health-dots { display:flex; gap:6px; flex-wrap:wrap; }
+.health-dot { display:inline-flex; align-items:center; gap:4px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
+.health-dot::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--green); }
+.health-dot.yellow::before { background:var(--yellow); }
+.health-dot.red::before { background:var(--red); }
+.strategic-objective { display:block; font-size:10px; font-weight:800; color:#47799A; margin-bottom:3px; line-height:1.35; }
+.strategic-project-name { font-size:12px; font-weight:800; color:var(--text); line-height:1.35; }
+.strategic-meta-hover { margin-top:5px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted2); opacity:.45; transition:.16s ease; }
+.quarter-item:hover .strategic-meta-hover { opacity:1; }
+.checkpoint-tag { display:inline-flex; margin-top:6px; padding:3px 7px; border-radius:999px; background:var(--s2); border:1px solid var(--border); font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
+.strategy-modal-grid { display:grid; gap:18px; }
+.strategy-section { border:1px solid var(--border); border-radius:10px; background:var(--s2); padding:16px; }
+.strategy-section-title { font-size:13px; font-weight:800; color:var(--text); margin-bottom:10px; }
+.strategy-track-row, .quarter-goal-row, .project-map-row { display:grid; gap:8px; align-items:center; margin-bottom:8px; }
+.strategy-track-row { grid-template-columns:1fr 1.4fr; }
+.quarter-goal-row { grid-template-columns:.7fr 2fr .75fr .75fr .75fr; }
+.project-map-row { grid-template-columns:1.1fr .9fr 1.4fr .9fr; }
 .copilot-prompt-box { font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.55; min-height:220px; background:#FBFDFF; }
 .ai-assist-box { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:18px; }
 .ai-assist-head { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:12px; }
@@ -811,6 +839,30 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
+<div class="overlay" id="strategyOverlay">
+<div class="modal" style="width:1080px">
+  <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
+  <div class="strategy-modal-grid">
+    <section class="strategy-section">
+      <div class="strategy-section-title">Strategic Tracks</div>
+      <div id="strategyTrackEditor"></div>
+    </section>
+    <section class="strategy-section">
+      <div class="strategy-section-title">Quarterly Executive Goals</div>
+      <div id="quarterGoalEditor"></div>
+    </section>
+    <section class="strategy-section">
+      <div class="strategy-section-title">Project Strategic Mapping</div>
+      <div id="projectStrategyEditor"></div>
+    </section>
+  </div>
+  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+    <button class="btn btn-ghost" onclick="closeModal('strategyOverlay')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveStrategyLayer()">Save Strategy Layer</button>
+  </div>
+</div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -826,6 +878,7 @@ let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
 let currentPMFilter = 'all';
+let activeStrategicTrack = 'all';
 let isOverview = false;
 let editingProjCode = null;
 let isCreatingNew = false;
@@ -1366,6 +1419,21 @@ function getQuarterlyMilestones(p) {
     : { quarter:q.quarter, goal:q.goal, window:q.window, status:q.status });
 }
 
+const STRATEGIC_TRACKS = [
+  { id:'all', label:'全部戰略主題', description:'All executive strategic tracks' },
+  { id:'track-a', label:'Track A: 核心營收與市場擴展', description:'客戶交付、新產品上市' },
+  { id:'track-b', label:'Track B: 技術創新與系統整合', description:'架構優化、零組件標準化' },
+  { id:'track-c', label:'Track C: 軟體定義與數位轉型', description:'能源管理系統、軟體平台迭代' }
+];
+
+const UNIVERSAL_CHECKPOINTS = ['1. 規格定義', '2. 概念驗收', '3. 系統整合', '4. 客戶交付'];
+const HEALTH_LABELS = { schedule:'Schedule', resource:'Resource', risk:'Risk' };
+const HEALTH_OPTIONS = [
+  ['green', 'On Track'],
+  ['yellow', 'At Risk'],
+  ['red', 'Blocked']
+];
+
 const QUARTER_MONTHS = [
   ['Jan', 'Feb', 'Mar'],
   ['Apr', 'May', 'Jun'],
@@ -1422,6 +1490,68 @@ function monthSelectOptions(quarter, selectedMonth) {
   const months = quarterMonthOptions(quarter);
   const options = months.includes(selectedMonth) || !selectedMonth ? months : [selectedMonth, ...months];
   return options.map(m => `<option value="${escHtml(m)}" ${m === selectedMonth ? 'selected' : ''}>${escHtml(m)}</option>`).join('');
+}
+
+function getStrategyLayer(week = allWeeks[currentIdx]) {
+  const saved = week?.strategyLayer || {};
+  const savedTracks = saved.tracks || [];
+  const tracks = STRATEGIC_TRACKS.map(def => ({...def, ...(savedTracks.find(t => t.id === def.id) || {})}));
+  return {
+    activeTrack: saved.activeTrack || activeStrategicTrack || 'all',
+    tracks,
+    quarterGoals: saved.quarterGoals || {},
+    projectMap: saved.projectMap || {}
+  };
+}
+
+function getStrategyQuarters(projs, layer = getStrategyLayer()) {
+  const preferred = ['Q2 2026', 'Q3 2026', 'Q4 2026', 'Q1 2027'];
+  const fromProjects = projs.flatMap(p => getQuarterlyMilestones(p).map(q => q.quarter).filter(Boolean));
+  const fromGoals = Object.keys(layer.quarterGoals || {});
+  return [...new Set([...preferred, ...fromProjects, ...fromGoals])].sort((a, b) => (parseQuarterLabel(a)?.index ?? 999999) - (parseQuarterLabel(b)?.index ?? 999999));
+}
+
+function getProjectStrategy(project, layer = getStrategyLayer()) {
+  const mapped = project ? (layer.projectMap?.[project.code] || {}) : {};
+  return {
+    trackId: mapped.trackId || 'all',
+    businessObjective: mapped.businessObjective || '',
+    checkpoint: mapped.checkpoint || ''
+  };
+}
+
+function filterProjectsByTrack(projs, activeTrack, layer = getStrategyLayer()) {
+  if (!activeTrack || activeTrack === 'all') return projs;
+  return projs.filter(p => getProjectStrategy(p, layer).trackId === activeTrack);
+}
+
+function healthSelectOptions(selected) {
+  return HEALTH_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function renderQuarterHealthDots(health = {}) {
+  return `<div class="health-dots">${['schedule','resource','risk'].map(key => {
+    const state = health[key] || 'green';
+    const label = HEALTH_OPTIONS.find(([v]) => v === state)?.[1] || 'On Track';
+    return `<span class="health-dot ${state === 'green' ? '' : state}" title="${HEALTH_LABELS[key]}: ${label}">${HEALTH_LABELS[key]}</span>`;
+  }).join('')}</div>`;
+}
+
+function renderStrategicTrackFilter(projs, layer, editable) {
+  const active = activeStrategicTrack || layer.activeTrack || 'all';
+  return `<section class="strategy-layer">
+    <div class="strategy-toolbar">
+      <div>
+        <div class="exec-eyebrow">Strategic Tracks Filter</div>
+        <div class="strategy-title">Executive strategy lens</div>
+      </div>
+      ${editable ? `<button class="btn btn-primary" onclick="openStrategyLayerModal()">Manage Strategy</button>` : ''}
+    </div>
+    <div class="strategy-track-tabs">${layer.tracks.map(track => {
+      const count = track.id === 'all' ? projs.length : projs.filter(p => getProjectStrategy(p, layer).trackId === track.id).length;
+      return `<button class="strategy-track-chip ${active === track.id ? 'active' : ''}" onclick="setStrategicTrack('${escHtml(track.id)}')">${escHtml(track.label)} <span class="reason-pill">${count}</span></button>`;
+    }).join('')}</div>
+  </section>`;
 }
 
 function riskItems(p) {
@@ -1655,17 +1785,26 @@ function formatDetailQuarterlyMilestones(project) {
   `).join('');
 }
 
-function renderQuarterlyBoard(projs) {
-  const preferred = ['Q2 2026', 'Q3 2026', 'Q4 2026', 'Q1 2027'];
-  const quarters = [...new Set([...preferred, ...projs.flatMap(p => getQuarterlyMilestones(p).map(q => q.quarter).filter(Boolean))])];
+function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = 'all') {
+  const visibleProjects = filterProjectsByTrack(projs, activeTrack, layer);
+  const quarters = getStrategyQuarters(projs, layer);
   return `<div class="quarter-board">${quarters.map(q => {
-    const items = projs.flatMap(p => getQuarterlyMilestones(p).filter(m => m.quarter === q).map(m => ({...m, project:p.name, code:p.code, owner:p.owner})));
-    return `<section class="quarter-col"><div class="quarter-head"><b>${escHtml(q)}</b><span class="reason-pill">${items.length}</span></div><div class="quarter-items">${items.length ? items.map(i => `
+    const goal = layer.quarterGoals?.[q] || {};
+    const items = visibleProjects.flatMap(p => getQuarterlyMilestones(p).filter(m => m.quarter === q).map(m => ({...m, project:p.name, code:p.code, owner:p.owner, strategy:getProjectStrategy(p, layer)})));
+    return `<section class="quarter-col">
+      <div class="quarter-exec-head">
+        <div class="quarter-exec-top"><b>${escHtml(q)}</b><span class="reason-pill">${items.length}</span></div>
+        <div class="quarter-exec-summary">${escHtml(goal.summary || 'No executive quarterly objective defined.')}</div>
+        <div class="quarter-health">${renderQuarterHealthDots(goal.health || {})}</div>
+      </div>
+      <div class="quarter-items">${items.length ? items.map(i => `
       <div class="quarter-item ${i.status || ''}">
-        <div class="quarter-project">${escHtml(i.project)} <span class="proj-code">${escHtml(i.code)} | ${escHtml(i.owner || '-')}</span></div>
+        ${i.strategy.businessObjective ? `<span class="strategic-objective">[${escHtml(i.strategy.businessObjective)}]</span>` : ''}
+        <div class="strategic-project-name">${escHtml(i.project)}</div>
         <div class="quarter-goal">${escHtml(i.goal || '-')}</div>
-        <div class="proj-code">${escHtml(i.window || '-')} | ${escHtml(getStatusLabel(i.status || 'planned'))}</div>
-      </div>`).join('') : '<div class="quarter-item"><div class="quarter-goal">No quarterly milestone defined</div></div>'}</div></section>`;
+        <span class="checkpoint-tag">${escHtml(i.strategy.checkpoint || 'Checkpoint not set')}</span>
+        <div class="strategic-meta-hover">${escHtml(i.code)} | ${escHtml(i.owner || '-')} | ${escHtml(i.window || '-')} | ${escHtml(getStatusLabel(i.status || 'planned'))}</div>
+      </div>`).join('') : '<div class="quarter-item"><div class="quarter-goal">No quarterly milestone defined for this strategic filter.</div></div>'}</div></section>`;
   }).join('')}</div>`;
 }
 
@@ -2005,6 +2144,8 @@ function renderExec(projs, summary) {
   const view = document.getElementById('execView');
   const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
   const editableDecisionView = currentRole !== 'vip' && !isWeekReleased(allWeeks[currentIdx]);
+  const strategyLayer = getStrategyLayer(allWeeks[currentIdx]);
+  const activeTrack = activeStrategicTrack || strategyLayer.activeTrack || 'all';
 
   const total = projs.length;
   const critical = projs.filter(p => p.status === 'red').length;
@@ -2015,6 +2156,8 @@ function renderExec(projs, summary) {
   const riskEnd = total ? ((critical + atRisk) / total) * 100 : 0;
 
   view.innerHTML = `
+    ${renderStrategicTrackFilter(projs, strategyLayer, editableDecisionView)}
+
     <div class="exec-decision-panel">
       <div class="exec-decision-head">
         <div>
@@ -2023,7 +2166,7 @@ function renderExec(projs, summary) {
         </div>
         <div class="exec-panel-note">Executive view of what each project is targeting by quarter</div>
       </div>
-      ${renderQuarterlyBoard(projs)}
+      ${renderQuarterlyBoard(projs, strategyLayer, activeTrack)}
     </div>
 
     <div class="exec-overview">
@@ -2192,6 +2335,102 @@ async function saveCurrentWeekQuietly() {
   week.lastModifiedBy = currentUser.email;
   await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
 }
+
+window.setStrategicTrack = (trackId) => {
+  activeStrategicTrack = trackId || 'all';
+  render();
+};
+
+window.openStrategyLayerModal = () => {
+  const week = allWeeks[currentIdx];
+  if (!week) return;
+  const layer = getStrategyLayer(week);
+  const projs = (week.projects || []).filter(p => !p.visibility || p.visibility === 'active');
+  const quarters = getStrategyQuarters(projs, layer);
+
+  document.getElementById('strategyTrackEditor').innerHTML = layer.tracks.filter(t => t.id !== 'all').map(track => `
+    <div class="strategy-track-row" data-track="${escHtml(track.id)}">
+      <input class="fi st-label" value="${escHtml(track.label)}">
+      <input class="fi st-desc" value="${escHtml(track.description || '')}" placeholder="Executive description">
+    </div>
+  `).join('');
+
+  document.getElementById('quarterGoalEditor').innerHTML = quarters.map(q => {
+    const goal = layer.quarterGoals?.[q] || {};
+    const health = goal.health || {};
+    return `<div class="quarter-goal-row" data-quarter="${escHtml(q)}">
+      <input class="fi qg-quarter" value="${escHtml(q)}" readonly style="background:var(--s3); color:var(--muted);">
+      <input class="fi qg-summary" value="${escHtml(goal.summary || '')}" placeholder="Executive quarterly objective">
+      <select class="fs qg-schedule">${healthSelectOptions(health.schedule || 'green')}</select>
+      <select class="fs qg-resource">${healthSelectOptions(health.resource || 'green')}</select>
+      <select class="fs qg-risk">${healthSelectOptions(health.risk || 'green')}</select>
+    </div>`;
+  }).join('');
+
+  const trackOptions = layer.tracks.filter(t => t.id !== 'all').map(t => `<option value="${escHtml(t.id)}">${escHtml(t.label)}</option>`).join('');
+  const checkpointOptions = UNIVERSAL_CHECKPOINTS.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  document.getElementById('projectStrategyEditor').innerHTML = projs.map(p => {
+    const s = getProjectStrategy(p, layer);
+    return `<div class="project-map-row" data-code="${escHtml(p.code)}">
+      <input class="fi pm-project" value="${escHtml(p.name)}" readonly style="background:var(--s3); color:var(--muted);">
+      <select class="fs pm-track"><option value="">Unmapped</option>${trackOptions}</select>
+      <input class="fi pm-objective" value="${escHtml(s.businessObjective || '')}" placeholder="Business objective / customer name">
+      <select class="fs pm-checkpoint"><option value="">Checkpoint not set</option>${checkpointOptions}</select>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.project-map-row').forEach(row => {
+    const s = getProjectStrategy(projs.find(p => p.code === row.dataset.code), layer);
+    row.querySelector('.pm-track').value = s.trackId === 'all' ? '' : s.trackId;
+    row.querySelector('.pm-checkpoint').value = s.checkpoint || '';
+  });
+
+  document.getElementById('strategyOverlay').classList.add('open');
+};
+
+window.saveStrategyLayer = async () => {
+  const week = allWeeks[currentIdx];
+  if (!week || !currentUser) return;
+  const base = getStrategyLayer(week);
+  const tracks = base.tracks.map(track => {
+    const row = document.querySelector(`.strategy-track-row[data-track="${track.id}"]`);
+    return row ? {...track, label: row.querySelector('.st-label').value.trim() || track.label, description: row.querySelector('.st-desc').value.trim()} : track;
+  });
+  const quarterGoals = {};
+  document.querySelectorAll('.quarter-goal-row').forEach(row => {
+    const summary = row.querySelector('.qg-summary').value.trim();
+    quarterGoals[row.dataset.quarter] = {
+      summary,
+      health: {
+        schedule: row.querySelector('.qg-schedule').value,
+        resource: row.querySelector('.qg-resource').value,
+        risk: row.querySelector('.qg-risk').value
+      }
+    };
+  });
+  const projectMap = {};
+  document.querySelectorAll('.project-map-row').forEach(row => {
+    const trackId = row.querySelector('.pm-track').value;
+    const businessObjective = row.querySelector('.pm-objective').value.trim();
+    const checkpoint = row.querySelector('.pm-checkpoint').value;
+    if (trackId || businessObjective || checkpoint) {
+      projectMap[row.dataset.code] = { trackId: trackId || 'all', businessObjective, checkpoint };
+    }
+  });
+  week.strategyLayer = {
+    activeTrack: activeStrategicTrack || 'all',
+    tracks,
+    quarterGoals,
+    projectMap
+  };
+  week.lastModifiedBy = currentUser.email;
+  closeModal('strategyOverlay');
+  showLoader("Saving Strategy Layer...");
+  await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
+  await new Promise(r => setTimeout(r, 500));
+  hideLoader();
+  render();
+  showSaveToast("Strategy layer saved");
+};
 
 function findCurrentProject(code) {
   const week = allWeeks[currentIdx];
