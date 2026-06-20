@@ -467,11 +467,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .risk-control { display:flex; gap:8px; align-items:flex-start; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; }
 .risk-control input { margin-top:2px; }
 .risk-control b { display:block; font-size:11px; }
-.qms-row { display:grid; grid-template-columns:28px .65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; padding:4px; border-radius:4px; background:var(--s1); }
-.qms-row.dragging { opacity:.5; background:var(--s3); }
+.qms-row { display:grid; grid-template-columns:.65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; padding:4px; border-radius:4px; background:var(--s1); }
 .qms-row:hover { background:var(--s2); }
-.qms-handle { cursor:grab; color:var(--muted); text-align:center; user-select:none; font-size:18px; line-height:1; }
-.qms-handle:active { cursor:grabbing; }
+.qms-delete { border:none; background:none; cursor:pointer; font-size:16px; line-height:1; }
+.qms-delete:disabled { opacity:.28; cursor:not-allowed; }
 .detail-qms-list { display:grid; gap:10px; }
 .detail-qms-item { border:1px solid var(--border); border-left:4px solid var(--blue); border-radius:8px; background:#fff; padding:10px 12px; }
 .detail-qms-item.done { border-left-color:var(--green); background:#F3FBF6; }
@@ -1365,6 +1364,64 @@ function getQuarterlyMilestones(p) {
   return (p.quarterlyMilestones || []).map(q => Array.isArray(q)
     ? { quarter:q[0], goal:q[1], window:q[2], status:q[3] }
     : { quarter:q.quarter, goal:q.goal, window:q.window, status:q.status });
+}
+
+const QUARTER_MONTHS = [
+  ['Jan', 'Feb', 'Mar'],
+  ['Apr', 'May', 'Jun'],
+  ['Jul', 'Aug', 'Sep'],
+  ['Oct', 'Nov', 'Dec']
+];
+
+function parseQuarterLabel(label) {
+  const m = String(label || '').trim().match(/^Q([1-4])\s*(\d{4})$/i);
+  if (!m) return null;
+  const q = parseInt(m[1], 10);
+  const year = parseInt(m[2], 10);
+  return { q, year, index: year * 4 + q - 1 };
+}
+
+function quarterLabelFromIndex(index) {
+  const year = Math.floor(index / 4);
+  const q = (index % 4) + 1;
+  return `Q${q} ${year}`;
+}
+
+function currentQuarterIndex() {
+  const d = new Date();
+  return d.getFullYear() * 4 + Math.floor(d.getMonth() / 3);
+}
+
+function quarterMonthOptions(quarter) {
+  const parsed = parseQuarterLabel(quarter);
+  if (!parsed) return [];
+  return QUARTER_MONTHS[parsed.q - 1].map(m => `${m} ${parsed.year}`);
+}
+
+function isPastQuarter(quarter) {
+  const parsed = parseQuarterLabel(quarter);
+  return parsed ? parsed.index < currentQuarterIndex() : false;
+}
+
+function nextQuarterLabelFromRows() {
+  const rows = Array.from(document.querySelectorAll('#qmsListContainer .qms-row'));
+  const indices = rows.map(row => parseQuarterLabel(row.querySelector('.qms-quarter')?.value)?.index).filter(v => Number.isFinite(v));
+  const nextIndex = indices.length ? Math.max(...indices) + 1 : currentQuarterIndex();
+  return quarterLabelFromIndex(nextIndex);
+}
+
+function quarterSelectOptions(selectedQuarter) {
+  const current = currentQuarterIndex();
+  const selected = parseQuarterLabel(selectedQuarter);
+  const indices = new Set(Array.from({length: 12}, (_, i) => current + i));
+  if (selected) indices.add(selected.index);
+  return [...indices].sort((a, b) => a - b).map(i => quarterLabelFromIndex(i));
+}
+
+function monthSelectOptions(quarter, selectedMonth) {
+  const months = quarterMonthOptions(quarter);
+  const options = months.includes(selectedMonth) || !selectedMonth ? months : [selectedMonth, ...months];
+  return options.map(m => `<option value="${escHtml(m)}" ${m === selectedMonth ? 'selected' : ''}>${escHtml(m)}</option>`).join('');
 }
 
 function riskItems(p) {
@@ -2345,29 +2402,54 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
   checkMsDates();
 }
 
-window.addQuarterlyMilestoneRow = (quarter='Q3 2026', goal='', windowText='', status='planned') => {
+window.addQuarterlyMilestoneRow = (quarter='', goal='', windowText='', status='planned') => {
+  const selectedQuarter = quarter || nextQuarterLabelFromRows();
+  const selectedMonth = windowText || quarterMonthOptions(selectedQuarter)[0] || '';
   const div = document.createElement('div');
   div.className = "qms-row";
   div.innerHTML = `
-    <span class="qms-handle" draggable="true" title="Drag to reorder">&#9776;</span>
-    <input class="fi qms-quarter" value="${escHtml(quarter || '')}" placeholder="Q3 2026">
+    <select class="fs qms-quarter">${quarterSelectOptions(selectedQuarter).map(q => `<option value="${escHtml(q)}" ${q === selectedQuarter ? 'selected' : ''}>${escHtml(q)}</option>`).join('')}</select>
     <input class="fi qms-goal" value="${escHtml(goal || '')}" placeholder="Quarterly target / business objective">
-    <input class="fi qms-window" value="${escHtml(windowText || '')}" placeholder="Aug 2026">
+    <select class="fs qms-window">${monthSelectOptions(selectedQuarter, selectedMonth)}</select>
     <select class="fs qms-status">
       <option value="planned" ${status==='planned'||!status?'selected':''}>planned</option>
       <option value="done" ${status==='done'?'selected':''}>done</option>
       <option value="at-risk" ${status==='at-risk'||status==='risk'?'selected':''}>at-risk</option>
     </select>
-    <button onclick="this.parentElement.remove();" style="border:none; background:none; cursor:pointer;">x</button>
+    <button class="qms-delete" onclick="this.parentElement.remove();" title="Delete quarterly milestone">&#128465;&#65039;</button>
   `;
-  const handle = div.querySelector('.qms-handle');
-  handle.ondragstart = e => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    div.classList.add('dragging');
+  const quarterSelect = div.querySelector('.qms-quarter');
+  const monthSelect = div.querySelector('.qms-window');
+  const deleteButton = div.querySelector('.qms-delete');
+  const syncDeleteState = () => {
+    const past = isPastQuarter(quarterSelect.value);
+    deleteButton.disabled = past;
+    deleteButton.title = past ? 'Past quarters cannot be deleted' : 'Delete quarterly milestone';
   };
-  handle.ondragend = () => div.classList.remove('dragging');
+  quarterSelect.onchange = () => {
+    monthSelect.innerHTML = monthSelectOptions(quarterSelect.value, quarterMonthOptions(quarterSelect.value)[0] || '');
+    syncDeleteState();
+    sortQuarterlyMilestoneRows();
+  };
+  monthSelect.onchange = sortQuarterlyMilestoneRows;
+  syncDeleteState();
   document.getElementById('qmsListContainer').appendChild(div);
+  sortQuarterlyMilestoneRows();
+}
+
+function sortQuarterlyMilestoneRows() {
+  const container = document.getElementById('qmsListContainer');
+  if (!container) return;
+  const rows = Array.from(container.querySelectorAll('.qms-row'));
+  rows
+    .map((row, order) => ({
+      row,
+      order,
+      qIndex: parseQuarterLabel(row.querySelector('.qms-quarter')?.value)?.index ?? Number.MAX_SAFE_INTEGER,
+      monthIndex: quarterMonthOptions(row.querySelector('.qms-quarter')?.value).indexOf(row.querySelector('.qms-window')?.value)
+    }))
+    .sort((a, b) => a.qIndex - b.qIndex || (a.monthIndex < 0 ? 99 : a.monthIndex) - (b.monthIndex < 0 ? 99 : b.monthIndex) || a.order - b.order)
+    .forEach(item => container.appendChild(item.row));
 }
 
 const msCont = document.getElementById('msListContainer');
@@ -2383,19 +2465,8 @@ msCont.addEventListener('dragover', e => {
   }
 });
 
-const qmsCont = document.getElementById('qmsListContainer');
-qmsCont.addEventListener('dragover', e => {
-  e.preventDefault();
-  const draggable = qmsCont.querySelector('.dragging');
-  if(!draggable) return;
-  const afterElement = getDragAfterElement(qmsCont, e.clientY);
-  if (afterElement == null) qmsCont.appendChild(draggable);
-  else qmsCont.insertBefore(draggable, afterElement);
-});
-
 function getDragAfterElement(container, y) {
-  const rowSelector = container.id === 'qmsListContainer' ? '.qms-row:not(.dragging)' : '.ms-row:not(.dragging)';
-  const draggableElements = [...container.querySelectorAll(rowSelector)];
+  const draggableElements = [...container.querySelectorAll('.ms-row:not(.dragging)')];
   return draggableElements.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
