@@ -692,6 +692,59 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .risk-action-table th, .risk-action-table td { padding:6px 7px !important; }
   .reason-pill { font-size:8px !important; padding:2px 5px !important; }
 
+  .attention-map-panel {
+    break-before: page !important;
+    page-break-before: always !important;
+    padding: 10px 12px !important;
+  }
+  .attention-map-panel .exec-decision-head { margin-bottom: 7px !important; }
+  .attention-map-panel .attention-matrix {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 3mm !important;
+    border: 0 !important;
+    overflow: visible !important;
+  }
+  .attention-map-panel .attention-quad {
+    min-height: 0 !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    padding: 7px !important;
+    gap: 5px !important;
+  }
+  .attention-map-panel .attention-title { font-size: 9px !important; line-height: 1.2 !important; }
+  .attention-map-panel .attention-meta { font-size: 6.8px !important; line-height: 1.2 !important; }
+  .attention-map-panel .attention-item {
+    padding: 5px 6px !important;
+    border-radius: 6px !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .attention-map-panel .attention-item-top { display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; gap: 4px !important; }
+  .attention-map-panel .attention-name { font-size: 8.2px !important; line-height: 1.18 !important; }
+  .attention-map-panel .proj-code { font-size: 6.5px !important; padding: 0 !important; background: transparent !important; }
+  .attention-map-panel .attention-risk {
+    font-size: 7.2px !important;
+    line-height: 1.22 !important;
+    margin-top: 3px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .risk-action-panel {
+    padding: 10px 12px !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .risk-action-panel .exec-decision-head { margin-bottom: 8px !important; }
+  .risk-action-panel .risk-rule { margin-bottom: 7px !important; }
+  .risk-action-panel table { break-inside: auto !important; page-break-inside: auto !important; }
+  .risk-action-panel thead { display: table-header-group !important; }
+  .risk-action-panel tr { break-inside: avoid-page !important; page-break-inside: avoid !important; }
+  .risk-action-panel .risk-list li { margin-bottom: 2px !important; }
+
   .exec-board-head { margin:7mm 1px 3mm !important; }
   .exec-projects { display:grid !important; gap:4mm !important; }
   .exec-project-card { border-radius:10px !important; overflow:visible !important; cursor:default !important; }
@@ -713,6 +766,30 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .exec-project-timeline-track::before { top: 49px !important; height: 2px !important; background-image: repeating-linear-gradient(to right, var(--border2) 0 5px, transparent 5px 8px) !important; }
   .exec-project-step-line { height: 14px !important; margin: 0 !important; }
   .exec-project-step-dot { width: 9px !important; height: 9px !important; }
+
+  .project-portfolio-head {
+    break-before: page !important;
+    page-break-before: always !important;
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+    margin-top: 0 !important;
+  }
+  .project-portfolio-grid .exec-project-card {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .project-portfolio-grid .exec-project-top {
+    grid-template-columns: minmax(150px, .75fr) minmax(100px, .45fr) minmax(420px, 2.4fr) !important;
+  }
+  .project-portfolio-grid .exec-signal { min-height: 48px !important; }
+  .project-portfolio-grid .exec-signal .stext {
+    -webkit-line-clamp: 3 !important;
+    font-size: 8.2px !important;
+  }
+  .project-portfolio-grid .exec-project-milestones {
+    padding-top: 6px !important;
+    padding-bottom: 8px !important;
+  }
 }
 </style>
 </head>
@@ -2477,7 +2554,7 @@ function renderExec(projs, summary) {
       </div>
     </div>
 
-    <div class="exec-decision-panel">
+    <div class="exec-decision-panel attention-map-panel">
       <div class="exec-decision-head">
         <div>
           <div class="exec-eyebrow">Management Attention Map</div>
@@ -2488,7 +2565,7 @@ function renderExec(projs, summary) {
       ${renderAttentionMatrix(projs, editableDecisionView)}
     </div>
 
-    <div class="exec-decision-panel">
+    <div class="exec-decision-panel risk-action-panel">
       <div class="exec-decision-head">
         <div>
           <div class="exec-eyebrow">Risk Action Table</div>
@@ -2499,7 +2576,7 @@ function renderExec(projs, summary) {
       ${renderRiskActionTable(projs, editableDecisionView)}
     </div>
 
-    <div class="exec-board-head">
+    <div class="exec-board-head project-portfolio-head">
       <div>
         <div class="exec-board-title">Project portfolio</div>
         <div class="exec-board-sub">Status, progress, updates and milestones in one scan</div>
@@ -2511,7 +2588,7 @@ function renderExec(projs, summary) {
       </div>
     </div>
 
-    <div class="exec-projects">
+    <div class="exec-projects project-portfolio-grid">
       ${projs.map(p => `
         <article class="exec-project-card ${p.status}" ondblclick="openProjDetail('${p.code}')" title="Double click for details">
           <div class="exec-project-top">
