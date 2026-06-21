@@ -618,6 +618,70 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .strategic-objective, .checkpoint-tag, .strategic-meta-hover, .quarter-exec-goal-track, .health-dot { font-size:7.5px !important; }
   .strategic-meta-hover { opacity:.7 !important; }
 
+  .quarterly-roadmap-panel {
+    break-after: page !important;
+    page-break-after: always !important;
+    padding: 10px 12px !important;
+  }
+  .quarterly-roadmap-panel .exec-decision-head { margin-bottom: 7px !important; }
+  .quarterly-roadmap-panel .exec-decision-title { font-size: 13px !important; }
+  .quarterly-roadmap-panel .exec-eyebrow { font-size: 8px !important; }
+  .quarterly-roadmap-panel .quarter-board { gap: 3mm !important; }
+  .quarterly-roadmap-panel .quarter-exec-head { padding: 6px 7px !important; gap: 4px !important; }
+  .quarterly-roadmap-panel .quarter-exec-top b { font-size: 10px !important; }
+  .quarterly-roadmap-panel .quarter-goal-list { gap: 3px !important; }
+  .quarterly-roadmap-panel .quarter-exec-goal { padding: 4px 5px !important; gap: 2px !important; border-radius: 6px !important; }
+  .quarterly-roadmap-panel .quarter-exec-goal.empty { display: none !important; }
+  .quarterly-roadmap-panel .quarter-exec-goal-text { font-size: 7.8px !important; line-height: 1.2 !important; }
+  .quarterly-roadmap-panel .health-dots { gap: 4px !important; }
+  .quarterly-roadmap-panel .health-dot { font-size: 6.8px !important; line-height: 1 !important; }
+  .quarterly-roadmap-panel .health-dot::before { width: 5px !important; height: 5px !important; }
+  .quarterly-roadmap-panel .quarter-items { gap: 3px !important; padding: 6px !important; }
+  .quarterly-roadmap-panel .quarter-item {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 1px 5px !important;
+    padding: 4px 6px !important;
+    min-height: 0 !important;
+    border-radius: 6px !important;
+  }
+  .quarterly-roadmap-panel .quarter-item.empty { min-height: 22px !important; align-content: center !important; }
+  .quarterly-roadmap-panel .strategic-objective {
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+    font-size: 6.9px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .quarterly-roadmap-panel .strategic-project-name {
+    font-size: 8.4px !important;
+    line-height: 1.18 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .quarterly-roadmap-panel .quarter-goal { grid-column: 1 / -1 !important; font-size: 7.2px !important; line-height: 1.15 !important; margin-top: 0 !important; }
+  .quarterly-roadmap-panel .quarter-goal.empty { display: none !important; }
+  .quarterly-roadmap-panel .checkpoint-tag {
+    margin-top: 1px !important;
+    padding: 1px 5px !important;
+    font-size: 6.6px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+  }
+  .quarterly-roadmap-panel .strategic-meta-hover {
+    margin: 1px 0 0 !important;
+    font-size: 6.2px !important;
+    line-height: 1.15 !important;
+    opacity: .7 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
   .attention-matrix { overflow:visible !important; }
   .attention-quad { min-height:120px !important; padding:9px !important; gap:6px !important; }
   .attention-title { font-size:10.5px !important; }
@@ -1696,7 +1760,7 @@ function renderQuarterHealthDots(health = {}) {
 
 function renderQuarterExecutiveGoals(quarter, layer, activeTrack) {
   const goals = getQuarterGoalList(quarter, layer, activeTrack).filter(g => g.summary.trim());
-  if (!goals.length) return '<div class="quarter-exec-goal"><div class="quarter-exec-goal-text">No executive quarterly goals defined for this strategic filter.</div></div>';
+  if (!goals.length) return '<div class="quarter-exec-goal empty"><div class="quarter-exec-goal-text">No executive quarterly goals defined for this strategic filter.</div></div>';
   return `<div class="quarter-goal-list">${goals.map(g => {
     const track = layer.tracks.find(t => t.id === g.trackId);
     return `<div class="quarter-exec-goal">
@@ -1969,10 +2033,10 @@ function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = '
       <div class="quarter-item ${i.status || ''}">
         ${i.strategy.businessObjective ? `<span class="strategic-objective">[${escHtml(i.strategy.businessObjective)}]</span>` : ''}
         <div class="strategic-project-name">${escHtml(i.project)}</div>
-        <div class="quarter-goal">${escHtml(i.goal || '-')}</div>
+        <div class="quarter-goal ${!i.goal || i.goal === '-' ? 'empty' : ''}">${escHtml(i.goal || '-')}</div>
         <span class="checkpoint-tag">${escHtml(i.strategy.checkpoint || 'Checkpoint not set')}</span>
         <div class="strategic-meta-hover">${escHtml(i.code)} | ${escHtml(i.owner || '-')} | ${escHtml(i.window || '-')} | ${escHtml(getStatusLabel(i.status || 'planned'))}</div>
-      </div>`).join('') : '<div class="quarter-item"><div class="quarter-goal">No quarterly milestone defined for this strategic filter.</div></div>'}</div></section>`;
+      </div>`).join('') : '<div class="quarter-item empty"><div class="quarter-goal">No quarterly milestone defined for this strategic filter.</div></div>'}</div></section>`;
   }).join('')}</div>`;
 }
 
@@ -2326,7 +2390,7 @@ function renderExec(projs, summary) {
   view.innerHTML = `
     ${renderStrategicTrackFilter(projs, strategyLayer, editableDecisionView)}
 
-    <div class="exec-decision-panel">
+    <div class="exec-decision-panel quarterly-roadmap-panel">
       <div class="exec-decision-head">
         <div>
           <div class="exec-eyebrow">Quarterly Target Roadmap</div>
