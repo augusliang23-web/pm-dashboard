@@ -409,6 +409,37 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-project-milestones { padding:13px 22px 17px 26px; border-top:1px solid var(--border); background:linear-gradient(180deg,#FBFCFD 0%,#FFF 100%); }
 .exec-milestone-label { font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:8px; }
 
+/* Overview readability prototype */
+.exec-overview { grid-template-columns:minmax(460px,1.15fr) minmax(380px,.85fr); gap:22px; }
+.exec-panel,
+.exec-decision-panel,
+.exec-summary-card,
+.exec-project-card { border-radius:10px; box-shadow:0 10px 28px rgba(35,52,70,.055); }
+.exec-eyebrow { font-size:10px; letter-spacing:.12em; color:#6D7F90; }
+.exec-panel-title { font-size:22px; line-height:1.18; letter-spacing:0; }
+.exec-decision-title,
+.exec-board-title { font-size:21px; line-height:1.2; letter-spacing:0; }
+.exec-summary-title { font-size:17px; letter-spacing:.04em; color:var(--text); }
+.exec-summary-render h4 { font-size:17px; line-height:1.28; }
+.exec-summary-project-name { font-size:16px; }
+.exec-health-name,
+.exec-focus-caption,
+.exec-board-sub { font-size:12px; }
+.exec-focus-label,
+.exec-progress-label,
+.exec-signal-label,
+.exec-milestone-label { font-size:10.5px; color:#66788A; }
+.exec-project-name { font-size:18px; line-height:1.28; font-weight:850; color:var(--text); }
+.exec-project-top { grid-template-columns:minmax(240px,1fr) minmax(160px,.55fr) minmax(500px,2.15fr); }
+.exec-signal { min-height:96px; padding:13px 14px; }
+.exec-signal .stext { font-size:12px; line-height:1.55; }
+.attention-title { font-size:15px; line-height:1.25; }
+.attention-name { font-size:13px; }
+.attention-risk { font-size:12px; line-height:1.5; }
+.risk-action-table { font-size:13px; }
+.risk-action-table th { font-size:10px; color:#66788A; }
+.quarterly-roadmap-panel { margin-top:2px; }
+
 /* Executive decision workflow */
 .exec-decision-panel { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); margin-bottom:20px; }
 .exec-decision-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
@@ -477,6 +508,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .risk-primary-control { display:flex; align-items:center; gap:6px; min-height:36px; font-size:11px; font-weight:800; color:var(--text-light); }
 .risk-primary-control input { margin:0; }
 .risk-pair-delete { border:none; background:none; cursor:pointer; font-size:16px; line-height:1; min-height:36px; }
+.milestone-edit-row { border:1px solid var(--border); border-radius:8px; background:#fff; padding:8px; margin-bottom:8px; }
+.milestone-edit-fields { display:grid; grid-template-columns:22px minmax(0,2fr) 150px 150px 34px; gap:10px; align-items:center; }
+.milestone-plan-history { flex-basis:100%; margin:0 0 0 32px; padding:8px 10px; border-radius:7px; background:#FBFDFF; border:1px dashed var(--border2); font-size:11px; line-height:1.45; color:var(--text-light); }
+.milestone-plan-history b { color:var(--text); }
+.milestone-plan-history ul { margin:5px 0 0; padding-left:16px; }
+.milestone-plan-history li { margin:3px 0; }
 .action-list { margin:0; padding-left:18px; }
 .action-list li { margin:0 0 5px; }
 .qms-row { display:grid; grid-template-columns:.65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; padding:4px; border-radius:4px; background:var(--s1); }
@@ -522,6 +559,22 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .strategic-meta-hover { margin-top:5px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted2); opacity:.45; transition:.16s ease; }
 .quarter-item:hover .strategic-meta-hover { opacity:1; }
 .checkpoint-tag { display:inline-flex; margin-top:6px; padding:3px 7px; border-radius:999px; background:var(--s2); border:1px solid var(--border); font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
+.strategy-lens-inline { margin:0 0 14px; padding:13px 14px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
+.strategy-lens-inline .strategy-toolbar { margin-bottom:10px; }
+.strategy-lens-inline .strategy-title { font-size:17px; }
+.weekly-trend-grid { display:grid; grid-template-columns:minmax(360px,1fr) minmax(360px,1fr); gap:14px; }
+.weekly-trend-card { border:1px solid var(--border); border-radius:9px; background:#FBFDFF; padding:14px; min-width:0; }
+.weekly-trend-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.weekly-trend-title { font-size:14px; line-height:1.25; font-weight:800; color:var(--text); }
+.weekly-trend-sub { margin-top:3px; font-size:11px; line-height:1.35; color:var(--muted); }
+.weekly-trend-value { font-size:22px; line-height:1; font-weight:850; color:var(--text); }
+.weekly-trend-svg { width:100%; height:126px; display:block; overflow:visible; }
+.weekly-trend-axis { stroke:#D7DEE7; stroke-width:1; }
+.weekly-trend-line { fill:none; stroke:var(--blue); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+.weekly-trend-line.risk { stroke:#C9AB5F; }
+.weekly-trend-dot { fill:#fff; stroke:var(--blue); stroke-width:2; }
+.weekly-trend-dot.risk { stroke:#C9AB5F; }
+.weekly-trend-labels { display:flex; justify-content:space-between; gap:8px; margin-top:5px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
 .strategy-modal-grid { display:grid; gap:18px; }
 .strategy-section { border:1px solid var(--border); border-radius:10px; background:var(--s2); padding:16px; }
 .strategy-section-title { font-size:13px; font-weight:800; color:var(--text); margin-bottom:10px; }
@@ -639,8 +692,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .strategic-meta-hover { opacity:.7 !important; }
 
   .quarterly-roadmap-panel {
-    break-after: page !important;
-    page-break-after: always !important;
     padding: 10px 12px !important;
   }
   .quarterly-roadmap-panel .exec-decision-head { margin-bottom: 7px !important; }
@@ -713,8 +764,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .reason-pill { font-size:8px !important; padding:2px 5px !important; }
 
   .attention-map-panel {
-    break-before: page !important;
-    page-break-before: always !important;
     padding: 10px 12px !important;
   }
   .attention-map-panel .exec-decision-head { margin-bottom: 7px !important; }
@@ -789,8 +838,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .exec-project-step-dot { width: 9px !important; height: 9px !important; }
 
   .project-portfolio-head {
-    break-before: page !important;
-    page-break-before: always !important;
     break-after: avoid-page !important;
     page-break-after: avoid !important;
     margin-top: 0 !important;
@@ -810,6 +857,142 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .project-portfolio-grid .exec-project-milestones {
     padding-top: 6px !important;
     padding-bottom: 8px !important;
+  }
+
+  /* Prototype print readability overrides */
+  body { font-size: 11.5px !important; }
+  .wk-banner h2 { font-size: 22px !important; line-height: 1.15 !important; }
+  .exec-eyebrow { font-size: 9.5px !important; letter-spacing: .1em !important; }
+  .exec-panel-title,
+  .exec-decision-title,
+  .exec-board-title {
+    font-size: 17px !important;
+    line-height: 1.22 !important;
+    color: var(--text) !important;
+  }
+  .exec-summary-title {
+    font-size: 15px !important;
+    color: var(--text) !important;
+  }
+  .exec-panel,
+  .exec-summary-card,
+  .exec-decision-panel {
+    padding: 13px 15px !important;
+    border-radius: 8px !important;
+  }
+  .exec-summary-render {
+    font-size: 11.2px !important;
+    line-height: 1.52 !important;
+  }
+  .exec-summary-render h4 {
+    font-size: 13.5px !important;
+    line-height: 1.25 !important;
+  }
+  .exec-summary-project-name {
+    font-size: 12.5px !important;
+    line-height: 1.28 !important;
+  }
+  .attention-map-panel .attention-title {
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+  }
+  .attention-map-panel .attention-name {
+    font-size: 9.5px !important;
+    line-height: 1.22 !important;
+  }
+  .attention-map-panel .attention-risk {
+    font-size: 8.4px !important;
+    line-height: 1.28 !important;
+  }
+  .risk-action-table {
+    font-size: 10.4px !important;
+    line-height: 1.34 !important;
+  }
+  .risk-action-table th {
+    font-size: 8.8px !important;
+  }
+  .quarterly-roadmap-panel {
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+  .quarterly-roadmap-panel .exec-decision-title {
+    font-size: 16px !important;
+  }
+  .quarterly-roadmap-panel .quarter-exec-top b {
+    font-size: 11px !important;
+  }
+  .quarterly-roadmap-panel .quarter-exec-goal-text {
+    font-size: 8.6px !important;
+    line-height: 1.24 !important;
+  }
+  .quarterly-roadmap-panel .strategic-project-name {
+    font-size: 9.3px !important;
+  }
+  .quarterly-roadmap-panel .quarter-goal {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+  .exec-project-name {
+    font-size: 12.8px !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+  }
+  .exec-signal-label,
+  .exec-milestone-label,
+  .exec-progress-label {
+    font-size: 8.8px !important;
+  }
+  .exec-signal .stext,
+  .project-portfolio-grid .exec-signal .stext {
+    font-size: 9.2px !important;
+    line-height: 1.38 !important;
+  }
+  .attention-map-panel,
+  .risk-action-panel,
+  .weekly-trend-panel,
+  .quarterly-roadmap-panel,
+  .project-portfolio-head {
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+  .strategy-lens-inline {
+    padding: 8px 9px !important;
+    margin-bottom: 8px !important;
+  }
+  .strategy-lens-inline .strategy-title { font-size: 13px !important; }
+  .strategy-track-chip { padding: 4px 7px !important; font-size: 8.5px !important; }
+  .weekly-trend-grid { grid-template-columns:1fr 1fr !important; gap:4mm !important; }
+  .weekly-trend-card { padding:8px !important; break-inside:avoid-page !important; page-break-inside:avoid !important; }
+  .weekly-trend-title { font-size:11px !important; }
+  .weekly-trend-sub { font-size:8px !important; }
+  .weekly-trend-value { font-size:16px !important; }
+  .weekly-trend-svg { height:72px !important; }
+  .weekly-trend-labels { font-size:6.8px !important; }
+
+  /* Keep the executive risk table as a complete report section. */
+  .risk-action-panel {
+    break-before: page !important;
+    page-break-before: always !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .risk-action-panel .exec-decision-head,
+  .risk-action-panel .risk-rule,
+  .risk-action-panel .risk-action-table {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .risk-action-panel .risk-action-table {
+    font-size: 9.8px !important;
+  }
+  .risk-action-panel .risk-action-table th,
+  .risk-action-panel .risk-action-table td {
+    padding: 5px 7px !important;
+  }
+  .risk-action-panel thead {
+    display: table-row-group !important;
   }
 }
 </style>
@@ -958,9 +1141,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <div style="border-top: 1px dashed var(--border); padding-top: 24px;">
         <div class="info-lbl" style="color:var(--accent-hov)">Highlight</div>
         <div class="stext" id="pd_highlight"></div>
+        <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions</div>
+        <div class="stext" id="pd_weekly_actions"></div>
         <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk / Blocker</div>
         <div class="stext" id="pd_risk"></div>
-        <div class="info-lbl" style="color:var(--text-light); margin-top:20px;">Next Steps</div>
+        <div class="info-lbl" style="color:var(--text-light); margin-top:20px;">Risk Required Actions</div>
         <div class="stext" id="pd_next"></div>
       </div>
     </div>
@@ -1003,6 +1188,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention"></select></div>
   </div>
   <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3"></textarea></div>
+  <div class="fg"><label class="fl">Weekly Key Actions (execution focus for this week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Actions the team needs to execute this week. Press Enter for new bullet point."></textarea></div>
   <div class="fg">
     <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
     <div class="risk-pair-editor">
@@ -1920,9 +2106,10 @@ function renderQuarterExecutiveGoals(quarter, layer, activeTrack) {
   }).join('')}</div>`;
 }
 
-function renderStrategicTrackFilter(projs, layer, editable) {
+function renderStrategicTrackFilter(projs, layer, editable, inline = false) {
   const active = activeStrategicTrack || layer.activeTrack || 'all';
-  return `<section class="strategy-layer">
+  const tag = inline ? 'div' : 'section';
+  return `<${tag} class="${inline ? 'strategy-lens-inline' : 'strategy-layer'}">
     <div class="strategy-toolbar">
       <div>
         <div class="exec-eyebrow">Strategic Tracks Filter</div>
@@ -1934,7 +2121,93 @@ function renderStrategicTrackFilter(projs, layer, editable) {
       const count = track.id === 'all' ? projs.length : projs.filter(p => getProjectStrategy(p, layer).trackId === track.id).length;
       return `<button class="strategy-track-chip ${trackClassName(track.id)} ${active === track.id ? 'active' : ''}" onclick="setStrategicTrack('${escHtml(track.id)}')">${escHtml(track.label)} <span class="reason-pill">${count}</span></button>`;
     }).join('')}</div>
-  </section>`;
+  </${tag}>`;
+}
+
+function getTrendWeeks(limit = 8) {
+  const weeks = Array.isArray(allWeeks) ? allWeeks : [];
+  const released = weeks.filter(w => Array.isArray(w.projects) && w.projects.length);
+  const current = allWeeks[currentIdx];
+  const list = released.includes(current) ? released : [...released, current].filter(Boolean);
+  return list.slice(Math.max(0, list.length - limit));
+}
+
+function weekShortLabel(week) {
+  return String(week?.weekLabel || week?.week || '').replace(/\s+20(\d{2})$/, " '$1") || '-';
+}
+
+function weeklyTrendPoints(weeks) {
+  return weeks.map(week => {
+    const projects = week.projects || [];
+    const total = projects.length || 1;
+    const atRisk = projects.filter(p => p.status === 'yellow').length;
+    const critical = projects.filter(p => p.status === 'red').length;
+    const riskPressure = atRisk + critical * 2;
+    const avgProgress = Math.round(projects.reduce((sum, p) => sum + Number(p.progress || 0), 0) / total);
+    const primaryRisks = projects.filter(p => getPrimaryRiskActionPair(p)?.risk).length;
+    const updateLines = projects.reduce((sum, p) => sum + textLines(p.highlight).length + textLines(p.risk).length + textLines(p.next).length, 0);
+    return { label: weekShortLabel(week), riskPressure, avgProgress, primaryRisks, updateLines };
+  });
+}
+
+function renderTrendSvg(points, key, className = '') {
+  const width = 360;
+  const height = 112;
+  const pad = 12;
+  const values = points.map(p => Number(p[key] || 0));
+  const max = Math.max(1, ...values);
+  const min = Math.min(0, ...values);
+  const span = Math.max(1, max - min);
+  const xStep = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const coords = values.map((v, i) => {
+    const x = points.length > 1 ? pad + i * xStep : width / 2;
+    const y = height - pad - ((v - min) / span) * (height - pad * 2);
+    return [x, y];
+  });
+  const d = coords.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  return `<svg class="weekly-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escHtml(key)} trend">
+    <line class="weekly-trend-axis" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}"></line>
+    <line class="weekly-trend-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}"></line>
+    <path class="weekly-trend-line ${className}" d="${d}"></path>
+    ${coords.map(([x, y]) => `<circle class="weekly-trend-dot ${className}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6"></circle>`).join('')}
+  </svg>`;
+}
+
+function renderWeeklyTrendPanel() {
+  const weeks = getTrendWeeks();
+  const points = weeklyTrendPoints(weeks);
+  if (points.length < 2) return '';
+  const latest = points[points.length - 1];
+  const previous = points[points.length - 2];
+  const riskDelta = latest.riskPressure - previous.riskPressure;
+  const progressDelta = latest.avgProgress - previous.avgProgress;
+  return `<div class="exec-decision-panel weekly-trend-panel">
+    <div class="exec-decision-head">
+      <div>
+        <div class="exec-eyebrow">Weekly Portfolio Trend</div>
+        <div class="exec-decision-title">Trend signals from accumulated weekly updates</div>
+      </div>
+      <div class="exec-panel-note">Last ${points.length} weeks</div>
+    </div>
+    <div class="weekly-trend-grid">
+      <section class="weekly-trend-card">
+        <div class="weekly-trend-head">
+          <div><div class="weekly-trend-title">Risk pressure</div><div class="weekly-trend-sub">At Risk counts as 1, Critical counts as 2</div></div>
+          <div class="weekly-trend-value">${latest.riskPressure}<span class="exec-panel-note"> ${riskDelta >= 0 ? '+' : ''}${riskDelta}</span></div>
+        </div>
+        ${renderTrendSvg(points, 'riskPressure', 'risk')}
+        <div class="weekly-trend-labels">${points.map(p => `<span>${escHtml(p.label)}</span>`).join('')}</div>
+      </section>
+      <section class="weekly-trend-card">
+        <div class="weekly-trend-head">
+          <div><div class="weekly-trend-title">Average progress</div><div class="weekly-trend-sub">Portfolio delivery progress across active projects</div></div>
+          <div class="weekly-trend-value">${latest.avgProgress}%<span class="exec-panel-note"> ${progressDelta >= 0 ? '+' : ''}${progressDelta}%</span></div>
+        </div>
+        ${renderTrendSvg(points, 'avgProgress')}
+        <div class="weekly-trend-labels">${points.map(p => `<span>${escHtml(p.label)}</span>`).join('')}</div>
+      </section>
+    </div>
+  </div>`;
 }
 
 function rawRiskItems(p) {
@@ -1960,6 +2233,11 @@ function getRiskActionPairs(p) {
     action: actions[index] || '',
     primary: index === 0
   })).filter(item => item.risk || item.action);
+}
+
+function getPrimaryRiskActionPair(p) {
+  const pairs = getRiskActionPairs(p);
+  return pairs.find(item => item.primary) || pairs[0] || null;
 }
 
 function riskItems(p) {
@@ -2189,6 +2467,49 @@ function formatExecProjectMilestones(milestones) {
   }).join('') + `</div>`;
 }
 
+function normalizeMilestonePlan(m, index = 0) {
+  const planId = m?.planId || `ms-${index + 1}-${String(m?.name || 'milestone').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'}`;
+  const current = {
+    name: String(m?.name || ''),
+    date: String(m?.date || ''),
+    status: String(m?.status || 'to-do')
+  };
+  return {
+    ...current,
+    planId,
+    baseline: m?.baseline || {...current},
+    history: Array.isArray(m?.history) ? m.history : []
+  };
+}
+
+function milestoneSnapshot(m) {
+  return {
+    name: String(m?.name || ''),
+    date: String(m?.date || ''),
+    status: String(m?.status || 'to-do')
+  };
+}
+
+function milestoneChanged(a = {}, b = {}) {
+  return ['name', 'date', 'status'].some(key => String(a?.[key] || '') !== String(b?.[key] || ''));
+}
+
+function milestoneHistoryHtml(m) {
+  const item = normalizeMilestonePlan(m);
+  const baseline = item.baseline || {};
+  const history = item.history || [];
+  const baseLine = `${baseline.name || '-'} | ${baseline.date || 'No date'} | ${getStatusLabel(baseline.status || 'to-do')}`;
+  const recent = history.slice(-3).reverse();
+  return `<div class="milestone-plan-history">
+    <b>Initial plan:</b> ${escHtml(baseLine)}
+    ${recent.length ? `<ul>${recent.map(h => {
+      const from = h.from || {};
+      const to = h.to || {};
+      return `<li>${escHtml(h.weekLabel || h.changedAt || 'Updated')}: ${escHtml(from.name || '-')} / ${escHtml(from.date || 'No date')} / ${escHtml(getStatusLabel(from.status || 'to-do'))} -> ${escHtml(to.name || '-')} / ${escHtml(to.date || 'No date')} / ${escHtml(getStatusLabel(to.status || 'to-do'))}</li>`;
+    }).join('')}</ul>` : '<div>No changes recorded yet.</div>'}
+  </div>`;
+}
+
 function formatDetailQuarterlyMilestones(project) {
   const list = getQuarterlyMilestones(project);
   if (!list.length) return '<div class="exec-note">No quarterly milestones yet.</div>';
@@ -2246,14 +2567,14 @@ function renderAttentionMatrix(projs, editable) {
 
 function renderRiskActionTable(projs, editable) {
   const rows = projs.filter(shouldIncludeRisk);
-  return `<div class="risk-rule"><b>Rule:</b> projects are included when they are At Risk/Critical, need executive action or close monitoring, contain blocker text, or have a milestone marked at risk. PM/Admin can manually include or exclude a project for this week's executive list.</div>
+  return `<div class="risk-rule"><b>Rule:</b> projects are included when they are At Risk/Critical, need executive action or close monitoring, contain blocker text, or have a milestone marked at risk. Only the Primary risk/action pair is shown in this executive list.</div>
   <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>
     ${rows.map(p => {
-      const pairs = getRiskActionPairs(p);
+      const primary = getPrimaryRiskActionPair(p);
       return `<tr><td><b>${escHtml(p.name)}</b><br><span class="proj-code">${escHtml(p.code)}</span></td>
-      <td>${pairs.length ? `<ul class="risk-list">${pairs.map(item => `<li>${item.primary ? '<span class="reason-pill">Primary</span> ' : ''}${escHtml(item.risk || '-')}</li>`).join('')}</ul>` : '-'}</td>
+      <td>${primary ? `<span class="reason-pill">Primary</span> ${escHtml(primary.risk || '-')}` : '-'}</td>
       <td><div class="reason-stack">${(p.riskManual ? ['Manually escalated'] : riskReasons(p)).map(r => `<span class="reason-pill ${r === 'Manually escalated' ? 'manual' : ''}">${escHtml(r)}</span>`).join('')}</div></td>
-      <td>${escHtml(p.owner || '-')}</td><td>${pairs.length ? `<ul class="action-list">${pairs.map(item => `<li>${item.primary ? '<span class="reason-pill">Primary</span> ' : ''}${escHtml(item.action || '-')}</li>`).join('')}</ul>` : '-'}</td><td>${escHtml((p.milestones || []).find(m => m.status === 'at-risk')?.date || p.milestones?.[0]?.date || '-')}</td></tr>`;
+      <td>${escHtml(p.owner || '-')}</td><td>${primary ? escHtml(primary.action || '-') : '-'}</td><td>${escHtml((p.milestones || []).find(m => m.status === 'at-risk')?.date || p.milestones?.[0]?.date || '-')}</td></tr>`;
     }).join('')}
   </tbody></table>
   ${editable ? `<div class="risk-controls">${projs.map(p => `<label class="risk-control"><input class="risk-toggle" type="checkbox" data-code="${escHtml(p.code)}" ${shouldIncludeRisk(p) ? 'checked' : ''}><span><b>${escHtml(p.name)}</b><span class="proj-code">${escHtml(p.code)} | ${p.riskManual ? 'Manual' : 'Suggested'} | ${escHtml(riskReasons(p).join(' / '))}</span></span></label>`).join('')}</div>` : ''}`;
@@ -2358,6 +2679,7 @@ window.openProjDetail = (code) => {
   document.getElementById('pd_location').textContent = p.location || '-';
   
   document.getElementById('pd_highlight').innerHTML = formatBullets(p.highlight);
+  document.getElementById('pd_weekly_actions').innerHTML = formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.');
   document.getElementById('pd_risk').innerHTML = formatBullets(p.risk);
   document.getElementById('pd_next').innerHTML = formatBullets(p.next);
   
@@ -2577,20 +2899,6 @@ function renderExec(projs, summary) {
   const riskEnd = total ? ((critical + atRisk) / total) * 100 : 0;
 
   view.innerHTML = `
-    ${renderStrategicTrackFilter(projs, strategyLayer, editableDecisionView)}
-
-    <div class="exec-decision-panel quarterly-roadmap-panel">
-      <div class="exec-decision-head">
-        <div>
-          <div class="exec-eyebrow">Quarterly Target Roadmap</div>
-          <div class="exec-decision-title">Quarterly milestones across projects</div>
-        </div>
-        <div class="exec-panel-note">Executive view of what each project is targeting by quarter</div>
-        ${renderRoadmapYearSelector(projs, strategyLayer)}
-      </div>
-      ${renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)}
-    </div>
-
     <div class="exec-overview">
       <section class="exec-panel">
         <div class="exec-panel-head">
@@ -2657,6 +2965,8 @@ function renderExec(projs, summary) {
       </section>
     </div>
 
+    ${renderWeeklyTrendPanel()}
+
     <div class="exec-summary-grid">
       <div class="exec-summary-card border-accent">
         <div class="exec-summary-head">
@@ -2687,6 +2997,19 @@ function renderExec(projs, summary) {
         <div class="exec-panel-note">${editableDecisionView ? 'Manual include/exclude available below' : 'Manual risk-list overrides reflected'}</div>
       </div>
       ${renderRiskActionTable(projs, editableDecisionView)}
+    </div>
+
+    <div class="exec-decision-panel quarterly-roadmap-panel">
+      <div class="exec-decision-head">
+        <div>
+          <div class="exec-eyebrow">Quarterly Target Roadmap</div>
+          <div class="exec-decision-title">Quarterly milestones across projects</div>
+        </div>
+        <div class="exec-panel-note">Executive view of what each project is targeting by quarter</div>
+        ${renderRoadmapYearSelector(projs, strategyLayer)}
+      </div>
+      ${renderStrategicTrackFilter(projs, strategyLayer, editableDecisionView, true)}
+      ${renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)}
     </div>
 
     <div class="exec-board-head project-portfolio-head">
@@ -2734,8 +3057,8 @@ function renderExec(projs, summary) {
                 <div class="stext">${formatBullets(p.risk)}</div>
               </div>
               <div class="exec-signal next">
-                <div class="exec-signal-label">Next Steps</div>
-                <div class="stext">${formatBullets(p.next)}</div>
+                <div class="exec-signal-label">Weekly Actions</div>
+                <div class="stext">${formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.')}</div>
               </div>
             </div>
           </div>
@@ -2970,6 +3293,34 @@ function collectRiskActionPairs() {
   return pairs.sort((a, b) => Number(b.primary) - Number(a.primary));
 }
 
+function collectMilestonesWithHistory(previousProject) {
+  const previous = (previousProject?.milestones || []).map((m, index) => normalizeMilestonePlan(m, index));
+  const previousById = new Map(previous.map(m => [m.planId, m]));
+  return Array.from(document.querySelectorAll('.ms-row')).map((div, index) => {
+    const planId = div.dataset.planId || `ms-new-${Date.now()}-${index}`;
+    const current = {
+      planId,
+      name: div.querySelector('.ms-name').value,
+      date: div.querySelector('.ms-date').value,
+      status: div.querySelector('.ms-status').value
+    };
+    const prev = previousById.get(planId) || previous[index];
+    const normalizedPrev = prev ? normalizeMilestonePlan(prev, index) : null;
+    const baseline = normalizedPrev?.baseline || milestoneSnapshot(current);
+    const history = normalizedPrev?.history ? [...normalizedPrev.history] : [];
+    if (normalizedPrev && milestoneChanged(milestoneSnapshot(normalizedPrev), current)) {
+      history.push({
+        changedAt: new Date().toISOString(),
+        weekLabel: allWeeks[currentIdx]?.weekLabel || '',
+        changedBy: currentUser?.email || '',
+        from: milestoneSnapshot(normalizedPrev),
+        to: milestoneSnapshot(current)
+      });
+    }
+    return {...current, baseline, history};
+  });
+}
+
 window.ensurePrimaryRiskActionPair = ensurePrimaryRiskActionPair;
 
 window.addRiskActionPairRow = (risk = '', action = '', primary = false) => {
@@ -2993,7 +3344,7 @@ window.openProjEdit = (code, isNew = false) => {
   isCreatingNew = isNew;
   editingProjCode = code;
   const week = allWeeks[currentIdx];
-  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', risk:'', next:'', riskActions:[]} : week.projects.find(x => x.code === code);
+  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', weeklyActions:'', risk:'', next:'', riskActions:[]} : week.projects.find(x => x.code === code);
   
   document.getElementById('peTitle').textContent = isNew ? "New Project" : "Edit Project";
   
@@ -3001,6 +3352,7 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_progress').value = p.progress || 0;
   document.getElementById('pe_attention').innerHTML = Object.entries(ATTENTION_MAP).map(([v,l]) => `<option value="${v}" ${getProjectAttention(p)===v?'selected':''}>${l}</option>`).join('');
   document.getElementById('pe_highlight').value = p.highlight || '';
+  document.getElementById('pe_weekly_actions').value = p.weeklyActions || p.weeklyAction || '';
   document.getElementById('pe_risk').value = p.risk || '';
   document.getElementById('pe_next').value = p.next || '';
   const riskPairCont = document.getElementById('riskActionPairContainer');
@@ -3023,7 +3375,7 @@ window.openProjEdit = (code, isNew = false) => {
   
   const msCont = document.getElementById('msListContainer');
   msCont.innerHTML = '';
-  (p.milestones || []).forEach(m => addMilestoneRow(m.name, m.status, m.date));
+  (p.milestones || []).forEach((m, index) => addMilestoneRow(m.name, m.status, m.date, normalizeMilestonePlan(m, index)));
   const qmsCont = document.getElementById('qmsListContainer');
   qmsCont.innerHTML = '';
   getQuarterlyMilestones(p).forEach(m => addQuarterlyMilestoneRow(m.quarter, m.goal, m.window, m.status));
@@ -3045,11 +3397,8 @@ window.saveProjEdit = async () => {
   showLoader("Saving Project...");
   
   const week = allWeeks[currentIdx];
-  const milestones = Array.from(document.querySelectorAll('.ms-row')).map(div => ({
-    name: div.querySelector('.ms-name').value,
-    date: div.querySelector('.ms-date').value,
-    status: div.querySelector('.ms-status').value
-  }));
+  const previousProject = isCreatingNew ? null : week.projects.find(x => x.code === editingProjCode);
+  const milestones = collectMilestonesWithHistory(previousProject);
   const quarterlyMilestones = Array.from(document.querySelectorAll('.qms-row')).map(div => ({
     quarter: div.querySelector('.qms-quarter').value,
     goal: div.querySelector('.qms-goal').value,
@@ -3075,6 +3424,7 @@ window.saveProjEdit = async () => {
     attention: document.getElementById('pe_attention').value,
     attentionManual: true,
     highlight: document.getElementById('pe_highlight').value.trim(),
+    weeklyActions: document.getElementById('pe_weekly_actions').value.trim(),
     riskActions: riskActions,
     risk: riskText,
     next: nextText
@@ -3109,19 +3459,22 @@ window.deleteProject = async () => {
   showSaveToast("Project deleted");
 };
 
-window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
+window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) => {
+  const normalized = planData ? normalizeMilestonePlan(planData) : normalizeMilestonePlan({ name, status, date: dateStr, history: [] });
+  if (!planData) normalized.planId = `ms-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const div = document.createElement('div');
   div.className = "ms-row";
-  div.style = "display:flex; gap:10px; margin-bottom:8px; align-items:center;";
+  div.dataset.planId = normalized.planId;
   div.draggable = true;
+  div.style = "display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px; align-items:center;";
   
   div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', ''); e.target.classList.add('dragging'); };
   div.ondragend = (e) => { e.target.classList.remove('dragging'); checkMsDates(); };
   
   div.innerHTML = `
     <span style="cursor:grab; color:var(--muted)">☰</span>
-    <input class="fi ms-name" style="flex:2" value="${name}" placeholder="Milestone Name">
-    <input type="date" class="fi ms-date" value="${dateStr}" onchange="checkMsDates()">
+    <input class="fi ms-name" style="flex:2" value="${escHtml(name)}" placeholder="Milestone Name">
+    <input type="date" class="fi ms-date" value="${escHtml(dateStr)}" onchange="checkMsDates()">
     <select class="fs ms-status">
       <option ${status==='to-do'?'selected':''}>to-do</option>
       <option ${status==='in-progress'?'selected':''}>in-progress</option>
@@ -3130,6 +3483,7 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
     </select>
     <button onclick="this.parentElement.remove(); checkMsDates();" style="border:none; background:none; cursor:pointer;">🗑️</button>
   `;
+  div.insertAdjacentHTML('beforeend', milestoneHistoryHtml(normalized));
   document.getElementById('msListContainer').appendChild(div);
   checkMsDates();
 }
