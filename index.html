@@ -559,6 +559,37 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .strategic-meta-hover { margin-top:5px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted2); opacity:.45; transition:.16s ease; }
 .quarter-item:hover .strategic-meta-hover { opacity:1; }
 .checkpoint-tag { display:inline-flex; margin-top:6px; padding:3px 7px; border-radius:999px; background:var(--s2); border:1px solid var(--border); font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
+.roadmap-layout { display:grid; gap:16px; }
+.roadmap-block { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+.roadmap-block-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:14px 16px; background:#F7FAFC; border-bottom:1px solid var(--border); }
+.roadmap-block-title { font-size:16px; font-weight:850; color:var(--text); line-height:1.2; }
+.roadmap-block-note { margin-top:3px; font-size:11px; color:var(--muted); line-height:1.35; }
+.exec-quarter-board { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; background:#EEF4F8; }
+.exec-quarter-col { min-width:0; padding:12px; border-right:1px solid var(--border); }
+.exec-quarter-col:last-child { border-right:0; }
+.exec-quarter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
+.exec-quarter-title { font-size:15px; font-weight:850; color:var(--text); }
+.project-quarter-matrix { display:grid; grid-template-columns:minmax(190px,.72fr) repeat(4,minmax(170px,1fr)); border-top:1px solid var(--border); border-left:1px solid var(--border); }
+.pqm-cell { min-width:0; border-right:1px solid var(--border); border-bottom:1px solid var(--border); padding:10px 12px; background:#fff; }
+.pqm-head { background:#EDF5FB; font-size:12px; font-weight:850; color:var(--text); text-transform:uppercase; letter-spacing:.04em; }
+.pqm-project { background:#FBFDFF; border-left:4px solid var(--blue); }
+.pqm-project.track-all,
+.pqm-project.track-track-a,
+.pqm-project.track-track-b,
+.pqm-project.track-track-c { border-left-color:var(--track-color); }
+.pqm-project-name { font-size:13px; font-weight:850; color:var(--text); line-height:1.25; }
+.pqm-project-meta { margin-top:5px; display:flex; gap:5px; flex-wrap:wrap; }
+.pqm-items { display:grid; gap:7px; }
+.pqm-item { border:1px solid var(--border); border-left:4px solid var(--blue); border-radius:8px; padding:8px 9px; background:#fff; }
+.pqm-item.done { border-left-color:var(--green); background:#F3FBF6; }
+.pqm-item.at-risk { border-left-color:var(--yellow); background:#FFFAF0; }
+.pqm-item.track-all,
+.pqm-item.track-track-a,
+.pqm-item.track-track-b,
+.pqm-item.track-track-c { border-left-color:var(--track-color); }
+.pqm-goal { font-size:12px; font-weight:750; line-height:1.38; color:var(--text); }
+.pqm-meta { margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); line-height:1.35; }
+.pqm-empty { color:var(--muted2); font-size:11px; line-height:1.4; }
 .strategy-lens-inline { margin:0 0 14px; padding:13px 14px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
 .strategy-lens-inline .strategy-toolbar { margin-bottom:10px; }
 .strategy-lens-inline .strategy-title { font-size:17px; }
@@ -604,12 +635,15 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .exec-overview, .exec-summary-grid { grid-template-columns:1fr; }
   .exec-project-top { grid-template-columns:1fr 1fr; }
   .exec-project-signals { grid-column:1 / -1; }
+  .exec-quarter-board { grid-template-columns:1fr 1fr; }
+  .project-quarter-matrix { overflow-x:auto; grid-template-columns:minmax(170px,.8fr) repeat(4,minmax(180px,1fr)); }
 }
 @media (max-width: 860px) {
   .proj-grid { grid-template-columns: 1fr; }
   .card-summary { flex-direction: column; padding-right: 0; }
   .card-summary-right { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; text-align: left; }
   .card-meta-grid { grid-template-columns: 1fr; }
+  .exec-quarter-board { grid-template-columns:1fr; }
 }
 @media (max-width: 640px) {
   .main { padding: 20px 16px 28px; }
@@ -971,6 +1005,24 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .weekly-trend-svg { height:72px !important; }
   .weekly-trend-labels { font-size:6.8px !important; }
 
+  .roadmap-layout { gap:4mm !important; }
+  .roadmap-block { border-radius:8px !important; overflow:visible !important; }
+  .roadmap-block-head { padding:8px 10px !important; break-after:avoid-page !important; page-break-after:avoid !important; }
+  .roadmap-block-title { font-size:13px !important; }
+  .roadmap-block-note { font-size:8.2px !important; }
+  .exec-quarter-board { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+  .exec-quarter-col { padding:7px !important; break-inside:avoid-page !important; page-break-inside:avoid !important; }
+  .exec-quarter-title { font-size:11px !important; }
+  .project-quarter-matrix { grid-template-columns:minmax(34mm,.7fr) repeat(4,minmax(0,1fr)) !important; }
+  .pqm-cell { padding:5px 6px !important; break-inside:avoid-page !important; page-break-inside:avoid !important; }
+  .pqm-head { font-size:8px !important; }
+  .pqm-project-name { font-size:8.8px !important; line-height:1.2 !important; }
+  .pqm-project-meta { gap:3px !important; margin-top:3px !important; }
+  .pqm-items { gap:4px !important; }
+  .pqm-item { padding:5px 6px !important; border-radius:6px !important; }
+  .pqm-goal { font-size:8.4px !important; line-height:1.25 !important; }
+  .pqm-meta, .pqm-empty { font-size:6.8px !important; line-height:1.2 !important; }
+
   /* Keep the executive risk table as a complete report section. */
   .risk-action-panel {
     break-before: page !important;
@@ -1035,6 +1087,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   }
   .project-portfolio-panel .project-portfolio-grid .exec-project-card + .exec-project-card {
     margin-top: 0 !important;
+  }
+  .quarterly-roadmap-panel {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .executive-milestone-block {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .project-milestone-block {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 }
 </style>
@@ -2577,25 +2641,71 @@ function formatDetailQuarterlyMilestones(project) {
   `).join('');
 }
 
-function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+  const quarters = getQuarterLabelsForYear(year);
+  return `<section class="roadmap-block executive-milestone-block">
+    <div class="roadmap-block-head">
+      <div>
+        <div class="roadmap-block-title">Executive milestones</div>
+        <div class="roadmap-block-note">Leadership-level quarterly targets, separated from PM project milestone input.</div>
+      </div>
+      <span class="reason-pill">${year}</span>
+    </div>
+    <div class="exec-quarter-board">${quarters.map(q => {
+      const goals = getQuarterGoalList(q, layer, activeTrack).filter(g => g.summary.trim());
+      return `<section class="exec-quarter-col">
+        <div class="exec-quarter-head"><div class="exec-quarter-title">${escHtml(q)}</div><span class="reason-pill">${goals.length}</span></div>
+        ${renderQuarterExecutiveGoals(q, layer, activeTrack)}
+      </section>`;
+    }).join('')}</div>
+  </section>`;
+}
+
+function renderProjectQuarterItems(items) {
+  if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';
+  return `<div class="pqm-items">${items.map(i => `<div class="pqm-item ${escHtml(i.status || '')} ${trackClassName(i.strategy.trackId)}">
+    <div class="pqm-goal">${escHtml(i.goal || '-')}</div>
+    ${i.strategy.businessObjective ? `<div class="strategic-objective">[${escHtml(i.strategy.businessObjective)}]</div>` : ''}
+    <div class="pqm-meta">${escHtml(i.window || '-')} | ${escHtml(getStatusLabel(i.status || 'planned'))}${i.strategy.checkpoint ? ` | ${escHtml(i.strategy.checkpoint)}` : ''}</div>
+  </div>`).join('')}</div>`;
+}
+
+function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const visibleProjects = filterProjectsByTrack(projs, activeTrack, layer);
   const quarters = getQuarterLabelsForYear(year);
-  return `<div class="quarter-board">${quarters.map(q => {
-    const items = visibleProjects.flatMap(p => getQuarterlyMilestones(p).filter(m => m.quarter === q).map(m => ({...m, project:p.name, code:p.code, owner:p.owner, strategy:getProjectStrategy(p, layer)})));
-    return `<section class="quarter-col">
-      <div class="quarter-exec-head">
-        <div class="quarter-exec-top"><b>${escHtml(q)}</b><span class="reason-pill">${items.length}</span></div>
-        ${renderQuarterExecutiveGoals(q, layer, activeTrack)}
+  const rows = visibleProjects.filter(p => getQuarterlyMilestones(p).some(m => parseQuarterLabel(m.quarter)?.year === year));
+  const projects = rows.length ? rows : visibleProjects;
+  return `<section class="roadmap-block project-milestone-block">
+    <div class="roadmap-block-head">
+      <div>
+        <div class="roadmap-block-title">PM project milestones</div>
+        <div class="roadmap-block-note">Project names are the vertical axis; quarterly PM milestone input is placed in the matching Q1-Q4 cell.</div>
       </div>
-      <div class="quarter-items">${items.length ? items.map(i => `
-      <div class="quarter-item ${i.status || ''} ${trackClassName(i.strategy.trackId)}">
-        ${i.strategy.businessObjective ? `<span class="strategic-objective">[${escHtml(i.strategy.businessObjective)}]</span>` : ''}
-        <div class="strategic-project-name">${escHtml(i.project)}</div>
-        <div class="quarter-goal ${!i.goal || i.goal === '-' ? 'empty' : ''}">${escHtml(i.goal || '-')}</div>
-        <span class="checkpoint-tag">${escHtml(i.strategy.checkpoint || 'Checkpoint not set')}</span>
-        <div class="strategic-meta-hover">${escHtml(i.code)} | ${escHtml(i.owner || '-')} | ${escHtml(i.window || '-')} | ${escHtml(getStatusLabel(i.status || 'planned'))}</div>
-      </div>`).join('') : '<div class="quarter-item empty"><div class="quarter-goal">No quarterly milestone defined for this strategic filter.</div></div>'}</div></section>`;
-  }).join('')}</div>`;
+      <span class="reason-pill">${projects.length} projects</span>
+    </div>
+    <div class="project-quarter-matrix">
+      <div class="pqm-cell pqm-head">Project</div>
+      ${quarters.map(q => `<div class="pqm-cell pqm-head">${escHtml(q)}</div>`).join('')}
+      ${projects.map(p => {
+        const strategy = getProjectStrategy(p, layer);
+        return `<div class="pqm-cell pqm-project ${trackClassName(strategy.trackId)}">
+          <div class="pqm-project-name">${escHtml(p.name)}</div>
+          <div class="pqm-project-meta"><span class="proj-code">${escHtml(p.code)}</span><span class="reason-pill">${escHtml(p.owner || '-')}</span></div>
+        </div>
+        ${quarters.map(q => {
+          const items = getQuarterlyMilestones(p).filter(m => m.quarter === q).map(m => ({...m, strategy}));
+          return `<div class="pqm-cell">${renderProjectQuarterItems(items)}</div>`;
+        }).join('')}`;
+      }).join('')}
+    </div>
+  </section>`;
+}
+
+function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+  return `<div class="roadmap-layout">
+    ${renderExecutiveQuarterMilestones(projs, layer, activeTrack, year)}
+    ${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}
+  </div>`;
 }
 
 function renderAttentionMatrix(projs, editable) {
