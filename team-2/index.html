@@ -260,6 +260,16 @@ details > summary::-webkit-details-marker { display: none; }
 .settings-summary:hover { background: var(--s3); }
 details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; color: var(--text); }
 .settings-content { padding: 20px 16px; border: 1px solid var(--border); border-top: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background: var(--s1); }
+.usage-summary-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:18px; }
+.usage-card { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:12px; }
+.usage-card-label { font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.usage-card-value { font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:800; color:var(--text); margin-top:5px; }
+.usage-card-note { font-size:10px; color:var(--muted); margin-top:4px; line-height:1.35; }
+.usage-table { width:100%; border-collapse:collapse; font-size:11px; }
+.usage-table th { text-align:left; padding:9px 8px; background:var(--s2); color:var(--text-light); font-size:9px; text-transform:uppercase; letter-spacing:.05em; }
+.usage-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--text-light); }
+.usage-table td.num { font-family:'IBM Plex Mono', monospace; color:var(--text); text-align:right; }
+.usage-empty { padding:18px; text-align:center; color:var(--muted); background:var(--s2); border:1px dashed var(--border2); border-radius:8px; }
 
 /* Milestone Drag CSS */
 .ms-row { padding: 4px; border-radius: 4px; transition: 0.2s; background: var(--s1); }
@@ -1109,6 +1119,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button class="btn-icon vip-hidden" onclick="window.print()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
+
+      <button class="btn-icon" id="presenceUsageBtn" style="display:none;" onclick="openPresenceUsage()" title="Presence Usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
+      </button>
       
       <button class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1331,6 +1345,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
+<div class="overlay" id="presenceUsageOverlay">
+<div class="modal" style="width:980px">
+  <div class="modal-hdr">
+    <h3>Presence Usage Counter</h3>
+    <button class="modal-x" onclick="closeModal('presenceUsageOverlay')">×</button>
+  </div>
+  <div class="usage-summary-grid" id="presenceUsageSummary"></div>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <div style="font-size:11px; color:var(--muted); line-height:1.45;">12-hour aggregates from <b>presenceUsage12h</b>. Quota distance uses 10,000 free writes per 12-hour bucket.</div>
+    <button class="btn btn-ghost" onclick="loadPresenceUsageStats()">Refresh</button>
+  </div>
+  <div id="presenceUsageTable"></div>
+</div>
+</div>
+
 <div class="overlay" id="strategyOverlay">
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
@@ -1357,7 +1386,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -1388,7 +1417,13 @@ let presenceUITimer = null;
 const IDLE_TIMEOUT = 10 * 60 * 1000; 
 const PRESENCE_HEARTBEAT_MS = 5 * 60 * 1000;
 const ACTIVE_PRESENCE_WINDOW_MS = 12 * 60 * 1000;
+const PRESENCE_USAGE_FLUSH_MS = 12 * 60 * 60 * 1000;
+const PRESENCE_USAGE_COLLECTION = "presenceUsage12h";
+const PRESENCE_USAGE_LOOKBACK_BUCKETS = 112;
+const FIRESTORE_FREE_WRITES_PER_DAY = 20000;
+const FIRESTORE_FREE_WRITES_PER_12H = FIRESTORE_FREE_WRITES_PER_DAY / 2;
 let weeksUnsub = null;
+let presenceUsageFlushTimer = null;
 
 let activityThrottle = null;
 const handleUserActivity = () => {
@@ -1405,7 +1440,7 @@ const handleUserActivity = () => {
       role: currentRole,
       status: 'active',
       lastActive: Date.now()
-    }, { merge: true }).catch(()=>{});
+    }, { merge: true }).then(() => queuePresenceUsage('active')).catch(()=>{});
   }
   
   clearTimeout(idleTimer);
@@ -1415,7 +1450,7 @@ const handleUserActivity = () => {
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: Date.now()
-    }, { merge: true }).catch(()=>{});
+    }, { merge: true }).then(() => queuePresenceUsage('idle')).catch(()=>{});
   }, IDLE_TIMEOUT);
 };
 
@@ -1490,6 +1525,170 @@ function showDataLoadError(error) {
   document.getElementById('execView').style.display = currentRole === 'vip' ? 'block' : 'none';
 }
 
+// ── PRESENCE USAGE COUNTER ──
+function getPresenceUsageStorageKey() {
+  return `presenceUsage12h:${FIREBASE_CONFIG.projectId}:${getEmailKey(currentUser) || 'anonymous'}`;
+}
+
+function getPresenceUsageBuffer() {
+  try {
+    const raw = localStorage.getItem(getPresenceUsageStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && parsed.buckets ? parsed : { buckets: {} };
+  } catch {
+    return { buckets: {} };
+  }
+}
+
+function savePresenceUsageBuffer(buffer) {
+  localStorage.setItem(getPresenceUsageStorageKey(), JSON.stringify(buffer));
+}
+
+function getPresenceUsageBucket(ts = Date.now()) {
+  const bucketStart = Math.floor(ts / PRESENCE_USAGE_FLUSH_MS) * PRESENCE_USAGE_FLUSH_MS;
+  const bucketEnd = bucketStart + PRESENCE_USAGE_FLUSH_MS;
+  const d = new Date(bucketStart);
+  const date = d.toISOString().slice(0, 10);
+  const half = d.getUTCHours() < 12 ? 'H1' : 'H2';
+  return { id: `${date}-${half}`, bucketStart, bucketEnd, label: `${date} ${half}` };
+}
+
+function queuePresenceUsage(type) {
+  if (!currentUser) return;
+  const field = `${type}Writes`;
+  const bucket = getPresenceUsageBucket();
+  const buffer = getPresenceUsageBuffer();
+  const record = buffer.buckets[bucket.id] || {
+    bucketId: bucket.id,
+    bucketLabel: bucket.label,
+    bucketStart: bucket.bucketStart,
+    bucketEnd: bucket.bucketEnd,
+    activeWrites: 0,
+    idleWrites: 0,
+    logoutWrites: 0,
+    totalPresenceWrites: 0
+  };
+  record[field] = (record[field] || 0) + 1;
+  record.totalPresenceWrites = (record.totalPresenceWrites || 0) + 1;
+  buffer.buckets[bucket.id] = record;
+  savePresenceUsageBuffer(buffer);
+  flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
+}
+
+async function flushDuePresenceUsage(force = false) {
+  if (!currentUser) return;
+  const now = Date.now();
+  const buffer = getPresenceUsageBuffer();
+  const entries = Object.entries(buffer.buckets).filter(([, item]) => {
+    return item.totalPresenceWrites > 0 && (force || now >= item.bucketEnd);
+  });
+
+  for (const [bucketId, item] of entries) {
+    await setDoc(doc(db, PRESENCE_USAGE_COLLECTION, bucketId), {
+      bucketId,
+      bucketLabel: item.bucketLabel,
+      bucketStart: item.bucketStart,
+      bucketEnd: item.bucketEnd,
+      activeWrites: increment(item.activeWrites || 0),
+      idleWrites: increment(item.idleWrites || 0),
+      logoutWrites: increment(item.logoutWrites || 0),
+      totalPresenceWrites: increment(item.totalPresenceWrites || 0),
+      counterFlushWrites: increment(1),
+      freeWriteQuotaPerDay: FIRESTORE_FREE_WRITES_PER_DAY,
+      freeWriteQuotaPer12h: FIRESTORE_FREE_WRITES_PER_12H,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    delete buffer.buckets[bucketId];
+  }
+
+  savePresenceUsageBuffer(buffer);
+}
+
+function startPresenceUsageFlushTimer() {
+  if (presenceUsageFlushTimer) clearInterval(presenceUsageFlushTimer);
+  presenceUsageFlushTimer = setInterval(() => {
+    flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
+  }, 10 * 60 * 1000);
+}
+
+function stopPresenceUsageFlushTimer() {
+  if (presenceUsageFlushTimer) clearInterval(presenceUsageFlushTimer);
+  presenceUsageFlushTimer = null;
+}
+
+function fmtUsageNumber(value) {
+  return Math.round(Number(value || 0)).toLocaleString();
+}
+
+function renderPresenceUsageStats(rows) {
+  const totals = rows.reduce((acc, row) => {
+    acc.active += row.activeWrites || 0;
+    acc.idle += row.idleWrites || 0;
+    acc.logout += row.logoutWrites || 0;
+    acc.presence += row.totalPresenceWrites || 0;
+    acc.flush += row.counterFlushWrites || 0;
+    return acc;
+  }, { active: 0, idle: 0, logout: 0, presence: 0, flush: 0 });
+  const totalEstimated = totals.presence + totals.flush;
+  const quota = Math.max(rows.length, 1) * FIRESTORE_FREE_WRITES_PER_12H;
+  const usedPct = quota ? (totalEstimated / quota) * 100 : 0;
+  const remaining = Math.max(0, quota - totalEstimated);
+
+  document.getElementById('presenceUsageSummary').innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Presence writes</div><div class="usage-card-value">${fmtUsageNumber(totals.presence)}</div><div class="usage-card-note">Active + idle + logout</div></div>
+    <div class="usage-card"><div class="usage-card-label">Active writes</div><div class="usage-card-value">${fmtUsageNumber(totals.active)}</div><div class="usage-card-note">Heartbeat and resume activity</div></div>
+    <div class="usage-card"><div class="usage-card-label">Idle / logout</div><div class="usage-card-value">${fmtUsageNumber(totals.idle + totals.logout)}</div><div class="usage-card-note">Idle ${fmtUsageNumber(totals.idle)} · Logout ${fmtUsageNumber(totals.logout)}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free quota gap</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${fmtUsageNumber(remaining)} writes remaining in loaded buckets</div></div>
+  `;
+
+  if (!rows.length) {
+    document.getElementById('presenceUsageTable').innerHTML = '<div class="usage-empty">No completed 12-hour presence usage buckets yet.</div>';
+    return;
+  }
+
+  document.getElementById('presenceUsageTable').innerHTML = `
+    <table class="usage-table">
+      <thead><tr><th>Bucket</th><th>Active</th><th>Idle</th><th>Logout</th><th>Presence Total</th><th>Counter Writes</th><th>Quota Used</th><th>Remaining</th></tr></thead>
+      <tbody>
+        ${rows.map(row => {
+          const presence = row.totalPresenceWrites || 0;
+          const flush = row.counterFlushWrites || 0;
+          const estimated = presence + flush;
+          const pct = (estimated / FIRESTORE_FREE_WRITES_PER_12H) * 100;
+          const remain = Math.max(0, FIRESTORE_FREE_WRITES_PER_12H - estimated);
+          return `<tr>
+            <td>${escHtml(row.bucketLabel || row.bucketId || '-')}</td>
+            <td class="num">${fmtUsageNumber(row.activeWrites)}</td>
+            <td class="num">${fmtUsageNumber(row.idleWrites)}</td>
+            <td class="num">${fmtUsageNumber(row.logoutWrites)}</td>
+            <td class="num">${fmtUsageNumber(presence)}</td>
+            <td class="num">${fmtUsageNumber(flush)}</td>
+            <td class="num">${pct.toFixed(2)}%</td>
+            <td class="num">${fmtUsageNumber(remain)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+window.loadPresenceUsageStats = async () => {
+  if (currentRole !== 'admin') return;
+  document.getElementById('presenceUsageTable').innerHTML = '<div class="usage-empty">Loading presence usage...</div>';
+  const snap = await getDocs(query(
+    collection(db, PRESENCE_USAGE_COLLECTION),
+    orderBy("bucketStart", "desc"),
+    limit(PRESENCE_USAGE_LOOKBACK_BUCKETS)
+  ));
+  renderPresenceUsageStats(snap.docs.map(d => d.data()));
+};
+
+window.openPresenceUsage = async () => {
+  if (currentRole !== 'admin') return;
+  document.getElementById('presenceUsageOverlay').classList.add('open');
+  await loadPresenceUsageStats();
+};
+
 // ── PRESENCE SYSTEM ──
 const pingPresence = () => {
   if (!currentUser || isIdle) return;
@@ -1498,7 +1697,9 @@ const pingPresence = () => {
     role: currentRole,
     status: 'active',
     lastActive: Date.now()
-  }, { merge: true }).catch(e => console.warn("Presence ping failed:", e));
+  }, { merge: true })
+    .then(() => queuePresenceUsage('active'))
+    .catch(e => console.warn("Presence ping failed:", e));
 };
 
 function updatePresenceUI() {
@@ -1523,6 +1724,7 @@ function updatePresenceUI() {
 function startPresenceSystem() {
   pingPresence();
   heartbeatInterval = setInterval(pingPresence, PRESENCE_HEARTBEAT_MS);
+  startPresenceUsageFlushTimer();
 
   ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, handleUserActivity, { passive: true });
@@ -1550,8 +1752,11 @@ function stopPresenceSystem() {
   });
 
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true }).catch(()=>{});
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true })
+      .then(() => queuePresenceUsage('logout'))
+      .catch(()=>{});
   }
+  stopPresenceUsageFlushTimer();
 }
 
 function renderOnlineUsers(users) {
@@ -1584,7 +1789,8 @@ function renderOnlineUsers(users) {
 
 window.addEventListener('beforeunload', () => {
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true });
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true })
+      .then(() => queuePresenceUsage('logout'));
   }
 });
 
@@ -1709,6 +1915,7 @@ onAuthStateChanged(auth, async user => {
     }
     currentUser = null;
     currentRole = 'pm';
+    stopPresenceUsageFlushTimer();
     document.getElementById('projGrid').innerHTML = '';
     document.getElementById('execView').innerHTML = '';
     document.getElementById('topMetricsGrid').style.display = 'none';
@@ -1760,6 +1967,7 @@ function setupUI() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('presenceUsageBtn').style.display = 'none';
   
   isOverview = false;
   document.getElementById('btnOverview').classList.remove('active');
@@ -1770,6 +1978,7 @@ function setupUI() {
     rBadge.classList.add('admin');
     document.getElementById('onlineUsersContainer').style.display = 'flex';
     document.getElementById('visSelect').style.display = 'inline-block';
+    document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
   } 
   else if (currentRole === 'pm') {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
