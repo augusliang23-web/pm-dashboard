@@ -594,16 +594,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .pqm-project-name { font-size:13px; font-weight:850; color:var(--text); line-height:1.25; }
 .pqm-project-meta { margin-top:5px; display:flex; gap:5px; flex-wrap:wrap; }
 .pqm-items { display:grid; gap:7px; }
-.pqm-item { border:1px solid var(--border); border-left:4px solid var(--blue); border-radius:8px; padding:8px 9px; background:#fff; }
-.pqm-item.done { border-left-color:var(--green); background:#F3FBF6; }
-.pqm-item.at-risk { border-left-color:var(--yellow); background:#FFFAF0; }
-.pqm-item.track-all,
-.pqm-item.track-track-a,
-.pqm-item.track-track-b,
-.pqm-item.track-track-c { border-left-color:var(--track-color); }
+.pqm-item { border:1px solid #C9DDEA; border-radius:8px; padding:8px 9px; background:#F1F7FC; }
+.pqm-item.done { border-color:#C8E5D5; background:#F3FBF6; }
+.pqm-item.at-risk { border-color:#E9D59B; background:#FFFAF0; }
 .pqm-goal { font-size:12px; font-weight:750; line-height:1.38; color:var(--text); }
 .pqm-meta { margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); line-height:1.35; }
 .pqm-empty { color:var(--muted2); font-size:11px; line-height:1.4; }
+.pqm-head-tools { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
+.pqm-legend { display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
+.pqm-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:10px; font-weight:700; white-space:nowrap; }
+.pqm-legend-swatch { width:13px; height:13px; border:1px solid #C9DDEA; border-radius:3px; background:#F1F7FC; }
+.pqm-legend-swatch.done { border-color:#C8E5D5; background:#F3FBF6; }
+.pqm-legend-swatch.at-risk { border-color:#E9D59B; background:#FFFAF0; }
 .strategy-lens-inline { margin:0 0 14px; padding:13px 14px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
 .strategy-lens-inline .strategy-toolbar { margin-bottom:10px; }
 .strategy-lens-inline .strategy-title { font-size:17px; }
@@ -1277,7 +1279,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <div style="border-top: 1px dashed var(--border); padding-top: 24px;">
         <div class="info-lbl" style="color:var(--accent-hov)">Highlight</div>
         <div class="stext" id="pd_highlight"></div>
-        <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions</div>
+        <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions (for next week)</div>
         <div class="stext" id="pd_weekly_actions"></div>
         <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk / Blocker</div>
         <div class="stext" id="pd_risk"></div>
@@ -1324,7 +1326,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention"></select></div>
   </div>
   <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3"></textarea></div>
-  <div class="fg"><label class="fl">Weekly Key Actions (execution focus for this week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Actions the team needs to execute this week. Press Enter for new bullet point."></textarea></div>
+  <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Actions the team needs to execute next week. Press Enter for new bullet point."></textarea></div>
   <div class="fg">
     <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
     <div class="risk-pair-editor">
@@ -2780,7 +2782,14 @@ function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTra
         <div class="roadmap-block-title">PM project milestones</div>
         <div class="roadmap-block-note">Project names are the vertical axis; quarterly PM milestone input is placed in the matching Q1-Q4 cell.</div>
       </div>
-      <span class="reason-pill">${projects.length} projects</span>
+      <div class="pqm-head-tools">
+        <div class="pqm-legend" aria-label="Milestone status color legend">
+          <span class="pqm-legend-item"><i class="pqm-legend-swatch"></i>Planned</span>
+          <span class="pqm-legend-item"><i class="pqm-legend-swatch done"></i>Done</span>
+          <span class="pqm-legend-item"><i class="pqm-legend-swatch at-risk"></i>At Risk</span>
+        </div>
+        <span class="reason-pill">${projects.length} projects</span>
+      </div>
     </div>
     <div class="project-quarter-matrix">
       <div class="pqm-cell pqm-head">Project</div>
