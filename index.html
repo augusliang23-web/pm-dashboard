@@ -260,6 +260,28 @@ details > summary::-webkit-details-marker { display: none; }
 .settings-summary:hover { background: var(--s3); }
 details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; color: var(--text); }
 .settings-content { padding: 20px 16px; border: 1px solid var(--border); border-top: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background: var(--s1); }
+.usage-summary-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:18px; }
+.usage-card { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:12px; }
+.usage-card-label { font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.usage-card-value { font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:800; color:var(--text); margin-top:5px; }
+.usage-card-note { font-size:10px; color:var(--muted); margin-top:4px; line-height:1.35; }
+.usage-section-title { font-size:11px; font-weight:800; color:var(--text); margin:2px 0 10px; }
+.usage-history-note { font-size:10px; color:var(--muted); line-height:1.5; margin:-8px 0 18px; }
+.usage-chart { position:relative; height:250px; margin:0 0 18px; padding:12px; background:var(--s2); border:1px solid var(--border); border-radius:8px; overflow-x:auto; overflow-y:hidden; }
+.usage-chart svg { display:block; height:210px; max-width:none; }
+.usage-chart-empty { height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
+.usage-chart-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:-8px 0 12px; }
+.usage-chart-legend { display:flex; align-items:center; gap:14px; font-size:10px; color:var(--muted); }
+.usage-chart-nav { display:flex; gap:6px; }
+.usage-chart-nav .btn { width:30px; height:28px; padding:0; font-size:16px; }
+.usage-chart-key { display:inline-flex; align-items:center; gap:5px; }
+.usage-chart-swatch { width:14px; height:3px; background:var(--accent); }
+.usage-chart-swatch.warning { background:#d14343; border-top:1px dashed #d14343; }
+.usage-table { width:100%; border-collapse:collapse; font-size:11px; }
+.usage-table th { text-align:left; padding:9px 8px; background:var(--s2); color:var(--text-light); font-size:9px; text-transform:uppercase; letter-spacing:.05em; }
+.usage-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--text-light); }
+.usage-table td.num { font-family:'IBM Plex Mono', monospace; color:var(--text); text-align:right; }
+.usage-empty { padding:18px; text-align:center; color:var(--muted); background:var(--s2); border:1px dashed var(--border2); border-radius:8px; }
 
 /* Milestone Drag CSS */
 .ms-row { padding: 4px; border-radius: 4px; transition: 0.2s; background: var(--s1); }
@@ -663,6 +685,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 }
 @media (max-width: 860px) {
   .proj-grid { grid-template-columns: 1fr; }
+  .usage-summary-grid { grid-template-columns:repeat(2, 1fr); }
   .card-summary { flex-direction: column; padding-right: 0; }
   .card-summary-right { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; text-align: left; }
   .card-meta-grid { grid-template-columns: 1fr; }
@@ -670,6 +693,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 }
 @media (max-width: 640px) {
   .main { padding: 20px 16px 28px; }
+  .usage-summary-grid { grid-template-columns:1fr; }
   .exec-health-body { grid-template-columns:1fr; justify-items:center; }
   .exec-health-legend { width:100%; }
   .exec-project-top { grid-template-columns:1fr; }
@@ -1205,6 +1229,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button class="btn-icon vip-hidden" onclick="window.print()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
+
+      <button class="btn-icon" id="presenceUsageBtn" style="display:none;" onclick="openPresenceUsage()" title="Presence Usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
+      </button>
       
       <button class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1427,6 +1455,37 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
+<div class="overlay" id="presenceUsageOverlay">
+<div class="modal" style="width:980px">
+  <div class="modal-hdr">
+    <h3>Presence Usage Counter</h3>
+    <button class="modal-x" onclick="closeModal('presenceUsageOverlay')">×</button>
+  </div>
+  <div class="usage-section-title">Firestore actual usage · Past 6 weeks</div>
+  <div class="usage-summary-grid" id="firestoreHistoricalSummary"></div>
+  <div class="usage-history-note" id="firestoreHistoricalNote"></div>
+  <div class="usage-section-title">Presence writes recorded after counter activation</div>
+  <div class="usage-summary-grid" id="presenceUsageSummary"></div>
+  <div class="usage-section-title">12-hour presence writes · Up to 56 days</div>
+  <div class="usage-chart-toolbar">
+    <div class="usage-chart-legend">
+      <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour writes</span>
+      <span class="usage-chart-key"><span class="usage-chart-swatch warning"></span>80% warning line · 8,000 writes</span>
+    </div>
+    <div class="usage-chart-nav">
+      <button class="btn btn-ghost" title="View older usage" onclick="scrollPresenceChart(-1)" aria-label="View older usage">←</button>
+      <button class="btn btn-ghost" title="View newer usage" onclick="scrollPresenceChart(1)" aria-label="View newer usage">→</button>
+    </div>
+  </div>
+  <div class="usage-chart" id="presenceDailyChart"></div>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <div style="font-size:11px; color:var(--muted); line-height:1.45;">12-hour aggregates from user presence records. Quota distance uses 10,000 free writes per 12-hour bucket.</div>
+    <button class="btn btn-ghost" onclick="loadPresenceUsageStats()">Refresh</button>
+  </div>
+  <div id="presenceUsageTable"></div>
+</div>
+</div>
+
 <div class="overlay" id="strategyOverlay">
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
@@ -1449,7 +1508,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -1480,7 +1539,19 @@ let presenceUITimer = null;
 const IDLE_TIMEOUT = 10 * 60 * 1000; 
 const PRESENCE_HEARTBEAT_MS = 5 * 60 * 1000;
 const ACTIVE_PRESENCE_WINDOW_MS = 12 * 60 * 1000;
+const PRESENCE_USAGE_FLUSH_MS = 12 * 60 * 60 * 1000;
+const PRESENCE_USAGE_LOOKBACK_BUCKETS = 112;
+const FIRESTORE_FREE_WRITES_PER_DAY = 20000;
+const FIRESTORE_FREE_WRITES_PER_12H = FIRESTORE_FREE_WRITES_PER_DAY / 2;
+const FIRESTORE_SIX_WEEK_BASELINE = {
+  startDate: "2026-05-16",
+  endDate: "2026-06-27",
+  reads: 69,
+  writes: 6882,
+  freeWriteQuota: 42 * FIRESTORE_FREE_WRITES_PER_DAY
+};
 let weeksUnsub = null;
+let presenceUsageFlushTimer = null;
 
 let activityThrottle = null;
 const handleUserActivity = () => {
@@ -1497,7 +1568,7 @@ const handleUserActivity = () => {
       role: currentRole,
       status: 'active',
       lastActive: Date.now()
-    }, { merge: true }).catch(()=>{});
+    }, { merge: true }).then(() => queuePresenceUsage('active')).catch(()=>{});
   }
   
   clearTimeout(idleTimer);
@@ -1507,7 +1578,7 @@ const handleUserActivity = () => {
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: Date.now()
-    }, { merge: true }).catch(()=>{});
+    }, { merge: true }).then(() => queuePresenceUsage('idle')).catch(()=>{});
   }, IDLE_TIMEOUT);
 };
 
@@ -1593,6 +1664,283 @@ function showDataLoadError(error) {
   document.getElementById('execView').style.display = currentRole === 'vip' ? 'block' : 'none';
 }
 
+// ── PRESENCE USAGE COUNTER ──
+function getPresenceUsageStorageKey() {
+  return `presenceUsage12h:${FIREBASE_CONFIG.projectId}:${getEmailKey(currentUser) || 'anonymous'}`;
+}
+
+function getPresenceUsageBuffer() {
+  try {
+    const raw = localStorage.getItem(getPresenceUsageStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && parsed.buckets ? parsed : { buckets: {} };
+  } catch {
+    return { buckets: {} };
+  }
+}
+
+function savePresenceUsageBuffer(buffer) {
+  localStorage.setItem(getPresenceUsageStorageKey(), JSON.stringify(buffer));
+}
+
+function getPresenceUsageBucket(ts = Date.now()) {
+  const bucketStart = Math.floor(ts / PRESENCE_USAGE_FLUSH_MS) * PRESENCE_USAGE_FLUSH_MS;
+  const bucketEnd = bucketStart + PRESENCE_USAGE_FLUSH_MS;
+  const d = new Date(bucketStart);
+  const date = d.toISOString().slice(0, 10);
+  const half = d.getUTCHours() < 12 ? 'H1' : 'H2';
+  return { id: `${date}-${half}`, bucketStart, bucketEnd, label: `${date} ${half}` };
+}
+
+function queuePresenceUsage(type) {
+  if (!currentUser) return;
+  const field = `${type}Writes`;
+  const bucket = getPresenceUsageBucket();
+  const buffer = getPresenceUsageBuffer();
+  const record = buffer.buckets[bucket.id] || {
+    bucketId: bucket.id,
+    bucketLabel: bucket.label,
+    bucketStart: bucket.bucketStart,
+    bucketEnd: bucket.bucketEnd,
+    activeWrites: 0,
+    idleWrites: 0,
+    logoutWrites: 0,
+    totalPresenceWrites: 0
+  };
+  record[field] = (record[field] || 0) + 1;
+  record.totalPresenceWrites = (record.totalPresenceWrites || 0) + 1;
+  buffer.buckets[bucket.id] = record;
+  savePresenceUsageBuffer(buffer);
+  flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
+}
+
+async function flushDuePresenceUsage(force = false) {
+  if (!currentUser) return;
+  const now = Date.now();
+  const buffer = getPresenceUsageBuffer();
+  const entries = Object.entries(buffer.buckets).filter(([, item]) => {
+    return item.totalPresenceWrites > 0 && (force || now >= item.bucketEnd);
+  });
+
+  for (const [bucketId, item] of entries) {
+    const bucketPath = `usageBuckets.${bucketId}`;
+    await updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
+      [`${bucketPath}.bucketId`]: bucketId,
+      [`${bucketPath}.bucketLabel`]: item.bucketLabel,
+      [`${bucketPath}.bucketStart`]: item.bucketStart,
+      [`${bucketPath}.bucketEnd`]: item.bucketEnd,
+      [`${bucketPath}.activeWrites`]: increment(item.activeWrites || 0),
+      [`${bucketPath}.idleWrites`]: increment(item.idleWrites || 0),
+      [`${bucketPath}.logoutWrites`]: increment(item.logoutWrites || 0),
+      [`${bucketPath}.totalPresenceWrites`]: increment(item.totalPresenceWrites || 0),
+      [`${bucketPath}.counterFlushWrites`]: increment(1),
+      [`${bucketPath}.updatedAt`]: serverTimestamp()
+    });
+    delete buffer.buckets[bucketId];
+  }
+
+  savePresenceUsageBuffer(buffer);
+}
+
+function startPresenceUsageFlushTimer() {
+  if (presenceUsageFlushTimer) clearInterval(presenceUsageFlushTimer);
+  presenceUsageFlushTimer = setInterval(() => {
+    flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
+  }, 10 * 60 * 1000);
+}
+
+function stopPresenceUsageFlushTimer() {
+  if (presenceUsageFlushTimer) clearInterval(presenceUsageFlushTimer);
+  presenceUsageFlushTimer = null;
+}
+
+function fmtUsageNumber(value) {
+  return Math.round(Number(value || 0)).toLocaleString();
+}
+
+function renderFirestoreHistoricalSummary() {
+  const data = FIRESTORE_SIX_WEEK_BASELINE;
+  const usedPct = (data.writes / data.freeWriteQuota) * 100;
+  const remaining = Math.max(0, data.freeWriteQuota - data.writes);
+  document.getElementById('firestoreHistoricalSummary').innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Firestore writes</div><div class="usage-card-value">${fmtUsageNumber(data.writes)}</div><div class="usage-card-note">All database writes in the selected period</div></div>
+    <div class="usage-card"><div class="usage-card-label">Firestore reads</div><div class="usage-card-value">${fmtUsageNumber(data.reads)}</div><div class="usage-card-note">All database reads in the selected period</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free writes used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${fmtUsageNumber(data.writes)} of ${fmtUsageNumber(data.freeWriteQuota)}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free quota gap</div><div class="usage-card-value">${fmtUsageNumber(remaining)}</div><div class="usage-card-note">Aggregate writes remaining across 42 days</div></div>
+  `;
+  document.getElementById('firestoreHistoricalNote').textContent =
+    `${data.startDate} to ${data.endDate} · Source: Google Cloud Firestore Usage Insights. ` +
+    `The free quota resets daily, so the 42-day comparison does not identify a single-day peak. ` +
+    `Historical writes cannot be reliably separated into active, idle, logout, or other dashboard writes because those event types were not recorded before the counter was enabled.`;
+}
+
+window.scrollPresenceChart = direction => {
+  const chart = document.getElementById('presenceDailyChart');
+  chart.scrollBy({ left: direction * chart.clientWidth * 0.8, behavior: 'smooth' });
+};
+
+function renderPresenceUsageChart(rows) {
+  const chart = document.getElementById('presenceDailyChart');
+  const points = rows
+    .map(row => ({
+      label: row.bucketLabel || row.bucketId || '-',
+      bucketStart: Number(row.bucketStart || 0),
+      writes: Number(row.totalPresenceWrites || 0) + Number(row.counterFlushWrites || 0)
+    }))
+    .sort((a, b) => a.bucketStart - b.bucketStart)
+    .slice(-PRESENCE_USAGE_LOOKBACK_BUCKETS);
+
+  if (!points.length) {
+    chart.innerHTML = '<div class="usage-chart-empty">The 12-hour trend will appear after the first completed bucket.</div>';
+    return;
+  }
+
+  const width = Math.max(920, points.length * 30 + 70);
+  const height = 210;
+  const margin = { top: 12, right: 16, bottom: 32, left: 54 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const maxWrites = FIRESTORE_FREE_WRITES_PER_12H;
+  const warningWrites = maxWrites * 0.8;
+  const yFor = value => margin.top + plotHeight - (Math.min(value, maxWrites) / maxWrites) * plotHeight;
+  const slotWidth = plotWidth / points.length;
+  const barWidth = Math.max(3, Math.min(18, slotWidth * 0.62));
+
+  const grid = [0, 2500, 5000, 7500, 10000].map(value => {
+    const y = yFor(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="var(--border)" stroke-width="1"/>
+      <text x="${margin.left - 8}" y="${y + 3}" text-anchor="end" fill="var(--muted)" font-size="9">${value === 0 ? '0' : `${value / 1000}k`}</text>`;
+  }).join('');
+
+  const bars = points.map((item, index) => {
+    const x = margin.left + slotWidth * index + (slotWidth - barWidth) / 2;
+    const y = yFor(item.writes);
+    const barHeight = Math.max(item.writes ? 1 : 0, margin.top + plotHeight - y);
+    const color = item.writes >= warningWrites ? '#d14343' : 'var(--accent)';
+    const half = item.label.slice(-2);
+    const dateLabel = half === 'H1' ? item.label.slice(5, 10) : '';
+    const label = `<text x="${x + barWidth / 2}" y="${height - 18}" text-anchor="middle" fill="var(--muted)" font-size="8">${half}</text>
+      ${dateLabel ? `<text x="${x + barWidth / 2}" y="${height - 7}" text-anchor="middle" fill="var(--muted)" font-size="8">${dateLabel}</text>` : ''}`;
+    return `<rect x="${x}" y="${margin.top + plotHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="2" fill="${color}">
+        <title>${item.label}: ${fmtUsageNumber(item.writes)} writes (${((item.writes / maxWrites) * 100).toFixed(2)}%)</title>
+      </rect>${label}`;
+  }).join('');
+
+  const warningY = yFor(warningWrites);
+  chart.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="${width}" role="img" aria-label="12-hour presence writes with 80 percent free quota warning line">
+    ${grid}
+    <line x1="${margin.left}" y1="${warningY}" x2="${width - margin.right}" y2="${warningY}" stroke="#d14343" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="${width - margin.right}" y="${warningY - 5}" text-anchor="end" fill="#d14343" font-size="9" font-weight="700">80% · 8k</text>
+    ${bars}
+  </svg>`;
+  requestAnimationFrame(() => {
+    chart.scrollLeft = chart.scrollWidth;
+  });
+}
+
+function renderPresenceUsageStats(rows) {
+  const totals = rows.reduce((acc, row) => {
+    acc.active += row.activeWrites || 0;
+    acc.idle += row.idleWrites || 0;
+    acc.logout += row.logoutWrites || 0;
+    acc.presence += row.totalPresenceWrites || 0;
+    acc.flush += row.counterFlushWrites || 0;
+    return acc;
+  }, { active: 0, idle: 0, logout: 0, presence: 0, flush: 0 });
+  const totalEstimated = totals.presence + totals.flush;
+  const quota = rows.length * FIRESTORE_FREE_WRITES_PER_12H;
+  const usedPct = quota ? (totalEstimated / quota) * 100 : 0;
+  const remaining = Math.max(0, quota - totalEstimated);
+
+  document.getElementById('presenceUsageSummary').innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Presence writes</div><div class="usage-card-value">${fmtUsageNumber(totals.presence)}</div><div class="usage-card-note">Active + idle + logout</div></div>
+    <div class="usage-card"><div class="usage-card-label">Active writes</div><div class="usage-card-value">${fmtUsageNumber(totals.active)}</div><div class="usage-card-note">Heartbeat and resume activity</div></div>
+    <div class="usage-card"><div class="usage-card-label">Idle / logout</div><div class="usage-card-value">${fmtUsageNumber(totals.idle + totals.logout)}</div><div class="usage-card-note">Idle ${fmtUsageNumber(totals.idle)} · Logout ${fmtUsageNumber(totals.logout)}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free quota used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${rows.length ? `${fmtUsageNumber(remaining)} writes remaining in loaded buckets` : 'No completed buckets yet'}</div></div>
+  `;
+  renderPresenceUsageChart(rows);
+
+  if (!rows.length) {
+    document.getElementById('presenceUsageTable').innerHTML = '<div class="usage-empty">No completed 12-hour presence usage buckets yet.</div>';
+    return;
+  }
+
+  document.getElementById('presenceUsageTable').innerHTML = `
+    <table class="usage-table">
+      <thead><tr><th>Bucket</th><th>Active</th><th>Idle</th><th>Logout</th><th>Presence Total</th><th>Counter Writes</th><th>Quota Used</th><th>Remaining</th></tr></thead>
+      <tbody>
+        ${rows.map(row => {
+          const presence = row.totalPresenceWrites || 0;
+          const flush = row.counterFlushWrites || 0;
+          const estimated = presence + flush;
+          const pct = (estimated / FIRESTORE_FREE_WRITES_PER_12H) * 100;
+          const remain = Math.max(0, FIRESTORE_FREE_WRITES_PER_12H - estimated);
+          return `<tr>
+            <td>${escHtml(row.bucketLabel || row.bucketId || '-')}</td>
+            <td class="num">${fmtUsageNumber(row.activeWrites)}</td>
+            <td class="num">${fmtUsageNumber(row.idleWrites)}</td>
+            <td class="num">${fmtUsageNumber(row.logoutWrites)}</td>
+            <td class="num">${fmtUsageNumber(presence)}</td>
+            <td class="num">${fmtUsageNumber(flush)}</td>
+            <td class="num">${pct.toFixed(2)}%</td>
+            <td class="num">${fmtUsageNumber(remain)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+window.loadPresenceUsageStats = async () => {
+  if (currentRole !== 'admin') return;
+  const table = document.getElementById('presenceUsageTable');
+  table.innerHTML = '<div class="usage-empty">Loading presence usage...</div>';
+  try {
+    await flushDuePresenceUsage();
+    const snap = await getDocs(collection(db, "presence"));
+    const buckets = {};
+    snap.docs.forEach(presenceDoc => {
+      Object.values(presenceDoc.data().usageBuckets || {}).forEach(row => {
+        if (!row?.bucketId) return;
+        const aggregate = buckets[row.bucketId] || {
+          bucketId: row.bucketId,
+          bucketLabel: row.bucketLabel,
+          bucketStart: row.bucketStart,
+          bucketEnd: row.bucketEnd,
+          activeWrites: 0,
+          idleWrites: 0,
+          logoutWrites: 0,
+          totalPresenceWrites: 0,
+          counterFlushWrites: 0
+        };
+        aggregate.activeWrites += Number(row.activeWrites || 0);
+        aggregate.idleWrites += Number(row.idleWrites || 0);
+        aggregate.logoutWrites += Number(row.logoutWrites || 0);
+        aggregate.totalPresenceWrites += Number(row.totalPresenceWrites || 0);
+        aggregate.counterFlushWrites += Number(row.counterFlushWrites || 0);
+        buckets[row.bucketId] = aggregate;
+      });
+    });
+    const rows = Object.values(buckets)
+      .sort((a, b) => Number(b.bucketStart || 0) - Number(a.bucketStart || 0))
+      .slice(0, PRESENCE_USAGE_LOOKBACK_BUCKETS);
+    renderPresenceUsageStats(rows);
+  } catch (error) {
+    console.error("Presence usage load failed:", error);
+    const message = error?.code === 'permission-denied'
+      ? 'Firebase denied access to presence usage data.'
+      : 'Presence usage could not be loaded. Please refresh and try again.';
+    table.innerHTML = `<div class="usage-empty">${escHtml(message)}</div>`;
+  }
+};
+
+window.openPresenceUsage = async () => {
+  if (currentRole !== 'admin') return;
+  document.getElementById('presenceUsageOverlay').classList.add('open');
+  renderFirestoreHistoricalSummary();
+  await loadPresenceUsageStats();
+};
+
 // ── PRESENCE SYSTEM ──
 const pingPresence = () => {
   if (!currentUser || isIdle) return;
@@ -1601,7 +1949,9 @@ const pingPresence = () => {
     role: currentRole,
     status: 'active',
     lastActive: Date.now()
-  }, { merge: true }).catch(e => console.warn("Presence ping failed:", e));
+  }, { merge: true })
+    .then(() => queuePresenceUsage('active'))
+    .catch(e => console.warn("Presence ping failed:", e));
 };
 
 function updatePresenceUI() {
@@ -1626,6 +1976,7 @@ function updatePresenceUI() {
 function startPresenceSystem() {
   pingPresence();
   heartbeatInterval = setInterval(pingPresence, PRESENCE_HEARTBEAT_MS);
+  startPresenceUsageFlushTimer();
 
   ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, handleUserActivity, { passive: true });
@@ -1653,8 +2004,11 @@ function stopPresenceSystem() {
   });
 
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true }).catch(()=>{});
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true })
+      .then(() => queuePresenceUsage('logout'))
+      .catch(()=>{});
   }
+  stopPresenceUsageFlushTimer();
 }
 
 function renderOnlineUsers(users) {
@@ -1687,7 +2041,8 @@ function renderOnlineUsers(users) {
 
 window.addEventListener('beforeunload', () => {
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true });
+    setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true })
+      .then(() => queuePresenceUsage('logout'));
   }
 });
 
@@ -1812,6 +2167,7 @@ onAuthStateChanged(auth, async user => {
     }
     currentUser = null;
     currentRole = 'pm';
+    stopPresenceUsageFlushTimer();
     document.getElementById('projGrid').innerHTML = '';
     document.getElementById('execView').innerHTML = '';
     document.getElementById('topMetricsGrid').style.display = 'none';
@@ -1863,6 +2219,7 @@ function setupUI() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('presenceUsageBtn').style.display = 'none';
   
   isOverview = false;
   document.getElementById('btnOverview').classList.remove('active');
@@ -1873,6 +2230,7 @@ function setupUI() {
     rBadge.classList.add('admin');
     document.getElementById('onlineUsersContainer').style.display = 'flex';
     document.getElementById('visSelect').style.display = 'inline-block';
+    document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
   } 
   else if (currentRole === 'pm') {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
@@ -2326,10 +2684,11 @@ function renderStrategicTrackFilter(projs, layer, editable, inline = false) {
 
 function getTrendWeeks(limit = 8) {
   const weeks = Array.isArray(allWeeks) ? allWeeks : [];
-  const released = weeks.filter(w => Array.isArray(w.projects) && w.projects.length);
-  const current = allWeeks[currentIdx];
-  const list = released.includes(current) ? released : [...released, current].filter(Boolean);
-  return list.slice(Math.max(0, list.length - limit));
+  const selectedIdx = Math.min(Math.max(Number(currentIdx) || 0, 0), Math.max(weeks.length - 1, 0));
+  const visibleHistory = weeks
+    .slice(0, selectedIdx + 1)
+    .filter(w => Array.isArray(w.projects) && w.projects.length);
+  return visibleHistory.slice(Math.max(0, visibleHistory.length - limit));
 }
 
 function weekShortLabel(week) {
@@ -2934,7 +3293,7 @@ function buildCopilotPrompt() {
     const changes = projectMovement(oldP, newP);
     return `\n[${ref.name}]\nCode: ${ref.code}\nOwner: ${ref.owner || '-'}\nCurrent status: ${newP ? getStatusLabel(newP.status) : 'Removed'}\nCurrent attention: ${newP ? ATTENTION_MAP[getProjectAttention(newP)] : '-'}\n${changes.length ? changes.join('\n') : 'No meaningful movement detected.'}`;
   }).join('\n');
-  return `You are preparing an executive weekly movement summary for LITEON PM Dashboard.\n\nGoal:\nCompare LAST WEEK and THIS WEEK PM inputs. Generate a concise executive summary focused on movement, not static status.\n\nOutput format:\nReturn exactly two sections:\n\n## Weekly Movement\n- Use 4 to 6 bullets.\n- Focus on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.\n\n## Management Ask\n- Use 2 to 4 bullets.\n- Include only decisions, escalations, or unblock actions needed from management.\n- If no action is needed, write: "No immediate management decision required this week."\n\nRules:\n- Do not invent facts.\n- Use only the data below.\n- Do not repeat every project status.\n- Mention project names when describing important movement.\n- Prioritize Executive Action, At Risk, Critical, changed items, and management blockers.\n\nDATA\n\nWEEK COMPARISON\nLast week: ${prev ? `${prev.weekLabel} (${prev.weekDate})` : 'No previous week available'}\nThis week: ${cur.weekLabel} (${cur.weekDate})\n\nPORTFOLIO MOVEMENT\nTotal projects: ${a.total} -> ${b.total}\nOn Track: ${a.ok} -> ${b.ok}\nAt Risk: ${a.risk} -> ${b.risk}\nCritical: ${a.critical} -> ${b.critical}\nExecutive Action: ${a.action} -> ${b.action}\nMilestones: ${a.ms} -> ${b.ms}\n\nPROJECT MOVEMENT DETAILS\n${movements}\n\nCURRENT EXECUTIVE RISK LIST\n${curProjects.filter(shouldIncludeRisk).map(p => `- ${p.name}: ${riskItems(p).join(' | ') || 'No blocker text'}; why escalated: ${riskReasons(p).join(' / ')}; owner: ${p.owner || '-'}; next action: ${textLines(p.next)[0] || '-'}`).join('\n') || '- No current executive risks.'}\n`;
+  return `You are preparing an executive weekly movement summary for LITEON PM Dashboard.\n\nGoal:\nCompare LAST WEEK and THIS WEEK PM inputs. Generate a concise executive summary focused on movement, not static status.\n\nOutput format:\nReturn exactly two sections:\n\n## Weekly Movement\n- Use 4 to 6 bullets.\n- Focus on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.\n\n## Management Ask\n- Use 2 to 4 bullets.\n- Include only decisions, escalations, or unblock actions needed from management.\n- If no action is needed, write: "No immediate management decision required this week."\n\nRules:\n- Do not invent facts.\n- Use only the data below.\n- Do not repeat every project status.\n- Mention project names when describing important movement.\n- Prioritize Executive Action, At Risk, Critical, changed items, and management blockers.\n- The audience includes cross-functional department leaders. Use professional, constructive, and diplomatically neutral language.\n- Avoid blame, implied ownership disputes, or potentially contentious labels such as "scope creep". Describe the observable change, impact, and needed action instead.\n- For internally driven issues, keep the wording positive and neutral, emphasizing alignment, clarification, recovery, or next steps rather than fault.\n- For externally driven issues, preserve the relevant verified facts, source, timing, and impact without speculation or emotional wording.\n- Do not assign responsibility to a person or department unless the supplied data explicitly states it and the attribution is essential to a management decision.\n\nDATA\n\nWEEK COMPARISON\nLast week: ${prev ? `${prev.weekLabel} (${prev.weekDate})` : 'No previous week available'}\nThis week: ${cur.weekLabel} (${cur.weekDate})\n\nPORTFOLIO MOVEMENT\nTotal projects: ${a.total} -> ${b.total}\nOn Track: ${a.ok} -> ${b.ok}\nAt Risk: ${a.risk} -> ${b.risk}\nCritical: ${a.critical} -> ${b.critical}\nExecutive Action: ${a.action} -> ${b.action}\nMilestones: ${a.ms} -> ${b.ms}\n\nPROJECT MOVEMENT DETAILS\n${movements}\n\nCURRENT EXECUTIVE RISK LIST\n${curProjects.filter(shouldIncludeRisk).map(p => `- ${p.name}: ${riskItems(p).join(' | ') || 'No blocker text'}; why escalated: ${riskReasons(p).join(' / ')}; owner: ${p.owner || '-'}; next action: ${textLines(p.next)[0] || '-'}`).join('\n') || '- No current executive risks.'}\n`;
 }
 
 window.openProjDetail = (code) => {
