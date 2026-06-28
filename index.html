@@ -1226,6 +1226,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
 
     <div style="display:flex; gap:6px; margin-right:10px; padding-right:10px; border-right:1px solid var(--border);">
+      <button class="btn-icon admin-only" id="vipPreviewBtn" style="display:none;" onclick="toggleVipPreview()" title="Preview as VIP" aria-label="Preview as VIP">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
       <button class="btn-icon vip-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
@@ -1524,10 +1527,12 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
+let isAdminVipPreview = false;
 let currentPMFilter = 'all';
 let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
 let isOverview = false;
+const isVipPerspective = () => currentRole === 'vip' || (currentRole === 'admin' && isAdminVipPreview);
 let editingProjCode = null;
 let isCreatingNew = false;
 let PM_LIST = []; 
@@ -2216,6 +2221,7 @@ async function fetchDynamicPMList() {
 }
 
 function setupUI() {
+  isAdminVipPreview = false;
   document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
@@ -2235,6 +2241,7 @@ function setupUI() {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
     document.getElementById('visSelect').style.display = 'inline-block';
     document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
+    document.getElementById('vipPreviewBtn').style.display = 'inline-flex';
   } 
   else if (currentRole === 'pm') {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
@@ -3105,7 +3112,7 @@ function formatDetailQuarterlyMilestones(project) {
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
-  const editable = currentRole !== 'vip';
+  const editable = !isVipPerspective();
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
       <div>
@@ -3370,7 +3377,7 @@ window.render = () => {
   document.getElementById('bannerMeta').textContent = week.weekDate + " · Last edited by " + editorName;
 
   const bannerPills = document.getElementById('bannerPills');
-  if (currentRole === 'vip') {
+  if (isVipPerspective()) {
     bannerPills.innerHTML = ''; 
   } else {
     const isReleased = isWeekReleased(week);
@@ -3398,7 +3405,7 @@ window.render = () => {
   let projs = week.projects || [];
   
   const visFilter = document.getElementById('visSelect') ? document.getElementById('visSelect').value : 'active';
-  if (currentRole !== 'admin' || visFilter === 'active') {
+  if (isVipPerspective() || currentRole !== 'admin' || visFilter === 'active') {
      projs = projs.filter(p => !p.visibility || p.visibility === 'active');
   }
 
@@ -3415,13 +3422,13 @@ window.render = () => {
   document.getElementById('m_critical').textContent = critical;
   document.getElementById('m_atrisk').textContent = atRisk;
   document.getElementById('m_ontrack').textContent = onTrack;
-  const showTopMetrics = !(currentRole === 'vip' || isOverview);
+  const showTopMetrics = !(isVipPerspective() || isOverview);
   document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
 
   renderNormal(projs);
   renderExec(projs, week.summary);
   
-  if (currentRole === 'vip') {
+  if (isVipPerspective()) {
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
   } else {
@@ -3528,7 +3535,7 @@ function renderNormal(projs) {
 function renderExec(projs, summary) {
   const view = document.getElementById('execView');
   const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
-  const editableDecisionView = currentRole !== 'vip' && !isWeekReleased(allWeeks[currentIdx]);
+  const editableDecisionView = !isVipPerspective() && !isWeekReleased(allWeeks[currentIdx]);
   const strategyLayer = getStrategyLayer(allWeeks[currentIdx]);
   const activeTrack = 'all';
   const roadmapYear = getDefaultRoadmapYear(projs, strategyLayer);
@@ -3938,8 +3945,30 @@ window.handleTopPmChange = () => {
   render();
 };
 window.toggleOverview = () => {
-  if (currentRole === 'vip') return; 
+  if (isVipPerspective()) return; 
   isOverview = !isOverview;
+  render();
+};
+window.toggleVipPreview = () => {
+  if (currentRole !== 'admin') return;
+  isAdminVipPreview = !isAdminVipPreview;
+  isOverview = isAdminVipPreview;
+
+  document.querySelectorAll('.vip-hidden').forEach(el => {
+    el.style.display = isAdminVipPreview ? 'none' : '';
+  });
+  document.getElementById('onlineUsersContainer').style.display = isAdminVipPreview ? 'none' : 'flex';
+  document.getElementById('visSelect').style.display = isAdminVipPreview ? 'none' : 'inline-block';
+  document.getElementById('presenceUsageBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+
+  const button = document.getElementById('vipPreviewBtn');
+  button.classList.toggle('active', isAdminVipPreview);
+  button.title = isAdminVipPreview ? 'Return to Admin view' : 'Preview as VIP';
+  button.setAttribute('aria-label', button.title);
+
+  const badge = document.getElementById('displayRole');
+  badge.textContent = isAdminVipPreview ? 'VIP PREVIEW' : 'ADMIN';
+  badge.className = `role-badge ${isAdminVipPreview ? 'vip' : 'admin'}`;
   render();
 };
 window.navWeek = (dir) => {
