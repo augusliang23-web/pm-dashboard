@@ -485,6 +485,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-summary-project-item + .exec-summary-project-item { margin-top:0; }
 .exec-summary-project-name { display:block; padding-left:10px; border-left:3px solid var(--accent); font-size:14px; font-weight:800; line-height:1.4; color:var(--text); }
 .exec-summary-project-body { display:block; line-height:1.72; color:var(--text-light); }
+.exec-summary-portfolio-lead { margin:2px 0 12px !important; padding:11px 13px; border-left:4px solid var(--blue); background:#F1F7FB; color:var(--text) !important; font-size:15px; font-weight:800; line-height:1.55; }
 @media (max-width: 760px) {
   .exec-summary-project-item { grid-template-columns:1fr; gap:6px; }
 }
@@ -654,7 +655,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .weekly-trend-line.risk { stroke:#C9AB5F; }
 .weekly-trend-dot { fill:#fff; stroke:var(--blue); stroke-width:2; }
 .weekly-trend-dot.risk { stroke:#C9AB5F; }
-.weekly-trend-labels { display:flex; justify-content:space-between; gap:8px; margin-top:5px; font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
+.weekly-trend-axis-label { fill:var(--muted); font-family:'IBM Plex Mono', monospace; font-size:8px; text-anchor:middle; }
 .strategy-modal-grid { display:grid; gap:18px; }
 .strategy-section { border:1px solid var(--border); border-radius:10px; background:var(--s2); padding:16px; }
 .strategy-section-title { font-size:13px; font-weight:800; color:var(--text); margin-bottom:10px; }
@@ -1061,7 +1062,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .weekly-trend-sub { font-size:8px !important; }
   .weekly-trend-value { font-size:16px !important; }
   .weekly-trend-svg { height:72px !important; }
-  .weekly-trend-labels { font-size:6.8px !important; }
+  .weekly-trend-axis-label { font-size:6.8px !important; }
 
   .roadmap-layout { gap:4mm !important; }
   .roadmap-block { border-radius:8px !important; overflow:visible !important; }
@@ -3039,26 +3040,37 @@ function weeklyTrendPoints(weeks) {
   });
 }
 
+/* trend-axis:start */
+function trendXCoordinates(count, width = 360, pad = 12) {
+  if (count <= 0) return [];
+  if (count === 1) return [width / 2];
+  const step = (width - pad * 2) / (count - 1);
+  return Array.from({ length: count }, (_, index) => pad + index * step);
+}
+/* trend-axis:end */
+
 function renderTrendSvg(points, key, className = '') {
   const width = 360;
-  const height = 112;
+  const height = 132;
   const pad = 12;
+  const plotBottom = 104;
   const values = points.map(p => Number(p[key] || 0));
   const max = Math.max(1, ...values);
   const min = Math.min(0, ...values);
   const span = Math.max(1, max - min);
-  const xStep = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const xCoordinates = trendXCoordinates(points.length, width, pad);
   const coords = values.map((v, i) => {
-    const x = points.length > 1 ? pad + i * xStep : width / 2;
-    const y = height - pad - ((v - min) / span) * (height - pad * 2);
+    const x = xCoordinates[i];
+    const y = plotBottom - ((v - min) / span) * (plotBottom - pad);
     return [x, y];
   });
   const d = coords.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   return `<svg class="weekly-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escHtml(key)} trend">
-    <line class="weekly-trend-axis" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}"></line>
-    <line class="weekly-trend-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}"></line>
+    <line class="weekly-trend-axis" x1="${pad}" y1="${plotBottom}" x2="${width - pad}" y2="${plotBottom}"></line>
+    <line class="weekly-trend-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${plotBottom}"></line>
     <path class="weekly-trend-line ${className}" d="${d}"></path>
     ${coords.map(([x, y]) => `<circle class="weekly-trend-dot ${className}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6"></circle>`).join('')}
+    ${points.map((point, index) => `<text class="weekly-trend-axis-label" x="${xCoordinates[index].toFixed(1)}" y="126">${escHtml(point.label)}</text>`).join('')}
   </svg>`;
 }
 
@@ -3085,7 +3097,6 @@ function renderWeeklyTrendPanel() {
           <div class="weekly-trend-value">${latest.riskPressure}<span class="exec-panel-note"> ${riskDelta >= 0 ? '+' : ''}${riskDelta}</span></div>
         </div>
         ${renderTrendSvg(points, 'riskPressure', 'risk')}
-        <div class="weekly-trend-labels">${points.map(p => `<span>${escHtml(p.label)}</span>`).join('')}</div>
       </section>
       <section class="weekly-trend-card">
         <div class="weekly-trend-head">
@@ -3093,7 +3104,6 @@ function renderWeeklyTrendPanel() {
           <div class="weekly-trend-value">${latest.avgProgress}%<span class="exec-panel-note"> ${progressDelta >= 0 ? '+' : ''}${progressDelta}%</span></div>
         </div>
         ${renderTrendSvg(points, 'avgProgress')}
-        <div class="weekly-trend-labels">${points.map(p => `<span>${escHtml(p.label)}</span>`).join('')}</div>
       </section>
     </div>
   </div>`;
@@ -3277,6 +3287,7 @@ function renderSummaryContent(summary, projects = []) {
   let html = '';
   let inSection = false;
   let inList = false;
+  let portfolioLeadRendered = false;
   const openSection = title => {
     let section = '';
     if (inList) { section += '</ul>'; inList = false; }
@@ -3311,7 +3322,9 @@ function renderSummaryContent(summary, projects = []) {
         html += renderProjectItem(projectItem);
         return;
       }
-      html += `<p>${escHtml(line)}</p>`;
+      const leadClass = !portfolioLeadRendered ? ' class="exec-summary-portfolio-lead"' : '';
+      html += `<p${leadClass}>${escHtml(line)}</p>`;
+      portfolioLeadRendered = true;
     }
   });
   if (inList) html += '</ul>';
@@ -3600,6 +3613,19 @@ function projectMovement(prev, curr) {
   if (milestones.length) changes.push(`Milestone changes:\n- ${milestones.join('\n- ')}`);
   if (quarterly.length) changes.push(`Quarterly milestone changes:\n- ${quarterly.join('\n- ')}`);
   return changes;
+}
+
+function addPortfolioSummaryInstruction(prompt) {
+  const instruction = '- Immediately below WEEKLY MOVEMENT, write one cross-project overview sentence beginning exactly with "Portfolio Summary:". Keep it on its own line, without a bullet, before any project updates.\n- The Portfolio Summary must describe overall movement across projects and must not be repeated inside a project bullet.';
+  return String(prompt || '')
+    .replace(
+      '- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.',
+      `- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.\n${instruction}`
+    )
+    .replace(
+      '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
+      '- Never combine multiple projects into one bullet. Do not create a Portfolio project bullet because the portfolio-wide point belongs only in Portfolio Summary.'
+    );
 }
 
 function buildCopilotPrompt() {
@@ -4646,7 +4672,7 @@ window.updateCopilotPrompt = () => {
   note.textContent = prevWeek
     ? `Prompt will compare ${prevWeek.weekLabel} (${prevWeek.weekDate}) to ${currentWeek.weekLabel} (${currentWeek.weekDate}).`
     : 'No previous week is available; prompt will use current week only.';
-  prompt.value = buildCopilotPrompt();
+  prompt.value = addPortfolioSummaryInstruction(buildCopilotPrompt());
 };
 
 window.copyCopilotPrompt = async () => {
