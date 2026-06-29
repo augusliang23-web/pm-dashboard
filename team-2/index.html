@@ -1386,8 +1386,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { confirmWeekMutation, getWriteErrorMessage } from "../sync-core.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -1406,6 +1407,7 @@ let editingProjCode = null;
 let isCreatingNew = false;
 let PM_LIST = []; 
 let jumpToLatestOnNextRender = false;
+let releaseWriteInProgress = false;
 
 // ── IDLE DETECTION ──
 let heartbeatInterval = null;
@@ -2005,22 +2007,39 @@ window.jumpToWeek = (idx) => {
 
 window.toggleReleaseWeek = async () => {
   const week = allWeeks[currentIdx];
-  if(!week) return;
+  if (!week || !currentUser || releaseWriteInProgress) return;
   
   const isCurrentlyReleased = isWeekReleased(week);
   const newStatus = !isCurrentlyReleased;
-  
+  const changes = {
+    isReleased: newStatus,
+    lastModifiedBy: currentUser.email
+  };
+  releaseWriteInProgress = true;
   showLoader(newStatus ? "Releasing to VIP..." : "Reverting to Draft...");
   
   const id = week.weekLabel.replace(/\s+/g, '-');
-  week.isReleased = newStatus;
-  week.lastModifiedBy = currentUser.email;
-  
-  await setDoc(doc(db, "weeks", id), week);
-  
-  await new Promise(r => setTimeout(r, 600));
-  hideLoader();
-  showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
+  try {
+    const savedWeek = await confirmWeekMutation(
+      week,
+      changes,
+      async () => {
+        await updateDoc(doc(db, "weeks", id), {
+          isReleased: newStatus,
+          lastModifiedBy: currentUser.email
+        });
+      }
+    );
+    allWeeks[currentIdx] = savedWeek;
+    render();
+    showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
+  } catch (err) {
+    console.error("Release status update failed", err);
+    showSaveToast(getWriteErrorMessage(err));
+  } finally {
+    releaseWriteInProgress = false;
+    hideLoader();
+  }
 };
 
 function initData() {
@@ -3423,47 +3442,59 @@ window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLaye
 window.saveStrategyLayer = async () => {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser) return;
-  const base = getStrategyLayer(week);
-  const tracks = base.tracks.map(track => {
-    const row = document.querySelector(`.strategy-track-row[data-track="${track.id}"]`);
-    return row ? {...track, label: row.querySelector('.st-label').value.trim() || track.label, description: row.querySelector('.st-desc').value.trim()} : track;
-  });
-  const quarterGoals = {};
-  document.querySelectorAll('.quarter-goal-group').forEach(group => {
-    const goals = Array.from(group.querySelectorAll('.quarter-goal-row')).map(row => ({
-      summary: row.querySelector('.qg-summary').value.trim(),
-      trackId: row.querySelector('.qg-track').value || 'all',
-      health: {
-        schedule: row.querySelector('.qg-schedule').value,
-        resource: row.querySelector('.qg-resource').value,
-        risk: row.querySelector('.qg-risk').value
-      }
-    })).filter(goal => goal.summary);
-    if (goals.length) quarterGoals[group.dataset.quarter] = { goals };
-  });
-  const projectMap = {};
-  document.querySelectorAll('.project-map-row').forEach(row => {
-    const trackId = row.querySelector('.pm-track').value;
-    const businessObjective = row.querySelector('.pm-objective').value.trim();
-    const checkpoint = row.querySelector('.pm-checkpoint').value;
-    if (trackId || businessObjective || checkpoint) {
-      projectMap[row.dataset.code] = { trackId: trackId || 'all', businessObjective, checkpoint };
-    }
-  });
-  week.strategyLayer = {
-    activeTrack: activeStrategicTrack || 'all',
-    tracks,
-    quarterGoals,
-    projectMap
-  };
-  week.lastModifiedBy = currentUser.email;
-  closeModal('strategyOverlay');
   showLoader("Saving Strategy Layer...");
-  await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
-  await new Promise(r => setTimeout(r, 500));
-  hideLoader();
-  render();
-  showSaveToast("Strategy layer saved");
+  try {
+    const base = getStrategyLayer(week);
+    const tracks = base.tracks.map(track => {
+      const row = document.querySelector(`.strategy-track-row[data-track="${track.id}"]`);
+      return row ? {...track, label: row.querySelector('.st-label').value.trim() || track.label, description: row.querySelector('.st-desc').value.trim()} : track;
+    });
+    const quarterGoals = {};
+    document.querySelectorAll('.quarter-goal-group').forEach(group => {
+      const goals = Array.from(group.querySelectorAll('.quarter-goal-row')).map(row => ({
+        summary: row.querySelector('.qg-summary').value.trim(),
+        trackId: row.querySelector('.qg-track').value || 'all',
+        health: {
+          schedule: row.querySelector('.qg-schedule').value,
+          resource: row.querySelector('.qg-resource').value,
+          risk: row.querySelector('.qg-risk').value
+        }
+      })).filter(goal => goal.summary);
+      if (goals.length) quarterGoals[group.dataset.quarter] = { goals };
+    });
+    const projectMap = {};
+    document.querySelectorAll('.project-map-row').forEach(row => {
+      const trackId = row.querySelector('.pm-track').value;
+      const businessObjective = row.querySelector('.pm-objective').value.trim();
+      const checkpoint = row.querySelector('.pm-checkpoint').value;
+      if (trackId || businessObjective || checkpoint) {
+        projectMap[row.dataset.code] = { trackId: trackId || 'all', businessObjective, checkpoint };
+      }
+    });
+    const strategyLayer = {
+      activeTrack: activeStrategicTrack || 'all',
+      tracks,
+      quarterGoals,
+      projectMap
+    };
+    const savedWeek = await confirmWeekMutation(
+      week,
+      { strategyLayer, lastModifiedBy: currentUser.email },
+      candidate => setDoc(
+        doc(db, "weeks", candidate.weekLabel.replace(/\s+/g, '-')),
+        candidate
+      )
+    );
+    allWeeks[currentIdx] = savedWeek;
+    closeModal('strategyOverlay');
+    render();
+    showSaveToast("Strategy layer saved");
+  } catch (err) {
+    console.error("Strategy layer save failed", err);
+    showSaveToast(getWriteErrorMessage(err));
+  } finally {
+    hideLoader();
+  }
 };
 
 function findCurrentProject(code) {
