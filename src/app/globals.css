@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* LITEON PM Dashboard custom colors */
+  --color-status-green: #88C9AC;
+  --color-status-yellow: #E4CC8F;
+  --color-status-red: #E39A9A;
+  --color-status-green-dim: rgba(136, 201, 172, 0.15);
+  --color-status-yellow-dim: rgba(228, 204, 143, 0.15);
+  --color-status-red-dim: rgba(227, 154, 154, 0.15);
+  --color-dashboard-accent: #78B395;
+  --color-dashboard-accent-hover: #639A7D;
+  --color-dashboard-blue: #7EAAC8;
+  --color-dashboard-bg: #F7F9FB;
+  --color-dashboard-s1: #FFFFFF;
+  --color-dashboard-s2: #FAFBFC;
+  --color-dashboard-s3: #F0F3F7;
+  --color-dashboard-border: #E6EAEF;
+  --color-dashboard-text: #3A4859;
+  --color-dashboard-text-light: #6B7A8D;
+  --color-dashboard-muted: #9AA6B5;
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #F7F9FB;
+  --foreground: #3A4859;
+  --card: #FFFFFF;
+  --card-foreground: #3A4859;
+  --popover: #FFFFFF;
+  --popover-foreground: #3A4859;
+  --primary: #78B395;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F3F7;
+  --secondary-foreground: #3A4859;
+  --muted: #F0F3F7;
+  --muted-foreground: #6B7A8D;
+  --accent: #E6EAEF;
+  --accent-foreground: #3A4859;
+  --destructive: #E39A9A;
+  --border: #E6EAEF;
+  --input: #E6EAEF;
+  --ring: #78B395;
+  --chart-1: #88C9AC;
+  --chart-2: #E4CC8F;
+  --chart-3: #E39A9A;
+  --chart-4: #7EAAC8;
+  --chart-5: #78B395;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #3A4859;
+  --sidebar-primary: #78B395;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F0F3F7;
+  --sidebar-accent-foreground: #3A4859;
+  --sidebar-border: #E6EAEF;
+  --sidebar-ring: #78B395;
+}
+
+.dark {
+  --background: #0F1419;
+  --foreground: #E8ECF0;
+  --card: #1A2332;
+  --card-foreground: #E8ECF0;
+  --popover: #1A2332;
+  --popover-foreground: #E8ECF0;
+  --primary: #78B395;
+  --primary-foreground: #FFFFFF;
+  --secondary: #243040;
+  --secondary-foreground: #E8ECF0;
+  --muted: #243040;
+  --muted-foreground: #8899AA;
+  --accent: #243040;
+  --accent-foreground: #E8ECF0;
+  --destructive: #E39A9A;
+  --border: #2A3A4A;
+  --input: #2A3A4A;
+  --ring: #78B395;
+  --chart-1: #88C9AC;
+  --chart-2: #E4CC8F;
+  --chart-3: #E39A9A;
+  --chart-4: #7EAAC8;
+  --chart-5: #78B395;
+  --sidebar: #1A2332;
+  --sidebar-foreground: #E8ECF0;
+  --sidebar-primary: #78B395;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #243040;
+  --sidebar-accent-foreground: #E8ECF0;
+  --sidebar-border: #2A3A4A;
+  --sidebar-ring: #78B395;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    border-radius: 3px;
+    opacity: 0.3;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    opacity: 0.5;
+  }
+}
