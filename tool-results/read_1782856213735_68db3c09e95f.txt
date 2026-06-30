@@ -1,0 +1,929 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect, useCallback, useMemo } from 'react';
+     4→import {
+     5→  DndContext,
+     6→  closestCenter,
+     7→  KeyboardSensor,
+     8→  PointerSensor,
+     9→  useSensor,
+    10→  useSensors,
+    11→  type DragEndEvent,
+    12→} from '@dnd-kit/core';
+    13→import {
+    14→  arrayMove,
+    15→  SortableContext,
+    16→  sortableKeyboardCoordinates,
+    17→  useSortable,
+    18→  verticalListSortingStrategy,
+    19→} from '@dnd-kit/sortable';
+    20→import { CSS } from '@dnd-kit/utilities';
+    21→import {
+    22→  Plus,
+    23→  Trash2,
+    24→  GripVertical,
+    25→  Save,
+    26→  X,
+    27→  Loader2,
+    28→  AlertTriangle,
+    29→} from 'lucide-react';
+    30→import { Button } from '@/components/ui/button';
+    31→import { Input } from '@/components/ui/input';
+    32→import { Textarea } from '@/components/ui/textarea';
+    33→import { Label } from '@/components/ui/label';
+    34→import { Checkbox } from '@/components/ui/checkbox';
+    35→import { Badge } from '@/components/ui/badge';
+    36→import { Separator } from '@/components/ui/separator';
+    37→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    38→import {
+    39→  Dialog,
+    40→  DialogContent,
+    41→  DialogDescription,
+    42→  DialogFooter,
+    43→  DialogHeader,
+    44→  DialogTitle,
+    45→} from '@/components/ui/dialog';
+    46→import {
+    47→  Select,
+    48→  SelectContent,
+    49→  SelectItem,
+    50→  SelectTrigger,
+    51→  SelectValue,
+    52→} from '@/components/ui/select';
+    53→import {
+    54→  AlertDialog,
+    55→  AlertDialogAction,
+    56→  AlertDialogCancel,
+    57→  AlertDialogContent,
+    58→  AlertDialogDescription,
+    59→  AlertDialogFooter,
+    60→  AlertDialogHeader,
+    61→  AlertDialogTitle,
+    62→} from '@/components/ui/alert-dialog';
+    63→import {
+    64→  type Project,
+    65→  type RiskActionPair,
+    66→  type MilestonePlan,
+    67→  type QuarterlyMilestone,
+    68→  type Visibility,
+    69→  type AttentionLevel,
+    70→  STATUS_LABELS,
+    71→  ATTENTION_MAP,
+    72→  PROJECT_MEMBER_TBD,
+    73→} from '@/types/dashboard';
+    74→import { useDashboardStore } from '@/stores/dashboard';
+    75→
+    76→// ── Sortable Milestone Item ──
+    77→function SortableMilestoneItem({
+    78→  milestone,
+    79→  index,
+    80→  onChange,
+    81→  onRemove,
+    82→}: {
+    83→  milestone: MilestonePlan;
+    84→  index: number;
+    85→  onChange: (idx: number, field: keyof MilestonePlan, value: string) => void;
+    86→  onRemove: (idx: number) => void;
+    87→}) {
+    88→  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    89→    useSortable({ id: milestone.planId });
+    90→
+    91→  const style = {
+    92→    transform: CSS.Transform.toString(transform),
+    93→    transition,
+    94→    opacity: isDragging ? 0.5 : 1,
+    95→    zIndex: isDragging ? 10 : undefined,
+    96→  };
+    97→
+    98→  return (
+    99→    <div
+   100→      ref={setNodeRef}
+   101→      style={style}
+   102→      className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3"
+   103→    >
+   104→      {/* Drag handle */}
+   105→      <button
+   106→        type="button"
+   107→        className="mt-1 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+   108→        {...attributes}
+   109→        {...listeners}
+   110→        aria-label={`Drag milestone ${index + 1}`}
+   111→      >
+   112→        <GripVertical className="h-4 w-4" />
+   113→      </button>
+   114→
+   115→      <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+   116→        {/* Name */}
+   117→        <div className="col-span-1 sm:col-span-2">
+   118→          <Label className="text-xs text-muted-foreground">Name</Label>
+   119→          <Input
+   120→            value={milestone.name}
+   121→            onChange={(e) => onChange(index, 'name', e.target.value)}
+   122→            placeholder="Milestone name"
+   123→            className="h-8 text-sm"
+   124→          />
+   125→        </div>
+   126→
+   127→        {/* Status */}
+   128→        <div>
+   129→          <Label className="text-xs text-muted-foreground">Status</Label>
+   130→          <Select value={milestone.status} onValueChange={(v) => onChange(index, 'status', v)}>
+   131→            <SelectTrigger className="h-8 text-sm">
+   132→              <SelectValue />
+   133→            </SelectTrigger>
+   134→            <SelectContent>
+   135→              <SelectItem value="to-do">To Do</SelectItem>
+   136→              <SelectItem value="in-progress">In Progress</SelectItem>
+   137→              <SelectItem value="done">Done</SelectItem>
+   138→            </SelectContent>
+   139→          </Select>
+   140→        </div>
+   141→
+   142→        {/* Date */}
+   143→        <div className="col-span-1 sm:col-span-2">
+   144→          <Label className="text-xs text-muted-foreground">Date</Label>
+   145→          <Input
+   146→            type="date"
+   147→            value={milestone.date}
+   148→            onChange={(e) => onChange(index, 'date', e.target.value)}
+   149→            className="h-8 text-sm"
+   150→          />
+   151→        </div>
+   152→
+   153→        {/* Remove */}
+   154→        <div className="flex items-end justify-end">
+   155→          <Button
+   156→            type="button"
+   157→            variant="ghost"
+   158→            size="icon"
+   159→            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+   160→            onClick={() => onRemove(index)}
+   161→          >
+   162→            <Trash2 className="h-3.5 w-3.5" />
+   163→          </Button>
+   164→        </div>
+   165→      </div>
+   166→    </div>
+   167→  );
+   168→}
+   169→
+   170→// ── Main Modal Component ──
+   171→export default function ProjectEditModal() {
+   172→  const {
+   173→    isEditing,
+   174→    editingProjCode,
+   175→    isCreatingNew,
+   176→    currentWeek,
+   177→    pmList,
+   178→    currentRole,
+   179→    closeModal,
+   180→    saveProjEdit,
+   181→    deleteProject,
+   182→  } = useDashboardStore();
+   183→
+   184→  const isAdmin = currentRole === 'admin';
+   185→
+   186→  // ── Form State ──
+   187→  const [name, setName] = useState('');
+   188→  const [code, setCode] = useState('');
+   189→  const [owner, setOwner] = useState('');
+   190→  const [deputy, setDeputy] = useState('');
+   191→  const [customer, setCustomer] = useState('');
+   192→  const [location, setLocation] = useState('');
+   193→  const [visibility, setVisibility] = useState<Visibility>('active');
+   194→  const [status, setStatus] = useState<string>('green');
+   195→  const [progress, setProgress] = useState(0);
+   196→  const [attention, setAttention] = useState<AttentionLevel>('watch');
+   197→  const [highlight, setHighlight] = useState('');
+   198→  const [weeklyActions, setWeeklyActions] = useState('');
+   199→  const [riskActions, setRiskActions] = useState<RiskActionPair[]>([]);
+   200→  const [milestones, setMilestones] = useState<MilestonePlan[]>([]);
+   201→  const [quarterlyMilestones, setQuarterlyMilestones] = useState<QuarterlyMilestone[]>([]);
+   202→  const [saving, setSaving] = useState(false);
+   203→  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+   204→
+   205→  // ── PM options (list + TBD) ──
+   206→  const pmOptions = useMemo(() => {
+   207→    const opts = [...pmList];
+   208→    if (!opts.includes(PROJECT_MEMBER_TBD)) opts.push(PROJECT_MEMBER_TBD);
+   209→    return opts.sort();
+   210→  }, [pmList]);
+   211→
+   212→  // ── DnD sensors for milestones ──
+   213→  const sensors = useSensors(
+   214→    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+   215→    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+   216→  );
+   217→
+   218→  // ── Populate form from existing project ──
+   219→  useEffect(() => {
+   220→    if (!isEditing) return;
+   221→
+   222→    if (isCreatingNew) {
+   223→      setName('');
+   224→      setCode('');
+   225→      setOwner('');
+   226→      setDeputy('');
+   227→      setCustomer('');
+   228→      setLocation('');
+   229→      setVisibility('active');
+   230→      setStatus('green');
+   231→      setProgress(0);
+   232→      setAttention('watch');
+   233→      setHighlight('');
+   234→      setWeeklyActions('');
+   235→      setRiskActions([{ risk: '', action: '', primary: true }]);
+   236→      setMilestones([]);
+   237→      setQuarterlyMilestones([]);
+   238→    } else {
+   239→      const week = currentWeek();
+   240→      const proj = week?.projects.find((p) => p.code === editingProjCode);
+   241→      if (proj) {
+   242→        setName(proj.name || '');
+   243→        setCode(proj.code || '');
+   244→        setOwner(proj.owner || '');
+   245→        setDeputy(proj.deputy || '');
+   246→        setCustomer(proj.customer || '');
+   247→        setLocation(proj.location || '');
+   248→        setVisibility(proj.visibility || 'active');
+   249→        setStatus(proj.status || 'green');
+   250→        setProgress(proj.progress || 0);
+   251→        setAttention(proj.attention || 'watch');
+   252→        setHighlight(proj.highlight || '');
+   253→        setWeeklyActions(proj.weeklyActions || '');
+   254→        setRiskActions(
+   255→          proj.riskActions && proj.riskActions.length > 0
+   256→            ? proj.riskActions.map((ra) => ({ ...ra }))
+   257→            : [{ risk: proj.risk || '', action: proj.next || '', primary: true }]
+   258→        );
+   259→        setMilestones(
+   260→          proj.milestones ? proj.milestones.map((m) => ({ ...m })) : []
+   261→        );
+   262→        setQuarterlyMilestones(
+   263→          proj.quarterlyMilestones
+   264→            ? proj.quarterlyMilestones.map((q) => ({ ...q }))
+   265→            : []
+   266→        );
+   267→      }
+   268→    }
+   269→    }, [isEditing, editingProjCode, isCreatingNew, currentWeek]);
+   270→
+   271→  // ── Handlers ──
+   272→  const handleAddRiskAction = () => {
+   273→    setRiskActions((prev) => [
+   274→      ...prev,
+   275→      { risk: '', action: '', primary: prev.length === 0 },
+   276→    ]);
+   277→  };
+   278→
+   279→  const handleRemoveRiskAction = (idx: number) => {
+   280→    setRiskActions((prev) => {
+   281→      const next = prev.filter((_, i) => i !== idx);
+   282→      // Ensure first is always primary
+   283→      if (next.length > 0 && !next.some((ra) => ra.primary)) {
+   284→        next[0].primary = true;
+   285→      }
+   286→      return next;
+   287→    });
+   288→  };
+   289→
+   290→  const handleRiskActionChange = (
+   291→    idx: number,
+   292→    field: 'risk' | 'action',
+   293→    value: string
+   294→  ) => {
+   295→    setRiskActions((prev) =>
+   296→      prev.map((ra, i) => (i === idx ? { ...ra, [field]: value } : ra))
+   297→    );
+   298→  };
+   299→
+   300→  const handleRiskActionPrimary = (idx: number) => {
+   301→    setRiskActions((prev) =>
+   302→      prev.map((ra, i) => ({ ...ra, primary: i === idx }))
+   303→    );
+   304→  };
+   305→
+   306→  const handleAddMilestone = () => {
+   307→    setMilestones((prev) => [
+   308→      ...prev,
+   309→      {
+   310→        planId: `ms-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+   311→        name: '',
+   312→        status: 'to-do',
+   313→        date: '',
+   314→        plan: '',
+   315→        history: [],
+   316→      },
+   317→    ]);
+   318→  };
+   319→
+   320→  const handleMilestoneChange = (idx: number, field: keyof MilestonePlan, value: string) => {
+   321→    setMilestones((prev) =>
+   322→      prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m))
+   323→    );
+   324→  };
+   325→
+   326→  const handleRemoveMilestone = (idx: number) => {
+   327→    setMilestones((prev) => prev.filter((_, i) => i !== idx));
+   328→  };
+   329→
+   330→  const handleMilestoneDragEnd = (event: DragEndEvent) => {
+   331→    const { active, over } = event;
+   332→    if (over && active.id !== over.id) {
+   333→      setMilestones((prev) => {
+   334→        const oldIdx = prev.findIndex((m) => m.planId === active.id);
+   335→        const newIdx = prev.findIndex((m) => m.planId === over.id);
+   336→        return arrayMove(prev, oldIdx, newIdx);
+   337→      });
+   338→    }
+   339→  };
+   340→
+   341→  const handleAddQuarterlyMilestone = () => {
+   342→    setQuarterlyMilestones((prev) => [
+   343→      ...prev,
+   344→      { quarter: '', goal: '', window: '', status: '' },
+   345→    ]);
+   346→  };
+   347→
+   348→  const handleRemoveQuarterlyMilestone = (idx: number) => {
+   349→    setQuarterlyMilestones((prev) => prev.filter((_, i) => i !== idx));
+   350→  };
+   351→
+   352→  const handleQuarterlyMilestoneChange = (
+   353→    idx: number,
+   354→    field: keyof QuarterlyMilestone,
+   355→    value: string
+   356→  ) => {
+   357→    setQuarterlyMilestones((prev) =>
+   358→      prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q))
+   359→    );
+   360→  };
+   361→
+   362→  const handleSave = async () => {
+   363→    setSaving(true);
+   364→    try {
+   365→      await saveProjEdit(
+   366→        {
+   367→          name,
+   368→          code,
+   369→          owner,
+   370→          deputy,
+   371→          customer,
+   372→          location,
+   373→          visibility,
+   374→          status,
+   375→          progress: Math.max(0, Math.min(100, progress)),
+   376→          attention,
+   377→          highlight,
+   378→          weeklyActions,
+   379→          riskActions,
+   380→          milestones,
+   381→          quarterlyMilestones,
+   382→        },
+   383→        isCreatingNew
+   384→      );
+   385→    } finally {
+   386→      setSaving(false);
+   387→    }
+   388→  };
+   389→
+   390→  const handleDelete = async () => {
+   391→    setShowDeleteConfirm(false);
+   392→    if (editingProjCode) {
+   393→      await deleteProject(editingProjCode);
+   394→    }
+   395→  };
+   396→
+   397→  const handleVisibilityChange = (value: string) => {
+   398→    setVisibility(value as Visibility);
+   399→  };
+   400→
+   401→  return (
+   402→    <>
+   403→      <Dialog open={isEditing} onOpenChange={(open) => { if (!open) closeModal(); }}>
+   404→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+   405→          <DialogHeader className="px-6 pt-6 pb-0">
+   406→            <DialogTitle className="text-lg">
+   407→              {isCreatingNew ? 'New Project' : 'Edit Project'}
+   408→            </DialogTitle>
+   409→            <DialogDescription className="text-sm text-muted-foreground">
+   410→              {isCreatingNew
+   411→                ? 'Fill in the details for the new project.'
+   412→                : `Editing project: ${code}`}
+   413→            </DialogDescription>
+   414→          </DialogHeader>
+   415→
+   416→          <Tabs defaultValue="basic" className="flex flex-1 flex-col overflow-hidden">
+   417→            <TabsList className="mx-6 mt-4 grid w-auto grid-cols-4">
+   418→              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+   419→              <TabsTrigger value="status">Status</TabsTrigger>
+   420→              <TabsTrigger value="content">Content</TabsTrigger>
+   421→              <TabsTrigger value="details">Details</TabsTrigger>
+   422→            </TabsList>
+   423→
+   424→            <div className="flex-1 overflow-y-auto px-6 pb-6">
+   425→              {/* ════════════════ Tab 1: Basic Info ════════════════ */}
+   426→              <TabsContent value="basic" className="mt-4 space-y-4">
+   427→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   428→                  {/* Name */}
+   429→                  <div className="sm:col-span-2">
+   430→                    <Label htmlFor="proj-name">Project Name</Label>
+   431→                    <Input
+   432→                      id="proj-name"
+   433→                      value={name}
+   434→                      onChange={(e) => setName(e.target.value)}
+   435→                      placeholder="Enter project name"
+   436→                    />
+   437→                  </div>
+   438→
+   439→                  {/* Code */}
+   440→                  <div>
+   441→                    <Label htmlFor="proj-code">Project Code</Label>
+   442→                    <Input
+   443→                      id="proj-code"
+   444→                      value={code}
+   445→                      onChange={(e) => setCode(e.target.value)}
+   446→                      disabled={!isCreatingNew}
+   447→                      placeholder="e.g. PRJ-001"
+   448→                      className={!isCreatingNew ? 'bg-muted' : ''}
+   449→                    />
+   450→                  </div>
+   451→
+   452→                  {/* Customer */}
+   453→                  <div>
+   454→                    <Label htmlFor="proj-customer">Customer</Label>
+   455→                    <Input
+   456→                      id="proj-customer"
+   457→                      value={customer}
+   458→                      onChange={(e) => setCustomer(e.target.value)}
+   459→                      placeholder="Customer name"
+   460→                    />
+   461→                  </div>
+   462→
+   463→                  {/* Owner */}
+   464→                  <div>
+   465→                    <Label>Owner</Label>
+   466→                    <Select value={owner} onValueChange={setOwner}>
+   467→                      <SelectTrigger>
+   468→                        <SelectValue placeholder="Select owner" />
+   469→                      </SelectTrigger>
+   470→                      <SelectContent>
+   471→                        {pmOptions.map((pm) => (
+   472→                          <SelectItem key={pm} value={pm}>
+   473→                            {pm}
+   474→                          </SelectItem>
+   475→                        ))}
+   476→                      </SelectContent>
+   477→                    </Select>
+   478→                  </div>
+   479→
+   480→                  {/* Deputy */}
+   481→                  <div>
+   482→                    <Label>Deputy</Label>
+   483→                    <Select value={deputy} onValueChange={setDeputy}>
+   484→                      <SelectTrigger>
+   485→                        <SelectValue placeholder="Select deputy" />
+   486→                      </SelectTrigger>
+   487→                      <SelectContent>
+   488→                        {pmOptions.map((pm) => (
+   489→                          <SelectItem key={pm} value={pm}>
+   490→                            {pm}
+   491→                          </SelectItem>
+   492→                        ))}
+   493→                      </SelectContent>
+   494→                    </Select>
+   495→                  </div>
+   496→
+   497→                  {/* Location */}
+   498→                  <div>
+   499→                    <Label htmlFor="proj-location">Location</Label>
+   500→                    <Input
+   501→                      id="proj-location"
+   502→                      value={location}
+   503→                      onChange={(e) => setLocation(e.target.value)}
+   504→                      placeholder="Project location"
+   505→                    />
+   506→                  </div>
+   507→
+   508→                  {/* Visibility */}
+   509→                  <div>
+   510→                    <Label>Visibility</Label>
+   511→                    <Select value={visibility} onValueChange={handleVisibilityChange}>
+   512→                      <SelectTrigger>
+   513→                        <SelectValue />
+   514→                      </SelectTrigger>
+   515→                      <SelectContent>
+   516→                        <SelectItem value="active">Active</SelectItem>
+   517→                        <SelectItem value="hidden">Hidden</SelectItem>
+   518→                        <SelectItem value="archived">Archived</SelectItem>
+   519→                      </SelectContent>
+   520→                    </Select>
+   521→                  </div>
+   522→                </div>
+   523→              </TabsContent>
+   524→
+   525→              {/* ════════════════ Tab 2: Status ════════════════ */}
+   526→              <TabsContent value="status" className="mt-4 space-y-4">
+   527→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+   528→                  {/* RAG Status */}
+   529→                  <div>
+   530→                    <Label>RAG Status</Label>
+   531→                    <Select value={status} onValueChange={setStatus}>
+   532→                      <SelectTrigger>
+   533→                        <SelectValue />
+   534→                      </SelectTrigger>
+   535→                      <SelectContent>
+   536→                        <SelectItem value="green">🟢 On Track</SelectItem>
+   537→                        <SelectItem value="yellow">🟡 At Risk</SelectItem>
+   538→                        <SelectItem value="red">🔴 Critical</SelectItem>
+   539→                      </SelectContent>
+   540→                    </Select>
+   541→                  </div>
+   542→
+   543→                  {/* Progress */}
+   544→                  <div>
+   545→                    <Label htmlFor="proj-progress">Progress (%)</Label>
+   546→                    <Input
+   547→                      id="proj-progress"
+   548→                      type="number"
+   549→                      min={0}
+   550→                      max={100}
+   551→                      value={progress}
+   552→                      onChange={(e) => setProgress(parseInt(e.target.value) || 0)}
+   553→                      className="tabular-nums"
+   554→                    />
+   555→                  </div>
+   556→
+   557→                  {/* Attention */}
+   558→                  <div>
+   559→                    <Label>Attention Level</Label>
+   560→                    <Select
+   561→                      value={attention}
+   562→                      onValueChange={(v) => setAttention(v as AttentionLevel)}
+   563→                    >
+   564→                      <SelectTrigger>
+   565→                        <SelectValue />
+   566→                      </SelectTrigger>
+   567→                      <SelectContent>
+   568→                        {Object.entries(ATTENTION_MAP).map(([key, label]) => (
+   569→                          <SelectItem key={key} value={key}>
+   570→                            {label}
+   571→                          </SelectItem>
+   572→                        ))}
+   573→                      </SelectContent>
+   574→                    </Select>
+   575→                  </div>
+   576→                </div>
+   577→              </TabsContent>
+   578→
+   579→              {/* ════════════════ Tab 3: Content ════════════════ */}
+   580→              <TabsContent value="content" className="mt-4 space-y-4">
+   581→                {/* Highlight */}
+   582→                <div>
+   583→                  <Label htmlFor="proj-highlight">Highlight</Label>
+   584→                  <Textarea
+   585→                    id="proj-highlight"
+   586→                    value={highlight}
+   587→                    onChange={(e) => setHighlight(e.target.value)}
+   588→                    placeholder="Key highlights for this week..."
+   589→                    rows={4}
+   590→                  />
+   591→                </div>
+   592→
+   593→                {/* Weekly Actions */}
+   594→                <div>
+   595→                  <Label htmlFor="proj-weekly-actions">Weekly Key Actions</Label>
+   596→                  <Textarea
+   597→                    id="proj-weekly-actions"
+   598→                    value={weeklyActions}
+   599→                    onChange={(e) => setWeeklyActions(e.target.value)}
+   600→                    placeholder="Key actions planned this week..."
+   601→                    rows={4}
+   602→                  />
+   603→                </div>
+   604→              </TabsContent>
+   605→
+   606→              {/* ════════════════ Tab 4: Details ════════════════ */}
+   607→              <TabsContent value="details" className="mt-4 space-y-6">
+   608→                {/* ── Risk/Action Pairs ── */}
+   609→                <div>
+   610→                  <div className="mb-3 flex items-center justify-between">
+   611→                    <Label className="text-sm font-semibold">Risk / Action Pairs</Label>
+   612→                    <Button
+   613→                      type="button"
+   614→                      variant="outline"
+   615→                      size="sm"
+   616→                      onClick={handleAddRiskAction}
+   617→                    >
+   618→                      <Plus className="mr-1 h-3.5 w-3.5" />
+   619→                      Add Pair
+   620→                    </Button>
+   621→                  </div>
+   622→
+   623→                  <div className="space-y-3">
+   624→                    {riskActions.map((ra, idx) => (
+   625→                      <div
+   626→                        key={idx}
+   627→                        className="rounded-lg border bg-muted/30 p-3 space-y-2"
+   628→                      >
+   629→                        <div className="flex items-center justify-between">
+   630→                          <div className="flex items-center gap-2">
+   631→                            <Checkbox
+   632→                              checked={ra.primary}
+   633→                              onCheckedChange={() => handleRiskActionPrimary(idx)}
+   634→                              aria-label="Mark as primary risk"
+   635→                            />
+   636→                            <span className="text-xs font-medium text-muted-foreground">
+   637→                              {ra.primary ? '⭐ Primary' : `Pair #${idx + 1}`}
+   638→                            </span>
+   639→                          </div>
+   640→                          {riskActions.length > 1 && (
+   641→                            <Button
+   642→                              type="button"
+   643→                              variant="ghost"
+   644→                              size="icon"
+   645→                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+   646→                              onClick={() => handleRemoveRiskAction(idx)}
+   647→                            >
+   648→                              <Trash2 className="h-3 w-3" />
+   649→                            </Button>
+   650→                          )}
+   651→                        </div>
+   652→
+   653→                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+   654→                          <div>
+   655→                            <Label className="text-xs text-muted-foreground">Risk / Blocker</Label>
+   656→                            <Textarea
+   657→                              value={ra.risk}
+   658→                              onChange={(e) =>
+   659→                                handleRiskActionChange(idx, 'risk', e.target.value)
+   660→                              }
+   661→                              placeholder="Describe the risk or blocker..."
+   662→                              rows={2}
+   663→                              className="text-sm"
+   664→                            />
+   665→                          </div>
+   666→                          <div>
+   667→                            <Label className="text-xs text-muted-foreground">Next Action</Label>
+   668→                            <Textarea
+   669→                              value={ra.action}
+   670→                              onChange={(e) =>
+   671→                                handleRiskActionChange(idx, 'action', e.target.value)
+   672→                              }
+   673→                              placeholder="Planned next action..."
+   674→                              rows={2}
+   675→                              className="text-sm"
+   676→                            />
+   677→                          </div>
+   678→                        </div>
+   679→                      </div>
+   680→                    ))}
+   681→                  </div>
+   682→                </div>
+   683→
+   684→                <Separator />
+   685→
+   686→                {/* ── Milestones (Draggable) ── */}
+   687→                <div>
+   688→                  <div className="mb-3 flex items-center justify-between">
+   689→                    <Label className="text-sm font-semibold">Milestones</Label>
+   690→                    <Button
+   691→                      type="button"
+   692→                      variant="outline"
+   693→                      size="sm"
+   694→                      onClick={handleAddMilestone}
+   695→                    >
+   696→                      <Plus className="mr-1 h-3.5 w-3.5" />
+   697→                      Add Milestone
+   698→                    </Button>
+   699→                  </div>
+   700→
+   701→                  {milestones.length > 0 ? (
+   702→                    <DndContext
+   703→                      sensors={sensors}
+   704→                      collisionDetection={closestCenter}
+   705→                      onDragEnd={handleMilestoneDragEnd}
+   706→                    >
+   707→                      <SortableContext
+   708→                        items={milestones.map((m) => m.planId)}
+   709→                        strategy={verticalListSortingStrategy}
+   710→                      >
+   711→                        <div className="space-y-2">
+   712→                          {milestones.map((m, idx) => (
+   713→                            <SortableMilestoneItem
+   714→                              key={m.planId}
+   715→                              milestone={m}
+   716→                              index={idx}
+   717→                              onChange={handleMilestoneChange}
+   718→                              onRemove={handleRemoveMilestone}
+   719→                            />
+   720→                          ))}
+   721→                        </div>
+   722→                      </SortableContext>
+   723→                    </DndContext>
+   724→                  ) : (
+   725→                    <p className="text-sm text-muted-foreground italic">
+   726→                      No milestones added yet.
+   727→                    </p>
+   728→                  )}
+   729→                </div>
+   730→
+   731→                <Separator />
+   732→
+   733→                {/* ── Quarterly Milestones ── */}
+   734→                <div>
+   735→                  <div className="mb-3 flex items-center justify-between">
+   736→                    <Label className="text-sm font-semibold">Quarterly Milestones</Label>
+   737→                    <Button
+   738→                      type="button"
+   739→                      variant="outline"
+   740→                      size="sm"
+   741→                      onClick={handleAddQuarterlyMilestone}
+   742→                    >
+   743→                      <Plus className="mr-1 h-3.5 w-3.5" />
+   744→                      Add
+   745→                    </Button>
+   746→                  </div>
+   747→
+   748→                  <div className="space-y-2">
+   749→                    {quarterlyMilestones.map((q, idx) => (
+   750→                      <div
+   751→                        key={idx}
+   752→                        className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-4"
+   753→                      >
+   754→                        <div>
+   755→                          <Label className="text-xs text-muted-foreground">Quarter</Label>
+   756→                          <Input
+   757→                            value={q.quarter}
+   758→                            onChange={(e) =>
+   759→                              handleQuarterlyMilestoneChange(idx, 'quarter', e.target.value)
+   760→                            }
+   761→                            placeholder="e.g. Q3 2025"
+   762→                            className="h-8 text-sm"
+   763→                          />
+   764→                        </div>
+   765→                        <div className="sm:col-span-2">
+   766→                          <Label className="text-xs text-muted-foreground">Goal</Label>
+   767→                          <Input
+   768→                            value={q.goal}
+   769→                            onChange={(e) =>
+   770→                              handleQuarterlyMilestoneChange(idx, 'goal', e.target.value)
+   771→                            }
+   772→                            placeholder="Quarterly goal"
+   773→                            className="h-8 text-sm"
+   774→                          />
+   775→                        </div>
+   776→                        <div className="flex gap-1">
+   777→                          <div className="flex-1">
+   778→                            <Label className="text-xs text-muted-foreground">Window</Label>
+   779→                            <Input
+   780→                              value={q.window}
+   781→                              onChange={(e) =>
+   782→                                handleQuarterlyMilestoneChange(idx, 'window', e.target.value)
+   783→                              }
+   784→                              placeholder="e.g. Jul-Sep"
+   785→                              className="h-8 text-sm"
+   786→                            />
+   787→                          </div>
+   788→                          <div className="flex items-end">
+   789→                            <Button
+   790→                              type="button"
+   791→                              variant="ghost"
+   792→                              size="icon"
+   793→                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+   794→                              onClick={() => handleRemoveQuarterlyMilestone(idx)}
+   795→                            >
+   796→                              <Trash2 className="h-3 w-3" />
+   797→                            </Button>
+   798→                          </div>
+   799→                        </div>
+   800→                      </div>
+   801→                    ))}
+   802→                    {quarterlyMilestones.length === 0 && (
+   803→                      <p className="text-sm text-muted-foreground italic">
+   804→                        No quarterly milestones added yet.
+   805→                      </p>
+   806→                    )}
+   807→                  </div>
+   808→                </div>
+   809→
+   810→                <Separator />
+   811→
+   812→                {/* ── Admin Actions ── */}
+   813→                {isAdmin && (
+   814→                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+   815→                    <Label className="text-sm font-semibold text-destructive">
+   816→                      Admin Actions
+   817→                    </Label>
+   818→                    <div className="flex flex-wrap gap-2">
+   819→                      <Button
+   820→                        type="button"
+   821→                        variant={visibility === 'active' ? 'default' : 'outline'}
+   822→                        size="sm"
+   823→                        onClick={() => setVisibility('active')}
+   824→                      >
+   825→                        Active
+   826→                      </Button>
+   827→                      <Button
+   828→                        type="button"
+   829→                        variant={visibility === 'hidden' ? 'default' : 'outline'}
+   830→                        size="sm"
+   831→                        onClick={() => setVisibility('hidden')}
+   832→                      >
+   833→                        Hidden
+   834→                      </Button>
+   835→                      <Button
+   836→                        type="button"
+   837→                        variant={visibility === 'archived' ? 'default' : 'outline'}
+   838→                        size="sm"
+   839→                        onClick={() => setVisibility('archived')}
+   840→                      >
+   841→                        Archived
+   842→                      </Button>
+   843→                    </div>
+   844→                    {!isCreatingNew && (
+   845→                      <Button
+   846→                        type="button"
+   847→                        variant="destructive"
+   848→                        size="sm"
+   849→                        className="mt-2"
+   850→                        onClick={() => setShowDeleteConfirm(true)}
+   851→                      >
+   852→                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+   853→                        Delete Project
+   854→                      </Button>
+   855→                    )}
+   856→                  </div>
+   857→                )}
+   858→              </TabsContent>
+   859→            </div>
+   860→
+   861→            {/* ── Footer ── */}
+   862→            <DialogFooter className="border-t px-6 py-4">
+   863→              <div className="flex w-full items-center justify-between">
+   864→                <div>
+   865→                  {isEditing && !isCreatingNew && (
+   866→                    <Badge variant="outline" className="text-xs">
+   867→                      {STATUS_LABELS[status] || status}
+   868→                    </Badge>
+   869→                  )}
+   870→                </div>
+   871→                <div className="flex items-center gap-2">
+   872→                  <Button
+   873→                    type="button"
+   874→                    variant="outline"
+   875→                    onClick={closeModal}
+   876→                    disabled={saving}
+   877→                  >
+   878→                    Cancel
+   879→                  </Button>
+   880→                  <Button
+   881→                    type="button"
+   882→                    onClick={handleSave}
+   883→                    disabled={saving || !name.trim() || !code.trim()}
+   884→                  >
+   885→                    {saving ? (
+   886→                      <>
+   887→                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   888→                        Saving...
+   889→                      </>
+   890→                    ) : (
+   891→                      <>
+   892→                        <Save className="mr-2 h-4 w-4" />
+   893→                        Save
+   894→                      </>
+   895→                    )}
+   896→                  </Button>
+   897→                </div>
+   898→              </div>
+   899→            </DialogFooter>
+   900→          </Tabs>
+   901→        </DialogContent>
+   902→      </Dialog>
+   903→
+   904→      {/* ── Delete Confirmation Dialog ── */}
+   905→      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+   906→        <AlertDialogContent>
+   907→          <AlertDialogHeader>
+   908→            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+   909→            <AlertDialogDescription>
+   910→              Are you sure you want to delete <strong>{name || code}</strong>? This action
+   911→              cannot be undone and will remove the project from the current week.
+   912→            </AlertDialogDescription>
+   913→          </AlertDialogHeader>
+   914→          <AlertDialogFooter>
+   915→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+   916→            <AlertDialogAction
+   917→              onClick={handleDelete}
+   918→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   919→            >
+   920→              <Trash2 className="mr-2 h-4 w-4" />
+   921→              Delete
+   922→            </AlertDialogAction>
+   923→          </AlertDialogFooter>
+   924→        </AlertDialogContent>
+   925→      </AlertDialog>
+   926→    </>
+   927→  );
+   928→}
+   929→
