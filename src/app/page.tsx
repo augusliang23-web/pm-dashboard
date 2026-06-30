@@ -18,6 +18,9 @@ import ProjectEditModal from '@/components/dashboard/ProjectEditModal';
 import ProjectDetailModal from '@/components/dashboard/ProjectDetailModal';
 import WeekManagementModal from '@/components/dashboard/WeekManagementModal';
 import ChangePasswordModal from '@/components/dashboard/ChangePasswordModal';
+import CommandPalette from '@/components/dashboard/CommandPalette';
+import StrategyLayerModal from '@/components/dashboard/StrategyLayerModal';
+import PresenceUsageModal from '@/components/dashboard/PresenceUsageModal';
 import type { ViewId, DashboardRole } from '@/types/dashboard';
 
 function ViewRouter() {
@@ -156,6 +159,9 @@ export default function DashboardPage() {
       <ProjectDetailModal />
       <WeekManagementModal />
       <ChangePasswordModal />
+      <StrategyLayerModal />
+      <PresenceUsageModal />
+      <CommandPalette />
       <Loader />
       <Toast />
     </DashboardShell>

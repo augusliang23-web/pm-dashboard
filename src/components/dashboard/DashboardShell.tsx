@@ -24,6 +24,8 @@ import {
   Eye,
   EyeOff,
   Filter,
+  Send,
+  Undo2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,6 +115,7 @@ export default function DashboardShell({ children }: DashboardShellProps) {
   const openStrategyLayer = useDashboardStore((s) => s.openStrategyLayer);
   const openPresenceUsage = useDashboardStore((s) => s.openPresenceUsage);
   const openChangePassword = useDashboardStore((s) => s.openChangePassword);
+  const toggleReleaseWeek = useDashboardStore((s) => s.toggleReleaseWeek);
 
   // ── Local state ──
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -208,6 +211,20 @@ export default function DashboardShell({ children }: DashboardShellProps) {
 
         {/* Right section */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Release button */}
+          {currentWeek && (currentRole === 'admin') && (
+            <Button
+              variant={currentWeek.isReleased ? 'outline' : 'default'}
+              size="sm"
+              className={`h-7 text-[11px] gap-1.5 ${currentWeek.isReleased ? '' : 'bg-green-600 hover:bg-green-700'}`}
+              onClick={() => toggleReleaseWeek()}
+              title={currentWeek.isReleased ? 'Revert week to Draft' : 'Release week to VIP'}
+            >
+              {currentWeek.isReleased ? <Undo2 className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+              <span className="hidden sm:inline">{currentWeek.isReleased ? 'Revert' : 'Release'}</span>
+            </Button>
+          )}
+
           {/* Sync status */}
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
