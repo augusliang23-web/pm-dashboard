@@ -36,6 +36,12 @@ export async function confirmWeekMutation(
 ) {
   const candidate = cleanFirestoreData({ ...source, ...changes });
   await withWriteTimeout(() => write(candidate), timeoutMs);
+  if (source?.__documentId) {
+    Object.defineProperty(candidate, '__documentId', {
+      value: source.__documentId,
+      enumerable: false
+    });
+  }
   return candidate;
 }
 

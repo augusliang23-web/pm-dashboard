@@ -7789,7 +7789,8 @@ function renderOverviewPrintReport(selectedSections) {
 }
 
 async function downloadProfessionalReport(request, filename, validation) {
-  const weekId = allWeeks[currentIdx]?.__documentId;
+  const selectedWeek = allWeeks[currentIdx];
+  const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
   if (!weekId) {
     if (validation.id === 'overviewPrintValidation') validation.className = 'resource-validation show error';
     validation.textContent = 'The selected reporting week is unavailable.';

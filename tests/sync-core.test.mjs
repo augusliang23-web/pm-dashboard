@@ -33,6 +33,23 @@ test('confirmed write returns a changed clone', async () => {
   assert.equal(next.isReleased, false);
 });
 
+test('confirmed write preserves client-only document identity after the write', async () => {
+  const week = { weekLabel: 'W29 2026', isReleased: false };
+  Object.defineProperty(week, '__documentId', {
+    value: 'W29-2026',
+    enumerable: false
+  });
+
+  const next = await confirmWeekMutation(
+    week,
+    { isReleased: true },
+    async candidate => assert.equal(candidate.__documentId, undefined)
+  );
+
+  assert.equal(next.__documentId, 'W29-2026');
+  assert.equal(Object.prototype.propertyIsEnumerable.call(next, '__documentId'), false);
+});
+
 test('pending write times out without changing source', async () => {
   const week = { isReleased: true };
 
