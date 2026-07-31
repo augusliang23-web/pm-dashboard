@@ -248,6 +248,16 @@ test('move submission uses standard action buttons and leaves a visible result i
   }
 });
 
+test('both dashboards wire pending Executive milestone locks into structural changes', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /executivePendingMilestoneOverlay/);
+    assert.match(dashboard, /This Executive Milestone is waiting for approval\./);
+    assert.match(dashboard, /pendingExecutiveMilestoneIds\(snapshot\.docs\.map\(entry => entry\.data\(\)\)\)/);
+    assert.match(dashboard, /isExecutiveMilestoneActionLocked\(\{ action, itemId: location\.item\.id, pendingIds: executivePendingMilestoneIds \}\)/);
+    assert.match(dashboard, /isExecutiveMilestoneActionLocked\(\{ action: payload\.changeType, itemId: payload\.itemId, pendingIds: executivePendingMilestoneIds \}\)/);
+  }
+});
+
 test('v2.2T request mutations show a real backend-bound busy animation', () => {
   assert.match(rootDashboard, /function setAsyncActionState\(button, busy, busyLabel = 'Working…'\)/);
   assert.match(rootDashboard, /class="async-action-spinner"/);

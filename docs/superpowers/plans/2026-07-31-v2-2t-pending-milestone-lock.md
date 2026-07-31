@@ -21,50 +21,70 @@
 ### Task 1: Define regression coverage for the pending structural lock
 
 **Files:**
+- Create: `js/executive-pending-lock.mjs`
+- Test: `tests/executive-pending-lock.test.mjs`
 - Modify: `tests/executive-governance-ui.test.mjs`
 - Modify: `index.html`
 - Modify: `team-2/index.html`
 
 **Interfaces:**
 - Consumes: Each dashboard's existing `openExecutiveStructuralAction({ action, itemId, sectionId, quarterKey, targetIndex })` entry point and Firestore `onSnapshot` API.
-- Produces: Source-level regression coverage for `isExecutiveMilestonePending(itemId)` and `showExecutiveMilestonePendingDialog()` in both dashboard files.
+- Produces: Executable regression coverage for pending request normalization and move/rename/delete lock decisions, plus UI wiring coverage in both dashboard files.
 
 - [ ] **Step 1: Write the failing test**
 
-Append this test to `tests/executive-governance-ui.test.mjs`:
+Create `tests/executive-pending-lock.test.mjs`:
 
 ```js
-test('pending Executive change requests lock the same milestone from move, rename, and delete', () => {
-  for (const dashboard of dashboards) {
-    assert.match(dashboard, /const executivePendingMilestoneIds = new Set\(\);/);
-    assert.match(dashboard, /function isExecutiveMilestonePending\(itemId\)/);
-    assert.match(dashboard, /function showExecutiveMilestonePendingDialog\(\)/);
-    assert.match(dashboard, /This Executive Milestone is waiting for approval\./);
-    assert.match(dashboard, /\['move', 'rename', 'delete'\]\.includes\(action\).*isExecutiveMilestonePending\(itemId\)/s);
-    assert.match(dashboard, /if \(isExecutiveMilestonePending\(location\.item\.id\)\).*showExecutiveMilestonePendingDialog\(\)/s);
-    assert.match(dashboard, /where\('state', '==', 'pending'\)/);
-    assert.match(dashboard, /String\(entry\.data\(\)\.itemId \|\| ''\)/);
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { pendingExecutiveMilestoneIds, isExecutiveMilestoneActionLocked } from '../js/executive-pending-lock.mjs';
+
+test('pending requests lock move rename and delete only for their milestone', () => {
+  const pendingIds = pendingExecutiveMilestoneIds([
+    { state: 'pending', itemId: 'ms-1' },
+    { state: 'approved', itemId: 'ms-2' },
+    { state: 'pending', itemId: '' },
+  ]);
+  assert.deepEqual([...pendingIds], ['ms-1']);
+  for (const action of ['move', 'rename', 'delete']) {
+    assert.equal(isExecutiveMilestoneActionLocked({ action, itemId: 'ms-1', pendingIds }), true);
   }
+  assert.equal(isExecutiveMilestoneActionLocked({ action: 'add', itemId: 'ms-1', pendingIds }), false);
+  assert.equal(isExecutiveMilestoneActionLocked({ action: 'move', itemId: 'ms-2', pendingIds }), false);
 });
 ```
 
 - [ ] **Step 2: Run the focused test to verify it fails**
 
-Run: `node --test tests/executive-governance-ui.test.mjs`
+Run: `node --test tests/executive-pending-lock.test.mjs`
 
-Expected: FAIL because the pending-lock state and helper functions do not exist.
+Expected: FAIL because `js/executive-pending-lock.mjs` does not exist.
 
 - [ ] **Step 3: Implement the smallest shared UI behavior in both dashboard files**
 
-In both HTML files, add:
+Create `js/executive-pending-lock.mjs`:
 
 ```js
-const executivePendingMilestoneIds = new Set();
+const STRUCTURAL_ACTIONS = new Set(['move', 'rename', 'delete']);
 
-function isExecutiveMilestonePending(itemId) {
-  return executivePendingMilestoneIds.has(String(itemId || ''));
+export function pendingExecutiveMilestoneIds(records = []) {
+  return new Set((Array.isArray(records) ? records : [])
+    .filter(record => record?.state === 'pending')
+    .map(record => String(record.itemId || '').trim())
+    .filter(Boolean));
 }
 
+export function isExecutiveMilestoneActionLocked({ action, itemId, pendingIds }) {
+  return STRUCTURAL_ACTIONS.has(String(action || ''))
+    && pendingIds instanceof Set
+    && pendingIds.has(String(itemId || '').trim());
+}
+```
+
+Import both functions into each dashboard module. Keep one `let executivePendingMilestoneIds = new Set();` state value in each dashboard, plus:
+
+```js
 function showExecutiveMilestonePendingDialog() {
   openAccessibleModal(document.getElementById('executivePendingMilestoneOverlay'));
 }
@@ -82,12 +102,12 @@ Add this markup beside the existing Executive overlays in both files:
 </div>
 ```
 
-Start one global `onSnapshot(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')))` listener after Firebase is available. On every snapshot, construct a fresh `Set(snapshot.docs.map(entry => String(entry.data().itemId || '')).filter(Boolean))`, compare it with the previous set, replace `executivePendingMilestoneIds`, and call `render()` only when the set changes.
+Start one global `onSnapshot(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')))` listener after Firebase is available. On every snapshot, pass `snapshot.docs.map(entry => entry.data())` to `pendingExecutiveMilestoneIds`, compare the returned set with the existing one, replace `executivePendingMilestoneIds`, and call `render()` only when the set changes.
 
 Make all three guards return without mutation:
 
 ```js
-if (isExecutiveMilestonePending(location.item.id)) {
+if (isExecutiveMilestoneActionLocked({ action, itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) {
   showExecutiveMilestonePendingDialog();
   return;
 }
@@ -97,14 +117,14 @@ Place it after `findExecutiveTimelineItem` in the `dragstart` handler; after the
 
 - [ ] **Step 4: Run the focused test to verify it passes**
 
-Run: `node --test tests/executive-governance-ui.test.mjs`
+Run: `node --test tests/executive-pending-lock.test.mjs tests/executive-governance-ui.test.mjs`
 
 Expected: PASS with the new pending-lock test and all pre-existing tests in that file green.
 
 - [ ] **Step 5: Commit the UI and regression test**
 
 ```bash
-git add index.html team-2/index.html tests/executive-governance-ui.test.mjs
+git add js/executive-pending-lock.mjs index.html team-2/index.html tests/executive-pending-lock.test.mjs tests/executive-governance-ui.test.mjs
 git commit -m "feat: lock pending Executive milestone changes"
 ```
 

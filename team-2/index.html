@@ -1999,6 +1999,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <p class="executive-structural-note" id="executiveStructuralMoveContext" hidden></p><label id="executiveStructuralReason">Reason<textarea class="fi" id="executiveChangeReason" rows="3" maxlength="1200" placeholder="Explain why this structural change is needed."></textarea></label><p class="executive-structural-summary" id="executiveStructuralSummary">Choose the requested change.</p><div id="executiveChangeError" class="resource-validation" role="alert" aria-live="assertive"></div><div class="modal-actions"><button class="btn-ghost" id="executiveChangeCancelBtn" onclick="closeModal('executiveChangeRequestOverlay')">Cancel</button><button class="btn-primary" id="executiveViewMyRequestsBtn" hidden onclick="openExecutiveMyRequests()">My change requests</button><button class="btn-primary" id="executiveSubmitChangeBtn" onclick="submitExecutiveChangeRequest(false)">Submit for approval</button><button class="btn-primary" id="executiveDirectChangeBtn" onclick="submitExecutiveChangeRequest(true)">Apply direct change</button></div>
   </div></div>
 </div>
+<div class="overlay" id="executivePendingMilestoneOverlay" role="dialog" aria-modal="true" aria-labelledby="executivePendingMilestoneTitle"><div class="modal" style="width:min(520px,92vw);"><div class="modal-hdr"><h3 id="executivePendingMilestoneTitle">Approval pending</h3><button class="modal-x" onclick="closeModal('executivePendingMilestoneOverlay')" aria-label="Close approval pending dialog">×</button></div><div class="modal-body"><p>This Executive Milestone is waiting for approval. You can move, rename, or delete it after the request is approved, rejected, or withdrawn.</p><div class="modal-actions"><button type="button" class="btn btn-primary" onclick="closeModal('executivePendingMilestoneOverlay')">Close</button></div></div></div></div>
 <div class="overlay" id="executiveApprovalInboxOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle"><div class="modal" style="width:min(860px,94vw);"><div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div><div class="modal-body"><div id="executiveApprovalInboxList" class="executive-approval-list">Loading requests…</div></div></div></div>
 <div class="overlay" id="executiveRagOverrideOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle"><div class="modal" style="width:min(540px,92vw);"><div class="modal-hdr"><h3 id="executiveRagOverrideTitle">Summary RAG override</h3><button class="modal-x" onclick="closeModal('executiveRagOverrideOverlay')" aria-label="Close RAG override">×</button></div><div class="modal-body executive-governance-form"><p id="executiveRagOverrideTarget"></p><label>Override RAG<select class="fs" id="executiveRagOverrideValue"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select></label><label>Audit reason<textarea class="fi" id="executiveRagOverrideReason" rows="3" maxlength="1200"></textarea></label><div id="executiveRagOverrideError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn" id="executiveRemoveRagOverrideBtn" onclick="saveExecutiveRagOverride(true)">Remove override</button><button class="btn btn-primary" onclick="saveExecutiveRagOverride(false)">Save override</button></div></div></div></div>
 
@@ -2646,6 +2647,7 @@ import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
+import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
@@ -2678,6 +2680,8 @@ let executiveUpdateHistoryUnsub = null;
 let executiveUpdateSaving = false;
 let executiveChangeSession = null;
 let executiveApprovalInboxUnsub = null;
+let executivePendingMilestoneUnsub = null;
+let executivePendingMilestoneIds = new Set();
 let executiveApprovalDecisionInFlight = false;
 let executiveRagOverrideSession = null;
 let executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
@@ -4354,6 +4358,17 @@ function initData(authGeneration, authUser) {
   }, () => {
     if (!isCurrentDataSession()) return;
     executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+  });
+
+  if (executivePendingMilestoneUnsub) executivePendingMilestoneUnsub();
+  executivePendingMilestoneUnsub = onSnapshot(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = pendingExecutiveMilestoneIds(snapshot.docs.map(entry => entry.data()));
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = new Set();
+    window.render();
   });
 
   weeksUnsub = onSnapshot(weeksQuery, snap => {
@@ -6304,6 +6319,7 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
   if (isWeekReleased(allWeeks[currentIdx])) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
   if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
+  if (itemId && isExecutiveMilestoneActionLocked({ action, itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
   const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId)); if (!visibleSections.length) return;
   const before = executiveLocationSnapshot(location); const selectedSectionId = visibleSections.some(section => section.sectionId === sectionId) ? sectionId : before?.sectionId || visibleSections[0].sectionId;
   executiveChangeSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, weekId: executiveWeekDocumentId(), action, before, targetIndex: Number.isInteger(targetIndex) ? targetIndex : Number.MAX_SAFE_INTEGER, newItemId: `exec-${crypto.randomUUID?.() || Date.now().toString(36)}` };
@@ -6317,11 +6333,15 @@ window.openExecutiveStructuralAction = openExecutiveStructuralAction;
 window.openExecutiveStructuralActionFromDrawer = action => { const itemId = executiveUpdateSession?.itemId || ''; window.closeExecutiveItemDrawer(); openExecutiveStructuralAction({ action, itemId }); };
 window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ action: itemId ? 'rename' : 'add', itemId });
 
+function showExecutiveMilestonePendingDialog() { openAccessibleModal(document.getElementById('executivePendingMilestoneOverlay')); }
+window.showExecutiveMilestonePendingDialog = showExecutiveMilestonePendingDialog;
+
 window.submitExecutiveChangeRequest = async direct => {
   const errorBox = document.getElementById('executiveChangeError');
   const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn'); if (submitButton.disabled) return; let keepConfirmationOpen = false; const originalLabel = submitButton.textContent; submitButton.disabled = true; submitButton.textContent = direct ? 'Applying…' : 'Submitting…';
   try {
     const payload = buildExecutiveChangePayload();
+    if (isExecutiveMilestoneActionLocked({ action: payload.changeType, itemId: payload.itemId, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
     if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
     if (direct) { await executiveApi.applyDirectChange(payload); closeModal('executiveChangeRequestOverlay'); await refreshExecutiveWeekSnapshot(payload.weekId); await refreshExecutivePendingCount(); showSaveToast('Executive milestone changed.'); return; }
     await executiveApi.createRequest(payload); keepConfirmationOpen = true; errorBox.className = 'resource-validation success'; errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.'; showSaveToast('Change request submitted successfully.'); submitButton.textContent = 'Submitted'; document.getElementById('executiveViewMyRequestsBtn').hidden = !isExecutiveChangeRequester();

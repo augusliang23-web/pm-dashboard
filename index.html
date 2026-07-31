@@ -2065,6 +2065,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
+<div class="overlay" id="executivePendingMilestoneOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executivePendingMilestoneTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(520px,92vw);">
+    <div class="modal-hdr"><h3 id="executivePendingMilestoneTitle">Approval pending</h3><button class="modal-x" onclick="closeModal('executivePendingMilestoneOverlay')" aria-label="Close approval pending dialog">×</button></div>
+    <div class="modal-body"><p>This Executive Milestone is waiting for approval. You can move, rename, or delete it after the request is approved, rejected, or withdrawn.</p><div class="modal-actions"><button type="button" class="btn btn-primary" onclick="closeModal('executivePendingMilestoneOverlay')">Close</button></div></div>
+  </div>
+</div>
+
 <div class="overlay" id="executiveApprovalInboxOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:min(860px,94vw);">
     <div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div>
@@ -2759,6 +2766,7 @@ import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
+import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
 import { buildProjectManagerList, canReadDraftWeeks, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
@@ -2804,6 +2812,8 @@ let executiveUpdateHistoryUnsub = null;
 let executiveUpdateSaving = false;
 let executiveChangeSession = null;
 let executiveApprovalInboxUnsub = null;
+let executivePendingMilestoneUnsub = null;
+let executivePendingMilestoneIds = new Set();
 let executiveApprovalDecisionInFlight = false;
 let executiveRagOverrideSession = null;
 let executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
@@ -4513,6 +4523,17 @@ function initData(authGeneration, authUser) {
   }, () => {
     if (!isCurrentDataSession()) return;
     executiveLiveTimelineState = null;
+    window.render();
+  });
+
+  if (executivePendingMilestoneUnsub) executivePendingMilestoneUnsub();
+  executivePendingMilestoneUnsub = onSnapshot(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = pendingExecutiveMilestoneIds(snapshot.docs.map(entry => entry.data()));
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = new Set();
     window.render();
   });
 
@@ -6285,8 +6306,9 @@ function renderExecutiveCompactItem(source, row) {
   const updateRecordHelp = 'This indicates the freshness of the leadership status update only. It does not indicate milestone delay or change the RAG status.';
   const canUpdate = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, row.sectionId);
   const canDrag = isViewingLiveExecutiveTimeline() && canViewExecutiveSection(row);
+  const isPending = isExecutiveMilestoneActionLocked({ action: 'move', itemId: item.id, pendingIds: executivePendingMilestoneIds });
   return `<article class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}">
-    ${canDrag ? `<button type="button" class="executive-milestone-drag-handle" draggable="true" data-executive-drag-item-id="${escHtml(item.id)}" aria-label="Drag ${escHtml(item.text || 'milestone')} to another quarter or section">☰</button>` : '<span></span>'}
+    ${canDrag ? `<button type="button" class="executive-milestone-drag-handle" draggable="${!isPending}" data-executive-drag-item-id="${escHtml(item.id)}" aria-disabled="${isPending}" ${isPending ? 'onclick="showExecutiveMilestonePendingDialog()"' : ''} aria-label="${escHtml(isPending ? `${item.text || 'Milestone'} is waiting for approval` : `Drag ${item.text || 'milestone'} to another quarter or section`)}">☰</button>` : '<span></span>'}
     <button type="button" class="executive-compact-open" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
       <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
       <span class="executive-compact-body">
@@ -6386,6 +6408,7 @@ document.addEventListener('dragstart', event => {
   if (!isViewingLiveExecutiveTimeline()) return;
   const handle = event.target.closest?.('[data-executive-drag-item-id]'); if (!handle) return;
   const location = findExecutiveTimelineItem(handle.dataset.executiveDragItemId); if (!location || !canViewExecutiveSection(location.row)) return;
+  if (isExecutiveMilestoneActionLocked({ action: 'move', itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
   executiveDragSession = { itemId: location.item.id, sourceSectionId: location.row.sectionId, sourceQuarterKey: location.quarterKey, sourceIndex: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id) };
   event.dataTransfer?.setData('text/plain', location.item.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 });
@@ -6661,6 +6684,7 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
   if (!isViewingLiveExecutiveTimeline()) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
   if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
+  if (itemId && isExecutiveMilestoneActionLocked({ action, itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
   const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
   if (!visibleSections.length) return;
   const before = executiveLocationSnapshot(location);
@@ -6707,6 +6731,11 @@ window.openExecutiveStructuralActionFromDrawer = action => {
 };
 window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ action: itemId ? 'rename' : 'add', itemId });
 
+function showExecutiveMilestonePendingDialog() {
+  openAccessibleModal(document.getElementById('executivePendingMilestoneOverlay'));
+}
+window.showExecutiveMilestonePendingDialog = showExecutiveMilestonePendingDialog;
+
 window.submitExecutiveChangeRequest = async direct => {
   const errorBox = document.getElementById('executiveChangeError');
   const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn');
@@ -6715,6 +6744,10 @@ window.submitExecutiveChangeRequest = async direct => {
   setAsyncActionState(submitButton, true, direct ? 'Applying…' : 'Submitting…');
   try {
     const payload = buildExecutiveChangePayload();
+    if (isExecutiveMilestoneActionLocked({ action: payload.changeType, itemId: payload.itemId, pendingIds: executivePendingMilestoneIds })) {
+      showExecutiveMilestonePendingDialog();
+      return;
+    }
     if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
     if (direct) {
       await executiveApi.applyDirectChange(payload);
