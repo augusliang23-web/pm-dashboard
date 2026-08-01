@@ -63,6 +63,19 @@ test('escapes project content and omits pages that were not selected', () => {
   assert.doesNotMatch(html, /<script>/);
 });
 
+test('keeps weekly key actions while omitting an empty risk block', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-update'];
+  fixture.project.risk = '';
+  fixture.project.weeklyActions = 'Continue flowchart update';
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /Weekly actions[\s\S]*Continue flowchart update/);
+  assert.doesNotMatch(html, /Risk \/ Blocker/);
+  assert.doesNotMatch(html, /No risk or blocker reported\./);
+});
+
 test('keeps long milestone items in vertical rows', () => {
   const fixture = completeProjectReportFixture();
   fixture.sections = ['milestone'];

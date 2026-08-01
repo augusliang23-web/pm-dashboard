@@ -47,9 +47,9 @@ function renderProjectBrief(model) {
 function renderProjectUpdate(model) {
   const cards = [
     ['Highlight', model.highlights, 'No highlight reported.', ''],
-    ['Risk / Blocker', model.risks, 'No risk or blocker reported.', 'risk'],
     ['Weekly actions', model.actions, 'No weekly action reported.', '']
   ];
+  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', model.risks, 'No risk or blocker reported.', 'risk']);
   return cards.map(([title, items, emptyMessage, tone]) => projectFlowItem(model, {
     kind: 'project-update-card',
     kicker: 'Project report · Executive summary',
