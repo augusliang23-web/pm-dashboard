@@ -72,11 +72,9 @@ function riskActionPairs(source, risks, actions) {
     risk: lines(item?.risk || item?.description).join('\n'),
     action: lines(item?.action || item?.actions || item?.mitigation || item?.requiredAction).join('\n'),
     primary: item?.primary === true || item?.isPrimary === true || index === 0
-  })).filter(item => item.risk || item.action);
+  })).filter(item => item.risk);
   if (structured.length) return structured;
-  return Array.from({ length: Math.max(risks.length, actions.length) }, (_, index) => ({
-    risk: risks[index] || '', action: actions[index] || '', primary: index === 0
-  })).filter(item => item.risk || item.action);
+  return risks.map((risk, index) => ({ risk, action: '', primary: index === 0 }));
 }
 
 export function normalizeProjectForReport(source = {}) {

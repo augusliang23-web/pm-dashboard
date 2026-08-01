@@ -185,15 +185,22 @@ test('omits Executive milestones when no timeline is saved', () => {
   assert.match(html, /data-section-unit="quarterly-roadmap"/);
 });
 
-test('renders a clear project risk fallback when no risks are stored', () => {
+test('renders weekly key actions independently and omits risks when none are stored', () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['project-portfolio'];
-  fixture.week.projects = [{ ...fixture.week.projects[0], risk: '', weeklyActions: '', riskActions: [] }];
+  fixture.week.projects = [{
+    ...fixture.week.projects[0],
+    risk: '',
+    weeklyActions: 'Continue flowchart update',
+    riskActions: []
+  }];
 
   const html = renderOverviewReportHtml(fixture);
 
-  assert.match(html, /No active blocker reported\./);
-  assert.match(html, /No required action reported\./);
+  assert.match(html, /Weekly Key Actions[\s\S]*Continue flowchart update/);
+  assert.match(html, /data-flow-kind="project-weekly-actions"/);
+  assert.doesNotMatch(html, /Risks &amp; required actions/);
+  assert.doesNotMatch(html, /No active blocker reported\./);
 });
 
 test('escapes Overview project content and contains no interactive controls', () => {

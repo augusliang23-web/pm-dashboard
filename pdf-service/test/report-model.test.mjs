@@ -72,6 +72,17 @@ test('removes stored list markers before building PDF list items', () => {
   assert.deepEqual(project.riskActions, [{ risk: 'Risk', action: 'Action', primary: true }]);
 });
 
+test('keeps weekly actions out of risk action pairs without an explicit risk', () => {
+  const project = normalizeProjectForReport({
+    weeklyActions: 'Continue flowchart update',
+    risk: '',
+    riskActions: [{ risk: '', action: 'This is not a risk action' }]
+  });
+
+  assert.deepEqual(project.actions, ['Continue flowchart update']);
+  assert.deepEqual(project.riskActions, []);
+});
+
 test('builds scoped Overview metrics, risk rows, resources, budget and trend points', () => {
   const systemProject = {
     code: 'SYS-1', name: 'System One', projectLevel: 'system', status: 'red', progress: 40,

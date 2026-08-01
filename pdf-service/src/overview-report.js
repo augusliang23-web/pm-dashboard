@@ -234,10 +234,11 @@ function renderProjectPortfolioFlow(project) {
     : '<p>No highlight reported.</p>';
   const blocks = [portfolioFlowItem(project, 'project-identity', `<article class="portfolio-project-card" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong></div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><section class="portfolio-highlights card"><div class="metric-card-label">Highlights</div>${highlights}</section></article>`)];
 
-  const pairs = project.riskActions.length
-    ? project.riskActions
-    : [{ risk: '', action: '', primary: true }];
-  pairs.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : '<h2 class="portfolio-section-title">Risks &amp; required actions</h2>'}<article class="portfolio-risk-row card" data-pdf-split-unit><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span><p>${escapeHtml(pair.risk || 'No active blocker reported.')}</p></div><div><span>Required action</span><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></article>`)));
+  if (project.actions.length) {
+    blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card" data-pdf-split-unit><h2 class="portfolio-section-title">Weekly Key Actions</h2><ul class="report-list">${project.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul></section>`));
+  }
+
+  project.riskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : '<h2 class="portfolio-section-title">Risks &amp; required actions</h2>'}<article class="portfolio-risk-row card" data-pdf-split-unit><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span><p>${escapeHtml(pair.risk)}</p></div><div><span>Required action</span><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></article>`)));
 
   blocks.push(portfolioFlowItem(project, 'project-snapshot', `<div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span><strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span><strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span><strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div>`));
 
