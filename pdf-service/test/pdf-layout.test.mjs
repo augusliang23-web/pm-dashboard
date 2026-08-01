@@ -37,6 +37,15 @@ test('a nine-project budget overview fits one landscape page without a trailing 
   assert.equal(pageObjects.length, 1);
 });
 
+test('Executive milestones and Quarterly Roadmap each fit their compact landscape page', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-milestones', 'quarterly-roadmap'];
+
+  const pdf = await renderPdfBuffer(renderOverviewReportHtml(fixture));
+
+  assert.equal(physicalPageCount(pdf), 2);
+});
+
 test('compact Executive Summary renders exactly two landscape pages', { timeout: 60000 }, async () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['executive-summary'];

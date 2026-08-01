@@ -87,15 +87,18 @@ test('renders all ten selected Overview sections in dashboard reading order', ()
   assert.match(html, /budget-variance/);
 });
 
-test('renders permitted Executive milestones as a measured flow before Quarterly Roadmap', () => {
+test('renders permitted Executive milestones and Quarterly Roadmap as compact measured flows', () => {
   const fixture = completeOverviewReportFixture();
   fixture.executiveAudienceView = 'pm-engineering';
   fixture.sections = ['executive-milestones', 'quarterly-roadmap'];
 
   const html = renderOverviewReportHtml(fixture);
 
-  assert.match(html, /data-measured-flow="executive-milestones"/);
-  assert.match(html, /2026 Executive Timeline/);
+  assert.match(html, /data-measured-flow="executive-roadmap"/);
+  assert.match(html, /data-flow-kind="executive-roadmap-category"/);
+  assert.match(html, /data-measured-flow="quarterly-roadmap"/);
+  assert.match(html, /data-flow-kind="quarterly-roadmap-quarter"/);
+  assert.match(html, /Executive Milestones/);
   assert.match(html, /Shared delivery/);
   assert.match(html, /Engineering/);
   assert.match(html, /Public/);

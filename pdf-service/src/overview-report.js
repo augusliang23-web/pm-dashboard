@@ -189,19 +189,19 @@ function renderRiskActions(model) {
 function renderQuarterlyRoadmap(model) {
   if (!model.quarterlyItems.length) return '';
   const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
-  return `<section class="overview-unit" data-section-unit="quarterly-roadmap"><div class="overview-unit-head"><div><div class="report-kicker">Portfolio roadmap</div><h2>Quarterly Roadmap</h2></div><span class="overview-note">Project milestone view</span></div><div class="quarter-grid">${quarters.map(quarter => {
+  return `<section class="overview-unit quarterly-roadmap" data-section-unit="quarterly-roadmap"><div data-pdf-flow-items>${quarters.map(quarter => {
     const items = model.quarterlyItems.filter(item => item.quarter === quarter);
-    return `<article class="quarter-column"><header><strong>${quarter}</strong><span>${items.length} items</span></header><div class="quarter-items">${items.length ? items.map(item => {
+    return `<div data-pdf-flow-item data-flow-kind="quarterly-roadmap-quarter" data-page-title="Quarterly Roadmap" data-page-kicker="Overview report · Portfolio roadmap" data-page-section="quarterly-roadmap"><article class="quarter-column"><header><strong>${quarter}</strong><span>${items.length} items</span></header><div class="quarter-items">${items.length ? items.map(item => {
       const progress = Math.min(100, Math.max(0, Number(item.progress) || 0));
       return `<div class="quarter-item keep-together"><strong>${escapeHtml(item.name || 'Quarterly milestone')}</strong><small>${escapeHtml(item.projectName)} · ${escapeHtml(item.projectCode)}</small>${progressBar(progress, item.status === 'at-risk' ? 'red' : 'green')}<span>${progress}% complete</span></div>`;
-    }).join('') : '<div class="attention-empty">No milestones</div>'}</div></article>`;
+    }).join('') : '<div class="attention-empty">No milestones</div>'}</div></article></div>`;
   }).join('')}</div></section>`;
 }
 
 function renderExecutiveMilestones(model) {
   const timeline = model.executiveMilestones;
   if (!timeline.rows.length) return '';
-  const items = timeline.rows.map((row, rowIndex) => `<div data-pdf-flow-item data-pdf-splittable data-flow-kind="executive-milestone-category" data-page-title="Executive Milestones" data-page-kicker="Overview report · Leadership roadmap" data-page-section="executive-milestones">${rowIndex === 0 ? `<div class="executive-milestone-head"><div class="report-kicker">Executive milestone timeline</div><h2>${escapeHtml(timeline.title)}</h2></div>` : ''}<article class="executive-milestone-category card"><h3>${escapeHtml(row.label)}</h3><div class="executive-milestone-quarter-grid">${timeline.quarters.map((quarter, quarterIndex) => `<section class="executive-milestone-quarter"><header><strong>${escapeHtml(quarter)}</strong><span>${escapeHtml(timeline.phases[quarterIndex])}</span></header><ul>${row.cells[quarterIndex].length ? row.cells[quarterIndex].map(outcome => `<li data-pdf-split-unit>${escapeHtml(outcome)}</li>`).join('') : '<li class="executive-milestone-empty">No milestone</li>'}</ul></section>`).join('')}</div></article></div>`).join('');
+  const items = timeline.rows.map(row => `<div data-pdf-flow-item data-flow-kind="executive-roadmap-category" data-page-title="Executive Milestones" data-page-kicker="Overview report · Leadership roadmap" data-page-section="executive-milestones"><article class="executive-milestone-category card"><h3>${escapeHtml(row.label)}</h3><div class="executive-milestone-quarter-grid">${timeline.quarters.map((quarter, quarterIndex) => `<section class="executive-milestone-quarter"><header><strong>${escapeHtml(quarter)}</strong><span>${escapeHtml(timeline.phases[quarterIndex])}</span></header><ul>${row.cells[quarterIndex].length ? row.cells[quarterIndex].map(outcome => `<li>${escapeHtml(outcome)}</li>`).join('') : '<li class="executive-milestone-empty">No milestone</li>'}</ul></section>`).join('')}</div></article></div>`).join('');
   return `<section class="overview-unit executive-milestones" data-section-unit="executive-milestones"><div data-pdf-flow-items>${items}</div></section>`;
 }
 
@@ -329,7 +329,7 @@ export function renderOverviewReportHtml({
     if (milestones) pages.push(reportPage({
       section: 'executive-milestones', title: 'Executive Milestones',
       kicker: 'Overview report · Leadership roadmap', period: model.period,
-      measuredFlow: 'executive-milestones', body: milestones
+      measuredFlow: 'executive-roadmap', body: milestones
     }));
   }
 
@@ -337,7 +337,7 @@ export function renderOverviewReportHtml({
     const roadmap = renderQuarterlyRoadmap(model);
     if (roadmap) pages.push(reportPage({
       section: 'quarterly-roadmap', title: 'Quarterly Roadmap', kicker: 'Overview report · Portfolio roadmap',
-      period: model.period, body: roadmap
+      period: model.period, measuredFlow: 'quarterly-roadmap', body: roadmap
     }));
   }
 

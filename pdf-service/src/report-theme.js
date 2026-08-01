@@ -257,6 +257,17 @@ export const REPORT_CSS = `
   .executive-milestone-quarter li { margin-bottom:1.8mm; font-size:9.5pt; line-height:1.35; overflow-wrap:anywhere; }
   .executive-milestone-quarter li:last-child { margin-bottom:0; }
   .executive-milestone-quarter .executive-milestone-empty { color:var(--muted); list-style:none; margin-left:-4mm; font-size:8.5pt; }
+  .report-page[data-report-section="executive-milestones"] [data-pdf-flow-items] { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2mm; align-items:start; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-head { margin-bottom:1.5mm; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-head h2 { font-size:14pt; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-category { padding:2.5mm; border-top-width:1mm; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-category h3 { margin-bottom:1.5mm; font-size:10pt; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter-grid { gap:1.5mm; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter header { min-height:9mm; padding:1.5mm 2mm; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter header strong { font-size:8.5pt; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter header span { margin-top:.4mm; font-size:7pt; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter ul { padding:1.5mm 1.5mm 1.5mm 5mm; }
+  .report-page[data-report-section="executive-milestones"] .executive-milestone-quarter li { margin-bottom:1mm; font-size:8pt; line-height:1.25; }
   .quarter-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3mm; align-items:start; }
   .quarter-column { min-height:116mm; border:1px solid var(--line); border-radius:3mm; background:var(--surface); }
   .quarter-column > header { display:flex; justify-content:space-between; padding:3mm; border-bottom:1px solid var(--line); }
@@ -266,6 +277,14 @@ export const REPORT_CSS = `
   .quarter-item strong,.quarter-item small,.quarter-item span { display:block; }
   .quarter-item small { margin:1mm 0 2mm; color:var(--muted); }
   .quarter-item span { margin-top:1mm; color:var(--muted); font-size:7pt; }
+  .report-page[data-report-section="quarterly-roadmap"] [data-pdf-flow-items] { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2mm; align-items:start; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-column { min-height:0; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-column > header { padding:2mm; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-items { gap:1.5mm; padding:1.5mm; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-item { padding:2mm; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-item strong { font-size:8pt; line-height:1.2; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-item small { margin:.7mm 0 1.2mm; font-size:7.5pt; }
+  .report-page[data-report-section="quarterly-roadmap"] .quarter-item span { margin-top:.7mm; font-size:7pt; }
   .project-portfolio-flow [data-pdf-flow-items] { gap:2.5mm; }
   .portfolio-project-card { display:flex; flex-direction:column; padding:4mm; border:1px solid var(--line); border-top:2.2mm solid var(--green); border-radius:4mm; background:var(--white); }
   .portfolio-project-head { display:flex; justify-content:space-between; gap:8mm; }
