@@ -76,6 +76,20 @@ test('keeps weekly key actions while omitting an empty risk block', () => {
   assert.doesNotMatch(html, /No risk or blocker reported\./);
 });
 
+test('renders compact per-section update metadata in project PDF sections', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-brief', 'project-update'];
+  fixture.project.sectionUpdatedAt = {
+    status: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' },
+    highlights: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' },
+  };
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /Updated · 1 Aug 2026 · AUGUS\.LIANG/);
+  assert.match(html, /No update recorded/);
+});
+
 test('keeps long milestone items in vertical rows', () => {
   const fixture = completeProjectReportFixture();
   fixture.sections = ['milestone'];

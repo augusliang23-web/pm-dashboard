@@ -8,7 +8,7 @@ import {
   statusBadge
 } from './report-components.js';
 import { parseExecutiveSummaryBrief } from './executive-summary-brief.js';
-import { budgetTotals, buildOverviewReportModel } from './report-model.js';
+import { budgetTotals, buildOverviewReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
 
 function statusPresentation(status) {
@@ -229,10 +229,16 @@ function renderProjectPortfolioFlow(project) {
   const budget = budgetTotals(project);
   const milestone = [...project.milestones]
     .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))[0];
+  const updateNote = section => `<div class="section-update-note">${escapeHtml(formatSectionUpdate(project, section))}</div>`;
   const highlights = project.highlights.length
     ? `<ul class="report-list">${project.highlights.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '<p>No highlight reported.</p>';
+  const sectionUpdates = ['status', 'highlights', 'weeklyActions', 'riskActions', 'milestones', 'schedule', 'teamAllocation', 'budgetPlan', 'actualSpend', 'disciplineHours']
+    .map(section => `<div class="section-update-note">${escapeHtml(section)} · ${escapeHtml(formatSectionUpdate(project, section))}</div>`)
+    .join('');
   const blocks = [portfolioFlowItem(project, 'project-identity', `<article class="portfolio-project-card" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong></div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><section class="portfolio-highlights card"><div class="metric-card-label">Highlights</div>${highlights}</section></article>`)];
+
+  blocks.push(portfolioFlowItem(project, 'project-section-updates', `<section class="card"><div class="metric-card-label">Section updates</div>${['status', 'highlights', 'weeklyActions', 'riskActions', 'milestones', 'schedule', 'teamAllocation', 'budgetPlan', 'actualSpend', 'disciplineHours'].map(section => `<div class="section-update-note">${escapeHtml(section)} · ${escapeHtml(formatSectionUpdate(project, section))}</div>`).join('')}</section>`));
 
   if (project.actions.length) {
     blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card" data-pdf-split-unit><h2 class="portfolio-section-title">Weekly Key Actions</h2><ul class="report-list">${project.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul></section>`));

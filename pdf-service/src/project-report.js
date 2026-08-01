@@ -7,7 +7,7 @@ import {
   reportPage,
   statusBadge
 } from './report-components.js';
-import { buildProjectReportModel } from './report-model.js';
+import { buildProjectReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
 
 function statusPresentation(status) {
@@ -35,27 +35,31 @@ function reportList(items, emptyMessage) {
   return `<ul class="report-list">${items.map(item => `<li data-pdf-split-unit>${escapeHtml(item)}</li>`).join('')}</ul>`;
 }
 
+function sectionUpdateNote(model, section) {
+  return `<div class="section-update-note">${escapeHtml(formatSectionUpdate(model, section))}</div>`;
+}
+
 function projectFlowItem(model, { kind, kicker, section, body, splittable = false }) {
   return `<div data-pdf-flow-item data-flow-kind="${escapeHtml(kind)}" data-page-title="${escapeHtml(model.name)}" data-page-kicker="${escapeHtml(kicker)}" data-page-section="${escapeHtml(section)}"${splittable ? ' data-pdf-splittable' : ''}>${body}</div>`;
 }
 
 function renderProjectBrief(model) {
   const [tone, label] = statusPresentation(model.status);
-  return `<section class="project-brief-grid" data-section-unit="project-brief"><article class="card project-identity-card"><div class="report-kicker">Project brief</div><h2>${escapeHtml(model.name)}</h2><div class="project-code">${escapeHtml(model.projectLevel)} · ${escapeHtml(model.code || 'No project code')}</div>${statusBadge(tone, label)}</article><article class="card project-progress-card"><div class="metric-card-label">Delivery progress</div><div class="project-progress-value">${escapeHtml(model.progress)}%</div>${progressBar(model.progress, tone)}</article><dl class="card project-context-card"><div><dt>Owner</dt><dd>${escapeHtml(model.owner || 'Unassigned')}</dd></div><div><dt>Deputy</dt><dd>${escapeHtml(model.deputy || 'Unassigned')}</dd></div><div><dt>Customer</dt><dd>${escapeHtml(model.customer || 'Not specified')}</dd></div><div><dt>Location</dt><dd>${escapeHtml(model.location || 'Not specified')}</dd></div></dl></section>`;
+  return `<section class="project-brief-grid" data-section-unit="project-brief"><article class="card project-identity-card"><div class="report-kicker">Project brief</div><h2>${escapeHtml(model.name)}</h2><div class="project-code">${escapeHtml(model.projectLevel)} · ${escapeHtml(model.code || 'No project code')}</div>${statusBadge(tone, label)}${sectionUpdateNote(model, 'status')}</article><article class="card project-progress-card"><div class="metric-card-label">Delivery progress</div><div class="project-progress-value">${escapeHtml(model.progress)}%</div>${progressBar(model.progress, tone)}</article><dl class="card project-context-card"><div><dt>Owner</dt><dd>${escapeHtml(model.owner || 'Unassigned')}</dd></div><div><dt>Deputy</dt><dd>${escapeHtml(model.deputy || 'Unassigned')}</dd></div><div><dt>Customer</dt><dd>${escapeHtml(model.customer || 'Not specified')}</dd></div><div><dt>Location</dt><dd>${escapeHtml(model.location || 'Not specified')}</dd></div></dl></section>`;
 }
 
 function renderProjectUpdate(model) {
   const cards = [
-    ['Highlight', model.highlights, 'No highlight reported.', ''],
-    ['Weekly actions', model.actions, 'No weekly action reported.', '']
+    ['Highlight', 'highlights', model.highlights, 'No highlight reported.', ''],
+    ['Weekly actions', 'weeklyActions', model.actions, 'No weekly action reported.', '']
   ];
-  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', model.risks, 'No risk or blocker reported.', 'risk']);
-  return cards.map(([title, items, emptyMessage, tone]) => projectFlowItem(model, {
+  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', 'riskActions', model.risks, 'No risk or blocker reported.', 'risk']);
+  return cards.map(([title, section, items, emptyMessage, tone]) => projectFlowItem(model, {
     kind: 'project-update-card',
     kicker: 'Project report · Executive summary',
     section: 'project-summary',
     splittable: true,
-    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${reportList(items, emptyMessage)}</article>`
+    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${sectionUpdateNote(model, section)}${reportList(items, emptyMessage)}</article>`
   })).join('');
 }
 

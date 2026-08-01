@@ -135,6 +135,7 @@ export const REPORT_CSS = `
   .project-update-card.risk { border-color:#e5b5b5; background:linear-gradient(180deg,var(--red-soft),var(--white) 38%); }
   .report-list { margin:0; padding-left:5mm; }
   .report-list li { margin-bottom:2.2mm; line-height:1.35; }
+  .section-update-note { margin:0 0 2mm; color:var(--muted); font-size:7.5pt; line-height:1.3; text-align:right; }
   .milestone-timeline { position:relative; display:grid; grid-template-columns:repeat(var(--count),minmax(0,1fr)); gap:7mm; padding:17mm 4mm 0; }
   .milestone-timeline::before { content:""; position:absolute; top:10mm; left:7%; right:7%; height:1px; background:var(--line); }
   .milestone-step { position:relative; min-width:0; padding:5mm 4mm; border:1px solid var(--line); border-radius:4mm; background:var(--white); text-align:center; }

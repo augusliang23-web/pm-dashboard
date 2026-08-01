@@ -100,6 +100,46 @@ test('editing merges only the live target and preserves concurrent projects and 
   });
 });
 
+test('project saves update metadata only for sections whose content changed', () => {
+  const liveWeek = {
+    projects: [{
+      code: 'META-1',
+      name: 'Metadata project',
+      owner: 'PM One',
+      status: 'green',
+      highlight: 'Existing highlight',
+      weeklyActions: 'Keep moving',
+      sectionUpdatedAt: {
+        status: { savedAt: '2026-07-30T00:00:00.000Z', editorName: 'BONNIE' },
+        highlights: { savedAt: '2026-07-29T00:00:00.000Z', editorName: 'BONNIE' },
+      },
+    }],
+  };
+
+  const result = applyProjectSave(liveWeek, {
+    originalCode: 'META-1',
+    isNew: false,
+    role: 'admin',
+    canEdit: () => true,
+    lastModifiedBy: 'admin@example.com',
+    editorName: 'AUGUS.LIANG',
+    savedAt: '2026-08-01T08:00:00.000Z',
+    draft: {
+      code: 'META-1',
+      name: 'Metadata project',
+      owner: 'PM One',
+      status: 'green',
+      highlight: 'Updated highlight',
+      weeklyActions: 'Keep moving',
+    },
+  });
+
+  assert.deepEqual(result.project.sectionUpdatedAt, {
+    status: { savedAt: '2026-07-30T00:00:00.000Z', editorName: 'BONNIE' },
+    highlights: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' },
+  });
+});
+
 test('save rejects blank trimmed names and codes', () => {
   const liveWeek = { projects: [] };
   const options = {

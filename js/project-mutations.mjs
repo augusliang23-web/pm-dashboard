@@ -142,6 +142,44 @@ function canonicalValue(value) {
   return { $type: typeof value, value: String(value) };
 }
 
+const SECTION_METADATA_PATHS = {
+  status: ['projectLevel', 'lifecycle', 'status', 'progress', 'attention', 'attentionManual'],
+  highlights: ['highlight'],
+  weeklyActions: ['weeklyActions'],
+  riskActions: ['riskActions', 'risk', 'next'],
+  milestones: ['milestones', 'quarterlyMilestones'],
+  schedule: ['ganttWorkstreams'],
+  teamAllocation: ['teamMembers', 'dataStatus.team'],
+  budgetPlan: ['budget.mode', 'budget.currency', 'budget.totalEstimated', 'budget.monthlyPlans', 'dataStatus.budgetPlan'],
+  actualSpend: ['budget.actuals', 'dataStatus.budgetActual'],
+  disciplineHours: ['resources'],
+};
+
+function valueAtPath(source, path) {
+  return path.split('.').reduce((value, key) => value?.[key], source);
+}
+
+function sectionValues(project, paths) {
+  return paths.map(path => canonicalValue(valueAtPath(project, path)));
+}
+
+function sectionChanged(before, after, paths) {
+  return JSON.stringify(sectionValues(before, paths)) !== JSON.stringify(sectionValues(after, paths));
+}
+
+function updateSectionMetadata(before, after, { editorName, savedAt } = {}) {
+  const name = String(editorName || '').trim();
+  const timestamp = String(savedAt || '').trim();
+  if (!name || !timestamp) return before?.sectionUpdatedAt;
+  const metadata = { ...(before?.sectionUpdatedAt || {}) };
+  for (const [section, paths] of Object.entries(SECTION_METADATA_PATHS)) {
+    if (sectionChanged(before, after, paths)) {
+      metadata[section] = { savedAt: timestamp, editorName: name };
+    }
+  }
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
 export function projectRevisionFingerprint(project) {
   return JSON.stringify(canonicalValue(project));
 }
@@ -244,6 +282,8 @@ export function applyProjectSave(week, options = {}) {
     role,
     canEdit,
     lastModifiedBy,
+    editorName,
+    savedAt,
   } = options;
 
   if (isNew) {
@@ -255,7 +295,9 @@ export function applyProjectSave(week, options = {}) {
     }
     const identity = trimmedIdentity(draft);
     assertUniqueCode(projects, identity.code);
-    const project = { ...draft, ...identity };
+    const draftProject = { ...draft, ...identity };
+    const sectionUpdatedAt = updateSectionMetadata({}, draftProject, { editorName, savedAt });
+    const project = sectionUpdatedAt ? { ...draftProject, sectionUpdatedAt } : draftProject;
     return {
       project,
       week: {
@@ -286,10 +328,13 @@ export function applyProjectSave(week, options = {}) {
   const identity = trimmedIdentity(draft);
   assertUniqueCode(projects, identity.code, targetIndex);
 
-  const project = {
-    ...mergePreservingUnknown(withProjectEditorRowIds(targetProject), draft),
+  const baselineProject = withProjectEditorRowIds(targetProject);
+  const savedProject = {
+    ...mergePreservingUnknown(baselineProject, draft),
     ...identity,
   };
+  const sectionUpdatedAt = updateSectionMetadata(baselineProject, savedProject, { editorName, savedAt });
+  const project = sectionUpdatedAt ? { ...savedProject, sectionUpdatedAt } : savedProject;
   const nextProjects = [...projects];
   nextProjects[targetIndex] = project;
   return {

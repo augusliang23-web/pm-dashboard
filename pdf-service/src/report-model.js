@@ -38,6 +38,16 @@ function cleanPeriodPart(value) {
   return String(value || '').trim().replace(/\s*(?:-|\u2013|\u2014)\s*/g, '\u2013');
 }
 
+export function formatSectionUpdate(project = {}, section) {
+  const record = project?.sectionUpdatedAt?.[section];
+  const savedAt = record?.savedAt ? new Date(record.savedAt) : null;
+  const date = savedAt && !Number.isNaN(savedAt.getTime())
+    ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(savedAt)
+    : '';
+  const editorName = String(record?.editorName || '').trim();
+  return date && editorName ? `Updated · ${date} · ${editorName}` : 'No update recorded';
+}
+
 export function formatReportingPeriod(week = {}) {
   const label = cleanPeriodPart(week.weekLabel);
   const date = cleanPeriodPart(week.weekDate);
