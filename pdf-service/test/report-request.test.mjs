@@ -79,3 +79,23 @@ test('accepts an Executive milestone audience view only with that section', () =
     executiveAudienceView: 'unrestricted'
   }), /Unsupported executiveAudienceView/);
 });
+
+test('accepts unique selected project codes for an Overview report', () => {
+  const request = parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['health-focus'],
+    projectCodes: ['PMS-001', 'MOD-002']
+  });
+
+  assert.deepEqual(request.projectCodes, ['PMS-001', 'MOD-002']);
+});
+
+test('rejects invalid Overview project selections', () => {
+  for (const projectCodes of [[], ['PMS-001', 'PMS-001'], [' '], [42]]) {
+    assert.throws(
+      () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['health-focus'], projectCodes }),
+      ReportRequestError
+    );
+  }
+});

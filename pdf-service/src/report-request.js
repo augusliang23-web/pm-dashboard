@@ -55,7 +55,7 @@ export function parseReportRequest(input) {
 
   const allowedFields = new Set(mode === 'project'
     ? ['mode', 'weekId', 'projectCode', 'sections']
-    : ['mode', 'weekId', 'sections', 'overviewScope', 'executiveAudienceView']);
+    : ['mode', 'weekId', 'sections', 'overviewScope', 'executiveAudienceView', 'projectCodes']);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) {
       throw new ReportRequestError(`Unexpected report request field: ${field}.`);
@@ -88,6 +88,16 @@ export function parseReportRequest(input) {
       throw new ReportRequestError(`Unsupported overviewScope: ${overviewScope}.`);
     }
     request.overviewScope = overviewScope;
+  }
+  if (mode === 'overview' && input.projectCodes !== undefined) {
+    if (!Array.isArray(input.projectCodes) || input.projectCodes.length === 0) {
+      throw new ReportRequestError('At least one project selection is required.');
+    }
+    const projectCodes = input.projectCodes.map(code => requiredText(code, 'project code'));
+    if (new Set(projectCodes).size !== projectCodes.length) {
+      throw new ReportRequestError('Project selections must be unique.');
+    }
+    request.projectCodes = projectCodes;
   }
   if (mode === 'overview' && input.executiveAudienceView !== undefined) {
     if (!sections.includes('executive-milestones')) {
