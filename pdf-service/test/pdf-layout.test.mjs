@@ -77,7 +77,7 @@ test('aligns every verbose Executive Summary wrapper to its own printable page',
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['executive-summary'];
   fixture.week.executiveSummary = verboseExecutiveSummaryFixture();
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -113,7 +113,7 @@ test('splits high-text Executive Summary cards before any wrapper exceeds A4 hei
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['executive-summary'];
   fixture.week.executiveSummary = stressExecutiveSummaryFixture();
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -155,7 +155,7 @@ test('dense project portfolio keeps project context and footer clearance on cont
   }));
   fixture.week.projects = [project];
   fixture.sections = ['project-portfolio'];
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -200,7 +200,7 @@ test('dense management attention and risk actions use titled measured pages', { 
     }]
   }));
   fixture.sections = ['attention-matrix', 'risk-actions'];
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -242,7 +242,7 @@ test('Project Update continuations preserve every list item and safe page spacin
   fixture.project.highlight = highlights.join('\n');
   fixture.project.risk = risks.join('\n');
   fixture.project.weeklyActions = actions.join('\n');
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -291,7 +291,7 @@ test('long resource tables repeat headers and keep every row inside measured pag
     `role_${index + 1}`,
     { role: `RESOURCE-ROLE-${index + 1}`, estimated: 120, actual: 60 }
   ]));
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -338,7 +338,7 @@ test('long milestone and Gantt sections retain rows, axes, titles, and footer cl
     status: index % 3 === 0 ? 'at-risk' : 'in-progress',
     progress: index * 4
   }));
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   try {
@@ -371,7 +371,7 @@ test('long milestone and Gantt sections retain rows, axes, titles, and footer cl
 });
 
 test('full Overview and Project PDFs preserve explicit page parity and period metadata', { timeout: 60000 }, async () => {
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const cases = [
     ['Overview', renderOverviewReportHtml(completeOverviewReportFixture())],
     ['Project', renderProjectReportHtml(completeProjectReportFixture())]

@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import { paginateMeasuredFlows } from './measured-paginator.js';
 
 const LAUNCH_OPTIONS = {
-  headless: true,
+  headless: 'shell',
   args: ['--no-sandbox', '--disable-setuid-sandbox']
 };
 

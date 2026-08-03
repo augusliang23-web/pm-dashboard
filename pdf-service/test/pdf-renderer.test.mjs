@@ -4,6 +4,7 @@ import { createPdfRenderer } from '../src/pdf-renderer.js';
 
 test('reuses a connected browser and closes each request page', async () => {
   let launches = 0;
+  let launchOptions;
   let closes = 0;
   let evaluations = 0;
   const browser = {
@@ -15,12 +16,17 @@ test('reuses a connected browser and closes each request page', async () => {
       close: async () => { closes += 1; }
     })
   };
-  const render = createPdfRenderer({ launch: async () => { launches += 1; return browser; } });
+  const render = createPdfRenderer({ launch: async options => {
+    launches += 1;
+    launchOptions = options;
+    return browser;
+  } });
 
   await render('<html>A</html>');
   await render('<html>B</html>');
 
   assert.equal(launches, 1);
+  assert.equal(launchOptions.headless, 'shell');
   assert.equal(closes, 2);
   assert.equal(evaluations, 2);
 });
