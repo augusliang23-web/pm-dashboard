@@ -220,7 +220,7 @@ test('treats all active cross-scope projects as the complete selectable Overview
   assert.equal(report.availableProjectCount, 3);
   assert.equal(report.projectSelectionIsPartial, false);
 });
-+
+
 test('rejects non-active project codes from current and trend Overview render data', async () => {
   const report = await loadAuthorizedReport({
     request: {

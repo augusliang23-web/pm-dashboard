@@ -206,4 +206,3 @@ Run `node --test tests/*.test.mjs` in both repositories. Expected: all dashboard
 - [ ] **Step 5: Verify repository state and publish**
 
 Run `git diff --check`, `git status --short --branch`, and compare `HEAD` with the intended local commits. Push both `main` branches only after all tests and crash-log checks pass. No GitHub Pages or Cloud Run deployment is triggered by runtime changes because only docs and PDF test tooling changed.
-
