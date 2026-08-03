@@ -109,3 +109,19 @@ test('defaults an unknown stored role to the Everyone Executive milestone view',
 
   assert.equal(report.executiveAudienceView, 'everyone');
 });
+
+test('filters current and trend weeks to selected Overview project codes', async () => {
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['weekly-trend'], projectCodes: ['PMS-001'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({ projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }] }),
+      getTrendWeeks: async () => [{ projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }] }]
+    }
+  });
+
+  assert.deepEqual(report.week.projects.map(project => project.code), ['PMS-001']);
+  assert.deepEqual(report.trendWeeks[0].projects.map(project => project.code), ['PMS-001']);
+  assert.equal(report.availableProjectCount, 2);
+});

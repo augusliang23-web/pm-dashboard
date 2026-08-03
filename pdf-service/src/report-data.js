@@ -35,6 +35,12 @@ function includedProjectSections(project, sections) {
   });
 }
 
+function selectOverviewProjects(week, projectCodes) {
+  if (!Array.isArray(projectCodes)) return week;
+  const selected = new Set(projectCodes);
+  return { ...week, projects: (week?.projects || []).filter(project => selected.has(project?.code)) };
+}
+
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const decodedToken = await adapters.verifyIdToken(idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
@@ -45,20 +51,25 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);
 
   if (request.mode !== 'project') {
+    const availableProjectCount = Array.isArray(week.projects) ? week.projects.length : 0;
+    const selectedWeek = selectOverviewProjects(week, request.projectCodes);
     let trendWeeks = [];
     if (request.sections.includes('weekly-trend') && typeof adapters.getTrendWeeks === 'function') {
       const history = await adapters.getTrendWeeks(week);
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
         .filter(item => access.role !== 'vip' || item.isReleased === true)
+        .map(item => selectOverviewProjects(item, request.projectCodes))
         .slice(-6);
     }
     const report = {
       access,
-      week,
+      week: selectedWeek,
       trendWeeks,
       sections: request.sections,
-      overviewScope: request.overviewScope || 'system'
+      overviewScope: request.overviewScope || 'system',
+      projectCodes: request.projectCodes,
+      availableProjectCount
     };
     if (request.sections.includes('executive-milestones')) {
       report.executiveAudienceView = authorizeExecutiveAudienceView(user?.role, request.executiveAudienceView);

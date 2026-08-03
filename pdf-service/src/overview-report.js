@@ -293,9 +293,11 @@ export function renderOverviewReportHtml({
   trendWeeks = [],
   sections,
   overviewScope = 'system',
-  executiveAudienceView = 'leadership'
+  executiveAudienceView = 'leadership',
+  projectCodes,
+  availableProjectCount
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectCodes, availableProjectCount });
   const selected = new Set(model.sections);
   const pages = [];
 

@@ -185,6 +185,16 @@ test('omits Executive milestones when no timeline is saved', () => {
   assert.match(html, /data-section-unit="quarterly-roadmap"/);
 });
 
+test('omits Executive milestones for a partial project selection', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.projectCodes = [fixture.week.projects[0].code];
+  fixture.availableProjectCount = fixture.week.projects.length;
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.doesNotMatch(html, /data-section-unit="executive-milestones"/);
+});
+
 test('renders weekly key actions independently and omits risks when none are stored', () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['project-portfolio'];
