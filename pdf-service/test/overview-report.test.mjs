@@ -210,11 +210,36 @@ MANAGEMENT ASK
 - Project: Module Refresh
   Decision / Support needed: Unselected decision.`;
   fixture.projectSelectionIsPartial = true;
+  fixture.projectSelectionApplied = true;
 
   const html = renderOverviewReportHtml(fixture);
 
   assert.match(html, /Selected movement|Selected decision/);
   assert.doesNotMatch(html, /Module Refresh|Unselected movement|Unselected decision/);
+});
+
+test('filters Executive Summary entries for a complete selection within a narrowed scope', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.overviewScope = 'system';
+  fixture.projectSelectionApplied = true;
+  fixture.projectSelectionIsPartial = false;
+  fixture.week.executiveSummary = `WEEKLY MOVEMENT
+Portfolio Summary: Delivery remains stable.
+- Project: Platform Modernization
+  Movement: Selected system movement.
+- Project: Module Refresh
+  Movement: Other-level movement.
+MANAGEMENT ASK
+- Project: Platform Modernization
+  Decision / Support needed: Selected system decision.
+- Project: Module Refresh
+  Decision / Support needed: Other-level decision.`;
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.match(html, /Delivery remains stable|Selected system movement|Selected system decision/);
+  assert.doesNotMatch(html, /Module Refresh|Other-level movement|Other-level decision/);
 });
 
 test('renders weekly key actions independently and omits risks when none are stored', () => {

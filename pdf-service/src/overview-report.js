@@ -312,9 +312,10 @@ export function renderOverviewReportHtml({
   sections,
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
+  projectSelectionApplied = false,
   projectSelectionIsPartial = false
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionIsPartial });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial });
   const selected = new Set(model.sections);
   const pages = [];
 
@@ -333,7 +334,7 @@ export function renderOverviewReportHtml({
     const brief = filterExecutiveSummaryBrief(
       parseExecutiveSummaryBrief(model.executiveSummary),
       model.projects,
-      model.projectSelectionIsPartial
+      model.projectSelectionApplied
     );
     pages.push(reportPage({
       section: 'executive-summary-brief', title: 'Decision Brief',

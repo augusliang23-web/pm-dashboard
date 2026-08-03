@@ -190,4 +190,5 @@ test('treats all reportable projects in the requested scope as a complete select
   assert.equal(report.selectedProjectCount, 1);
   assert.equal(report.availableProjectCount, 1);
   assert.equal(report.projectSelectionIsPartial, false);
+  assert.equal(report.projectSelectionApplied, true);
 });

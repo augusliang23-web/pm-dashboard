@@ -363,6 +363,7 @@ export function buildOverviewReportModel({
   sections = [],
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
+  projectSelectionApplied = false,
   projectSelectionIsPartial = false
 } = {}) {
   const projects = scopedProjects(week.projects, overviewScope);
@@ -379,6 +380,7 @@ export function buildOverviewReportModel({
     sections: [...sections],
     overviewScope: scopeLevel(overviewScope),
     executiveSummary: String(week.executiveSummary || week.summary || week.overviewSummary || ''),
+    projectSelectionApplied,
     projectSelectionIsPartial,
     projects,
     health: healthSummary(projects),

@@ -86,6 +86,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       projectCodes: request.projectCodes,
       availableProjectCount,
       selectedProjectCount,
+      projectSelectionApplied: Array.isArray(request.projectCodes),
       projectSelectionIsPartial: selectedProjectCount < availableProjectCount
     };
     if (request.sections.includes('executive-milestones')) {
