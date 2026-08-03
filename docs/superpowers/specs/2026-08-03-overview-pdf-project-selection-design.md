@@ -18,6 +18,7 @@ Allow users to choose the projects included in an Overview PDF. The selected pro
 - Project options are built from the same role- and scope-aware project list used by Overview.
 - The PDF request carries the selected project codes as `projectCodes`.
 - The PDF service applies `projectCodes` before calculating or rendering every Overview section: portfolio health and focus, weekly trends, executive summary, attention matrix, risk actions, executive milestones, roadmap, project portfolio, resource analytics, and budget overview.
+- Executive milestones are global timeline data without project identities. When the selection is a proper subset of currently visible projects, the service omits that section rather than mixing unscoped milestones into a project-filtered report.
 - The generated project-portfolio pages contain only the selected projects.
 - A project code that is missing or no longer visible is ignored by the service; the client still requires at least one current selection before submitting.
 
@@ -30,7 +31,7 @@ Allow users to choose the projects included in an Overview PDF. The selected pro
 
 ## Testing
 
-- Unit tests cover normalization of selected project codes and request construction.
+- Unit tests cover normalization of selected project codes, request construction, and omission of Executive milestones for a partial project selection.
 - Existing PDF export tests are extended to assert that `projectCodes` is sent only after a non-empty selection.
 - The full test suite runs independently in both repositories.
 
