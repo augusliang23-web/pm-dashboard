@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import {
   access,
   mkdir,
@@ -13,6 +14,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+function waitForChild(child, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Timed out waiting for child ${child.pid}`)), timeoutMs);
+    child.once('error', error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('exit', (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
+  });
+}
 
 async function loadLockModule() {
   try {
@@ -120,6 +135,41 @@ test('serializes all waiters while reclaiming one stale owner record', async () 
     assert.equal(maxActive, 1);
   } finally {
     releaseInspectionBarrier();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('recovers when a stale-lock reclaimer crashes after acquiring its claim', async () => {
+  const { acquireBrowserTestLock } = await loadLockModule();
+  const { directory, lockPath } = await temporaryLockPath();
+  const workerPath = join(directory, 'crashing-reclaimer.mjs');
+  let lock;
+
+  try {
+    await writeFile(lockPath, JSON.stringify({
+      pid: 99999999,
+      token: 'dead-owner-with-crashed-reclaimer',
+      acquiredAt: 0
+    }));
+    await writeFile(workerPath, `
+      import { acquireBrowserTestLock } from ${JSON.stringify(new URL('../scripts/browser-test-lock.mjs', import.meta.url).href)};
+      await acquireBrowserTestLock({
+        lockPath: ${JSON.stringify(lockPath)},
+        pollMs: 1,
+        timeoutMs: 1000,
+        afterReclamationClaimAcquired: () => process.exit(17)
+      });
+    `);
+
+    const worker = spawn(process.execPath, [workerPath], { stdio: 'ignore' });
+    assert.deepEqual(await waitForChild(worker), { code: 17, signal: null });
+
+    lock = await acquireBrowserTestLock({ lockPath, pollMs: 1, timeoutMs: 1000 });
+    await lock.release();
+    lock = null;
+    await assert.rejects(access(lockPath), error => error?.code === 'ENOENT');
+  } finally {
+    await lock?.release();
     await rm(directory, { recursive: true, force: true });
   }
 });

@@ -24,8 +24,8 @@ test('Overview PDF uses a second step to choose every active project in every de
     const pickerEnd = source.indexOf('function setOverviewProjectPrintValidation', pickerStart);
     assert.notEqual(pickerStart, -1, entryPoint);
     const pickerSource = source.slice(pickerStart, pickerEnd);
-    assert.match(pickerSource, /getRoleVisibleProjectsForOverview\(projects\)/, entryPoint);
-    assert.match(pickerSource, /filter\(project => !project\?\.visibility \|\| project\.visibility === 'active'\)/, entryPoint);
+    assert.match(pickerSource, /filterRoleVisibleProjects\(projects/, entryPoint);
+    assert.match(pickerSource, /visibilityFilter:\s*'active'/, entryPoint);
     assert.doesNotMatch(pickerSource, /getOverviewProjects|overviewScope/, entryPoint);
     const start = source.indexOf('window.confirmOverviewProjectPrint =');
     const end = source.indexOf('window.setOverviewScope', start);

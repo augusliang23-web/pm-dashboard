@@ -163,3 +163,65 @@ for (const { signal, exitCode } of [
   }
   });
 }
+
+test('a repeated SIGINT escalates the child tree without bypassing lock cleanup', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pm-dashboard-test-runner-repeat-signal-'));
+  const lockPath = join(directory, 'runner.lock');
+  const descendantPidPath = join(directory, 'descendant.pid');
+  const hangingTest = join(directory, 'hanging.test.mjs');
+  const harness = join(directory, 'harness.mjs');
+  const runnerUrl = pathToFileURL(join(process.cwd(), 'scripts', 'run-tests.mjs')).href;
+  let harnessProcess;
+  let descendantPid;
+
+  try {
+    await writeFile(hangingTest, `
+      import test from 'node:test';
+      import { spawn } from 'node:child_process';
+      import { writeFile } from 'node:fs/promises';
+      test('hangs with a signal-resistant descendant', async () => {
+        const code = \`
+          const { writeFileSync } = require('node:fs');
+          process.on('SIGINT', () => {});
+          process.on('SIGTERM', () => {});
+          writeFileSync(${JSON.stringify(descendantPidPath)}, String(process.pid));
+          setInterval(() => {}, 1000);
+        \`;
+        const descendant = spawn(process.execPath, ['-e', code], { stdio: 'ignore' });
+        descendant.unref();
+        await new Promise(resolve => setTimeout(resolve, 60_000));
+      });
+    `);
+    await writeFile(harness, `
+      import { runNodeTests } from ${JSON.stringify(runnerUrl)};
+      process.exitCode = await runNodeTests({
+        testFiles: [${JSON.stringify(hangingTest)}],
+        lockPath: ${JSON.stringify(lockPath)},
+        stdio: 'ignore',
+        terminationGraceMs: 1000,
+        processTreeExitTimeoutMs: 1000
+      });
+    `);
+
+    harnessProcess = spawn(process.execPath, [harness], { stdio: 'ignore' });
+    const harnessExit = waitForChild(harnessProcess);
+    descendantPid = await waitForPositiveIntegerFile(descendantPidPath);
+    assert.equal(processIsAlive(descendantPid), true);
+
+    harnessProcess.kill('SIGINT');
+    await delay(50);
+    harnessProcess.kill('SIGINT');
+
+    assert.deepEqual(await harnessExit, { code: 130, signal: null });
+    await assert.rejects(access(lockPath), error => error?.code === 'ENOENT');
+    assert.equal(processIsAlive(descendantPid), false);
+  } finally {
+    if (harnessProcess && harnessProcess.exitCode === null && harnessProcess.signalCode === null) {
+      harnessProcess.kill('SIGKILL');
+    }
+    if (descendantPid && processIsAlive(descendantPid)) {
+      process.kill(descendantPid, 'SIGKILL');
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});

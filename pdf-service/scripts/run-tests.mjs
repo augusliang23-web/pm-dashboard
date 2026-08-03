@@ -100,7 +100,11 @@ export async function runNodeTests({
   let requestedSignal = null;
   let escalationTimer;
   const forwardSignal = signal => {
-    requestedSignal ||= signal;
+    if (requestedSignal) {
+      if (child) signalProcessTree(child, 'SIGKILL');
+      return;
+    }
+    requestedSignal = signal;
     if (!child) return;
     signalProcessTree(child, signal);
     clearTimeout(escalationTimer);
@@ -109,8 +113,8 @@ export async function runNodeTests({
   };
   const onSigint = () => forwardSignal('SIGINT');
   const onSigterm = () => forwardSignal('SIGTERM');
-  process.once('SIGINT', onSigint);
-  process.once('SIGTERM', onSigterm);
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
 
   try {
     const childEnvironment = { ...process.env };
@@ -128,18 +132,21 @@ export async function runNodeTests({
     if (Number.isInteger(result.code)) return result.code;
     return signalExitCode(result.signal || requestedSignal);
   } finally {
-    process.removeListener('SIGINT', onSigint);
-    process.removeListener('SIGTERM', onSigterm);
     clearTimeout(escalationTimer);
-    const treeExited = !child || await ensureProcessTreeExited(child, {
-      requestedSignal,
-      terminationGraceMs,
-      processTreeExitTimeoutMs
-    });
-    if (!treeExited) {
-      throw new Error(`Node test process group ${child.pid} did not exit after SIGKILL; browser-test lock was retained.`);
+    try {
+      const treeExited = !child || await ensureProcessTreeExited(child, {
+        requestedSignal,
+        terminationGraceMs,
+        processTreeExitTimeoutMs
+      });
+      if (!treeExited) {
+        throw new Error(`Node test process group ${child.pid} did not exit after SIGKILL; browser-test lock was retained.`);
+      }
+      await lock.release();
+    } finally {
+      process.removeListener('SIGINT', onSigint);
+      process.removeListener('SIGTERM', onSigterm);
     }
-    await lock.release();
   }
 }
 

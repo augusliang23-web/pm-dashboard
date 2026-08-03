@@ -57,6 +57,10 @@ function reportableOverviewProjects(week, overviewScope = 'system') {
     });
 }
 
+function activeOverviewWeek(week) {
+  return { ...week, projects: reportableOverviewProjects(week, 'all') };
+}
+
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const decodedToken = await adapters.verifyIdToken(idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
@@ -67,7 +71,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);
 
   if (request.mode !== 'project') {
-    const selectedWeek = selectOverviewProjects(week, request.projectCodes);
+    const selectedWeek = selectOverviewProjects(activeOverviewWeek(week), request.projectCodes);
     const overviewScope = request.overviewScope || 'system';
     const availableProjectCount = reportableOverviewProjects(week, overviewScope).length;
     const selectedProjectCount = reportableOverviewProjects(selectedWeek, overviewScope).length;
@@ -77,7 +81,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
         .filter(item => !['vip', 'executive'].includes(access.role) || item.isReleased === true)
-        .map(item => selectOverviewProjects(item, request.projectCodes))
+        .map(item => selectOverviewProjects(activeOverviewWeek(item), request.projectCodes))
         .slice(-6);
     }
     const report = {

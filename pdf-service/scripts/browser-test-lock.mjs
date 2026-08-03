@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { open, readFile, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export const DEFAULT_BROWSER_TEST_LOCK_PATH = join(tmpdir(), 'pm-dashboard-pdf-browser-tests.lock');
 
@@ -64,8 +64,8 @@ function observationIsStale(observation, malformedGraceMs) {
 
 function reclamationPath(lockPath, observation) {
   const identity = observation.record?.token || `malformed:${observation.identity}`;
-  const digest = createHash('sha256').update(identity).digest('hex');
-  return `${lockPath}.reclaim-${digest}`;
+  const digest = createHash('sha256').update(`${lockPath}\0${identity}`).digest('hex');
+  return join(dirname(lockPath), `.pm-dashboard-pdf-reclaim-${digest}.lock`);
 }
 
 async function releaseOwnedFile(path, token) {
@@ -74,7 +74,7 @@ async function releaseOwnedFile(path, token) {
   await removeExactLock(path);
 }
 
-async function reclaimStaleObservation(lockPath, observation, malformedGraceMs) {
+async function reclaimStaleObservation(lockPath, observation, malformedGraceMs, options = {}) {
   const claimPath = reclamationPath(lockPath, observation);
   const claimToken = randomUUID();
   let claimHandle;
@@ -90,12 +90,19 @@ async function reclaimStaleObservation(lockPath, observation, malformedGraceMs) 
     claimHandle = null;
   } catch (error) {
     await claimHandle?.close().catch(() => {});
-    if (error?.code === 'EEXIST') return false;
+    if (error?.code === 'EEXIST') {
+      const existingClaim = await inspectLock(claimPath);
+      if (observationIsStale(existingClaim, malformedGraceMs)) {
+        await reclaimStaleObservation(claimPath, existingClaim, malformedGraceMs);
+      }
+      return false;
+    }
     if (claimHandle) await removeExactLock(claimPath);
     throw error;
   }
 
   try {
+    await options.afterReclamationClaimAcquired?.({ lockPath, claimPath });
     const current = await inspectLock(lockPath);
     if (!observationsMatch(current, observation)) return false;
     if (!observationIsStale(current, malformedGraceMs)) return false;
@@ -119,7 +126,8 @@ export async function acquireBrowserTestLock({
   timeoutMs = 600_000,
   pollMs = 100,
   malformedGraceMs = 1000,
-  afterStaleLockInspection
+  afterStaleLockInspection,
+  afterReclamationClaimAcquired
 } = {}) {
   const startedAt = Date.now();
   const token = randomUUID();
@@ -159,8 +167,10 @@ export async function acquireBrowserTestLock({
         reportedStaleIdentities.add(staleIdentity);
         await afterStaleLockInspection?.({ lockPath, ownerPid, staleIdentity });
       }
-      await reclaimStaleObservation(lockPath, current, malformedGraceMs);
-      continue;
+      const reclaimed = await reclaimStaleObservation(lockPath, current, malformedGraceMs, {
+        afterReclamationClaimAcquired
+      });
+      if (reclaimed) continue;
     }
 
     const waitedMs = Date.now() - startedAt;

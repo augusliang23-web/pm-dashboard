@@ -220,3 +220,43 @@ test('treats all active cross-scope projects as the complete selectable Overview
   assert.equal(report.availableProjectCount, 3);
   assert.equal(report.projectSelectionIsPartial, false);
 });
++
+test('rejects non-active project codes from current and trend Overview render data', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['weekly-trend'],
+      overviewScope: 'all',
+      projectCodes: ['HOLD-004', 'DONE-005']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        isReleased: true,
+        projects: [
+          { code: 'ACTIVE-001', visibility: 'active' },
+          { code: 'HOLD-004', visibility: 'on-hold' },
+          { code: 'DONE-005', visibility: 'completed' }
+        ]
+      }),
+      getTrendWeeks: async () => [{
+        weekLabel: 'W27 2026',
+        isReleased: true,
+        projects: [
+          { code: 'ACTIVE-001', visibility: 'active' },
+          { code: 'HOLD-004', visibility: 'on-hold' },
+          { code: 'DONE-005', visibility: 'completed' }
+        ]
+      }]
+    }
+  });
+
+  assert.deepEqual(report.week.projects, []);
+  assert.deepEqual(report.trendWeeks[0].projects, []);
+  assert.equal(report.selectedProjectCount, 0);
+  assert.equal(report.availableProjectCount, 1);
+  assert.equal(report.projectSelectionIsPartial, true);
+});

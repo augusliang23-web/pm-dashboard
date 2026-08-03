@@ -8057,8 +8057,7 @@ let overviewPrintDraft = null;
 function getActiveOverviewProjectsForPdf() {
   const week = allWeeks[currentIdx];
   const projects = enrichProjectsPrototype(week?.projects || []);
-  return getRoleVisibleProjectsForOverview(projects)
-    .filter(project => !project?.visibility || project.visibility === 'active');
+  return filterRoleVisibleProjects(projects, { role: currentRole, visibilityFilter: 'active' });
 }
 
 function setOverviewProjectPrintValidation(message = '', isError = false) {
