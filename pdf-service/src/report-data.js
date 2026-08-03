@@ -44,7 +44,10 @@ function selectOverviewProjects(week, projectCodes) {
 function reportableOverviewProjects(week, overviewScope = 'system') {
   const scope = overviewScope === 'module' ? 'hardware-module' : overviewScope;
   return (Array.isArray(week?.projects) ? week.projects : [])
-    .filter(project => !['hidden', 'archived'].includes(String(project?.visibility || '').trim().toLowerCase()))
+    .filter(project => {
+      const visibility = String(project?.visibility || '').trim().toLowerCase();
+      return !visibility || visibility === 'active';
+    })
     .filter(project => {
       if (scope === 'all') return true;
       const level = ['system', 'hardware-module', 'software'].includes(project?.projectLevel)

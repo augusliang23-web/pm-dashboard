@@ -8,7 +8,7 @@ const deployedDashboards = [
   ['team-2', dashboard],
 ];
 
-test('Overview PDF uses a second step to choose visible projects in every deployed entry point', () => {
+test('Overview PDF uses a second step to choose every active project in every deployed entry point', () => {
   for (const [entryPoint, source] of deployedDashboards) {
     assert.match(source, /id="overviewProjectPrintOverlay"/, entryPoint);
     assert.match(source, />Next: choose projects</, entryPoint);
@@ -19,9 +19,18 @@ test('Overview PDF uses a second step to choose visible projects in every deploy
     assert.match(source, /buildOverviewPdfRequest\(/, entryPoint);
     assert.match(source, /projectCodes/, entryPoint);
     assert.match(source, /selectedProjectCodes/, entryPoint);
+    assert.match(source, /All active projects you can access are listed\./, entryPoint);
+    const pickerStart = source.indexOf('function getActiveOverviewProjectsForPdf()');
+    const pickerEnd = source.indexOf('function setOverviewProjectPrintValidation', pickerStart);
+    assert.notEqual(pickerStart, -1, entryPoint);
+    const pickerSource = source.slice(pickerStart, pickerEnd);
+    assert.match(pickerSource, /getRoleVisibleProjectsForOverview\(projects\)/, entryPoint);
+    assert.match(pickerSource, /filter\(project => !project\?\.visibility \|\| project\.visibility === 'active'\)/, entryPoint);
+    assert.doesNotMatch(pickerSource, /getOverviewProjects|overviewScope/, entryPoint);
     const start = source.indexOf('window.confirmOverviewProjectPrint =');
     const end = source.indexOf('window.setOverviewScope', start);
     const exportSource = source.slice(start, end);
+    assert.match(exportSource, /overviewScope:\s*'all'/, entryPoint);
     assert.doesNotMatch(exportSource, /localStorage|setDoc|updateDoc|runTransaction/, entryPoint);
   }
 });

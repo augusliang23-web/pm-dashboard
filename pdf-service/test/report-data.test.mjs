@@ -192,3 +192,31 @@ test('treats all reportable projects in the requested scope as a complete select
   assert.equal(report.projectSelectionIsPartial, false);
   assert.equal(report.projectSelectionApplied, true);
 });
+
+test('treats all active cross-scope projects as the complete selectable Overview population', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview', weekId: 'W28', sections: ['executive-milestones'],
+      overviewScope: 'all', projectCodes: ['SYS-001', 'MOD-002', 'SW-003']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        isReleased: true,
+        projects: [
+          { code: 'SYS-001', projectLevel: 'system', visibility: 'active' },
+          { code: 'MOD-002', projectLevel: 'hardware-module', visibility: 'active' },
+          { code: 'SW-003', projectLevel: 'software', visibility: 'active' },
+          { code: 'HOLD-004', projectLevel: 'system', visibility: 'on-hold' },
+          { code: 'DONE-005', projectLevel: 'software', visibility: 'completed' }
+        ]
+      })
+    }
+  });
+
+  assert.deepEqual(report.week.projects.map(project => project.code), ['SYS-001', 'MOD-002', 'SW-003']);
+  assert.equal(report.selectedProjectCount, 3);
+  assert.equal(report.availableProjectCount, 3);
+  assert.equal(report.projectSelectionIsPartial, false);
+});

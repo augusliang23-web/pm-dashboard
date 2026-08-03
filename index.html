@@ -1955,7 +1955,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="modal" style="width:min(620px,92vw);">
     <div class="modal-hdr"><h3 id="overviewProjectPrintTitle">Choose projects</h3><button class="modal-x" onclick="closeModal('overviewProjectPrintOverlay')" aria-label="Close project selection">×</button></div>
     <div class="modal-body">
-      <div class="inline-field-guide">Only currently visible Overview projects are listed. All are selected by default, and every project-based PDF calculation will use this selection.</div>
+      <div class="inline-field-guide">All active projects you can access are listed. All are selected by default, and every project-based PDF calculation will use this selection.</div>
       <div class="print-project-toolbar"><span class="print-project-count" id="overviewProjectPrintCount" aria-live="polite"></span><div class="print-project-toolbar-actions"><button class="btn btn-ghost" type="button" onclick="setOverviewProjectPrintSelection(true)">Select all</button><button class="btn btn-ghost" type="button" onclick="setOverviewProjectPrintSelection(false)">Clear</button></div></div>
       <div class="print-project-list" id="overviewProjectPrintOptions" role="group" aria-label="Projects to include"></div>
       <div class="resource-validation" id="overviewProjectPrintValidation" role="alert"></div>
@@ -8054,10 +8054,11 @@ function configureExecutiveMilestoneAudienceView() {
 
 let overviewPrintDraft = null;
 
-function getVisibleOverviewProjectsForPdf() {
+function getActiveOverviewProjectsForPdf() {
   const week = allWeeks[currentIdx];
   const projects = enrichProjectsPrototype(week?.projects || []);
-  return getOverviewProjects(getRoleVisibleProjectsForOverview(projects), overviewScope);
+  return getRoleVisibleProjectsForOverview(projects)
+    .filter(project => !project?.visibility || project.visibility === 'active');
 }
 
 function setOverviewProjectPrintValidation(message = '', isError = false) {
@@ -8133,7 +8134,7 @@ window.confirmOverviewPrint = () => {
   const executiveAudienceView = selected.includes('executive-milestones')
     ? document.getElementById('executiveMilestoneAudienceView')?.value
     : undefined;
-  const projectOptions = buildOverviewProjectOptions(getVisibleOverviewProjectsForPdf());
+  const projectOptions = buildOverviewProjectOptions(getActiveOverviewProjectsForPdf());
   const selectedProjectCodes = reconcileOverviewProjectSelection(projectOptions, overviewPrintDraft?.selectedProjectCodes);
   overviewPrintDraft = { sections: selected, executiveAudienceView, projectOptions, selectedProjectCodes };
   renderOverviewProjectPrintOptions(projectOptions, selectedProjectCodes);
@@ -8154,7 +8155,7 @@ window.confirmOverviewProjectPrint = async () => {
   try {
     request = buildOverviewPdfRequest({
       sections: overviewPrintDraft?.sections,
-      overviewScope,
+      overviewScope: 'all',
       projectCodes,
       executiveAudienceView: overviewPrintDraft?.executiveAudienceView,
     });
