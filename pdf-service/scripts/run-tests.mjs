@@ -19,17 +19,77 @@ export function buildNodeTestArgs(testFiles) {
   return ['--test', '--test-concurrency=1', ...testFiles];
 }
 
-function childExitCode(child) {
+const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const supportsProcessGroups = process.platform !== 'win32';
+
+function childExitResult(child) {
   return new Promise((resolveExit, reject) => {
     child.once('error', reject);
-    child.once('exit', code => resolveExit(Number.isInteger(code) ? code : 1));
+    child.once('exit', (code, signal) => resolveExit({ code, signal }));
   });
+}
+
+function signalProcessTree(child, signal) {
+  if (!child?.pid) return false;
+  try {
+    if (supportsProcessGroups) {
+      process.kill(-child.pid, signal);
+      return true;
+    }
+    return child.kill(signal);
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+function processTreeIsAlive(child) {
+  if (!child?.pid || !supportsProcessGroups) return false;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false;
+    if (error?.code === 'EPERM') return true;
+    throw error;
+  }
+}
+
+async function waitForProcessTreeExit(child, timeoutMs) {
+  const startedAt = Date.now();
+  while (processTreeIsAlive(child)) {
+    if (Date.now() - startedAt >= timeoutMs) return false;
+    await delay(Math.min(20, Math.max(1, timeoutMs - (Date.now() - startedAt))));
+  }
+  return true;
+}
+
+async function ensureProcessTreeExited(child, {
+  requestedSignal,
+  terminationGraceMs,
+  processTreeExitTimeoutMs
+}) {
+  if (!supportsProcessGroups || !processTreeIsAlive(child)) return true;
+
+  signalProcessTree(child, requestedSignal || 'SIGTERM');
+  if (await waitForProcessTreeExit(child, terminationGraceMs)) return true;
+
+  signalProcessTree(child, 'SIGKILL');
+  return waitForProcessTreeExit(child, processTreeExitTimeoutMs);
+}
+
+function signalExitCode(signal) {
+  if (signal === 'SIGINT') return 130;
+  if (signal === 'SIGTERM') return 143;
+  return 1;
 }
 
 export async function runNodeTests({
   testFiles,
   lockPath = DEFAULT_BROWSER_TEST_LOCK_PATH,
-  stdio = 'inherit'
+  stdio = 'inherit',
+  terminationGraceMs = 2000,
+  processTreeExitTimeoutMs = 2000
 }) {
   if (!Array.isArray(testFiles) || testFiles.length === 0) {
     throw new Error('At least one Node test file is required.');
@@ -37,7 +97,16 @@ export async function runNodeTests({
 
   const lock = await acquireBrowserTestLock({ lockPath });
   let child;
-  const forwardSignal = signal => child?.kill(signal);
+  let requestedSignal = null;
+  let escalationTimer;
+  const forwardSignal = signal => {
+    requestedSignal ||= signal;
+    if (!child) return;
+    signalProcessTree(child, signal);
+    clearTimeout(escalationTimer);
+    escalationTimer = setTimeout(() => signalProcessTree(child, 'SIGKILL'), terminationGraceMs);
+    escalationTimer.unref();
+  };
   const onSigint = () => forwardSignal('SIGINT');
   const onSigterm = () => forwardSignal('SIGTERM');
   process.once('SIGINT', onSigint);
@@ -48,14 +117,28 @@ export async function runNodeTests({
     delete childEnvironment.NODE_TEST_CONTEXT;
     child = spawn(process.execPath, buildNodeTestArgs(testFiles), {
       stdio,
-      env: childEnvironment
+      env: childEnvironment,
+      detached: supportsProcessGroups
     });
+    if (requestedSignal) forwardSignal(requestedSignal);
     child.stdout?.resume();
     child.stderr?.resume();
-    return await childExitCode(child);
+    const result = await childExitResult(child);
+    if (requestedSignal) return signalExitCode(requestedSignal);
+    if (Number.isInteger(result.code)) return result.code;
+    return signalExitCode(result.signal || requestedSignal);
   } finally {
     process.removeListener('SIGINT', onSigint);
     process.removeListener('SIGTERM', onSigterm);
+    clearTimeout(escalationTimer);
+    const treeExited = !child || await ensureProcessTreeExited(child, {
+      requestedSignal,
+      terminationGraceMs,
+      processTreeExitTimeoutMs
+    });
+    if (!treeExited) {
+      throw new Error(`Node test process group ${child.pid} did not exit after SIGKILL; browser-test lock was retained.`);
+    }
     await lock.release();
   }
 }

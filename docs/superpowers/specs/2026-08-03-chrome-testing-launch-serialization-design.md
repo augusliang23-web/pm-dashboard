@@ -21,7 +21,7 @@ It does not change dashboard UI behavior, report data, PDF output, Cloud Run req
 
 Add a test-only lock helper under `pdf-service/scripts/`. It uses an atomic lock file in the operating system temporary directory. The lock path is intentionally identical in both repositories, so two `npm test` processes started from separate worktrees or repositories cannot launch Chrome for Testing concurrently.
 
-The lock record contains a unique ownership token, process ID, and acquisition time. A waiting runner polls at a short interval. If the recorded owner process no longer exists, the waiter removes the stale record and retries. A live owner is never displaced. Acquisition has a bounded timeout and returns an actionable error instead of waiting forever.
+The lock record contains a unique ownership token, process ID, and acquisition time. A waiting runner polls at a short interval. If the recorded owner process no longer exists, a waiter must first acquire a second atomic reclamation claim keyed to the exact stale lock identity, reread that identity while holding the claim, and only then remove it. This prevents two stale-lock waiters from deleting each other's newly acquired live lock. A live owner is never displaced. Acquisition has a bounded timeout and returns an actionable error instead of waiting forever.
 
 Release removes the lock only when the stored token still belongs to the releasing process. Normal completion, test failure, and handled termination all release the lock. An unhandled process crash is recovered by the next runner through the stale-owner check.
 
@@ -32,8 +32,9 @@ Add `pdf-service/scripts/run-tests.mjs` and make `npm test` execute it. The runn
 1. Acquires the shared browser-test lock.
 2. Discovers the repository's `test/*.test.mjs` files in stable sorted order.
 3. Starts the current Node executable with `--test --test-concurrency=1`.
-4. Forwards test output and the child exit code.
-5. Releases the lock in a `finally` path.
+4. Starts the Node test process in its own POSIX process group and forwards test output and exit status.
+5. On SIGINT or SIGTERM, signals the complete process group, escalates to SIGKILL after a bounded grace period, and verifies the group has exited.
+6. Releases the lock in a `finally` path only after the test process tree is gone.
 
 Serializing test files prevents `measured-paginator.test.mjs` and `pdf-layout.test.mjs` from launching independent Chrome processes together. The cross-process lock additionally prevents production and UAT suites from overlapping.
 
@@ -42,9 +43,11 @@ The supported browser-test entry point becomes `npm test` from `pdf-service`. Fo
 ## Error handling
 
 - A stale lock left by a dead process is recovered automatically.
+- Competing stale-lock waiters cannot unlink a replacement owner's lock.
 - A malformed lock record is treated as stale only after it can no longer represent a live owner.
 - A live lock that exceeds the bounded wait returns an error naming the lock owner and path.
 - A child test failure is preserved as the runner's nonzero exit status.
+- SIGINT and SIGTERM return conventional exit codes 130 and 143 after descendant cleanup.
 - The helper never deletes directories or broad paths; it only removes the exact temporary lock file it owns or has proven stale.
 
 ## Test strategy
@@ -52,8 +55,8 @@ The supported browser-test entry point becomes `npm test` from `pdf-service`. Fo
 Implementation follows red-green-refactor:
 
 1. Add a lock integration test that starts two independent Node processes against a unique temporary lock path and asserts their critical sections never overlap.
-2. Add a stale-owner test that proves a dead owner's lock can be reclaimed.
-3. Add runner tests that assert the generated Node arguments include `--test-concurrency=1`, test files are sorted, and child failures propagate.
+2. Add a barrier-controlled 12-waiter regression proving stale-owner reclamation never permits overlapping owners.
+3. Add runner tests that assert the generated Node arguments include `--test-concurrency=1`, test files are sorted, child failures propagate, and SIGINT/SIGTERM remove real descendant processes before releasing the lock.
 4. Run the new tests before implementation and confirm they fail because the helper and runner do not exist.
 5. Implement the minimum lock and runner behavior, then make the focused tests pass.
 6. Run each full PDF suite through `npm test` and then intentionally start the production and UAT package commands together. They must complete serially without overlapping the browser-test lock.

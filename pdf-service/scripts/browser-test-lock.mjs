@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { open, readFile, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,16 +25,84 @@ async function inspectLock(lockPath) {
       readFile(lockPath, 'utf8'),
       stat(lockPath)
     ]);
-    let record = null;
+    let parsedRecord = null;
     try {
-      record = JSON.parse(contents);
+      parsedRecord = JSON.parse(contents);
     } catch {
       // A newly created lock can be observed before its owner record is fully written.
     }
-    return { record, ageMs: Math.max(0, Date.now() - fileStat.mtimeMs) };
+    const record = parsedRecord
+      && typeof parsedRecord === 'object'
+      && Number.isSafeInteger(parsedRecord.pid)
+      && typeof parsedRecord.token === 'string'
+      ? parsedRecord
+      : null;
+    return {
+      record,
+      ageMs: Math.max(0, Date.now() - fileStat.mtimeMs),
+      identity: `${fileStat.dev}:${fileStat.ino}:${fileStat.size}:${fileStat.mtimeMs}`
+    };
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;
+  }
+}
+
+function observationsMatch(left, right) {
+  if (!left || !right) return false;
+  if (left.record?.token && right.record?.token) {
+    return left.record.token === right.record.token;
+  }
+  return !left.record && !right.record && left.identity === right.identity;
+}
+
+function observationIsStale(observation, malformedGraceMs) {
+  if (!observation) return false;
+  if (observation.record) return !processIsAlive(observation.record.pid);
+  return observation.ageMs >= malformedGraceMs;
+}
+
+function reclamationPath(lockPath, observation) {
+  const identity = observation.record?.token || `malformed:${observation.identity}`;
+  const digest = createHash('sha256').update(identity).digest('hex');
+  return `${lockPath}.reclaim-${digest}`;
+}
+
+async function releaseOwnedFile(path, token) {
+  const current = await inspectLock(path);
+  if (current?.record?.token !== token) return;
+  await removeExactLock(path);
+}
+
+async function reclaimStaleObservation(lockPath, observation, malformedGraceMs) {
+  const claimPath = reclamationPath(lockPath, observation);
+  const claimToken = randomUUID();
+  let claimHandle;
+
+  try {
+    claimHandle = await open(claimPath, 'wx', 0o600);
+    await claimHandle.writeFile(JSON.stringify({
+      pid: process.pid,
+      token: claimToken,
+      acquiredAt: Date.now()
+    }), 'utf8');
+    await claimHandle.close();
+    claimHandle = null;
+  } catch (error) {
+    await claimHandle?.close().catch(() => {});
+    if (error?.code === 'EEXIST') return false;
+    if (claimHandle) await removeExactLock(claimPath);
+    throw error;
+  }
+
+  try {
+    const current = await inspectLock(lockPath);
+    if (!observationsMatch(current, observation)) return false;
+    if (!observationIsStale(current, malformedGraceMs)) return false;
+    await removeExactLock(lockPath);
+    return true;
+  } finally {
+    await releaseOwnedFile(claimPath, claimToken);
   }
 }
 
@@ -50,11 +118,13 @@ export async function acquireBrowserTestLock({
   lockPath = DEFAULT_BROWSER_TEST_LOCK_PATH,
   timeoutMs = 600_000,
   pollMs = 100,
-  malformedGraceMs = 1000
+  malformedGraceMs = 1000,
+  afterStaleLockInspection
 } = {}) {
   const startedAt = Date.now();
   const token = randomUUID();
   const record = { pid: process.pid, token, acquiredAt: startedAt };
+  const reportedStaleIdentities = new Set();
 
   while (true) {
     let handle;
@@ -70,9 +140,7 @@ export async function acquireBrowserTestLock({
         release: async () => {
           if (released) return;
           released = true;
-          const current = await inspectLock(lockPath);
-          if (current?.record?.token !== token) return;
-          await removeExactLock(lockPath);
+          await releaseOwnedFile(lockPath, token);
         }
       };
     } catch (error) {
@@ -85,10 +153,13 @@ export async function acquireBrowserTestLock({
     if (!current) continue;
 
     const ownerPid = current.record?.pid;
-    const ownerIsLive = processIsAlive(ownerPid);
-    const malformedRecordIsStale = !current.record && current.ageMs >= malformedGraceMs;
-    if (!ownerIsLive && (current.record || malformedRecordIsStale)) {
-      await removeExactLock(lockPath);
+    if (observationIsStale(current, malformedGraceMs)) {
+      const staleIdentity = current.record?.token || current.identity;
+      if (!reportedStaleIdentities.has(staleIdentity)) {
+        reportedStaleIdentities.add(staleIdentity);
+        await afterStaleLockInspection?.({ lockPath, ownerPid, staleIdentity });
+      }
+      await reclaimStaleObservation(lockPath, current, malformedGraceMs);
       continue;
     }
 

@@ -78,6 +78,52 @@ test('reclaims a lock whose recorded owner process is no longer alive', async ()
   }
 });
 
+test('serializes all waiters while reclaiming one stale owner record', async () => {
+  const { acquireBrowserTestLock } = await loadLockModule();
+  const { directory, lockPath } = await temporaryLockPath();
+  let staleObservations = 0;
+  let releaseInspectionBarrier;
+  const inspectionBarrier = new Promise(resolve => {
+    releaseInspectionBarrier = resolve;
+  });
+  let active = 0;
+  let maxActive = 0;
+
+  try {
+    await writeFile(lockPath, JSON.stringify({
+      pid: 99999999,
+      token: 'dead-owner-race',
+      acquiredAt: 0
+    }));
+
+    await Promise.all(
+      Array.from({ length: 12 }, async () => {
+        const lock = await acquireBrowserTestLock({
+          lockPath,
+          pollMs: 1,
+          timeoutMs: 5000,
+          afterStaleLockInspection: async () => {
+            staleObservations += 1;
+            if (staleObservations === 12) releaseInspectionBarrier();
+            await inspectionBarrier;
+          }
+        });
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await delay(3);
+        active -= 1;
+        await lock.release();
+      })
+    );
+
+    assert.equal(staleObservations, 12);
+    assert.equal(maxActive, 1);
+  } finally {
+    releaseInspectionBarrier();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('does not let an old owner release a replacement lock', async () => {
   const { acquireBrowserTestLock } = await loadLockModule();
   const { directory, lockPath } = await temporaryLockPath();
