@@ -3,6 +3,27 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const dashboard = readFileSync(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const deployedDashboards = [
+  ['root', readFileSync(new URL('../index.html', import.meta.url), 'utf8')],
+  ['team-2', dashboard],
+];
+
+test('Overview PDF uses a second step to choose visible projects in every deployed entry point', () => {
+  for (const [entryPoint, source] of deployedDashboards) {
+    assert.match(source, /id="overviewProjectPrintOverlay"/, entryPoint);
+    assert.match(source, />Next: choose projects</, entryPoint);
+    assert.match(source, /onclick="setOverviewProjectPrintSelection\(true\)"[^>]*>Select all</, entryPoint);
+    assert.match(source, /onclick="setOverviewProjectPrintSelection\(false\)"[^>]*>Clear</, entryPoint);
+    assert.match(source, /Select at least one project to export\./, entryPoint);
+    assert.match(source, /buildOverviewProjectOptions\(/, entryPoint);
+    assert.match(source, /buildOverviewPdfRequest\(/, entryPoint);
+    assert.match(source, /projectCodes/, entryPoint);
+    const start = source.indexOf('window.confirmOverviewProjectPrint =');
+    const end = source.indexOf('window.setOverviewScope', start);
+    const exportSource = source.slice(start, end);
+    assert.doesNotMatch(exportSource, /localStorage|setDoc|updateDoc|runTransaction/, entryPoint);
+  }
+});
 
 test('Overview PDF opens a section selection dialog with approved presets', () => {
   assert.match(dashboard, /onclick="openOverviewPrintDialog\(\)"/);
@@ -28,14 +49,16 @@ test('every Overview report section has a selectable print identity', () => {
   }
 });
 
-test('Overview selection sends a direct professional download request and does not persist data', () => {
+test('Overview selection sends the validated two-step request and does not persist data', () => {
   const start = dashboard.indexOf('window.confirmOverviewPrint =');
   const end = dashboard.indexOf('window.setOverviewScope', start);
   const source = dashboard.slice(start, end);
   assert.ok(source.includes('Select at least one section to export.'));
+  assert.ok(source.includes('Select at least one project to export.'));
   assert.ok(source.includes('downloadProfessionalReport'));
-  assert.ok(source.includes("mode: 'overview'"));
+  assert.ok(source.includes('buildOverviewPdfRequest'));
   assert.ok(source.includes('overviewScope'));
+  assert.ok(source.includes('projectCodes'));
   assert.doesNotMatch(source, /localStorage|setDoc|updateDoc|runTransaction/);
   assert.match(dashboard, /function renderOverviewPrintReport\(/);
   assert.match(dashboard, /function renderPresentationReportPage\(/);

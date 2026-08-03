@@ -1101,6 +1101,14 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .print-section-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .print-section-grid label { display:flex; align-items:center; gap:8px; padding:10px 11px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text-light); font-size:11px; font-weight:750; cursor:pointer; }
 .print-section-grid input { accent-color:var(--accent); }
+.print-project-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0 8px; }
+.print-project-toolbar-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.print-project-count { color:var(--text-light); font-size:11px; font-weight:750; }
+.print-project-list { display:grid; gap:8px; max-height:min(52vh,420px); overflow:auto; padding-right:3px; }
+.print-project-option { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:start; padding:11px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:pointer; }
+.print-project-option input { margin-top:3px; accent-color:var(--accent); }
+.print-project-option strong { display:block; color:var(--text); font-size:12px; }
+.print-project-option span { display:block; margin-top:2px; color:var(--text-light); font-size:11px; overflow-wrap:anywhere; }
 .print-audience-field { margin-top:10px; padding:10px 11px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
 .print-audience-field label { display:block; margin-bottom:6px; color:var(--text); font-size:11px; font-weight:750; }
 .print-audience-field select { width:100%; }
@@ -1939,8 +1947,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
     <div class="modal-ftr">
       <button class="btn btn-ghost" type="button" onclick="closeModal('overviewPrintOverlay')">Cancel</button>
-      <button class="btn btn-primary" id="overviewPdfExportButton" type="button" onclick="confirmOverviewPrint()">Export PDF</button>
+      <button class="btn btn-primary" id="overviewProjectNextButton" type="button" onclick="confirmOverviewPrint()">Next: choose projects</button>
     </div>
+  </div>
+</div>
+<div class="overlay" id="overviewProjectPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewProjectPrintTitle">
+  <div class="modal" style="width:min(620px,92vw);">
+    <div class="modal-hdr"><h3 id="overviewProjectPrintTitle">Choose projects</h3><button class="modal-x" onclick="closeModal('overviewProjectPrintOverlay')" aria-label="Close project selection">×</button></div>
+    <div class="modal-body">
+      <div class="inline-field-guide">Only currently visible Overview projects are listed. All are selected by default, and every project-based PDF calculation will use this selection.</div>
+      <div class="print-project-toolbar"><span class="print-project-count" id="overviewProjectPrintCount" aria-live="polite"></span><div class="print-project-toolbar-actions"><button class="btn btn-ghost" type="button" onclick="setOverviewProjectPrintSelection(true)">Select all</button><button class="btn btn-ghost" type="button" onclick="setOverviewProjectPrintSelection(false)">Clear</button></div></div>
+      <div class="print-project-list" id="overviewProjectPrintOptions" role="group" aria-label="Projects to include"></div>
+      <div class="resource-validation" id="overviewProjectPrintValidation" role="alert"></div>
+    </div>
+    <div class="modal-ftr"><button class="btn btn-ghost" type="button" onclick="backToOverviewPrintSections()">Back</button><button class="btn btn-primary" id="overviewPdfExportButton" type="button" onclick="confirmOverviewProjectPrint()">Export PDF</button></div>
   </div>
 </div>
 <datalist id="teamRoleOptions"></datalist>
@@ -2555,6 +2575,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { buildOverviewPdfRequest, buildOverviewProjectOptions } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
@@ -8031,13 +8052,74 @@ function configureExecutiveMilestoneAudienceView() {
   syncExecutiveMilestoneAudienceField();
 }
 
+let overviewPrintDraft = null;
+
+function getVisibleOverviewProjectsForPdf() {
+  const week = allWeeks[currentIdx];
+  const projects = enrichProjectsPrototype(week?.projects || []);
+  return getOverviewProjects(getRoleVisibleProjectsForOverview(projects), overviewScope);
+}
+
+function setOverviewProjectPrintValidation(message = '', isError = false) {
+  const validation = document.getElementById('overviewProjectPrintValidation');
+  if (!validation) return;
+  validation.textContent = message;
+  validation.className = message ? `resource-validation show${isError ? ' error' : ''}` : 'resource-validation';
+}
+
+window.updateOverviewProjectPrintSelectionStatus = () => {
+  const inputs = [...document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]')];
+  const selectedCount = inputs.filter(input => input.checked).length;
+  const count = document.getElementById('overviewProjectPrintCount');
+  if (count) count.textContent = `${selectedCount} of ${inputs.length} projects selected`;
+  if (selectedCount) setOverviewProjectPrintValidation();
+};
+
+function renderOverviewProjectPrintOptions(projectOptions) {
+  const container = document.getElementById('overviewProjectPrintOptions');
+  if (!container) return;
+  container.replaceChildren();
+  projectOptions.forEach(project => {
+    const label = document.createElement('label');
+    label.className = 'print-project-option';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.name = 'overviewProjectPrintSelection';
+    checkbox.value = project.code;
+    checkbox.checked = true;
+    checkbox.addEventListener('change', window.updateOverviewProjectPrintSelectionStatus);
+    const details = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = project.name;
+    const code = document.createElement('span');
+    code.textContent = project.code;
+    details.append(name, code);
+    label.append(checkbox, details);
+    container.append(label);
+  });
+  window.updateOverviewProjectPrintSelectionStatus();
+}
+
+window.setOverviewProjectPrintSelection = checked => {
+  document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]').forEach(input => {
+    input.checked = checked;
+  });
+  window.updateOverviewProjectPrintSelectionStatus();
+};
+
+window.backToOverviewPrintSections = () => {
+  closeModal('overviewProjectPrintOverlay');
+  openAccessibleModal(document.getElementById('overviewPrintOverlay'));
+};
+
 window.openOverviewPrintDialog = () => {
+  overviewPrintDraft = null;
   applyOverviewPrintPreset('all');
   configureExecutiveMilestoneAudienceView();
   openAccessibleModal(document.getElementById('overviewPrintOverlay'));
 };
 
-window.confirmOverviewPrint = async () => {
+window.confirmOverviewPrint = () => {
   const checked = [...document.querySelectorAll('#overviewPrintSections input[type="checkbox"]:checked')];
   const validation = document.getElementById('overviewPrintValidation');
   if (!checked.length) {
@@ -8049,15 +8131,47 @@ window.confirmOverviewPrint = async () => {
   const executiveAudienceView = selected.includes('executive-milestones')
     ? document.getElementById('executiveMilestoneAudienceView')?.value
     : undefined;
+  const projectOptions = buildOverviewProjectOptions(getVisibleOverviewProjectsForPdf());
+  overviewPrintDraft = { sections: selected, executiveAudienceView, projectOptions };
+  renderOverviewProjectPrintOptions(projectOptions);
+  setOverviewProjectPrintValidation();
+  closeModal('overviewPrintOverlay');
+  openAccessibleModal(document.getElementById('overviewProjectPrintOverlay'));
+};
+
+window.confirmOverviewProjectPrint = async () => {
+  const validation = document.getElementById('overviewProjectPrintValidation');
+  const projectCodes = [...document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]:checked')]
+    .map(input => input.value);
+  if (!projectCodes.length) {
+    setOverviewProjectPrintValidation('Select at least one project to export.', true);
+    return;
+  }
+  let request;
+  try {
+    request = buildOverviewPdfRequest({
+      sections: overviewPrintDraft?.sections,
+      overviewScope,
+      projectCodes,
+      executiveAudienceView: overviewPrintDraft?.executiveAudienceView,
+    });
+  } catch (error) {
+    setOverviewProjectPrintValidation(error.message, true);
+    return;
+  }
   const button = document.getElementById('overviewPdfExportButton');
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  const request = { mode: 'overview', sections: selected, overviewScope };
-  if (executiveAudienceView) request.executiveAudienceView = executiveAudienceView;
+  setOverviewProjectPrintValidation('Generating PDF…');
   const downloaded = await downloadProfessionalReport(request, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
   button.disabled = false;
   button.removeAttribute('aria-busy');
-  if (downloaded) closeModal('overviewPrintOverlay');
+  if (downloaded) {
+    closeModal('overviewProjectPrintOverlay');
+    overviewPrintDraft = null;
+  } else {
+    validation.className = 'resource-validation show error';
+  }
 };
 
 window.setOverviewScope = scope => {
