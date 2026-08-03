@@ -98,5 +98,8 @@ test('omits Executive milestones for a partial project selection', () => {
 - [ ] **Step 1: Repeat Tasks 1–3 using TDD in the UAT worktree.**
 - [ ] **Step 2: Run `npm test --prefix pdf-service && node --test tests/*.test.mjs` in both worktrees; stop on any failure.**
 - [ ] **Step 3: Compare shared feature files with `git diff --no-index` and resolve unintended differences.**
-- [ ] **Step 4: Deploy the shared Cloud Run service once, then push each verified Pages repository through its deployment workflow.**
-- [ ] **Step 5: Open both release URLs and confirm the two-step export dialog is present and submits selected codes.**
+- [ ] **Step 4: Prepare and smoke-test a temporary Cloud Run source identical to the final service except that an omitted `projectCodes` field remains accepted for cached legacy clients.**
+- [ ] **Step 5: Deploy the temporary compatible Cloud Run revision before changing either Pages site.**
+- [ ] **Step 6: Push both verified Pages repositories and confirm each live URL exposes the two-step flow and submits `projectCodes`.**
+- [ ] **Step 7: Keep the compatible revision active through the Pages cache and active-session transition, then deploy the strict UAT Cloud Run source that requires `projectCodes`.**
+- [ ] **Step 8: Re-test both release URLs against the strict revision and record the deployed commits and Cloud Run revision.**
