@@ -89,6 +89,24 @@ function renderContextCard(project) {
   </article>`;
 }
 
+function filterExecutiveSummaryBrief(brief, selectedProjects, shouldFilter) {
+  if (!shouldFilter) return brief;
+  const identities = new Set((Array.isArray(selectedProjects) ? selectedProjects : [])
+    .flatMap(project => [project?.name, project?.code])
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(Boolean));
+  const isSelected = item => identities.has(String(item?.projectName || '').trim().toLowerCase());
+  const projects = brief.projects.filter(isSelected);
+  const managementAsks = brief.managementAsks.filter(isSelected);
+  const asked = new Set(managementAsks.map(item => item.projectName.toLowerCase()));
+  const priorityProjects = projects
+    .map((project, index) => ({ project, index, asked: asked.has(project.projectName.toLowerCase()) }))
+    .sort((left, right) => Number(right.asked) - Number(left.asked) || left.index - right.index)
+    .slice(0, 2)
+    .map(item => item.project);
+  return { ...brief, projects, priorityProjects, managementAsks };
+}
+
 function flowItem({ kind, pageTitle, pageKicker, pageSection, body, splittable = false }) {
   return `<div data-pdf-flow-item data-flow-kind="${escapeHtml(kind)}" data-page-title="${escapeHtml(pageTitle)}" data-page-kicker="${escapeHtml(pageKicker)}" data-page-section="${escapeHtml(pageSection)}"${splittable ? ' data-pdf-splittable' : ''}>${body}</div>`;
 }
@@ -294,10 +312,9 @@ export function renderOverviewReportHtml({
   sections,
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
-  projectCodes,
-  availableProjectCount
+  projectSelectionIsPartial = false
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectCodes, availableProjectCount });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionIsPartial });
   const selected = new Set(model.sections);
   const pages = [];
 
@@ -313,7 +330,11 @@ export function renderOverviewReportHtml({
   }));
 
   if (selected.has('executive-summary')) {
-    const brief = parseExecutiveSummaryBrief(model.executiveSummary);
+    const brief = filterExecutiveSummaryBrief(
+      parseExecutiveSummaryBrief(model.executiveSummary),
+      model.projects,
+      model.projectSelectionIsPartial
+    );
     pages.push(reportPage({
       section: 'executive-summary-brief', title: 'Decision Brief',
       kicker: 'Executive Summary - Management-ready update', period: model.period,

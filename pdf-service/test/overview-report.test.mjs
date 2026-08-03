@@ -187,12 +187,34 @@ test('omits Executive milestones when no timeline is saved', () => {
 
 test('omits Executive milestones for a partial project selection', () => {
   const fixture = completeOverviewReportFixture();
-  fixture.projectCodes = [fixture.week.projects[0].code];
-  fixture.availableProjectCount = fixture.week.projects.length;
+  fixture.projectSelectionIsPartial = true;
 
   const html = renderOverviewReportHtml(fixture);
 
   assert.doesNotMatch(html, /data-section-unit="executive-milestones"/);
+});
+
+test('filters project-specific Executive Summary entries for a partial selection', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.projects = [fixture.week.projects[0]];
+  fixture.week.executiveSummary = `WEEKLY MOVEMENT
+Portfolio Summary: Delivery remains stable.
+- Project: Platform Modernization
+  Movement: Selected movement.
+- Project: Module Refresh
+  Movement: Unselected movement.
+MANAGEMENT ASK
+- Project: Platform Modernization
+  Decision / Support needed: Selected decision.
+- Project: Module Refresh
+  Decision / Support needed: Unselected decision.`;
+  fixture.projectSelectionIsPartial = true;
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.match(html, /Selected movement|Selected decision/);
+  assert.doesNotMatch(html, /Module Refresh|Unselected movement|Unselected decision/);
 });
 
 test('renders weekly key actions independently and omits risks when none are stored', () => {

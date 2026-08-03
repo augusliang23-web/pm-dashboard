@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildOverviewPdfRequest,
   buildOverviewProjectOptions,
+  reconcileOverviewProjectSelection,
 } from '../js/overview-pdf-selection.mjs';
 
 test('builds unique project options in the visible Overview order', () => {
@@ -49,4 +50,14 @@ test('rejects an Overview PDF request without sections or projects', () => {
     () => buildOverviewPdfRequest({ sections: ['health-focus'], overviewScope: 'All', projectCodes: [] }),
     /project/i,
   );
+});
+
+test('preserves valid project choices when returning from the section step', () => {
+  const options = buildOverviewProjectOptions([
+    { code: 'PMS-001', name: 'Programme Alpha' },
+    { code: 'MOD-002', name: 'Module Beta' },
+  ]);
+  assert.deepEqual(reconcileOverviewProjectSelection(options), ['PMS-001', 'MOD-002']);
+  assert.deepEqual(reconcileOverviewProjectSelection(options, ['MOD-002', 'STALE-999']), ['MOD-002']);
+  assert.deepEqual(reconcileOverviewProjectSelection(options, []), []);
 });

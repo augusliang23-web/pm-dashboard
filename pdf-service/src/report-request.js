@@ -84,12 +84,12 @@ export function parseReportRequest(input) {
   if (projectCode) request.projectCode = projectCode;
   if (mode === 'overview' && input.overviewScope !== undefined) {
     const overviewScope = requiredText(input.overviewScope, 'overviewScope');
-    if (!['system', 'module', 'all'].includes(overviewScope)) {
+    if (!['system', 'module', 'hardware-module', 'software', 'all'].includes(overviewScope)) {
       throw new ReportRequestError(`Unsupported overviewScope: ${overviewScope}.`);
     }
-    request.overviewScope = overviewScope;
+    request.overviewScope = overviewScope === 'module' ? 'hardware-module' : overviewScope;
   }
-  if (mode === 'overview' && input.projectCodes !== undefined) {
+  if (mode === 'overview') {
     if (!Array.isArray(input.projectCodes) || input.projectCodes.length === 0) {
       throw new ReportRequestError('At least one project selection is required.');
     }

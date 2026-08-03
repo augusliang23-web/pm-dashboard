@@ -18,6 +18,7 @@ test('Overview PDF uses a second step to choose visible projects in every deploy
     assert.match(source, /buildOverviewProjectOptions\(/, entryPoint);
     assert.match(source, /buildOverviewPdfRequest\(/, entryPoint);
     assert.match(source, /projectCodes/, entryPoint);
+    assert.match(source, /selectedProjectCodes/, entryPoint);
     const start = source.indexOf('window.confirmOverviewProjectPrint =');
     const end = source.indexOf('window.setOverviewScope', start);
     const exportSource = source.slice(start, end);

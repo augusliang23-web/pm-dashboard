@@ -26,6 +26,12 @@ export function buildOverviewProjectOptions(projects = []) {
   return options;
 }
 
+export function reconcileOverviewProjectSelection(projectOptions = [], selectedProjectCodes) {
+  const availableCodes = new Set(buildOverviewProjectOptions(projectOptions).map(project => project.code));
+  if (!Array.isArray(selectedProjectCodes)) return [...availableCodes];
+  return uniqueTextList(selectedProjectCodes).filter(code => availableCodes.has(code));
+}
+
 export function buildOverviewPdfRequest({
   sections,
   overviewScope,
@@ -50,4 +56,3 @@ export function buildOverviewPdfRequest({
   }
   return request;
 }
-

@@ -38,7 +38,7 @@ test('returns an actionable error when generated output exceeds 8 MiB', async ()
 
   await handle({
     headers: { authorization: 'Bearer token' },
-    body: { mode: 'overview', weekId: 'W28', sections: ['health-focus'] }
+    body: { mode: 'overview', weekId: 'W28', sections: ['health-focus'], projectCodes: ['PMS-001'] }
   }, res);
 
   assert.equal(res.statusCode, 413);

@@ -2527,7 +2527,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
-import { buildOverviewPdfRequest, buildOverviewProjectOptions } from "./js/overview-pdf-selection.mjs";
+import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
@@ -7878,15 +7878,17 @@ function setOverviewProjectPrintValidation(message = '', isError = false) {
 window.updateOverviewProjectPrintSelectionStatus = () => {
   const inputs = [...document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]')];
   const selectedCount = inputs.filter(input => input.checked).length;
+  if (overviewPrintDraft) overviewPrintDraft.selectedProjectCodes = inputs.filter(input => input.checked).map(input => input.value);
   const count = document.getElementById('overviewProjectPrintCount');
   if (count) count.textContent = `${selectedCount} of ${inputs.length} projects selected`;
   if (selectedCount) setOverviewProjectPrintValidation();
 };
 
-function renderOverviewProjectPrintOptions(projectOptions) {
+function renderOverviewProjectPrintOptions(projectOptions, selectedProjectCodes) {
   const container = document.getElementById('overviewProjectPrintOptions');
   if (!container) return;
   container.replaceChildren();
+  const selected = new Set(selectedProjectCodes);
   projectOptions.forEach(project => {
     const label = document.createElement('label');
     label.className = 'print-project-option';
@@ -7894,7 +7896,7 @@ function renderOverviewProjectPrintOptions(projectOptions) {
     checkbox.type = 'checkbox';
     checkbox.name = 'overviewProjectPrintSelection';
     checkbox.value = project.code;
-    checkbox.checked = true;
+    checkbox.checked = selected.has(project.code);
     checkbox.addEventListener('change', window.updateOverviewProjectPrintSelectionStatus);
     const details = document.createElement('span');
     const name = document.createElement('strong');
@@ -7936,8 +7938,9 @@ window.confirmOverviewPrint = () => {
   }
   const selected = checked.map(input => input.value);
   const projectOptions = buildOverviewProjectOptions(getVisibleOverviewProjectsForPdf());
-  overviewPrintDraft = { sections: selected, projectOptions };
-  renderOverviewProjectPrintOptions(projectOptions);
+  const selectedProjectCodes = reconcileOverviewProjectSelection(projectOptions, overviewPrintDraft?.selectedProjectCodes);
+  overviewPrintDraft = { sections: selected, projectOptions, selectedProjectCodes };
+  renderOverviewProjectPrintOptions(projectOptions, selectedProjectCodes);
   setOverviewProjectPrintValidation();
   closeModal('overviewPrintOverlay');
   openAccessibleModal(document.getElementById('overviewProjectPrintOverlay'));

@@ -57,26 +57,30 @@ test('accepts an Executive milestone audience view only with that section', () =
     mode: 'overview',
     weekId: 'W28',
     sections: ['executive-milestones', 'quarterly-roadmap'],
-    executiveAudienceView: 'business-product'
+    executiveAudienceView: 'business-product',
+    projectCodes: ['PMS-001']
   }), {
     mode: 'overview',
     weekId: 'W28',
     sections: ['executive-milestones', 'quarterly-roadmap'],
-    executiveAudienceView: 'business-product'
+    executiveAudienceView: 'business-product',
+    projectCodes: ['PMS-001']
   });
 
   assert.throws(() => parseReportRequest({
     mode: 'overview',
     weekId: 'W28',
     sections: ['quarterly-roadmap'],
-    executiveAudienceView: 'leadership'
+    executiveAudienceView: 'leadership',
+    projectCodes: ['PMS-001']
   }), /requires the Executive milestones section/);
 
   assert.throws(() => parseReportRequest({
     mode: 'overview',
     weekId: 'W28',
     sections: ['executive-milestones'],
-    executiveAudienceView: 'unrestricted'
+    executiveAudienceView: 'unrestricted',
+    projectCodes: ['PMS-001']
   }), /Unsupported executiveAudienceView/);
 });
 
@@ -91,6 +95,19 @@ test('accepts unique selected project codes for an Overview report', () => {
   assert.deepEqual(request.projectCodes, ['PMS-001', 'MOD-002']);
 });
 
+test('accepts every Overview scope emitted by the dashboard', () => {
+  for (const overviewScope of ['system', 'hardware-module', 'software', 'all']) {
+    const request = parseReportRequest({
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['health-focus'],
+      overviewScope,
+      projectCodes: ['PMS-001']
+    });
+    assert.equal(request.overviewScope, overviewScope);
+  }
+});
+
 test('rejects invalid Overview project selections', () => {
   for (const projectCodes of [[], ['PMS-001', 'PMS-001'], [' '], [42]]) {
     assert.throws(
@@ -98,4 +115,11 @@ test('rejects invalid Overview project selections', () => {
       ReportRequestError
     );
   }
+});
+
+test('requires project selections for every Overview request', () => {
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['health-focus'] }),
+    /At least one project selection is required/
+  );
 });

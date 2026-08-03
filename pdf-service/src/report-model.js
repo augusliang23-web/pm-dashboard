@@ -363,8 +363,7 @@ export function buildOverviewReportModel({
   sections = [],
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
-  projectCodes,
-  availableProjectCount
+  projectSelectionIsPartial = false
 } = {}) {
   const projects = scopedProjects(week.projects, overviewScope);
   const attention = { action: [], monitor: [], strategy: [], watch: [] };
@@ -380,11 +379,12 @@ export function buildOverviewReportModel({
     sections: [...sections],
     overviewScope: scopeLevel(overviewScope),
     executiveSummary: String(week.executiveSummary || week.summary || week.overviewSummary || ''),
+    projectSelectionIsPartial,
     projects,
     health: healthSummary(projects),
     attention,
     riskRows: buildRiskRows(projects),
-    executiveMilestones: Array.isArray(projectCodes) && projectCodes.length < availableProjectCount
+    executiveMilestones: projectSelectionIsPartial
       ? { title: 'Executive Milestones', quarters: [], phases: [], rows: [] }
       : normalizeExecutiveMilestones(week, executiveAudienceView),
     quarterlyItems,
