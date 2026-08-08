@@ -98,6 +98,9 @@ body {
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
 }
 #saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.async-action-spinner { display:inline-block; width:1em; height:1em; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-.15em; margin-right:.35em; }
+button[aria-busy="true"] { cursor:wait; }
+#unsavedChangesOverlay { z-index:10010; }
 .toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
 
 /* ── LOGIN ── */
@@ -1872,6 +1875,16 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <main id="printReportRoot" aria-hidden="true"></main>
 
+<div class="overlay" id="unsavedChangesOverlay" role="dialog" aria-modal="true" aria-labelledby="unsavedChangesTitle">
+  <div class="modal" style="width:min(460px,92vw);">
+    <div class="modal-hdr"><h3 id="unsavedChangesTitle">Discard unsaved changes?</h3></div>
+    <div class="modal-body">
+      <p class="inline-field-guide">Your changes have not been saved. You can keep editing or discard them and close this screen.</p>
+      <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="keepEditing()">Keep editing</button><button type="button" class="btn btn-danger" onclick="confirmDiscardEditorChanges()">Discard changes</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overviewPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewPrintTitle">
   <div class="modal" style="width:min(620px,92vw);">
     <div class="modal-hdr">
@@ -2172,7 +2185,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
-<div class="overlay" id="changePwdOverlay">
+<div class="overlay" id="changePwdOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Change password" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:400px">
   <div class="modal-hdr"><h3>Change Password</h3><button class="modal-x" onclick="closeModal('changePwdOverlay')">×</button></div>
   <div class="fg"><label class="fl">Current Password</label><input type="password" class="fi" id="cp_current"></div>
@@ -2184,7 +2197,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="projEditOverlay" onclick="closeProjectOverlayFromBackdrop(event)">
+<div class="overlay" id="projEditOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Project editor" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:850px">
   <div class="modal-hdr">
     <h3 id="peTitle">Edit Project</h3>
@@ -2390,7 +2403,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="weekManageOverlay">
+<div class="overlay" id="weekManageOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Week management" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:900px">
   <div class="modal-hdr"><h3>Week Management</h3><button class="modal-x" onclick="closeModal('weekManageOverlay')">×</button></div>
   
@@ -2474,7 +2487,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="strategyOverlay">
+<div class="overlay" id="strategyOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Strategic layer management" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
@@ -2494,7 +2507,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="ganttTemplateOverlay" role="dialog" aria-modal="true" aria-labelledby="ganttTemplateTitle">
+<div class="overlay" id="ganttTemplateOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="ganttTemplateTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:820px">
     <div class="modal-hdr">
       <h3 id="ganttTemplateTitle">Default Gantt Templates</h3>
@@ -2888,7 +2901,7 @@ window.saveGanttTemplateSettings = async () => {
     currentGanttTemplateRevision = savedRevision;
     ganttTemplateSaveInFlight = false;
     ganttTemplateSession = null;
-    closeModal('ganttTemplateOverlay');
+    closeModal('ganttTemplateOverlay', { force: true });
     showSaveToast('Default Gantt templates updated');
   } catch (error) {
     if (!isGanttTemplateSessionCurrent(session)) return;
@@ -3938,7 +3951,7 @@ window.handleResetPassword = async () => {
 window.openChangePassword = () => {
   document.getElementById('cp_current').value = '';
   document.getElementById('cp_new').value = '';
-  document.getElementById('changePwdOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('changePwdOverlay'));
 };
 
 window.saveNewPassword = async () => {
@@ -3955,7 +3968,7 @@ window.saveNewPassword = async () => {
     await updatePassword(currentUser, newPwd);
     await new Promise(r => setTimeout(r, 600)); 
     hideLoader();
-    closeModal('changePwdOverlay');
+    closeModal('changePwdOverlay', { force: true });
     showSaveToast("Password updated successfully");
   } catch(e) {
     hideLoader();
@@ -7593,7 +7606,7 @@ window.saveStrategyLayer = async () => {
       )
     );
     allWeeks[currentIdx] = savedWeek;
-    closeModal('strategyOverlay');
+    closeModal('strategyOverlay', { force: true });
     render();
     showSaveToast("Strategy layer saved");
   } catch (err) {
@@ -8045,19 +8058,68 @@ function openAccessibleModal(modal) {
   modalReturnFocus = document.activeElement;
   if (modal.id === 'onePageStatusModal') isolateProjectDetailModal();
   modal.classList.add('open');
+  captureEditorBaseline(modal);
   requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
 }
 
+function serializeEditorState(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return '';
+  const values = [];
+  const controls = [...overlay.querySelectorAll('input, select, textarea, [contenteditable="true"]')];
+  controls.forEach((control, index) => {
+    if (control.disabled || control.hasAttribute('data-editor-ignore-dirty')) return;
+    const key = control.id || control.name || control.dataset.editorField || `${control.tagName.toLowerCase()}:${index}`;
+    if ((control.type === 'checkbox' || control.type === 'radio') && !control.checked) return;
+    let value = control.isContentEditable ? control.textContent.trim() : String(control.value ?? '');
+    if (control.tagName === 'SELECT' && control.multiple) {
+      value = [...control.selectedOptions].map(option => option.value).sort().join('|');
+    }
+    if (!value) return;
+    values.push([key, value]);
+  });
+  values.sort((left, right) => left[0].localeCompare(right[0]) || left[1].localeCompare(right[1]));
+  return JSON.stringify(values);
+}
+
+function captureEditorBaseline(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return;
+  overlay.dataset.editorBaseline = serializeEditorState(overlay);
+}
+
+function editorHasUnsavedChanges(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return false;
+  if (overlay.dataset.editorBaseline === undefined) captureEditorBaseline(overlay);
+  return overlay.dataset.editorBaseline !== serializeEditorState(overlay);
+}
+
+let pendingDiscardEditorId = '';
+window.requestCloseModal = id => closeModal(id);
+window.keepEditing = () => {
+  pendingDiscardEditorId = '';
+  closeModal('unsavedChangesOverlay', { force: true });
+};
+window.confirmDiscardEditorChanges = () => {
+  const editorId = pendingDiscardEditorId;
+  pendingDiscardEditorId = '';
+  closeModal('unsavedChangesOverlay', { force: true });
+  if (editorId) closeModal(editorId, { force: true });
+};
 
 window.closeProjectOverlayFromBackdrop = event => {
   if (event.button !== 0 || event.target !== event.currentTarget) return;
-  closeModal(event.currentTarget.id);
+  requestCloseModal(event.currentTarget.id);
 };
 
-window.closeModal = id => {
+window.closeModal = (id, { force = false } = {}) => {
+  const modal = document.getElementById(id);
+  if (!modal) return false;
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
-  const modal = document.getElementById(id);
+  if (!force && editorHasUnsavedChanges(modal)) {
+    pendingDiscardEditorId = id;
+    openAccessibleModal(document.getElementById('unsavedChangesOverlay'));
+    return false;
+  }
   if (id === 'projEditOverlay') {
     projectEditorSession = null;
     editingProjCode = null;
@@ -8065,17 +8127,22 @@ window.closeModal = id => {
     clearProjectMutationError();
   }
   if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
-  modal?.classList.remove('open');
+  modal.classList.remove('open');
+  delete modal.dataset.editorBaseline;
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();
   if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
   modalReturnFocus = null;
+  return true;
 };
 document.addEventListener('keydown', event => {
-  const modal = document.querySelector('.overlay.open[role="dialog"]');
+  const discard = document.getElementById('unsavedChangesOverlay');
+  const openModals = [...document.querySelectorAll('.overlay.open[role="dialog"]')];
+  const modal = discard?.classList.contains('open') ? discard : openModals.at(-1);
   if (!modal) return;
   if (event.key === 'Escape') {
     event.preventDefault();
-    closeModal(modal.id);
+    if (modal.id === 'unsavedChangesOverlay') keepEditing();
+    else requestCloseModal(modal.id);
     return;
   }
   if (event.key === 'Tab') {
@@ -9031,7 +9098,7 @@ window.saveProjEdit = async () => {
   if (!transactionResult) return;
   if (!isProjectEditorSessionCurrent(session)) return;
 
-  closeModal('projEditOverlay');
+  closeModal('projEditOverlay', { force: true });
   const pendingSections = [
     transactionResult.project.dataStatus.team.state !== 'confirmed' && 'team',
     transactionResult.project.dataStatus.budgetPlan.state !== 'confirmed' && 'budget plan',
@@ -9103,7 +9170,7 @@ window.deleteProject = async () => {
   if (!transactionResult) return;
   if (!isProjectEditorSessionCurrent(session)) return;
 
-  closeModal('projEditOverlay');
+  closeModal('projEditOverlay', { force: true });
   showSaveToast("Project deleted");
 };
 
@@ -9363,7 +9430,7 @@ function bindWeeklySummaryCleaner() {
 }
 
 window.saveWeekSummary = async () => {
-  closeModal('weekManageOverlay');
+  closeModal('weekManageOverlay', { force: true });
   showLoader("Updating Summary...");
   
   const week = allWeeks[currentIdx];
@@ -9386,7 +9453,7 @@ window.createNewWeekFromManage = async () => {
   const date = document.getElementById('wm_nw_date').value;
   if (!label) return;
   
-  closeModal('weekManageOverlay');
+  closeModal('weekManageOverlay', { force: true });
   showLoader("Creating New Week...");
   
   const carryover = allWeeks.length > 0
