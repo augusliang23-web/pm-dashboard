@@ -183,6 +183,39 @@ test('dense project portfolio keeps project context and footer clearance on cont
   }
 });
 
+test('keeps consecutive Project Portfolio Gantt rows visually joined', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [fixture.week.projects[0]];
+  fixture.week.projects[0].ganttWorkstreams = Array.from({ length: 3 }, (_, index) => ({
+    name: `Compact workstream ${index + 1}`,
+    startDate: `2026-08-0${index + 1}`,
+    endDate: `2026-08-1${index + 1}`,
+    status: 'in-progress', progress: index * 10
+  }));
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(renderOverviewReportHtml(fixture), { waitUntil: 'networkidle0' });
+    await page.evaluate(paginateMeasuredFlows);
+    const { firstRowGap, adjacentRowGaps } = await page.evaluate(() => {
+      const heading = document.querySelector('[data-flow-kind="project-gantt-heading"]');
+      const rows = [...document.querySelectorAll('[data-flow-kind="project-gantt-row"]')];
+      return {
+        firstRowGap: rows[0].getBoundingClientRect().top - heading.getBoundingClientRect().bottom,
+        adjacentRowGaps: rows.slice(1).map((row, index) => row.getBoundingClientRect().top - rows[index].getBoundingClientRect().bottom)
+      };
+    });
+
+    assert.ok(firstRowGap > 0, `Schedule heading must remain separated; got ${firstRowGap}px`);
+    adjacentRowGaps.forEach(gap => assert.ok(Math.abs(gap) < 0.1, `adjacent Gantt rows must touch; got ${gap}px`));
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
 test('dense management attention and risk actions use titled measured pages', { timeout: 60000 }, async () => {
   const fixture = completeOverviewReportFixture();
   const baseProject = fixture.week.projects[0];
