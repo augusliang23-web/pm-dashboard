@@ -287,6 +287,9 @@ export const REPORT_CSS = `
   .report-page[data-report-section="quarterly-roadmap"] .quarter-item small { margin:.7mm 0 1.2mm; font-size:7.5pt; }
   .report-page[data-report-section="quarterly-roadmap"] .quarter-item span { margin-top:.7mm; font-size:7pt; }
   .project-portfolio-flow [data-pdf-flow-items] { gap:2.5mm; }
+  .project-portfolio-flow [data-flow-kind="project-gantt-row"] + [data-flow-kind="project-gantt-row"] { margin-top:-2.5mm; }
+  .project-portfolio-flow [data-flow-kind="project-gantt-row"] + [data-flow-kind="project-gantt-row"] .gantt-row { border-top-left-radius:0; border-top-right-radius:0; }
+  .project-portfolio-flow [data-flow-kind="project-gantt-row"]:has(+ [data-flow-kind="project-gantt-row"]) .gantt-row { border-bottom-left-radius:0; border-bottom-right-radius:0; }
   .portfolio-project-card { display:flex; flex-direction:column; padding:4mm; border:1px solid var(--line); border-top:2.2mm solid var(--green); border-radius:4mm; background:var(--white); }
   .portfolio-project-head { display:flex; justify-content:space-between; gap:8mm; }
   .portfolio-project-head h2 { margin-bottom:1mm; font-size:18pt; }
