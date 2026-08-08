@@ -20,7 +20,7 @@ Applies to the Overview PDF Project Portfolio flow in v2.1 and v2.2T. Project PD
   - Risks & required actions → `riskActions`
   - Next milestone → `milestones`
   - Gantt schedule → `schedule`
-  - Resource load → `teamAllocation`
+  - Resource load → `teamAllocation` and `disciplineHours`
   - Budget snapshot → `budgetPlan` and `actualSpend`, presented separately
 
 ## Constraints

@@ -247,28 +247,24 @@ function renderProjectPortfolioFlow(project) {
   const budget = budgetTotals(project);
   const milestone = [...project.milestones]
     .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))[0];
-  const updateNote = section => `<div class="section-update-note">${escapeHtml(formatSectionUpdate(project, section))}</div>`;
+  const updateNote = (section, label = '') => `<div class="section-update-note">${label ? `${escapeHtml(label)} · ` : ''}${escapeHtml(formatSectionUpdate(project, section))}</div>`;
+  const sectionHeading = (title, section) => `<div class="portfolio-section-heading"><h2 class="portfolio-section-title">${escapeHtml(title)}</h2>${updateNote(section)}</div>`;
   const highlights = project.highlights.length
     ? `<ul class="report-list">${project.highlights.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '<p>No highlight reported.</p>';
-  const sectionUpdates = ['status', 'highlights', 'weeklyActions', 'riskActions', 'milestones', 'schedule', 'teamAllocation', 'budgetPlan', 'actualSpend', 'disciplineHours']
-    .map(section => `<div class="section-update-note">${escapeHtml(section)} · ${escapeHtml(formatSectionUpdate(project, section))}</div>`)
-    .join('');
-  const blocks = [portfolioFlowItem(project, 'project-identity', `<article class="portfolio-project-card" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong></div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><section class="portfolio-highlights card"><div class="metric-card-label">Highlights</div>${highlights}</section></article>`)];
-
-  blocks.push(portfolioFlowItem(project, 'project-section-updates', `<section class="card"><div class="metric-card-label">Section updates</div>${['status', 'highlights', 'weeklyActions', 'riskActions', 'milestones', 'schedule', 'teamAllocation', 'budgetPlan', 'actualSpend', 'disciplineHours'].map(section => `<div class="section-update-note">${escapeHtml(section)} · ${escapeHtml(formatSectionUpdate(project, section))}</div>`).join('')}</section>`));
+  const blocks = [portfolioFlowItem(project, 'project-identity', `<article class="portfolio-project-card" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong>${updateNote('status')}</div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><section class="portfolio-highlights card"><div class="portfolio-section-heading"><div class="metric-card-label">Highlights</div>${updateNote('highlights')}</div>${highlights}</section></article>`)];
 
   if (project.actions.length) {
-    blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card" data-pdf-split-unit><h2 class="portfolio-section-title">Weekly Key Actions</h2><ul class="report-list">${project.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul></section>`));
+    blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card" data-pdf-split-unit>${sectionHeading('Weekly Key Actions', 'weeklyActions')}<ul class="report-list">${project.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul></section>`));
   }
 
-  project.riskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : '<h2 class="portfolio-section-title">Risks &amp; required actions</h2>'}<article class="portfolio-risk-row card" data-pdf-split-unit><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span><p>${escapeHtml(pair.risk)}</p></div><div><span>Required action</span><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></article>`)));
+  project.riskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : sectionHeading('Risks & required actions', 'riskActions')}<article class="portfolio-risk-row card" data-pdf-split-unit><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span><p>${escapeHtml(pair.risk)}</p></div><div><span>Required action</span><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></article>`)));
 
-  blocks.push(portfolioFlowItem(project, 'project-snapshot', `<div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span><strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span><strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span><strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div>`));
+  blocks.push(portfolioFlowItem(project, 'project-snapshot', `<div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span>${updateNote('milestones')}<strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span>${updateNote('teamAllocation', 'Team allocation')}${updateNote('disciplineHours', 'Discipline hours')}<strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span>${updateNote('budgetPlan', 'Budget plan')}${updateNote('actualSpend', 'Actual spend')}<strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div>`));
 
   if (project.workstreams.length) {
     const range = buildGanttRange(project.workstreams);
-    blocks.push(portfolioFlowItem(project, 'project-gantt-heading', `<section class="portfolio-gantt-heading"><h2 class="portfolio-section-title">Gantt schedule</h2>${renderGanttAxis(range)}</section>`));
+    blocks.push(portfolioFlowItem(project, 'project-gantt-heading', `<section class="portfolio-gantt-heading">${sectionHeading('Gantt schedule', 'schedule')}${renderGanttAxis(range)}</section>`));
     range.rows.forEach(item => {
       blocks.push(portfolioFlowItem(project, 'project-gantt-row', renderGanttRow(item, range)));
     });

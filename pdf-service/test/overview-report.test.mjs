@@ -132,6 +132,46 @@ test('uses one measured source flow per project portfolio', () => {
   assert.doesNotMatch(html, /Project Portfolio · Continued/);
 });
 
+test('places project portfolio update records with their matching sections', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [fixture.week.projects[0]];
+  fixture.week.projects[0].sectionUpdatedAt = {
+    status: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'STATUS-EDITOR' },
+    highlights: { savedAt: '2026-08-02T08:00:00.000Z', editorName: 'HIGHLIGHTS-EDITOR' },
+    weeklyActions: { savedAt: '2026-08-03T08:00:00.000Z', editorName: 'ACTIONS-EDITOR' },
+    riskActions: { savedAt: '2026-08-04T08:00:00.000Z', editorName: 'RISKS-EDITOR' },
+    milestones: { savedAt: '2026-08-05T08:00:00.000Z', editorName: 'MILESTONE-EDITOR' },
+    teamAllocation: { savedAt: '2026-08-06T08:00:00.000Z', editorName: 'ALLOCATION-EDITOR' },
+    disciplineHours: { savedAt: '2026-08-07T08:00:00.000Z', editorName: 'HOURS-EDITOR' },
+    budgetPlan: { savedAt: '2026-08-08T08:00:00.000Z', editorName: 'PLAN-EDITOR' },
+    actualSpend: { savedAt: '2026-08-09T08:00:00.000Z', editorName: 'SPEND-EDITOR' },
+    schedule: { savedAt: '2026-08-10T08:00:00.000Z', editorName: 'SCHEDULE-EDITOR' }
+  };
+
+  const html = renderOverviewReportHtml(fixture);
+  const bodyStart = html.indexOf('<body');
+  const position = text => html.indexOf(text, bodyStart);
+  const assertBetween = (text, before, after) => {
+    assert.ok(position(text) > position(before), `${text} should follow ${before}`);
+    assert.ok(position(text) < position(after), `${text} should precede ${after}`);
+  };
+
+  assert.doesNotMatch(html, /Section updates/);
+  assertBetween('Updated · 1 Aug 2026 · STATUS-EDITOR', 'portfolio-project-status', 'Highlights');
+  assertBetween('Updated · 2 Aug 2026 · HIGHLIGHTS-EDITOR', 'Highlights', 'Weekly Key Actions');
+  assertBetween('Updated · 3 Aug 2026 · ACTIONS-EDITOR', 'Weekly Key Actions', 'Risks &amp; required actions');
+  assertBetween('Updated · 4 Aug 2026 · RISKS-EDITOR', 'Risks &amp; required actions', 'portfolio-snapshot-grid');
+  for (const marker of [
+    'Updated · 5 Aug 2026 · MILESTONE-EDITOR',
+    'Updated · 6 Aug 2026 · ALLOCATION-EDITOR',
+    'Updated · 7 Aug 2026 · HOURS-EDITOR',
+    'Updated · 8 Aug 2026 · PLAN-EDITOR',
+    'Updated · 9 Aug 2026 · SPEND-EDITOR'
+  ]) assertBetween(marker, 'portfolio-snapshot-grid', 'Gantt schedule');
+  assertBetween('Updated · 10 Aug 2026 · SCHEDULE-EDITOR', 'Gantt schedule', 'gantt-axis');
+});
+
 test('renders complete project highlights, risk actions, and Gantt workstreams', () => {
   const fixture = completeOverviewReportFixture();
   const project = fixture.week.projects[0];

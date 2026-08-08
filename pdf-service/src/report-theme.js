@@ -291,11 +291,14 @@ export const REPORT_CSS = `
   .portfolio-project-head { display:flex; justify-content:space-between; gap:8mm; }
   .portfolio-project-head h2 { margin-bottom:1mm; font-size:18pt; }
   .portfolio-owner { color:var(--muted); }
-  .portfolio-project-status { display:flex; align-items:center; gap:4mm; }
+  .portfolio-project-status { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:1mm 4mm; }
   .portfolio-project-status > strong { font-size:24pt; }
+  .portfolio-project-status .section-update-note { width:100%; margin:0; }
   .portfolio-progress { margin:4mm 0; }
   .portfolio-highlights { padding:3mm; background:var(--surface); }
   .portfolio-highlights .report-list { margin-top:2mm; }
+  .portfolio-section-heading { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:1mm 4mm; }
+  .portfolio-section-heading .portfolio-section-title,.portfolio-section-heading .section-update-note { margin:0; }
   .portfolio-section-title { margin:0 0 2mm; font-size:13pt; }
   .portfolio-risk-row { display:grid; grid-template-columns:1fr 1fr; gap:4mm; padding:3mm 4mm; border-left:1.2mm solid var(--red); }
   .portfolio-risk-row span { color:var(--muted); font-size:7.5pt; font-weight:700; text-transform:uppercase; }
@@ -306,6 +309,7 @@ export const REPORT_CSS = `
   .portfolio-snapshot-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:3mm; }
   .portfolio-snapshot-grid span,.portfolio-snapshot-grid strong,.portfolio-snapshot-grid small { display:block; }
   .portfolio-snapshot-grid span { color:var(--muted); font-size:7.5pt; text-transform:uppercase; }
+  .portfolio-snapshot-grid .section-update-note { margin:1mm 0 0; text-align:left; }
   .portfolio-snapshot-grid strong { margin:2mm 0 1mm; }
   .portfolio-snapshot-grid small { color:var(--muted); }
   .portfolio-gantt-heading { padding-top:1mm; }
