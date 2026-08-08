@@ -7696,7 +7696,7 @@ window.openStrategyLayerModal = () => {
     row.querySelector('.pm-checkpoint').value = s.checkpoint || '';
   });
 
-  document.getElementById('strategyOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('strategyOverlay'));
 };
 
 window.openExecutiveTimelineEditor = () => {
@@ -9125,7 +9125,7 @@ window.openProjEdit = (code, isNew = false) => {
     originalProject: isNew ? null : p
   });
   document.getElementById('pe_details').open = isNew;
-  document.getElementById('projEditOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
 };
 
@@ -9583,7 +9583,7 @@ window.openWeekManagement = () => {
   
   window.updateWmDate();
   updateCopilotPrompt();
-  document.getElementById('weekManageOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('weekManageOverlay'));
 };
 
 window.updateWmDate = () => {

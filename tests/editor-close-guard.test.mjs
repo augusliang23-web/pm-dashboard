@@ -29,6 +29,13 @@ test('protects PM editor overlays from accidental close with unsaved changes', (
     assert.match(dashboard, /function keepEditing|window\.keepEditing/);
     assert.match(dashboard, /function confirmDiscardEditorChanges|window\.confirmDiscardEditorChanges/);
     assert.match(dashboard, /captureEditorBaseline\(modal\)/);
+    for (const id of ['projEditOverlay', 'weekManageOverlay', 'strategyOverlay']) {
+      assert.match(
+        dashboard,
+        new RegExp(`openAccessibleModal\\(document\\.getElementById\\('${id}'\\)\\)`),
+        `${id} must capture its baseline when it opens`,
+      );
+    }
     for (const id of editorIds) {
       assert.match(dashboard, new RegExp(`closeModal\\('${id}', \\{ force: true \\}\\)`));
     }
