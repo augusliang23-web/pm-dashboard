@@ -280,6 +280,7 @@ body {
 .prog-fill.yellow { background: var(--yellow); }
 .prog-fill.red { background: var(--red); }
 .stext { font-size: 13px; line-height: 1.65; margin-bottom: 12px; white-space: pre-wrap; }
+.structured-text { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
 .stext.empty { color: var(--muted2); font-style: italic; }
 .stext.clamp-2 {
   display: -webkit-box;
@@ -4250,10 +4251,8 @@ function canEditProject(proj) {
 const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
 
 function formatBullets(text) {
-  if (!text || !text.trim()) return '-';
-  const lines = text.split('\n').map(l => l.trim().replace(/^[-*•]\s*/, '')).filter(l => l);
-  if (lines.length === 0) return '-';
-  return `<ul style="margin: 0; padding-left: 16px; list-style-type: disc;">` + lines.map(l => `<li style="margin-bottom: 4px;">${escHtml(l)}</li>`).join('') + `</ul>`;
+  if (text === null || text === undefined || text === '') return '-';
+  return `<div class="structured-text">${escHtml(text)}</div>`;
 }
 
 function getStatusLabel(status) {
@@ -8023,8 +8022,8 @@ function collectRiskActionPairs() {
   const pairs = rows.map(row => ({
     id: row.dataset.riskActionId,
     primary: row.querySelector('.rap-primary')?.checked === true,
-    risk: row.querySelector('.rap-risk')?.value.trim() || '',
-    action: row.querySelector('.rap-action')?.value.trim() || ''
+    risk: row.querySelector('.rap-risk')?.value || '',
+    action: row.querySelector('.rap-action')?.value || ''
   })).filter(item => item.risk || item.action);
   if (pairs.length && !pairs.some(item => item.primary)) pairs[0].primary = true;
   return pairs.sort((a, b) => Number(b.primary) - Number(a.primary));
@@ -8874,8 +8873,8 @@ window.saveProjEdit = async () => {
     progress: parseInt(document.getElementById('pe_progress').value) || 0,
     attention: document.getElementById('pe_attention').value,
     attentionManual: true,
-    highlight: document.getElementById('pe_highlight').value.trim(),
-    weeklyActions: document.getElementById('pe_weekly_actions').value.trim(),
+    highlight: document.getElementById('pe_highlight').value,
+    weeklyActions: document.getElementById('pe_weekly_actions').value,
     riskActions: riskActions,
     risk: riskText,
     next: nextText,
