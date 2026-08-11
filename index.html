@@ -226,6 +226,7 @@ body {
 .prog-fill.yellow { background: var(--yellow); }
 .prog-fill.red { background: var(--red); }
 .stext { font-size: 13px; line-height: 1.65; margin-bottom: 12px; white-space: pre-wrap; }
+.structured-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .stext.empty { color: var(--muted2); font-style: italic; }
 .stext.clamp-2 {
   display: -webkit-box;
@@ -1069,11 +1070,19 @@ function canEditProject(proj) {
   return owner.includes(userPrefix) || owner.includes(userAlias) || deputy.includes(userPrefix) || deputy.includes(userAlias);
 }
 
+function escHtml(text) {
+  return String(text).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
 function formatBullets(text) {
-  if (!text || !text.trim()) return '-';
-  const lines = text.split('\n').map(l => l.trim().replace(/^[-*•]\s*/, '')).filter(l => l);
-  if (lines.length === 0) return '-';
-  return `<ul style="margin: 0; padding-left: 16px; list-style-type: disc;">` + lines.map(l => `<li style="margin-bottom: 4px;">${l}</li>`).join('') + `</ul>`;
+  if (text === null || text === undefined || text === '') return '-';
+  return `<div class="structured-text">${escHtml(text)}</div>`;
 }
 
 function getStatusLabel(status) {
@@ -1515,9 +1524,9 @@ window.saveProjEdit = async () => {
     milestones: milestones,
     status: document.getElementById('pe_status').value,
     progress: parseInt(document.getElementById('pe_progress').value) || 0,
-    highlight: document.getElementById('pe_highlight').value.trim(),
-    risk: document.getElementById('pe_risk').value.trim(),
-    next: document.getElementById('pe_next').value.trim()
+    highlight: document.getElementById('pe_highlight').value,
+    risk: document.getElementById('pe_risk').value,
+    next: document.getElementById('pe_next').value
   };
 
   if(isCreatingNew) {
