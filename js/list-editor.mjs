@@ -14,11 +14,21 @@ function escapeHtml(value) {
 function parseLine(source, legacyAsBullets = true) {
   const line = String(source ?? '').replace(/\s+$/, '');
   if (!line.trim()) return { blank: true, level: 0, type: '', text: '' };
+  const leadingSpaces = line.match(/^ */)?.[0].length || 0;
+  const level = Math.floor(leadingSpaces / INDENT.length);
+  if (/^\d+(?:\.\d+)+(?:[ \t]+.*)?$/.test(line.trim())) {
+    return {
+      blank: false,
+      level,
+      type: 'plain',
+      text: line.trim(),
+    };
+  }
   const match = line.match(/^( *)(?:([•*-])|(\d+)\.)[ \t]*(.*)$/);
   if (!match) {
     return {
       blank: false,
-      level: 0,
+      level,
       type: legacyAsBullets ? 'bullet' : 'plain',
       text: line.trim(),
     };
@@ -240,10 +250,20 @@ function buildTree(value) {
 function renderChildren(children, rootClass = '') {
   let html = '';
   for (let index = 0; index < children.length;) {
-    const type = children[index].type === 'number' ? 'number' : 'bullet';
+    const type = children[index].type;
+    if (type === 'plain') {
+      const group = [];
+      while (index < children.length && children[index].type === 'plain') {
+        group.push(children[index]);
+        index += 1;
+      }
+      html += group.map(node => `<div class="structured-list-plain">${escapeHtml(node.text)}${renderChildren(node.children)}</div>`).join('');
+      continue;
+    }
+    const listType = type === 'number' ? 'number' : 'bullet';
     const tag = type === 'number' ? 'ol' : 'ul';
     const group = [];
-    while (index < children.length && (children[index].type === 'number' ? 'number' : 'bullet') === type) {
+    while (index < children.length && (children[index].type === 'number' ? 'number' : 'bullet') === listType) {
       group.push(children[index]);
       index += 1;
     }
@@ -254,6 +274,6 @@ function renderChildren(children, rootClass = '') {
 }
 
 export function renderListHtml(value, emptyHtml = '-') {
-  const tree = buildTree(value);
-  return tree.children.length ? renderChildren(tree.children, 'structured-list') : emptyHtml;
+  const source = String(value ?? '');
+  return source ? `<div class="structured-text">${escapeHtml(source)}</div>` : emptyHtml;
 }

@@ -714,6 +714,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .structured-list { margin:0; padding-left:18px; }
 .structured-list li { margin-bottom:4px; }
 .structured-list ul, .structured-list ol { margin:4px 0; padding-left:20px; }
+.structured-list-plain { margin:4px 0; }
+.structured-text { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
 .milestone-edit-row { border:1px solid var(--border); border-radius:8px; background:#fff; padding:8px; margin-bottom:8px; }
 .milestone-edit-fields { display:grid; grid-template-columns:22px minmax(0,2fr) 150px 150px 34px; gap:10px; align-items:center; }
 .milestone-plan-history { flex-basis:100%; margin:0 0 0 32px; padding:8px 10px; border-radius:7px; background:#FBFDFF; border:1px dashed var(--border2); font-size:11px; line-height:1.45; color:var(--text-light); }
@@ -2588,7 +2590,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
+import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-1";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
@@ -2596,8 +2598,8 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
@@ -2607,6 +2609,13 @@ const app = initializeApp(FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
+const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const useLocalEmulator = isLocalPreview
+  && new URLSearchParams(window.location.search).get('emulator') === '1';
+if (useLocalEmulator) {
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
 window.__dashboardBootStarted = true;
 
 // ── STATE ──
@@ -4335,110 +4344,6 @@ const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = 'This week has been released to VIP a
 function formatBullets(text) {
   return renderListHtml(text);
 }
-
-const LIST_COMMANDS = [
-  ['bullet', '•', 'Bulleted list'],
-  ['number', '1.', 'Numbered list'],
-  ['outdent', '←', 'Decrease indent'],
-  ['indent', '→', 'Increase indent']
-];
-
-function updateListToolbarState(textarea) {
-  const toolbar = textarea.closest('.list-editor')?.querySelector('.list-editor-toolbar');
-  if (!toolbar) return;
-  const activeType = getSelectionListType(textarea.value, textarea.selectionStart, textarea.selectionEnd);
-  toolbar.querySelectorAll('.list-editor-button').forEach(button => {
-    const isActive = button.dataset.listCommand === activeType;
-    button.classList.toggle('active', isActive);
-    button.setAttribute('aria-pressed', String(isActive));
-  });
-}
-
-function applyListEdit(textarea, result) {
-  textarea.value = result.value;
-  textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  updateListToolbarState(textarea);
-}
-
-function enhanceListTextarea(textarea) {
-  if (!textarea || textarea.dataset.listEditor === 'true') return;
-  textarea.dataset.listEditor = 'true';
-  const editor = document.createElement('div');
-  editor.className = 'list-editor';
-  const toolbar = document.createElement('div');
-  toolbar.className = 'list-editor-toolbar';
-  toolbar.setAttribute('role', 'toolbar');
-  toolbar.setAttribute('aria-label', `${textarea.getAttribute('aria-label') || 'Text'} list formatting`);
-  LIST_COMMANDS.forEach(([command, label, accessibleName]) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'list-editor-button';
-    button.dataset.listCommand = command;
-    button.textContent = label;
-    button.title = accessibleName;
-    button.setAttribute('aria-label', accessibleName);
-    button.setAttribute('aria-pressed', 'false');
-    button.addEventListener('mousedown', event => event.preventDefault());
-    button.addEventListener('click', () => {
-      applyListEdit(textarea, applyListCommand(
-        textarea.value,
-        textarea.selectionStart,
-        textarea.selectionEnd,
-        command
-      ));
-      textarea.focus();
-    });
-    toolbar.append(button);
-  });
-  const hint = document.createElement('div');
-  hint.className = 'list-editor-hint';
-  hint.textContent = 'Enter: new item · Tab: sub-item · Shift+Tab: move up';
-  textarea.before(editor);
-  editor.append(toolbar, textarea, hint);
-
-  textarea.addEventListener('keydown', event => {
-    let result = null;
-    if (event.key === 'Enter') {
-      result = handleListEnter(textarea.value, textarea.selectionStart, textarea.selectionEnd);
-    } else if (event.key === 'Tab') {
-      result = applyListCommand(
-        textarea.value,
-        textarea.selectionStart,
-        textarea.selectionEnd,
-        event.shiftKey ? 'outdent' : 'indent'
-      );
-    }
-    if (!result) return;
-    event.preventDefault();
-    event.stopPropagation();
-    applyListEdit(textarea, result);
-  });
-  textarea.addEventListener('paste', event => {
-    const pastedText = event.clipboardData?.getData('text/plain') || '';
-    if (!pastedText.includes('\n')) return;
-    event.preventDefault();
-    applyListEdit(textarea, handleListPaste(
-      textarea.value,
-      textarea.selectionStart,
-      textarea.selectionEnd,
-      pastedText
-    ));
-  });
-  ['input', 'select', 'keyup', 'mouseup', 'focus'].forEach(eventName => {
-    textarea.addEventListener(eventName, () => updateListToolbarState(textarea));
-  });
-  updateListToolbarState(textarea);
-}
-
-function setListEditorValue(textarea, value) {
-  if (!textarea) return;
-  textarea.value = normalizeListText(value);
-  updateListToolbarState(textarea);
-}
-
-enhanceListTextarea(document.getElementById('pe_highlight'));
-enhanceListTextarea(document.getElementById('pe_weekly_actions'));
 
 function getStatusLabel(status) {
   const smap = { green: 'On Track', yellow: 'At Risk', red: 'Critical', 'to-do': 'To Do', 'in-progress': 'In Progress', done: 'Done', 'at-risk': 'At Risk' };
@@ -8378,8 +8283,8 @@ function collectRiskActionPairs() {
   const pairs = rows.map(row => ({
     id: row.dataset.riskActionId,
     primary: row.querySelector('.rap-primary')?.checked === true,
-    risk: normalizeListText(row.querySelector('.rap-risk')?.value || '', { legacyAsBullets: false }).trim(),
-    action: normalizeListText(row.querySelector('.rap-action')?.value || '', { legacyAsBullets: false }).trim()
+    risk: row.querySelector('.rap-risk')?.value || '',
+    action: row.querySelector('.rap-action')?.value || ''
   })).filter(item => item.risk || item.action);
   if (pairs.length && !pairs.some(item => item.primary)) pairs[0].primary = true;
   return pairs.sort((a, b) => Number(b.primary) - Number(a.primary));
@@ -8432,9 +8337,8 @@ window.addRiskActionPairRow = (item = {}) => {
     <button type="button" class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair" aria-label="Delete risk/action pair">&#128465;&#65039;</button>
   `;
   container.appendChild(row);
-  setListEditorValue(row.querySelector('.rap-risk'), risk);
-  setListEditorValue(row.querySelector('.rap-action'), action);
-  row.querySelectorAll('.rap-risk, .rap-action').forEach(enhanceListTextarea);
+  row.querySelector('.rap-risk').value = risk;
+  row.querySelector('.rap-action').value = action;
   row.querySelector('.rap-primary').addEventListener('change', ensurePrimaryRiskActionPair);
   ensurePrimaryRiskActionPair();
 };
@@ -9033,8 +8937,8 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_status').value = p.status || 'green';
   document.getElementById('pe_progress').value = p.progress || 0;
   document.getElementById('pe_attention').innerHTML = Object.entries(ATTENTION_MAP).map(([v,l]) => `<option value="${v}" ${getProjectAttention(p)===v?'selected':''}>${l}</option>`).join('');
-  setListEditorValue(document.getElementById('pe_highlight'), p.highlight || '');
-  setListEditorValue(document.getElementById('pe_weekly_actions'), p.weeklyActions || p.weeklyAction || '');
+  document.getElementById('pe_highlight').value = p.highlight || '';
+  document.getElementById('pe_weekly_actions').value = p.weeklyActions || p.weeklyAction || '';
   document.getElementById('pe_risk').value = p.risk || '';
   document.getElementById('pe_next').value = p.next || '';
   const riskPairCont = document.getElementById('riskActionPairContainer');
@@ -9232,8 +9136,8 @@ window.saveProjEdit = async () => {
     progress: parseInt(document.getElementById('pe_progress').value) || 0,
     attention: document.getElementById('pe_attention').value,
     attentionManual: true,
-    highlight: normalizeListText(document.getElementById('pe_highlight').value, { legacyAsBullets: false }).trim(),
-    weeklyActions: normalizeListText(document.getElementById('pe_weekly_actions').value, { legacyAsBullets: false }).trim(),
+    highlight: document.getElementById('pe_highlight').value,
+    weeklyActions: document.getElementById('pe_weekly_actions').value,
     riskActions: riskActions,
     risk: riskText,
     next: nextText,

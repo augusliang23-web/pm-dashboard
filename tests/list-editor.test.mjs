@@ -26,10 +26,17 @@ test('renumbers adjacent ordered blocks at each level', () => {
   assert.equal(normalizeListText('1. One\n• Break\n8. Restart'), '1. One\n• Break\n1. Restart');
 });
 
-test('renders escaped mixed nested lists', () => {
+test('renders PM text exactly with line breaks, indentation, and literal markers', () => {
   assert.equal(
-    renderListHtml('• Parent\n  1. Child <unsafe>\n  2. Next & "quoted"\n• Sibling'),
-    '<ul class="structured-list"><li>Parent<ol><li>Child &lt;unsafe&gt;</li><li>Next &amp; &quot;quoted&quot;</li></ol></li><li>Sibling</li></ul>',
+    renderListHtml('3. Parent\n  3.1 Child\n  3.2 Next\n- Root\n  - Nested'),
+    '<div class="structured-text">3. Parent\n  3.1 Child\n  3.2 Next\n- Root\n  - Nested</div>',
+  );
+});
+
+test('escapes PM text without changing its visible content', () => {
+  assert.equal(
+    renderListHtml('  - Child <unsafe>\n  - Next & "quoted"'),
+    '<div class="structured-text">  - Child &lt;unsafe&gt;\n  - Next &amp; &quot;quoted&quot;</div>',
   );
   assert.equal(renderListHtml('', '<span>Empty</span>'), '<span>Empty</span>');
 });
