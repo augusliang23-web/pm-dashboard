@@ -18,6 +18,9 @@ test('both dashboards request the structured Weekly Summary contract', () => {
     assert.match(source, /Business impact: <one concise sentence>/);
     assert.match(source, /Four to six project movement entries/);
     assert.match(source, /Up to four management asks/);
+    assert.match(source, /Required output example/);
+    assert.match(source, /Your response will be rejected by the dashboard unless it follows this format exactly/);
+    assert.match(source, /No immediate management decision required this week\./);
   }
 });
 

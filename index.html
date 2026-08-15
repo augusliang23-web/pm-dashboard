@@ -2650,7 +2650,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <h4 style="margin-bottom:16px; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
       <span id="wm_current_title" style="font-weight:700;">Current Week</span>
     </h4>
-    <div class="fg"><label class="fl">Copilot Generated Summary</label><textarea class="ft" id="wm_summary" rows="5" placeholder="Paste Copilot/Gemini output here. It will be cleaned before saving."></textarea></div>
+    <div class="fg"><label class="fl">Copilot Generated Summary</label><textarea class="ft" id="wm_summary" rows="5" placeholder="Paste Copilot/Gemini output here. It must match the required format before saving."></textarea></div>
+    <div class="resource-validation" id="weeklySummaryValidation" role="alert" aria-live="assertive" tabindex="-1"></div>
     <div style="display:flex; justify-content:flex-end; margin-top:12px;">
       <button class="btn btn-primary" onclick="saveWeekSummary()">Save Weekly Summary</button>
     </div>
@@ -2783,6 +2784,7 @@ import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
+import { validateWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 
 const LOCAL_EMULATOR_PROJECT_ID = 'demo-pm-dashboard-v22t';
 const useLocalEmulator = new URLSearchParams(window.location.search).get('emulator') === '1';
@@ -7290,7 +7292,20 @@ function addPortfolioSummaryInstruction(prompt) {
     '    Decision / Support needed: <one concise sentence>',
     '    Business impact: <one concise sentence>',
     '- Use exact official project names, keep each project separate, and insert one blank line between entries.',
-    '- If no management action is needed, write exactly: No immediate management decision required this week.'
+    '- If no management action is needed, write exactly: No immediate management decision required this week.',
+    '- Your response will be rejected by the dashboard unless it follows this format exactly. Do not add an introduction, closing note, Markdown heading, table, or explanatory text.',
+    '',
+    'Required output example:',
+    'WEEKLY MOVEMENT',
+    'Portfolio Summary: Delivery remained stable with one decision requiring leadership support.',
+    '- Project: <exact project name>',
+    '  Movement: Validation completed.',
+    '  Blocker: None',
+    '  Next step: Confirm the release date.',
+    'MANAGEMENT ASK',
+    '- Project: <exact project name>',
+    '  Decision / Support needed: Approve the recovery plan.',
+    '  Business impact: Protects the delivery date.'
   ].join('\n');
   return String(prompt || '').replace(legacyFormat, structuredFormat);
 }
@@ -10415,7 +10430,7 @@ window.openWeekManagement = () => {
   
   document.getElementById('wm_current_title').textContent = `Editing: ${week.weekLabel}`;
   document.getElementById('wm_summary').value = week.summary || '';
-  bindWeeklySummaryCleaner();
+  setWeeklySummaryValidation();
   
   const sel = document.getElementById('wm_nw_label');
   sel.innerHTML = '';
@@ -10476,41 +10491,59 @@ window.copyCopilotPrompt = async () => {
   }
 };
 
-function cleanWeeklySummaryTextarea() {
-  const field = document.getElementById('wm_summary');
-  if (!field) return;
-  const cleaned = sanitizeSummaryInput(field.value);
-  if (cleaned && cleaned !== field.value) field.value = cleaned;
+function activeProjectsForWeek(week) {
+  return (week?.projects || []).filter(project => !project.visibility || project.visibility === 'active');
 }
 
-function bindWeeklySummaryCleaner() {
-  const field = document.getElementById('wm_summary');
-  if (!field || field.dataset.cleanerBound === 'true') return;
-  field.dataset.cleanerBound = 'true';
-  field.addEventListener('paste', () => setTimeout(cleanWeeklySummaryTextarea, 0));
-  field.addEventListener('blur', cleanWeeklySummaryTextarea);
+function setWeeklySummaryValidation(result = { errors: [] }) {
+  const target = document.getElementById('weeklySummaryValidation');
+  if (!target) return;
+  const errors = result.errors || [];
+  target.className = `resource-validation${errors.length ? ' show error' : ''}`;
+  target.replaceChildren();
+  if (!errors.length) return;
+  const lead = document.createElement('div');
+  lead.textContent = 'Summary was not saved. Fix the following items:';
+  target.append(lead);
+  errors.forEach(item => {
+    const row = document.createElement('div');
+    row.textContent = `• ${item.line ? `Line ${item.line}: ` : ''}${item.message}`;
+    target.append(row);
+  });
+  target.focus();
 }
 
 window.saveWeekSummary = async () => {
+  const week = allWeeks[currentIdx];
+  const field = document.getElementById('wm_summary');
+  const result = validateWeeklySummaryForSave(field.value, activeProjectsForWeek(week));
+  if (!result.ok) {
+    setWeeklySummaryValidation(result);
+    return;
+  }
+
+  const id = week.weekLabel.replace(/\s+/g, '-');
+  const summary = result.canonicalText;
+  setWeeklySummaryValidation();
   closeModal('weekManageOverlay', { force: true });
   showLoader("Updating Summary...");
-  
-  const week = allWeeks[currentIdx];
-  const id = week.weekLabel.replace(/\s+/g, '-');
-  
-  cleanWeeklySummaryTextarea();
-  week.summary = sanitizeSummaryInput(document.getElementById('wm_summary').value);
-  document.getElementById('wm_summary').value = week.summary;
-  week.lastModifiedBy = currentUser.email;
-  
-  const response = await projectDashboardApi.saveWeekFields({ weekId: id, fields: { summary: week.summary } });
-  if (response?.week) {
-    Object.defineProperty(response.week, '__documentId', { value: id, enumerable: false, configurable: true });
-    allWeeks[currentIdx] = response.week;
+  try {
+    const response = await projectDashboardApi.saveWeekFields({ weekId: id, fields: { summary } });
+    if (response?.week) {
+      Object.defineProperty(response.week, '__documentId', { value: id, enumerable: false, configurable: true });
+      allWeeks[currentIdx] = response.week;
+    } else {
+      week.summary = summary;
+      week.lastModifiedBy = currentUser.email;
+    }
+    field.value = summary;
+    await new Promise(r => setTimeout(r, 600));
+    hideLoader();
+    showSaveToast("Summary updated");
+  } catch (error) {
+    hideLoader();
+    setWeeklySummaryValidation({ errors: [{ line: null, message: `Unable to save the Weekly Summary: ${error.message || 'Please try again.'}` }] });
   }
-  await new Promise(r => setTimeout(r, 600));
-  hideLoader();
-  showSaveToast("Summary updated");
 };
 
 window.createNewWeekFromManage = async () => {
