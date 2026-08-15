@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ReportDataError, loadAuthorizedReport } from '../src/report-data.js';
 import { ReportAccessError } from '../src/report-access.js';
+import { invalidSummaryCases } from '../../tests/weekly-summary-contract-fixtures.mjs';
 
 const adapters = {
   verifyIdToken: async token => ({ email: token }),
@@ -163,4 +164,42 @@ test('uses the current live Executive timeline for a draft overview PDF', async 
 
   assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Current live timeline');
   assert.equal(liveReads, 1);
+});
+
+test('rejects an invalid stored Weekly Summary before Executive Summary PDF rendering', async () => {
+  const [, invalidSummary] = invalidSummaryCases[0];
+  await assert.rejects(
+    () => loadAuthorizedReport({
+      request: { mode: 'overview', weekId: 'W28', sections: ['executive-summary'] },
+      idToken: 'pm@example.com',
+      adapters: {
+        ...adapters,
+        getWeekById: async () => ({
+          weekLabel: 'W28 2026',
+          summary: invalidSummary,
+          projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+        })
+      }
+    }),
+    error => error instanceof ReportDataError
+      && error.statusCode === 422
+      && error.message.startsWith('Weekly Summary is not valid for PDF export:')
+  );
+});
+
+test('does not validate Weekly Summary when Executive Summary is not selected', async () => {
+  const [, invalidSummary] = invalidSummaryCases[0];
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['health-focus'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        summary: invalidSummary,
+        projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+      })
+    }
+  });
+  assert.deepEqual(report.sections, ['health-focus']);
 });
