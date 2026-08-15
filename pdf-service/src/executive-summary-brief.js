@@ -1,3 +1,7 @@
+import { validateWeeklySummaryForPdf } from './weekly-summary-contract.js';
+
+export const validateExecutiveSummaryForPdf = validateWeeklySummaryForPdf;
+
 function clean(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }

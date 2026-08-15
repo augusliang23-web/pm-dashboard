@@ -8,6 +8,27 @@ try {
   parseExecutiveSummaryBrief = undefined;
 }
 
+const { validateExecutiveSummaryForPdf } = await import('../src/executive-summary-brief.js');
+const {
+  activeProjects,
+  invalidSummaryCases,
+  validAskSummary,
+  validNoAskSummary
+} = await import('../../tests/weekly-summary-contract-fixtures.mjs');
+
+test('accepts the same canonical summaries as the browser contract', () => {
+  assert.equal(validateExecutiveSummaryForPdf(validNoAskSummary, activeProjects).ok, true);
+  assert.equal(validateExecutiveSummaryForPdf(validAskSummary, activeProjects).ok, true);
+});
+
+for (const [name, source, expected] of invalidSummaryCases) {
+  test(`rejects ${name} for PDF export`, () => {
+    const result = validateExecutiveSummaryForPdf(source, activeProjects);
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some(error => error.message.includes(expected)));
+  });
+}
+
 test('parses structured movement and management ask fields', () => {
   assert.equal(typeof parseExecutiveSummaryBrief, 'function');
   const brief = parseExecutiveSummaryBrief(`WEEKLY MOVEMENT
