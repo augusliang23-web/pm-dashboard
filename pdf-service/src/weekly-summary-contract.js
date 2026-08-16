@@ -61,7 +61,7 @@ function readField(lines, index, matcher, label, errors, projectName, allowNone 
   return { index: current + 1, value };
 }
 
-function parseMovementProject(lines, start, names, errors) {
+function parseMovementProject(lines, start, names, errors, requireProjectMembership) {
   const index = findNextSignificant(lines, start);
   const match = index < lines.length ? lines[index].trim().match(PROJECT_LINE) : null;
   if (!match) {
@@ -70,7 +70,7 @@ function parseMovementProject(lines, start, names, errors) {
   }
   const projectName = match[1].trim();
   if (!projectName) errors.push(error(index + 1, 'Project name cannot be empty.'));
-  else if (!names.has(projectName)) {
+  else if (requireProjectMembership && !names.has(projectName)) {
     errors.push(error(index + 1, `"${projectName}" is not an active project name.`));
   }
   let cursor = index + 1;
@@ -86,7 +86,7 @@ function parseMovementProject(lines, start, names, errors) {
   };
 }
 
-function parseManagementProject(lines, start, names, errors) {
+function parseManagementProject(lines, start, names, errors, requireProjectMembership) {
   const index = findNextSignificant(lines, start);
   const match = index < lines.length ? lines[index].trim().match(PROJECT_LINE) : null;
   if (!match) {
@@ -95,7 +95,7 @@ function parseManagementProject(lines, start, names, errors) {
   }
   const projectName = match[1].trim();
   if (!projectName) errors.push(error(index + 1, 'Project name cannot be empty.'));
-  else if (!names.has(projectName)) {
+  else if (requireProjectMembership && !names.has(projectName)) {
     errors.push(error(index + 1, `"${projectName}" is not an active project name.`));
   }
   let cursor = index + 1;
@@ -109,11 +109,12 @@ function parseManagementProject(lines, start, names, errors) {
   };
 }
 
-export function validateWeeklySummaryForPdf(source, activeProjects = []) {
+export function validateWeeklySummaryForPdf(source, activeProjects = [], options = {}) {
   const normalized = String(source ?? '').replace(/\r\n?/g, '\n');
   const lines = normalized.split('\n');
   const errors = [];
   const names = activeProjectNames(activeProjects);
+  const requireProjectMembership = options.requireProjectMembership !== false;
   const projects = [];
   const managementAsks = [];
   const first = findNextSignificant(lines, 0);
@@ -150,7 +151,7 @@ export function validateWeeklySummaryForPdf(source, activeProjects = []) {
       cursor = next + 1;
       continue;
     }
-    const parsed = parseMovementProject(lines, next, names, errors);
+    const parsed = parseMovementProject(lines, next, names, errors, requireProjectMembership);
     if (parsed.project) projects.push(parsed.project);
     cursor = Math.max(next + 1, parsed.index);
   }
@@ -174,7 +175,7 @@ export function validateWeeklySummaryForPdf(source, activeProjects = []) {
           cursor = next + 1;
           continue;
         }
-        const parsed = parseManagementProject(lines, next, names, errors);
+        const parsed = parseManagementProject(lines, next, names, errors, requireProjectMembership);
         if (parsed.ask) managementAsks.push(parsed.ask);
         cursor = Math.max(next + 1, parsed.index);
       }

@@ -9,21 +9,43 @@ try {
 }
 
 const { validateExecutiveSummaryForPdf } = await import('../src/executive-summary-brief.js');
+const { validateWeeklySummaryForPdf } = await import('../src/weekly-summary-contract.js');
 const {
   activeProjects,
   invalidSummaryCases,
+  historicalProjects,
   validAskSummary,
   validNoAskSummary
 } = await import('../../tests/weekly-summary-contract-fixtures.mjs');
+
+const historicalMovementSummary = `WEEKLY MOVEMENT
+Portfolio Summary: One project was released from active tracking.
+- Project: Released project
+  Movement: Transitioned out of active tracking.
+  Blocker: None
+  Next step: Archive project records.
+MANAGEMENT ASK
+No immediate management decision required this week.`;
 
 test('accepts the same canonical summaries as the browser contract', () => {
   assert.equal(validateExecutiveSummaryForPdf(validNoAskSummary, activeProjects).ok, true);
   assert.equal(validateExecutiveSummaryForPdf(validAskSummary, activeProjects).ok, true);
 });
 
+test('accepts a canonical movement for a project removed since the comparison week', () => {
+  assert.equal(validateExecutiveSummaryForPdf(historicalMovementSummary, historicalProjects).ok, true);
+});
+
+test('still rejects malformed canonical movement structure', () => {
+  const invalid = historicalMovementSummary.replace('  Next step: Archive project records.\n', '');
+  const result = validateExecutiveSummaryForPdf(invalid);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(error => error.message.includes('expected "Next step:"')));
+});
+
 for (const [name, source, expected] of invalidSummaryCases) {
   test(`rejects ${name} for PDF export`, () => {
-    const result = validateExecutiveSummaryForPdf(source, activeProjects);
+    const result = validateWeeklySummaryForPdf(source, activeProjects);
     assert.equal(result.ok, false);
     assert.ok(result.errors.some(error => error.message.includes(expected)));
   });
