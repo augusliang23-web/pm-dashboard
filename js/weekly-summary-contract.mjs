@@ -2,13 +2,22 @@ export const NO_MANAGEMENT_DECISION_TEXT = 'No immediate management decision req
 
 const MOVEMENT_HEADING = /^WEEKLY MOVEMENT$/i;
 const MANAGEMENT_HEADING = /^MANAGEMENT ASK$/i;
-const PORTFOLIO_SUMMARY = /^Portfolio Summary:\s*(.*)$/i;
+const PORTFOLIO_SUMMARY = /^Portfolio Summary\s*[:：]\s*(.*)$/i;
 const PROJECT_LINE = /^-\s+Project:\s*(.*)$/i;
+const PROJECT_LINE_VARIANT = /^\s*(?:[-*+•]\s*)?Project\s*[:：]\s*(.*?)\s*$/i;
 const MOVEMENT_FIELD = /^Movement:\s*(.*)$/i;
 const BLOCKER_FIELD = /^Blocker:\s*(.*)$/i;
 const NEXT_STEP_FIELD = /^Next step:\s*(.*)$/i;
 const SUPPORT_FIELD = /^Decision \/ Support needed:\s*(.*)$/i;
 const IMPACT_FIELD = /^Business impact:\s*(.*)$/i;
+
+const FIELD_VARIANTS = [
+  ['Movement', /^\s*Movement\s*[:：]\s*(.*?)\s*$/i, MOVEMENT_FIELD],
+  ['Blocker', /^\s*Blocker\s*[:：]\s*(.*?)\s*$/i, BLOCKER_FIELD],
+  ['Next step', /^\s*Next step\s*[:：]\s*(.*?)\s*$/i, NEXT_STEP_FIELD],
+  ['Decision / Support needed', /^\s*Decision \/ Support needed\s*[:：]\s*(.*?)\s*$/i, SUPPORT_FIELD],
+  ['Business impact', /^\s*Business impact\s*[:：]\s*(.*?)\s*$/i, IMPACT_FIELD]
+];
 
 function error(line, message) {
   return { line, message };
@@ -28,11 +37,47 @@ function isMarkdownLine(line) {
     || /^__.*__$/.test(value);
 }
 
-function activeProjectNames(activeProjects) {
-  return new Set((Array.isArray(activeProjects) ? activeProjects : [])
-    .map(project => typeof project === 'string' ? project : project?.name)
-    .map(name => String(name || '').trim())
-    .filter(Boolean));
+function projectName(project) {
+  return typeof project === 'string' ? project : project?.name;
+}
+
+function normalizedProjectKey(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function projectList(projects) {
+  return (Array.isArray(projects) ? projects : [])
+    .map(project => ({ project, name: String(projectName(project) || '').trim() }))
+    .filter(({ name }) => name);
+}
+
+function buildProjectContext({ currentProjects = [], historicalProjects = [] } = {}) {
+  const current = projectList(currentProjects);
+  const historical = projectList(historicalProjects);
+  const currentByExact = new Map(current.map(item => [item.name, item.name]));
+  const currentByKey = new Map(current.map(item => [normalizedProjectKey(item.name), item.name]));
+  const historicalByExact = new Map(historical.map(item => [item.name, item.name]));
+  const historicalByKey = new Map(historical.map(item => [normalizedProjectKey(item.name), item.name]));
+  return { currentByExact, currentByKey, historicalByExact, historicalByKey };
+}
+
+function resolveProject(name, context, allowHistorical) {
+  const value = String(name || '').trim();
+  if (!value) return { name: '', kind: null };
+  if (context.currentByExact.has(value)) return { name: context.currentByExact.get(value), kind: 'current' };
+  if (context.currentByKey.has(normalizedProjectKey(value))) {
+    return { name: context.currentByKey.get(normalizedProjectKey(value)), kind: 'current' };
+  }
+  if (allowHistorical && context.historicalByExact.has(value)) {
+    return { name: context.historicalByExact.get(value), kind: 'historical' };
+  }
+  if (allowHistorical && context.historicalByKey.has(normalizedProjectKey(value))) {
+    return { name: context.historicalByKey.get(normalizedProjectKey(value)), kind: 'historical' };
+  }
+  if (context.historicalByExact.has(value) || context.historicalByKey.has(normalizedProjectKey(value))) {
+    return { name: value, kind: 'historical' };
+  }
+  return { name: value, kind: null };
 }
 
 function findNextSignificant(lines, start) {
@@ -61,7 +106,15 @@ function readField(lines, index, matcher, label, errors, projectName, allowNone 
   return { index: current + 1, value };
 }
 
-function parseMovementProject(lines, start, names, errors) {
+function projectMembershipError(projectName, section, context) {
+  if (section === 'management' && (context.historicalByExact.has(projectName)
+    || context.historicalByKey.has(normalizedProjectKey(projectName)))) {
+    return `"${projectName}" must be a current active project for a management ask.`;
+  }
+  return `"${projectName}" is not an active project name and was not found in the current or comparison-week project list.`;
+}
+
+function parseMovementProject(lines, start, context, errors) {
   const index = findNextSignificant(lines, start);
   const match = index < lines.length ? lines[index].trim().match(PROJECT_LINE) : null;
   if (!match) {
@@ -69,10 +122,9 @@ function parseMovementProject(lines, start, names, errors) {
     return { index: Math.min(lines.length, index + 1), project: null };
   }
   const projectName = match[1].trim();
+  const resolved = resolveProject(projectName, context, true);
   if (!projectName) errors.push(error(index + 1, 'Project name cannot be empty.'));
-  else if (!names.has(projectName)) {
-    errors.push(error(index + 1, `"${projectName}" is not an active project name.`));
-  }
+  else if (!resolved.kind) errors.push(error(index + 1, projectMembershipError(projectName, 'movement', context)));
   let cursor = index + 1;
   const movement = readField(lines, cursor, MOVEMENT_FIELD, 'Movement', errors, projectName);
   cursor = movement.index;
@@ -82,11 +134,11 @@ function parseMovementProject(lines, start, names, errors) {
   cursor = nextStep.index;
   return {
     index: cursor,
-    project: { projectName, movement: movement.value, blocker: blocker.value, nextStep: nextStep.value }
+    project: { projectName: resolved.name || projectName, movement: movement.value, blocker: blocker.value, nextStep: nextStep.value }
   };
 }
 
-function parseManagementProject(lines, start, names, errors) {
+function parseManagementProject(lines, start, context, errors) {
   const index = findNextSignificant(lines, start);
   const match = index < lines.length ? lines[index].trim().match(PROJECT_LINE) : null;
   if (!match) {
@@ -94,10 +146,9 @@ function parseManagementProject(lines, start, names, errors) {
     return { index: Math.min(lines.length, index + 1), ask: null };
   }
   const projectName = match[1].trim();
+  const resolved = resolveProject(projectName, context, false);
   if (!projectName) errors.push(error(index + 1, 'Project name cannot be empty.'));
-  else if (!names.has(projectName)) {
-    errors.push(error(index + 1, `"${projectName}" is not an active project name.`));
-  }
+  else if (resolved.kind !== 'current') errors.push(error(index + 1, projectMembershipError(projectName, 'management', context)));
   let cursor = index + 1;
   const support = readField(lines, cursor, SUPPORT_FIELD, 'Decision / Support needed', errors, projectName);
   cursor = support.index;
@@ -105,15 +156,14 @@ function parseManagementProject(lines, start, names, errors) {
   cursor = impact.index;
   return {
     index: cursor,
-    ask: { projectName, supportNeeded: support.value, businessImpact: impact.value }
+    ask: { projectName: resolved.name || projectName, supportNeeded: support.value, businessImpact: impact.value }
   };
 }
 
-export function validateWeeklySummaryForSave(source, activeProjects = []) {
+function validateCanonicalWeeklySummary(source, context) {
   const normalized = String(source ?? '').replace(/\r\n?/g, '\n');
   const lines = normalized.split('\n');
   const errors = [];
-  const names = activeProjectNames(activeProjects);
   const projects = [];
   const managementAsks = [];
   const first = findNextSignificant(lines, 0);
@@ -129,7 +179,7 @@ export function validateWeeklySummaryForSave(source, activeProjects = []) {
   }
 
   let cursor = findNextSignificant(lines, first + 1);
-  const portfolioMatch = cursor < lines.length ? lines[cursor].trim().match(PORTFOLIO_SUMMARY) : null;
+  const portfolioMatch = cursor < lines.length ? lines[cursor].trim().match(/^Portfolio Summary:\s*(.*)$/i) : null;
   if (!portfolioMatch || !portfolioMatch[1].trim()) {
     errors.push(error(cursor < lines.length ? cursor + 1 : null, 'Expected a non-empty "Portfolio Summary:".'));
   }
@@ -151,7 +201,7 @@ export function validateWeeklySummaryForSave(source, activeProjects = []) {
       cursor = next + 1;
       continue;
     }
-    const parsed = parseMovementProject(lines, next, names, errors);
+    const parsed = parseMovementProject(lines, next, context, errors);
     if (parsed.project) projects.push(parsed.project);
     cursor = Math.max(next + 1, parsed.index);
   }
@@ -175,7 +225,7 @@ export function validateWeeklySummaryForSave(source, activeProjects = []) {
           cursor = next + 1;
           continue;
         }
-        const parsed = parseManagementProject(lines, next, names, errors);
+        const parsed = parseManagementProject(lines, next, context, errors);
         if (parsed.ask) managementAsks.push(parsed.ask);
         cursor = Math.max(next + 1, parsed.index);
       }
@@ -196,4 +246,65 @@ export function validateWeeklySummaryForSave(source, activeProjects = []) {
     errors,
     brief: ok ? { portfolioSummary, projects, managementAsks } : null
   };
+}
+
+function correction(line, before, after, message) {
+  return { line, before, after, message };
+}
+
+function normalizeLine(line, lineNumber, corrections) {
+  const trimmed = line.trim();
+  if (!trimmed) return line;
+  let after = line;
+  if (MOVEMENT_HEADING.test(trimmed)) after = 'WEEKLY MOVEMENT';
+  else if (MANAGEMENT_HEADING.test(trimmed)) after = 'MANAGEMENT ASK';
+  else {
+    const portfolio = trimmed.match(PORTFOLIO_SUMMARY);
+    if (portfolio) after = `Portfolio Summary: ${portfolio[1].trim()}`;
+    else {
+      const project = trimmed.match(PROJECT_LINE_VARIANT);
+      if (project) after = `- Project: ${project[1].trim()}`;
+      else {
+        for (const [label, variant] of FIELD_VARIANTS) {
+          const field = trimmed.match(variant);
+          if (field) {
+            after = `  ${label}: ${field[1].trim()}`;
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (after !== line) {
+    const label = after.match(/^\s*-?\s*(Project|Movement|Blocker|Next step|Decision \/ Support needed|Business impact|Portfolio Summary)\s*:/i)?.[1];
+    corrections.push(correction(
+      lineNumber,
+      line,
+      after,
+      label ? `Normalized ${label}: on line ${lineNumber}.` : `Normalized line ${lineNumber} to the weekly summary format.`
+    ));
+  }
+  return after;
+}
+
+export function normalizeWeeklySummaryForSave(source, context = {}) {
+  const raw = String(source ?? '');
+  const normalized = raw.replace(/\r\n?/g, '\n');
+  const corrections = [];
+  const lines = normalized.split('\n');
+  const canonicalCandidate = lines.map((line, index) => normalizeLine(line, index + 1, corrections)).join('\n');
+  const validation = validateCanonicalWeeklySummary(canonicalCandidate, buildProjectContext(context));
+  return {
+    ...validation,
+    canonicalText: validation.ok ? canonicalCandidate : '',
+    corrections,
+    brief: validation.brief,
+    summary: validation.brief
+      ? `${validation.brief.projects.length} movement entr${validation.brief.projects.length === 1 ? 'y' : 'ies'} validated.`
+      : ''
+  };
+}
+
+export function validateWeeklySummaryForSave(source, activeProjects = []) {
+  return normalizeWeeklySummaryForSave(source, { currentProjects: activeProjects });
 }

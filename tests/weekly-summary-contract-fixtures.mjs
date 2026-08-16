@@ -3,6 +3,28 @@ export const activeProjects = [
   { name: 'Master Controller' }
 ];
 
+export const historicalProjects = [
+  { name: 'Released project' }
+];
+
+export const geminiSummaryWithFormattingVariants = [
+  'WEEKLY MOVEMENT',
+  'Portfolio Summary: Delivery remained stable.',
+  '',
+  'Project: PMS',
+  'Movement：Validation completed.',
+  'Blocker: None',
+  'Next step: Confirm the release date.',
+  '',
+  '• Project: Released project',
+  '  Movement: Transitioned out of active tracking.',
+  '  Blocker: None',
+  '  Next step: Archive project records.',
+  '',
+  'MANAGEMENT ASK',
+  'No immediate management decision required this week.'
+].join('\n');
+
 export const validNoAskSummary = [
   'WEEKLY MOVEMENT',
   'Portfolio Summary: Delivery remained stable.',
@@ -39,7 +61,7 @@ export const invalidSummaryCases = [
   ],
   [
     'unknown-project',
-    validNoAskSummary.replace('Project: PMS', 'Project: pms'),
+    validNoAskSummary.replace('Project: PMS', 'Project: Invented project'),
     'is not an active project name'
   ],
   [
