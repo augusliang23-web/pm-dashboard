@@ -2619,18 +2619,17 @@ import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
+import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
-const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const useLocalEmulator = isLocalPreview
-  && new URLSearchParams(window.location.search).get('emulator') === '1';
-if (useLocalEmulator) {
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+const localEmulator = getLocalEmulatorConfig(window.location);
+if (localEmulator) {
+  connectFirestoreEmulator(db, '127.0.0.1', localEmulator.firestorePort);
+  connectAuthEmulator(auth, `http://127.0.0.1:${localEmulator.authPort}`, { disableWarnings: true });
 }
 window.__dashboardBootStarted = true;
 
