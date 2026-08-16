@@ -2670,6 +2670,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
+<div class="overlay" id="weeklySummaryCorrectionOverlay" role="dialog" aria-modal="true" aria-labelledby="weeklySummaryCorrectionTitle">
+  <div class="modal" style="width:620px">
+    <div class="modal-hdr">
+      <h3 id="weeklySummaryCorrectionTitle">Summary corrected</h3>
+      <button class="modal-x" type="button" onclick="closeModal('weeklySummaryCorrectionOverlay')" aria-label="Close summary correction notice">×</button>
+    </div>
+    <p style="color:var(--text-light); margin-bottom:14px;">The summary was saved after these formatting corrections. No project facts or content were invented.</p>
+    <div id="weeklySummaryCorrectionDetails" class="resource-validation show" role="status" aria-live="polite"></div>
+    <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+      <button class="btn btn-primary" type="button" onclick="closeModal('weeklySummaryCorrectionOverlay')">Continue</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="presenceUsageOverlay">
 <div class="modal" style="width:980px">
   <div class="modal-hdr">
@@ -2784,7 +2798,7 @@ import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
-import { validateWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
+import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 
 const LOCAL_EMULATOR_PROJECT_ID = 'demo-pm-dashboard-v22t';
 const useLocalEmulator = new URLSearchParams(window.location.search).get('emulator') === '1';
@@ -7276,18 +7290,18 @@ function addPortfolioSummaryInstruction(prompt) {
     '- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.',
     '- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.',
     '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
-    '- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.',
-    '- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.',
+    '- WEEKLY MOVEMENT should contain one project movement entry per meaningful movement supplied. Include a project removed since last week when it appears in the comparison data.',
+    '- MANAGEMENT ASK should contain 0 to 4 project bullets and only decisions, escalations, or unblock actions needed from management. Removed projects belong in movement only, never in management asks.',
     '- If no management action is needed, write exactly: - No immediate management decision required this week.'
   ].join('\n');
   const structuredFormat = [
     '- Immediately below WEEKLY MOVEMENT write: Portfolio Summary: <one concise portfolio-level summary>',
-    '- Four to six project movement entries. Use this exact labelled format for every entry:',
+    '- One project movement entry per meaningful movement supplied. Use this exact labelled format for every entry:',
     '  - Project: <exact project name>',
     '    Movement: <one or two concise sentences>',
     '    Blocker: <one concise sentence, or None>',
     '    Next step: <one concise sentence>',
-    '- Up to four management asks. Under MANAGEMENT ASK use this exact labelled format for every entry:',
+    '- Up to four management asks. Under MANAGEMENT ASK use this exact labelled format for every entry. Use only current active projects for management asks; removed projects belong in movement only:',
     '  - Project: <exact project name>',
     '    Decision / Support needed: <one concise sentence>',
     '    Business impact: <one concise sentence>',
@@ -7319,6 +7333,8 @@ function buildCopilotPrompt() {
   const curMap = projectByCode(curProjects);
   const prevMap = projectByCode(prevProjects);
   const codes = [...new Set([...Object.keys(prevMap), ...Object.keys(curMap)])];
+  const currentProjectNames = curProjects.map(project => project.name).filter(Boolean);
+  const removedProjects = prevProjects.filter(project => !curMap[project.code]);
   const stat = list => ({
     total:list.length,
     ok:list.filter(p => p.status === 'green').length,
@@ -7328,11 +7344,12 @@ function buildCopilotPrompt() {
     ms:list.reduce((a,p) => a + (p.milestones || []).length, 0)
   });
   const a = stat(prevProjects), b = stat(curProjects);
-  const movements = codes.map(code => {
+  const movementDetails = codes.map(code => {
     const oldP = prevMap[code], newP = curMap[code], ref = newP || oldP;
     const changes = projectMovement(oldP, newP);
     return `\n[${ref.name}]\nCode: ${ref.code}\nOwner: ${ref.owner || '-'}\nCurrent status: ${newP ? getStatusLabel(newP.status) : 'Removed'}\nCurrent attention: ${newP ? ATTENTION_MAP[getProjectAttention(newP)] : '-'}\n${changes.length ? changes.join('\n') : 'No meaningful movement detected.'}`;
   }).join('\n');
+  const movements = `CURRENT ACTIVE PROJECTS (valid for movement and management asks)\n${currentProjectNames.map(name => `- ${name}`).join('\n') || '- None supplied.'}\n\nREMOVED SINCE LAST WEEK (valid for movement entries only; do not use in MANAGEMENT ASK)\n${removedProjects.map(project => `- ${project.name}`).join('\n') || '- None.'}\n\n${movementDetails}`;
   return `You are preparing an executive weekly movement summary for LITEON PM Dashboard. The result will be pasted directly into the dashboard and email.\n\nGoal:\nCompare LAST WEEK and THIS WEEK PM inputs. Generate a concise executive summary focused on movement, not static status.\n\nRequired plain-text format:\n- Return plain text only. Do not use Markdown heading symbols, bold text, tables, or code fences.\n- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.\n- Under each section, use one bullet per project in this exact pattern: - Exact Project Name: concise update.\n- Use the exact official project name from the supplied data before the colon. Do not add labels such as Delays, Recovery, Escalation, or Kickoff to the project name.\n- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.\n- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.\n- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.\n- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.\n- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.\n- If no management action is needed, write exactly: - No immediate management decision required this week.\n\nContent and tone rules:\n- Do not invent facts. Use only the data below.\n- Do not repeat every project status.\n- Prioritize Executive Action, At Risk, Critical, changed items, and management blockers.\n- The audience includes cross-functional department leaders. Use professional, constructive, and diplomatically neutral language.\n- Avoid blame, implied ownership disputes, or potentially contentious labels such as "scope creep". Describe the observable change, impact, and needed action instead.\n- For internally driven issues, keep the wording positive and neutral, emphasizing alignment, clarification, recovery, or next steps rather than fault.\n- For externally driven issues, preserve the relevant verified facts, source, timing, and impact without speculation or emotional wording.\n- Do not assign responsibility to a person or department unless the supplied data explicitly states it and the attribution is essential to a management decision.\n\nDATA\n\nWEEK COMPARISON\nLast week: ${prev ? `${prev.weekLabel} (${prev.weekDate})` : 'No previous week available'}\nThis week: ${cur.weekLabel} (${cur.weekDate})\n\nPORTFOLIO MOVEMENT\nTotal projects: ${a.total} -> ${b.total}\nOn Track: ${a.ok} -> ${b.ok}\nAt Risk: ${a.risk} -> ${b.risk}\nCritical: ${a.critical} -> ${b.critical}\nExecutive Action: ${a.action} -> ${b.action}\nMilestones: ${a.ms} -> ${b.ms}\n\nPROJECT MOVEMENT DETAILS\n${movements}\n\nCURRENT EXECUTIVE RISK LIST\n${curProjects.filter(shouldIncludeRisk).map(p => `- ${p.name}: ${riskItems(p).join(' | ') || 'No blocker text'}; why escalated: ${riskReasons(p).join(' / ')}; owner: ${p.owner || '-'}; next action: ${textLines(p.next)[0] || '-'}`).join('\n') || '- No current executive risks.'}\n`;
 }
 
@@ -10495,6 +10512,17 @@ function activeProjectsForWeek(week) {
   return (week?.projects || []).filter(project => !project.visibility || project.visibility === 'active');
 }
 
+function summaryProjectContext(week) {
+  const currentProjects = activeProjectsForWeek(week);
+  const currentKeys = new Set(currentProjects.map(project => project.code || normText(project.name)).filter(Boolean));
+  const previousProjects = currentIdx > 0 ? activeProjectsForWeek(allWeeks[currentIdx - 1]) : [];
+  const historicalProjects = previousProjects.filter(project => {
+    const key = project.code || normText(project.name);
+    return key && !currentKeys.has(key);
+  });
+  return { currentProjects, historicalProjects };
+}
+
 function setWeeklySummaryValidation(result = { errors: [] }) {
   const target = document.getElementById('weeklySummaryValidation');
   if (!target) return;
@@ -10513,10 +10541,28 @@ function setWeeklySummaryValidation(result = { errors: [] }) {
   target.focus();
 }
 
+function showWeeklySummaryCorrections(corrections = []) {
+  if (!corrections.length) return;
+  const target = document.getElementById('weeklySummaryCorrectionDetails');
+  const overlay = document.getElementById('weeklySummaryCorrectionOverlay');
+  if (!target || !overlay) return;
+  target.replaceChildren();
+  corrections.forEach(item => {
+    const row = document.createElement('div');
+    const line = document.createElement('strong');
+    line.textContent = `Line ${item.line}: `;
+    const detail = document.createElement('span');
+    detail.textContent = `${item.before} → ${item.after}`;
+    row.append(line, detail);
+    target.append(row);
+  });
+  openAccessibleModal(overlay);
+}
+
 window.saveWeekSummary = async () => {
   const week = allWeeks[currentIdx];
   const field = document.getElementById('wm_summary');
-  const result = validateWeeklySummaryForSave(field.value, activeProjectsForWeek(week));
+  const result = normalizeWeeklySummaryForSave(field.value, summaryProjectContext(week));
   if (!result.ok) {
     setWeeklySummaryValidation(result);
     return;
@@ -10540,6 +10586,7 @@ window.saveWeekSummary = async () => {
     await new Promise(r => setTimeout(r, 600));
     hideLoader();
     showSaveToast("Summary updated");
+    showWeeklySummaryCorrections(result.corrections);
   } catch (error) {
     hideLoader();
     setWeeklySummaryValidation({ errors: [{ line: null, message: `Unable to save the Weekly Summary: ${error.message || 'Please try again.'}` }] });
