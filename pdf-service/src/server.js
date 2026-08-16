@@ -3,10 +3,11 @@ import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createReportHandler } from './app.js';
+import { createFirebaseAppOptions } from './firebase-app-options.js';
 import { renderPdfBuffer } from './pdf-renderer.js';
 import { applyCors, handlePreflight } from './cors.js';
 
-initializeApp({ credential: applicationDefault() });
+initializeApp(createFirebaseAppOptions(process.env, { applicationDefault }));
 const db = getFirestore();
 const auth = getAuth();
 const handler = createReportHandler({

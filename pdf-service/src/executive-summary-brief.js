@@ -1,3 +1,9 @@
+import { validateWeeklySummaryForPdf } from './weekly-summary-contract.js';
+
+export function validateExecutiveSummaryForPdf(source) {
+  return validateWeeklySummaryForPdf(source, [], { requireProjectMembership: false });
+}
+
 function clean(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }

@@ -3,6 +3,7 @@ import {
   authorizeReportAccess,
   ReportAccessError
 } from './report-access.js';
+import { validateExecutiveSummaryForPdf } from './executive-summary-brief.js';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -71,6 +72,14 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);
 
   if (request.mode !== 'project') {
+    if (request.sections.includes('executive-summary')) {
+      const summary = String(week.executiveSummary || week.summary || week.overviewSummary || '');
+      const validation = validateExecutiveSummaryForPdf(summary);
+      if (!validation.ok) {
+        const details = validation.errors.map(error => error.message).join(' ');
+        throw new ReportDataError(`Weekly Summary is not valid for PDF export: ${details}`, 422);
+      }
+    }
     const selectedWeek = selectOverviewProjects(activeOverviewWeek(week), request.projectCodes);
     const overviewScope = request.overviewScope || 'system';
     const availableProjectCount = reportableOverviewProjects(week, overviewScope).length;
