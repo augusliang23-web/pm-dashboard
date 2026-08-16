@@ -187,6 +187,40 @@ test('rejects an invalid stored Weekly Summary before Executive Summary PDF rend
   );
 });
 
+test('allows a canonical removed-project movement in Executive Summary PDF data', async () => {
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-summary'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        summary: `WEEKLY MOVEMENT\nPortfolio Summary: One project was released.\n- Project: Released project\n  Movement: Transitioned out of active tracking.\n  Blocker: None\n  Next step: Archive project records.\nMANAGEMENT ASK\nNo immediate management decision required this week.`,
+        projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+      })
+    }
+  });
+  assert.deepEqual(report.sections, ['executive-summary']);
+});
+
+test('rejects malformed Executive Summary structure with a PDF data error', async () => {
+  await assert.rejects(
+    () => loadAuthorizedReport({
+      request: { mode: 'overview', weekId: 'W28', sections: ['executive-summary'] },
+      idToken: 'pm@example.com',
+      adapters: {
+        ...adapters,
+        getWeekById: async () => ({
+          weekLabel: 'W28 2026',
+          summary: 'WEEKLY MOVEMENT\nPortfolio Summary: Broken.\n- Project: Released project\n  Movement: Transitioned.\n  Blocker: None\nMANAGEMENT ASK\nNo immediate management decision required this week.',
+          projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+        })
+      }
+    }),
+    error => error instanceof ReportDataError && error.statusCode === 422
+  );
+});
+
 test('does not validate Weekly Summary when Executive Summary is not selected', async () => {
   const [, invalidSummary] = invalidSummaryCases[0];
   const report = await loadAuthorizedReport({
