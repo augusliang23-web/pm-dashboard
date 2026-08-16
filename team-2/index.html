@@ -9963,18 +9963,17 @@ window.saveWeekSummary = async () => {
 
   const id = week.weekLabel.replace(/\s+/g, '-');
   const summary = result.canonicalText;
+  const updatedWeek = {
+    ...week,
+    summary,
+    lastModifiedBy: currentUser.email
+  };
   setWeeklySummaryValidation();
   closeModal('weekManageOverlay');
   showLoader("Updating Summary...");
   try {
-    const response = await projectDashboardApi.saveWeekFields({ weekId: id, fields: { summary } });
-    if (response?.week) {
-      Object.defineProperty(response.week, '__documentId', { value: id, enumerable: false, configurable: true });
-      allWeeks[currentIdx] = response.week;
-    } else {
-      week.summary = summary;
-      week.lastModifiedBy = currentUser.email;
-    }
+    await setDoc(doc(db, "weeks", id), updatedWeek);
+    Object.assign(week, updatedWeek);
     field.value = summary;
     await new Promise(r => setTimeout(r, 600));
     hideLoader();
