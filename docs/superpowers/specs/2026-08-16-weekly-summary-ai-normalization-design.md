@@ -30,7 +30,9 @@ The parser accepts the following equivalent project-entry prefixes and writes ea
 
 It will also normalize CRLF line endings, leading indentation, label capitalization, and ASCII/full-width colon spacing for the required labels. It does not rewrite sentences, invent a missing field value, silently discard a project entry, or change the management no-decision sentence.
 
-When only normalizations were needed, saving proceeds automatically. The success toast reports that the summary was normalized and saved. The textarea is updated to the canonical result after the successful write.
+When only normalizations were needed, saving proceeds automatically. The textarea is updated to the canonical result after the successful write, then an accessible `Summary corrected` dialog appears. It identifies every corrected line in plain language, for example `Line 4: changed "Project:" to "- Project:"`, and confirms that the normalized summary was saved.
+
+The correction dialog is informational, not a second approval step: one paste and one Save action remain sufficient. It has a single dismiss action and does not hide the corrected source.
 
 ### 2. Resolve project references from the comparison population
 
@@ -43,7 +45,7 @@ The parser maps a recognized name to its official display name, using exact matc
 
 Removed/released projects are valid `WEEKLY MOVEMENT` entries because their removal is meaningful week-over-week movement. Only current-week active projects are valid `MANAGEMENT ASK` entries.
 
-An unresolvable project identity remains a blocking error. This is the one case where the system cannot safely invent a mapping or publish an unverified project statement. It will name the unmatched value and distinguish it from repairable formatting.
+An unresolvable project identity remains a blocking error. This is the one case where the system cannot safely invent a mapping or publish an unverified project statement. The error dialog will name the unmatched value, state that no automatic correction was applied, and distinguish it from repairable formatting. The same rule applies when a required field has no value: the system never invents status, blocker, next-step, or management-decision facts.
 
 ### 3. Generate a compatible AI prompt
 
@@ -67,7 +69,7 @@ The PDF service validates the saved structural contract without requiring a curr
 1. User copies Gemini or Copilot output and pastes it into Weekly Summary.
 2. User selects Save Weekly Summary once.
 3. The app canonicalizes benign punctuation/list-marker/spacing differences and resolves known current or recently removed projects.
-4. The app saves and reports any normalizations.
+4. The app saves, then opens a correction dialog that reports every automatic change.
 5. The saved canonical source is used by Overview and PDF export.
 
 Only an AI reference that cannot be matched to either week, or prose that lacks a required field value, stops the save with a specific message.
@@ -78,10 +80,12 @@ Tests will be written before implementation for:
 
 - Gemini-style `Project:` entries with no leading marker becoming canonical and saving;
 - `*` and `•` project markers becoming canonical;
+- an automatic-correction dialog naming every changed line after a successful save;
 - a known prior-week released project being accepted for Weekly Movement;
 - a released project being rejected only when used in Management Ask;
 - exact/case-whitespace canonical project-name resolution;
 - unknown project identity remaining a blocking error;
+- an unrecoverable error dialog explicitly stating that no fact was invented or auto-corrected;
 - prompt sections for current active and removed projects; and
 - PDF structural acceptance of a canonical summary that includes a released movement project.
 
