@@ -86,25 +86,25 @@
 ### Task 3: Document coverage and real-AI sample intake
 
 **Files:**
-- Modify: `README.md`
+- Create: `docs/weekly-summary-corpus.md`
 - Modify: `tests/weekly-summary-corpus.mjs`
 
 **Interfaces:**
 - Documents the corpus command, case categories, and how to add anonymized Copilot/Gemini outputs.
 - Keeps real AI samples as data-only additions with no runner changes.
 
-- [ ] **Step 1: Add a fixture intake test**
+- [x] **Step 1: Add a fixture intake test**
 
   Assert each corpus case has a stable ID, explicit expected outcome, project context, and no empty source.
 
-- [ ] **Step 2: Document coverage interpretation**
+- [x] **Step 2: Document coverage interpretation**
 
   Explain that contract coverage can target 100% of defined cases, while real-generator coverage is measured by observed samples and never promises arbitrary AI output success.
 
-- [ ] **Step 3: Run all corpus and PDF contract checks**
+- [x] **Step 3: Run all corpus and PDF contract checks**
 
   Run: `npm run test:weekly-summary-corpus` and `node --test pdf-service/test/executive-summary-brief.test.mjs pdf-service/test/report-data.test.mjs`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
-  Run: `git add README.md tests/weekly-summary-corpus.mjs && git commit -m "docs: explain weekly summary coverage"`
+  Run: `git add docs/weekly-summary-corpus.md tests/weekly-summary-corpus.mjs tests/weekly-summary-corpus.test.mjs && git commit -m "test: add observed Gemini summary fixture"`

@@ -12,9 +12,14 @@ test('weekly summary corpus has unique, fully specified cases', () => {
     assert.match(testCase.id, /^[a-z0-9-]+$/);
     assert.ok(testCase.source.trim());
     assert.ok(['accept', 'reject'].includes(testCase.expected));
+    assert.ok(['copilot', 'gemini', 'synthetic'].includes(testCase.sourceType));
+    assert.equal(typeof testCase.observed, 'boolean');
     assert.ok(Array.isArray(testCase.context.currentProjects));
     if (testCase.expected === 'reject') assert.ok(testCase.expectedError);
   }
+  assert.ok(weeklySummaryCorpus.some(testCase => (
+    testCase.sourceType === 'gemini' && testCase.observed === true
+  )));
 });
 
 for (const testCase of weeklySummaryCorpus) {
