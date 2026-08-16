@@ -6750,8 +6750,8 @@ function addPortfolioSummaryInstruction(prompt) {
     '- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.',
     '- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.',
     '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
-    '- WEEKLY MOVEMENT should contain one project movement entry per meaningful movement supplied. Include a project removed since last week when it appears in the comparison data.',
-    '- MANAGEMENT ASK should contain 0 to 4 project bullets and only decisions, escalations, or unblock actions needed from management. Removed projects belong in movement only, never in management asks.',
+    '- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.',
+    '- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.',
     '- If no management action is needed, write exactly: - No immediate management decision required this week.'
   ].join('\n');
   const structuredFormat = [
