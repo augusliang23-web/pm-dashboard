@@ -6182,7 +6182,11 @@ function buildCopilotPrompt() {
   const prevMap = projectByCode(prevProjects);
   const codes = [...new Set([...Object.keys(prevMap), ...Object.keys(curMap)])];
   const currentProjectNames = curProjects.map(project => project.name).filter(Boolean);
-  const removedProjects = prevProjects.filter(project => !curMap[project.code]);
+  const currentProjectKeys = new Set(curProjects.map(project => project.code || normText(project.name)).filter(Boolean));
+  const removedProjects = prevProjects.filter(project => {
+    const key = project.code || normText(project.name);
+    return key && !currentProjectKeys.has(key);
+  });
   const stat = list => ({
     total:list.length,
     ok:list.filter(p => p.status === 'green').length,
