@@ -46,7 +46,7 @@
 
   Run: `node --test tests/weekly-summary-corpus.test.mjs`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Run: `git add tests/weekly-summary-corpus.mjs tests/weekly-summary-corpus.test.mjs && git commit -m "test: define weekly summary corpus"`
 
@@ -79,7 +79,7 @@
 
   Run: `npm run test:weekly-summary-corpus` and `node --test tests/weekly-summary-contract.test.mjs tests/weekly-summary-normalization.test.mjs tests/weekly-summary-prompt.test.mjs tests/weekly-summary-save-ui.test.mjs tests/weekly-summary-correction-ui.test.mjs`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Run: `git add tests/weekly-summary-corpus.test.mjs package.json && git commit -m "test: verify weekly summary corpus across save and PDF"`
 
