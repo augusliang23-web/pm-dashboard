@@ -20,7 +20,12 @@ for (const [index, source] of sources.entries()) {
     const saveSource = source.slice(start, end);
     assert.match(saveSource, /const result = normalizeWeeklySummaryForSave\(field\.value, summaryProjectContext\(week\)\)/);
     assert.match(saveSource, /if \(!result\.ok\) \{\s+setWeeklySummaryValidation\(result\);\s+return;/);
-    assert.ok(saveSource.indexOf('normalizeWeeklySummaryForSave') < saveSource.indexOf('await setDoc'));
+    const writeIndexes = [
+      saveSource.indexOf('await setDoc'),
+      saveSource.indexOf('saveWeekFields')
+    ].filter(index => index >= 0);
+    assert.ok(writeIndexes.length, 'saveWeekSummary must call the dashboard write path');
+    assert.ok(saveSource.indexOf('normalizeWeeklySummaryForSave') < Math.min(...writeIndexes));
     assert.doesNotMatch(saveSource, /cleanWeeklySummaryTextarea/);
 });
 
