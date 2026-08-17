@@ -9,6 +9,7 @@ import {
   compactExecutiveSummaryFixture,
   completeOverviewReportFixture,
   completeProjectReportFixture,
+  packedRepairExecutiveSummaryFixture,
   stressExecutiveSummaryFixture,
   verboseExecutiveSummaryFixture
 } from './report-fixtures.mjs';
@@ -55,6 +56,31 @@ test('compact Executive Summary renders exactly two landscape pages', { timeout:
   const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
 
   assert.equal(pageObjects.length, 2);
+});
+
+test('repaired packed-summary content survives Executive Summary HTML and PDF rendering', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = packedRepairExecutiveSummaryFixture();
+  const html = renderOverviewReportHtml(fixture);
+  assert.match(html, /Scenario One \/ Alpha/);
+  assert.match(html, /Validation completed\./);
+  assert.match(html, /Decision \/ Support needed/);
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    assert.match(bodyText, /Scenario One \/ Alpha/);
+    assert.match(bodyText, /Validation completed\./);
+    assert.match(bodyText, /Approve supplier escalation\./);
+    const pdf = await renderPdfBuffer(html);
+    assert.ok(pdf.length > 1000);
+    assert.ok(physicalPageCount(pdf) >= 1);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
 });
 
 test('verbose Executive Summary creates measured continuation pages without pre-splitting HTML', { timeout: 60000 }, async () => {
@@ -119,16 +145,30 @@ test('splits high-text Executive Summary cards before any wrapper exceeds A4 hei
   try {
     await page.setContent(renderOverviewReportHtml(fixture), { waitUntil: 'networkidle0' });
     await page.evaluate(paginateMeasuredFlows);
-    const heights = await page.evaluate(() => [...document.querySelectorAll('.report-page')]
-      .map(node => node.getBoundingClientRect().height));
+    const frames = await page.evaluate(() => [...document.querySelectorAll('.report-page')].map(node => {
+      const pageRect = node.getBoundingClientRect();
+      const header = node.querySelector('.report-page-head')?.getBoundingClientRect();
+      const footer = node.querySelector('.report-footer')?.getBoundingClientRect();
+      const flowTexts = [...node.querySelectorAll('[data-pdf-flow-items]')]
+        .map(flow => flow.textContent.trim());
+      return {
+        height: pageRect.height,
+        headerTop: header ? header.top - pageRect.top : 0,
+        footerClearance: footer ? pageRect.bottom - footer.bottom : 0,
+        flowTexts
+      };
+    }));
 
-    assert.ok(heights.length > 5);
-    heights.forEach((height, index) => {
-      assert.ok(Math.abs(height - 793.7) < 1, `stress page ${index + 1} must remain A4 height`);
+    assert.ok(frames.length > 5);
+    frames.forEach((frame, index) => {
+      assert.ok(Math.abs(frame.height - 793.7) < 1, `stress page ${index + 1} must remain A4 height`);
+      assert.ok(frame.headerTop > 20, `stress page ${index + 1} header must remain below the top margin`);
+      assert.ok(frame.footerClearance >= 20, `stress page ${index + 1} footer must remain 20px above the bottom`);
+      assert.ok(frame.flowTexts.every(Boolean), `stress page ${index + 1} must have non-empty flow content`);
     });
     const pdf = await renderPdfBuffer(renderOverviewReportHtml(fixture));
     const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
-    assert.equal(pageObjects.length, heights.length);
+    assert.equal(pageObjects.length, frames.length);
   } finally {
     await page.close();
     await browser.close();
