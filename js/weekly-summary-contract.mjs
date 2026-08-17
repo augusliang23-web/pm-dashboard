@@ -20,11 +20,6 @@ const PACKED_MANAGEMENT_FIELDS = [
   ['Decision / Support needed', /\s+Decision\s*\/\s*Support needed\s*[:：]\s*/ig],
   ['Business impact', /\s+Business impact\s*[:：]\s*/ig]
 ];
-const ALL_PACKED_FIELD_LABELS = [
-  ...PACKED_MOVEMENT_FIELDS,
-  ...PACKED_MANAGEMENT_FIELDS
-];
-
 const FIELD_VARIANTS = [
   ['Movement', /^\s*Movement\s*[:：]\s*(.*?)\s*$/i, MOVEMENT_FIELD],
   ['Blocker', /^\s*Blocker\s*[:：]\s*(.*?)\s*$/i, BLOCKER_FIELD],
@@ -368,6 +363,7 @@ function expandPackedProjectEntry(line, section, lineNumber, corrections) {
 function expandPackedSummaryLines(lines, corrections) {
   const expandedLines = [];
   let section = null;
+  const push = (text, lineNumber) => expandedLines.push({ text, lineNumber });
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
     const heading = expandInlineHeading(line, lineNumber, corrections);
@@ -376,17 +372,17 @@ function expandPackedSummaryLines(lines, corrections) {
       const trimmed = candidate.trim();
       if (MOVEMENT_HEADING.test(trimmed)) {
         section = 'movement';
-        expandedLines.push(candidate);
+        push(candidate, lineNumber);
         continue;
       }
       if (MANAGEMENT_HEADING.test(trimmed)) {
         section = 'management';
-        expandedLines.push(candidate);
+        push(candidate, lineNumber);
         continue;
       }
       const packed = section ? expandPackedProjectEntry(candidate, section, lineNumber, corrections) : null;
-      if (packed) expandedLines.push(...packed);
-      else expandedLines.push(candidate);
+      if (packed) packed.forEach(text => push(text, lineNumber));
+      else push(candidate, lineNumber);
     }
   });
   return expandedLines;
@@ -433,7 +429,7 @@ export function normalizeWeeklySummaryForSave(source, context = {}) {
   const corrections = [];
   const expandedLines = expandPackedSummaryLines(normalized.split('\n'), corrections);
   const canonicalCandidate = expandedLines
-    .map((line, index) => normalizeLine(line, index + 1, corrections))
+    .map(({ text, lineNumber }) => normalizeLine(text, lineNumber, corrections))
     .join('\n');
   const validation = validateCanonicalWeeklySummary(canonicalCandidate, buildProjectContext(context));
   return {
