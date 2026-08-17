@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { ReportDataError, loadAuthorizedReport } from '../src/report-data.js';
 import { ReportAccessError } from '../src/report-access.js';
 import { invalidSummaryCases } from '../../tests/weekly-summary-contract-fixtures.mjs';
+import { normalizeWeeklySummaryForSave } from '../../js/weekly-summary-contract.mjs';
+import { packedHeadingAndAskSummary, packedMissingFieldSummary, packedSummaryContext } from '../../tests/weekly-summary-packed-fixtures.mjs';
 
 const adapters = {
   verifyIdToken: async token => ({ email: token }),
@@ -202,6 +204,47 @@ test('allows a canonical removed-project movement in Executive Summary PDF data'
   });
   assert.deepEqual(report.sections, ['executive-summary']);
 });
+
+test('loads an authorized Overview when the browser has stored repaired canonical text', async () => {
+  const repaired = normalizeWeeklySummaryForSave(packedHeadingAndAskSummary, packedSummaryContext);
+  assert.equal(repaired.ok, true);
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-summary'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        summary: repaired.canonicalText,
+        projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+      })
+    }
+  });
+  assert.deepEqual(report.sections, ['executive-summary']);
+});
+
+for (const [name, summary] of [
+  ['packed source', packedHeadingAndAskSummary],
+  ['missing packed field', packedMissingFieldSummary]
+]) {
+  test(`rejects ${name} when it bypasses browser repair before PDF data loading`, async () => {
+    await assert.rejects(
+      () => loadAuthorizedReport({
+        request: { mode: 'overview', weekId: 'W28', sections: ['executive-summary'] },
+        idToken: 'pm@example.com',
+        adapters: {
+          ...adapters,
+          getWeekById: async () => ({
+            weekLabel: 'W28 2026',
+            summary,
+            projects: [{ code: 'PMS-001', name: 'PMS', visibility: 'active' }]
+          })
+        }
+      }),
+      error => error instanceof ReportDataError && error.statusCode === 422
+    );
+  });
+}
 
 test('rejects malformed Executive Summary structure with a PDF data error', async () => {
   await assert.rejects(

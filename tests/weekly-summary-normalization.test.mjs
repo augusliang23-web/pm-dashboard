@@ -9,6 +9,16 @@ import {
   historicalProjects,
   validNoAskSummary
 } from './weekly-summary-contract-fixtures.mjs';
+import {
+  packedDuplicateFieldSummary,
+  packedHeadingAndAskSummary,
+  packedMixedFieldFamilySummary,
+  packedMissingFieldSummary,
+  packedMovementNoAskSummary,
+  packedReversedFieldSummary,
+  packedSummaryContext,
+  packedUnknownProjectSummary
+} from './weekly-summary-packed-fixtures.mjs';
 
 test('normalizes missing project markers and label punctuation in one paste', () => {
   const result = normalizeWeeklySummaryForSave(
@@ -73,3 +83,38 @@ test('rejects a historical project in a management ask', () => {
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(error => error.message.includes('current active project')));
 });
+
+test('expands a packed movement summary and preserves its canonical meaning', () => {
+  const result = normalizeWeeklySummaryForSave(packedMovementNoAskSummary, packedSummaryContext);
+
+  assert.equal(result.ok, true);
+  assert.match(result.canonicalText, /WEEKLY MOVEMENT\nPortfolio Summary: Delivery remains stable\./);
+  assert.match(result.canonicalText, /- Project: Scenario One \/ Alpha\n  Movement: Validation completed\.\n  Blocker: None\n  Next step: Confirm the release date\./);
+  assert.match(result.canonicalText, /- Project: Scenario One \/ Released\n  Movement: Archived after release\./);
+  assert.ok(result.corrections.some(item => item.message.includes('expanded a packed movement entry')));
+});
+
+test('expands packed heading, movement, and management ask entries', () => {
+  const result = normalizeWeeklySummaryForSave(packedHeadingAndAskSummary, packedSummaryContext);
+
+  assert.equal(result.ok, true);
+  assert.match(result.canonicalText, /MANAGEMENT ASK\n- Project: Scenario One \/ Beta\n  Decision \/ Support needed: Approve supplier escalation\./);
+  assert.ok(result.corrections.some(item => item.message.includes('expanded a packed management ask entry')));
+});
+
+for (const [name, source, expected] of [
+  ['missing packed field', packedMissingFieldSummary, null],
+  ['duplicate packed field', packedDuplicateFieldSummary, null],
+  ['reversed packed fields', packedReversedFieldSummary, null],
+  ['mixed packed field families', packedMixedFieldFamilySummary, null],
+  ['unknown packed project', packedUnknownProjectSummary, 'not an active project name']
+]) {
+  test(`keeps unsafe ${name} blocked`, () => {
+    const result = normalizeWeeklySummaryForSave(source, packedSummaryContext);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.canonicalText, '');
+    if (expected) assert.ok(result.errors.some(error => error.message.includes(expected)));
+    else assert.ok(result.errors.length > 0);
+  });
+}

@@ -9,6 +9,7 @@ import {
   compactExecutiveSummaryFixture,
   completeOverviewReportFixture,
   completeProjectReportFixture,
+  packedRepairExecutiveSummaryFixture,
   stressExecutiveSummaryFixture,
   verboseExecutiveSummaryFixture
 } from './report-fixtures.mjs';
@@ -46,6 +47,31 @@ test('compact Executive Summary renders exactly two landscape pages', { timeout:
   const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
 
   assert.equal(pageObjects.length, 2);
+});
+
+test('repaired packed-summary content survives Executive Summary HTML and PDF rendering', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = packedRepairExecutiveSummaryFixture();
+  const html = renderOverviewReportHtml(fixture);
+  assert.match(html, /Scenario One \/ Alpha/);
+  assert.match(html, /Validation completed\./);
+  assert.match(html, /Decision \/ Support needed/);
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    assert.match(bodyText, /Scenario One \/ Alpha/);
+    assert.match(bodyText, /Validation completed\./);
+    assert.match(bodyText, /Approve supplier escalation\./);
+    const pdf = await renderPdfBuffer(html);
+    assert.ok(pdf.length > 1000);
+    assert.ok(physicalPageCount(pdf) >= 1);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
 });
 
 test('verbose Executive Summary creates measured continuation pages without pre-splitting HTML', { timeout: 60000 }, async () => {

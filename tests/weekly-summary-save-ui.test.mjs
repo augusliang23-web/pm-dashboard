@@ -34,7 +34,7 @@ test('successful saves expose automatic corrections in a separate accessible dia
     assert.match(source, /id="weeklySummaryCorrectionOverlay"[^>]*role="dialog"/);
     assert.match(source, /id="weeklySummaryCorrectionDetails"/);
     assert.match(source, /showWeeklySummaryCorrections\(result\.corrections\)/);
-    assert.match(source, /showWeeklySummaryCorrections[\s\S]*textContent/);
+    assert.match(source, /showWeeklySummaryCorrections[\s\S]*detail\.textContent = item\.message \|\|/);
   }
 });
 }

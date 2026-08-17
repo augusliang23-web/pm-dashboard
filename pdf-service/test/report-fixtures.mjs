@@ -160,6 +160,23 @@ MANAGEMENT ASK
   Business impact: Reduces pilot integration uncertainty.`;
 }
 
+export function packedRepairExecutiveSummaryFixture() {
+  return `WEEKLY MOVEMENT
+Portfolio Summary: Delivery remains stable after the packed Copilot paste.
+- Project: Scenario One / Alpha
+  Movement: Validation completed.
+  Blocker: None
+  Next step: Confirm the release date.
+- Project: Scenario One / Beta
+  Movement: Integration entered review.
+  Blocker: Supplier timing remains open.
+  Next step: Confirm recovery ownership.
+MANAGEMENT ASK
+- Project: Scenario One / Beta
+  Decision / Support needed: Approve supplier escalation.
+  Business impact: Protects the pilot date.`;
+}
+
 export function verboseExecutiveSummaryFixture() {
   return structuredExecutiveSummaryFixture();
 }
