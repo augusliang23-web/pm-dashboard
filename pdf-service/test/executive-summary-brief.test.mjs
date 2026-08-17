@@ -17,6 +17,11 @@ const {
   validAskSummary,
   validNoAskSummary
 } = await import('../../tests/weekly-summary-contract-fixtures.mjs');
+const { normalizeWeeklySummaryForSave } = await import('../../js/weekly-summary-contract.mjs');
+const {
+  packedHeadingAndAskSummary,
+  packedSummaryContext
+} = await import('../../tests/weekly-summary-packed-fixtures.mjs');
 
 const historicalMovementSummary = `WEEKLY MOVEMENT
 Portfolio Summary: One project was released from active tracking.
@@ -34,6 +39,13 @@ test('accepts the same canonical summaries as the browser contract', () => {
 
 test('accepts a canonical movement for a project removed since the comparison week', () => {
   assert.equal(validateExecutiveSummaryForPdf(historicalMovementSummary, historicalProjects).ok, true);
+});
+
+test('accepts browser-repaired packed Copilot text as canonical PDF input', () => {
+  const repaired = normalizeWeeklySummaryForSave(packedHeadingAndAskSummary, packedSummaryContext);
+  assert.equal(repaired.ok, true);
+  const pdfResult = validateExecutiveSummaryForPdf(repaired.canonicalText);
+  assert.equal(pdfResult.ok, true);
 });
 
 test('still rejects malformed canonical movement structure', () => {

@@ -9603,7 +9603,7 @@ function showWeeklySummaryCorrections(corrections = []) {
     const line = document.createElement('strong');
     line.textContent = `Line ${item.line}: `;
     const detail = document.createElement('span');
-    detail.textContent = `${item.before} → ${item.after}`;
+    detail.textContent = item.message || `${item.before} → ${item.after}`;
     row.append(line, detail);
     target.append(row);
   });

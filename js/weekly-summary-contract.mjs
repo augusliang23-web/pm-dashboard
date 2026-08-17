@@ -11,6 +11,15 @@ const NEXT_STEP_FIELD = /^Next step:\s*(.*)$/i;
 const SUPPORT_FIELD = /^Decision \/ Support needed:\s*(.*)$/i;
 const IMPACT_FIELD = /^Business impact:\s*(.*)$/i;
 
+const PACKED_MOVEMENT_FIELDS = [
+  ['Movement', /\s+Movement\s*[:：]\s*/ig],
+  ['Blocker', /\s+Blocker\s*[:：]\s*/ig],
+  ['Next step', /\s+Next step\s*[:：]\s*/ig]
+];
+const PACKED_MANAGEMENT_FIELDS = [
+  ['Decision / Support needed', /\s+Decision\s*\/\s*Support needed\s*[:：]\s*/ig],
+  ['Business impact', /\s+Business impact\s*[:：]\s*/ig]
+];
 const FIELD_VARIANTS = [
   ['Movement', /^\s*Movement\s*[:：]\s*(.*?)\s*$/i, MOVEMENT_FIELD],
   ['Blocker', /^\s*Blocker\s*[:：]\s*(.*?)\s*$/i, BLOCKER_FIELD],
@@ -252,6 +261,133 @@ function correction(line, before, after, message) {
   return { line, before, after, message };
 }
 
+function splitOrderedPackedFields(value, fields) {
+  const matches = [];
+  let previousEnd = 0;
+  for (const [label, matcher] of fields) {
+    matcher.lastIndex = 0;
+    const found = [...String(value).matchAll(matcher)];
+    matcher.lastIndex = 0;
+    if (found.length !== 1) return null;
+    const match = found[0];
+    if (match.index <= previousEnd) return null;
+    const segment = String(value).slice(previousEnd, match.index).trim();
+    if (!segment) return null;
+    matches.push({ label, value: segment, index: match.index });
+    previousEnd = match.index + match[0].length;
+  }
+  const finalValue = String(value).slice(previousEnd).trim();
+  if (!finalValue) return null;
+  return {
+    prefix: matches[0].value,
+    fields: [
+      ...matches.slice(1).map((match, index) => ({
+        label: fields[index][0],
+        value: match.value
+      })),
+      { label: fields.at(-1)[0], value: finalValue }
+    ]
+  };
+}
+
+function containsPackedLabel(value, fields) {
+  return fields.some(([, matcher]) => {
+    matcher.lastIndex = 0;
+    const found = matcher.test(String(value));
+    matcher.lastIndex = 0;
+    return found;
+  });
+}
+
+function expandInlineHeading(line, lineNumber, corrections) {
+  const value = String(line).trim();
+  const movement = value.match(/^WEEKLY MOVEMENT\s+(Portfolio Summary\s*[:：]\s*.*)$/i);
+  if (movement) {
+    const expanded = ['WEEKLY MOVEMENT', movement[1].trim()];
+    corrections.push(correction(
+      lineNumber,
+      line,
+      expanded.join('\n'),
+      'Split WEEKLY MOVEMENT and Portfolio Summary into separate lines.'
+    ));
+    return expanded;
+  }
+  const management = value.match(/^MANAGEMENT ASK\s+(.+)$/i);
+  if (management) {
+    const expanded = ['MANAGEMENT ASK', management[1].trim()];
+    corrections.push(correction(
+      lineNumber,
+      line,
+      expanded.join('\n'),
+      'Split MANAGEMENT ASK and its following entry into separate lines.'
+    ));
+    return expanded;
+  }
+  return null;
+}
+
+function expandPackedProjectEntry(line, section, lineNumber, corrections) {
+  const match = String(line).trim().match(PROJECT_LINE_VARIANT);
+  if (!match) return null;
+  const projectAndFields = match[1].trim();
+  const fields = section === 'movement' ? PACKED_MOVEMENT_FIELDS : PACKED_MANAGEMENT_FIELDS;
+  const otherFields = section === 'movement' ? PACKED_MANAGEMENT_FIELDS : PACKED_MOVEMENT_FIELDS;
+  if (!containsPackedLabel(projectAndFields, fields) || containsPackedLabel(projectAndFields, otherFields)) {
+    return null;
+  }
+  const split = splitOrderedPackedFields(projectAndFields, fields);
+  if (!split) return null;
+  const expanded = section === 'movement'
+    ? [
+      `- Project: ${split.prefix}`,
+      `  Movement: ${split.fields[0].value}`,
+      `  Blocker: ${split.fields[1].value}`,
+      `  Next step: ${split.fields[2].value}`
+    ]
+    : [
+      `- Project: ${split.prefix}`,
+      `  Decision / Support needed: ${split.fields[0].value}`,
+      `  Business impact: ${split.fields[1].value}`
+    ];
+  corrections.push(correction(
+    lineNumber,
+    line,
+    expanded.join('\n'),
+    section === 'movement'
+      ? 'expanded a packed movement entry into labelled fields.'
+      : 'expanded a packed management ask entry into labelled fields.'
+  ));
+  return expanded;
+}
+
+function expandPackedSummaryLines(lines, corrections) {
+  const expandedLines = [];
+  let section = null;
+  const push = (text, lineNumber) => expandedLines.push({ text, lineNumber });
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1;
+    const heading = expandInlineHeading(line, lineNumber, corrections);
+    const candidates = heading || [line];
+    for (const candidate of candidates) {
+      const trimmed = candidate.trim();
+      if (MOVEMENT_HEADING.test(trimmed)) {
+        section = 'movement';
+        push(candidate, lineNumber);
+        continue;
+      }
+      if (MANAGEMENT_HEADING.test(trimmed)) {
+        section = 'management';
+        push(candidate, lineNumber);
+        continue;
+      }
+      const packed = section ? expandPackedProjectEntry(candidate, section, lineNumber, corrections) : null;
+      if (packed) packed.forEach(text => push(text, lineNumber));
+      else push(candidate, lineNumber);
+    }
+  });
+  return expandedLines;
+}
+
 function normalizeLine(line, lineNumber, corrections) {
   const trimmed = line.trim();
   if (!trimmed) return line;
@@ -291,8 +427,10 @@ export function normalizeWeeklySummaryForSave(source, context = {}) {
   const raw = String(source ?? '');
   const normalized = raw.replace(/\r\n?/g, '\n');
   const corrections = [];
-  const lines = normalized.split('\n');
-  const canonicalCandidate = lines.map((line, index) => normalizeLine(line, index + 1, corrections)).join('\n');
+  const expandedLines = expandPackedSummaryLines(normalized.split('\n'), corrections);
+  const canonicalCandidate = expandedLines
+    .map(({ text, lineNumber }) => normalizeLine(text, lineNumber, corrections))
+    .join('\n');
   const validation = validateCanonicalWeeklySummary(canonicalCandidate, buildProjectContext(context));
   return {
     ...validation,

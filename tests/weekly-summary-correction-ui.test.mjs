@@ -16,6 +16,7 @@ for (const [index, source] of sources.entries()) {
     assert.match(helper, /weeklySummaryCorrectionDetails/);
     assert.match(helper, /createElement\(['"]div['"]\)/);
     assert.match(helper, /textContent/);
+    assert.match(helper, /detail\.textContent = item\.message \|\|/);
     assert.doesNotMatch(helper, /innerHTML/);
     assert.match(helper, /openAccessibleModal/);
   });
