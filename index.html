@@ -1002,6 +1002,59 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .gantt-toggle button.active { background:var(--blue); color:#fff; }
 .gantt-scale-help { max-width:320px; font-size:10px; color:var(--muted); text-align:right; }
 .gantt-chart { overflow-x:auto; border:1px solid var(--border); border-radius:8px; background:#fff; }
+#pd_schedule .gantt-chart--interactive,
+#workstreamGanttPreview .gantt-chart--interactive {
+  position:relative;
+  max-height:min(60vh,720px);
+  overflow:auto;
+}
+#pd_schedule .gantt-axis--sticky,
+#workstreamGanttPreview .gantt-axis--sticky {
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#fff;
+  box-shadow:0 2px 4px rgba(58,72,89,.12);
+}
+#pd_schedule .gantt-axis-label--sticky,
+#workstreamGanttPreview .gantt-axis-label--sticky {
+  position:sticky;
+  top:0;
+  left:0;
+  z-index:6;
+  background:var(--s2);
+  border-right:1px solid var(--border);
+  box-shadow:3px 0 5px rgba(58,72,89,.1);
+}
+#pd_schedule .gantt-name--sticky,
+#workstreamGanttPreview .gantt-name--sticky {
+  position:sticky;
+  left:0;
+  z-index:4;
+  background:#fff;
+  border-right:1px solid var(--border);
+  box-shadow:3px 0 5px rgba(58,72,89,.08);
+}
+.gantt-bar[data-gantt-tooltip="true"]:focus-visible {
+  outline:2px solid var(--accent-hov);
+  outline-offset:2px;
+}
+.gantt-schedule-tooltip {
+  position:fixed;
+  z-index:1000;
+  max-width:min(280px,calc(100vw - 16px));
+  padding:8px 10px;
+  border:1px solid var(--border2);
+  border-radius:6px;
+  background:#26384a;
+  color:#fff;
+  box-shadow:0 6px 18px rgba(38,56,74,.22);
+  font-size:10px;
+  line-height:1.45;
+  white-space:pre-line;
+  pointer-events:none;
+}
+.gantt-schedule-tooltip[aria-hidden="true"] { display:none; }
 .gantt-grid { min-width:var(--gantt-grid-width,680px); }
 .gantt-axis, .gantt-row { display:grid; grid-template-columns:150px minmax(500px,1fr); }
 .gantt-axis { border-bottom:1px solid var(--border); }
@@ -2606,7 +2659,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
-import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
@@ -6258,6 +6311,102 @@ function buildCopilotPrompt() {
   return `You are preparing an executive weekly movement summary for LITEON PM Dashboard. The result will be pasted directly into the dashboard and email.\n\nGoal:\nCompare LAST WEEK and THIS WEEK PM inputs. Generate a concise executive summary focused on movement, not static status.\n\nRequired plain-text format:\n- Return plain text only. Do not use Markdown heading symbols, bold text, tables, or code fences.\n- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.\n- Under each section, use one bullet per project in this exact pattern: - Exact Project Name: concise update.\n- Use the exact official project name from the supplied data before the colon. Do not add labels such as Delays, Recovery, Escalation, or Kickoff to the project name.\n- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.\n- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.\n- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.\n- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.\n- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.\n- If no management action is needed, write exactly: - No immediate management decision required this week.\n\nContent and tone rules:\n- Do not invent facts. Use only the data below.\n- Do not repeat every project status.\n- Prioritize Executive Action, At Risk, Critical, changed items, and management blockers.\n- The audience includes cross-functional department leaders. Use professional, constructive, and diplomatically neutral language.\n- Avoid blame, implied ownership disputes, or potentially contentious labels such as "scope creep". Describe the observable change, impact, and needed action instead.\n- For internally driven issues, keep the wording positive and neutral, emphasizing alignment, clarification, recovery, or next steps rather than fault.\n- For externally driven issues, preserve the relevant verified facts, source, timing, and impact without speculation or emotional wording.\n- Do not assign responsibility to a person or department unless the supplied data explicitly states it and the attribution is essential to a management decision.\n\nDATA\n\nWEEK COMPARISON\nLast week: ${prev ? `${prev.weekLabel} (${prev.weekDate})` : 'No previous week available'}\nThis week: ${cur.weekLabel} (${cur.weekDate})\n\nPORTFOLIO MOVEMENT\nTotal projects: ${a.total} -> ${b.total}\nOn Track: ${a.ok} -> ${b.ok}\nAt Risk: ${a.risk} -> ${b.risk}\nCritical: ${a.critical} -> ${b.critical}\nExecutive Action: ${a.action} -> ${b.action}\nMilestones: ${a.ms} -> ${b.ms}\n\nPROJECT MOVEMENT DETAILS\n${movements}\n\nCURRENT EXECUTIVE RISK LIST\n${curProjects.filter(shouldIncludeRisk).map(p => `- ${p.name}: ${riskItems(p).join(' | ') || 'No blocker text'}; why escalated: ${riskReasons(p).join(' / ')}; owner: ${p.owner || '-'}; next action: ${textLines(p.next)[0] || '-'}`).join('\n') || '- No current executive risks.'}\n`;
 }
 
+function createGanttScheduleTooltipController() {
+  const tooltip = document.createElement('div');
+  tooltip.id = 'ganttScheduleTooltip';
+  tooltip.className = 'gantt-schedule-tooltip';
+  tooltip.setAttribute('role', 'tooltip');
+  tooltip.setAttribute('aria-hidden', 'true');
+  document.body.append(tooltip);
+  let activeBar = null;
+  let hoveredBar = null;
+  let focusedBar = null;
+  let dismissedBar = null;
+  const selector = '.gantt-chart--interactive .gantt-bar[data-gantt-tooltip="true"]';
+  function position(bar) {
+    const margin = 8;
+    const gap = 8;
+    const barRect = bar.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const unclampedLeft = barRect.left + (barRect.width - tooltipRect.width) / 2;
+    const left = Math.min(Math.max(margin, unclampedLeft), window.innerWidth - tooltipRect.width - margin);
+    const above = barRect.top - tooltipRect.height - gap;
+    const below = barRect.bottom + gap;
+    const preferredTop = above >= margin ? above : below;
+    const top = Math.min(Math.max(margin, preferredTop), window.innerHeight - tooltipRect.height - margin);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+  function hide() {
+    if (activeBar) activeBar.removeAttribute('aria-describedby');
+    activeBar = null;
+    tooltip.setAttribute('aria-hidden', 'true');
+    tooltip.style.removeProperty('left');
+    tooltip.style.removeProperty('top');
+  }
+  function show(bar) {
+    if (activeBar && activeBar !== bar) activeBar.removeAttribute('aria-describedby');
+    tooltip.textContent = `${bar.dataset.ganttWorkstream}\nStart: ${bar.dataset.ganttStart}\nEnd: ${bar.dataset.ganttEnd}`;
+    bar.setAttribute('aria-describedby', 'ganttScheduleTooltip');
+    tooltip.setAttribute('aria-hidden', 'false');
+    activeBar = bar;
+    position(bar);
+  }
+  function syncTooltip() {
+    const nextBar = focusedBar || hoveredBar;
+    if (!nextBar || nextBar === dismissedBar) hide();
+    else show(nextBar);
+  }
+  function matchingBar(event) {
+    return event.target instanceof Element ? event.target.closest(selector) : null;
+  }
+  document.addEventListener('pointerover', event => {
+    const bar = matchingBar(event);
+    if (!bar || bar.contains(event.relatedTarget)) return;
+    hoveredBar = bar;
+    dismissedBar = null;
+    syncTooltip();
+  });
+  document.addEventListener('pointerout', event => {
+    const bar = matchingBar(event);
+    if (!bar || bar.contains(event.relatedTarget)) return;
+    if (hoveredBar === bar) hoveredBar = null;
+    syncTooltip();
+  });
+  document.addEventListener('focusin', event => {
+    const bar = matchingBar(event);
+    if (!bar) return;
+    focusedBar = bar;
+    dismissedBar = null;
+    syncTooltip();
+  });
+  document.addEventListener('focusout', event => {
+    const bar = matchingBar(event);
+    if (!bar || bar.contains(event.relatedTarget)) return;
+    if (focusedBar === bar) focusedBar = null;
+    syncTooltip();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !activeBar) return;
+    dismissedBar = activeBar;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    hide();
+  });
+  document.addEventListener('scroll', event => {
+    const owner = activeBar?.closest('.gantt-chart--interactive');
+    if (owner && event.target === owner) hide();
+  }, true);
+  function hideIfOwnedBy(container) {
+    if (activeBar && container.contains(activeBar)) hide();
+    if (hoveredBar && container.contains(hoveredBar)) hoveredBar = null;
+    if (focusedBar && container.contains(focusedBar)) focusedBar = null;
+    if (dismissedBar && container.contains(dismissedBar)) dismissedBar = null;
+  }
+  return { hide, hideIfOwnedBy };
+}
+const ganttScheduleTooltipController = createGanttScheduleTooltipController();
+
 window.setGanttScale = scale => {
   ganttScale = scale === 'week' ? 'week' : 'month';
   const code = document.getElementById('projDetailOverlay')?.dataset.projectCode;
@@ -6278,6 +6427,13 @@ function ganttDate(value) {
 
 function renderProjectGantt(project, targetId = 'pd_schedule') {
   const target = document.getElementById(targetId);
+  const isInteractiveScheduleTarget = targetId === 'pd_schedule'
+    || targetId === 'workstreamGanttPreview';
+  const chartClass = `gantt-chart${isInteractiveScheduleTarget ? ' gantt-chart--interactive' : ''}`;
+  const axisClass = `gantt-axis${isInteractiveScheduleTarget ? ' gantt-axis--sticky' : ''}`;
+  const axisLabelClass = `gantt-axis-label${isInteractiveScheduleTarget ? ' gantt-axis-label--sticky' : ''}`;
+  const nameClass = `gantt-name${isInteractiveScheduleTarget ? ' gantt-name--sticky' : ''}`;
+  if (isInteractiveScheduleTarget) ganttScheduleTooltipController.hideIfOwnedBy(target);
   const rows = (project.ganttWorkstreams || []).map(normalizeWorkstream).filter(row => ganttDate(row.startDate) && ganttDate(row.endDate) && row.endDate >= row.startDate);
   const scaleGuidance = ganttScale === 'week'
     ? 'Each grid column represents one calendar week.'
@@ -6338,10 +6494,10 @@ function renderProjectGantt(project, targetId = 'pd_schedule') {
       </div>
       ${scaleControl(axis.guidance)}
     </div>
-    <div class="gantt-chart" role="region" aria-label="Project Gantt schedule" tabindex="0">
+    <div class="${chartClass}" role="region" aria-label="Project Gantt schedule" tabindex="0">
       <div class="gantt-grid" style="--gantt-grid-width:${gridWidth}px">
-      <div class="gantt-axis">
-        <div class="gantt-axis-label">Workstream</div>
+      <div class="${axisClass}">
+        <div class="${axisLabelClass}">Workstream</div>
         <div class="gantt-calendar-axis">
           <div class="gantt-calendar-groups">${positionedCells(axis.groups, 'gantt-calendar-group')}</div>
           <div class="gantt-calendar-ticks">${positionedCells(axis.ticks, 'gantt-calendar-tick')}</div>
@@ -6351,14 +6507,23 @@ function renderProjectGantt(project, targetId = 'pd_schedule') {
         const start = ganttDate(row.startDate);
         const end = ganttDate(row.endDate);
         const segments = getGanttProgressSegments(row.progress);
+        const formattedStart = formatStatusDate(start);
+        const formattedEnd = formatStatusDate(end);
+        const barDescription = `${row.name}, ${segments.progress}% complete. Start: ${formattedStart}. End: ${formattedEnd}.`;
+        const titleAttribute = isInteractiveScheduleTarget
+          ? ''
+          : `title="${escHtml(row.name)}: ${segments.progress}% completed"`;
+        const barAttributes = isInteractiveScheduleTarget
+          ? `data-gantt-tooltip="true" tabindex="0" aria-label="${escHtml(barDescription)}" data-gantt-workstream="${escHtml(row.name)}" data-gantt-progress="${segments.progress}" data-gantt-start="${escHtml(formattedStart)}" data-gantt-end="${escHtml(formattedEnd)}"`
+          : '';
         const milestone = milestones.get(row.milestoneId);
         const milestoneDate = ganttDate(milestone?.date);
         const marker = milestoneDate && milestoneDate >= axis.axisStart && milestoneDate < axis.axisEnd
           ? `<span class="gantt-milestone" style="left:${pct(milestoneDate)}%" title="${escHtml(milestone.name || 'Linked milestone')}"></span>`
           : '';
         return `<div class="gantt-row">
-          <div class="gantt-name">${escHtml(row.name)}<br><span style="font-weight:400;color:var(--muted)">${segments.progress}%</span></div>
-          <div class="gantt-track">${gridLines}${todayLine}<span class="gantt-bar" style="left:${Math.max(0,pct(start))}%;width:${Math.max(.7,((end-start+day)/total)*100)}%" title="${escHtml(row.name)}: ${segments.progress}% completed"><span class="gantt-bar-completed" style="width:${segments.completedPercent}%"></span><span class="gantt-bar-label">${segments.progress}%</span></span>${marker}</div>
+          <div class="${nameClass}">${escHtml(row.name)}<br><span style="font-weight:400;color:var(--muted)">${segments.progress}%</span></div>
+          <div class="gantt-track">${gridLines}${todayLine}<span class="gantt-bar" style="left:${Math.max(0,pct(start))}%;width:${Math.max(.7,((end-start+day)/total)*100)}%" ${barAttributes}${titleAttribute}><span class="gantt-bar-completed" style="width:${segments.completedPercent}%"></span><span class="gantt-bar-label">${segments.progress}%</span></span>${marker}</div>
         </div>`;
       }).join('')}
     </div></div>`;
