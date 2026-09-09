@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('Admin-only template settings UI is an accessible trapped dialog', () => {
   assert.match(dashboard, /id="ganttTemplateSettingsBtn"[^>]+admin-only/);
@@ -30,18 +30,15 @@ test('template handlers recheck Admin role and auth-owned session', () => {
   assert.ok(dashboard.includes('invalidateGanttTemplateSession();'));
 });
 
-test('template config loads with fallback and saves through a revision-checked transaction', () => {
+test('template config loads with fallback and saves through a revision-checked Callable', () => {
   assert.ok(dashboard.includes("doc(db, 'dashboardSettings', 'team-2-portfolio')"));
   assert.ok(dashboard.includes('await loadGanttTemplateConfig(authGeneration, user)'));
   assert.ok(dashboard.includes('resolveWorkstreamTemplateConfig('));
   assert.ok(dashboard.includes('catch (error)'));
-  assert.ok(dashboard.includes('await runTransaction(db, async transaction =>'));
-  assert.ok(dashboard.includes('await transaction.get(settingsRef)'));
-  assert.ok(dashboard.includes('liveRevision !== session.revision'));
-  assert.ok(dashboard.includes('transaction.set(settingsRef'));
-  assert.ok(dashboard.includes('updatedBy: getEmailKey(currentUser)'));
-  assert.ok(dashboard.includes('updatedAt: serverTimestamp()'));
-  assert.ok(dashboard.includes('revision: liveRevision + 1'));
+  assert.ok(dashboard.includes('await projectDashboardApi.saveGanttTemplateSettings({'));
+  assert.ok(dashboard.includes('expectedRevision: session.revision'));
+  assert.ok(dashboard.includes('config: validation.config'));
+  assert.ok(dashboard.includes('const savedRevision = response.revision'));
 });
 
 test('authenticated setup subscribes to multi-session template updates before enabling the dashboard', () => {

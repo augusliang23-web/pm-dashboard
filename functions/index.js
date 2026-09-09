@@ -5,6 +5,7 @@ const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestor
 initializeApp();
 
 const db = getFirestore();
+const projectDashboardWrites = require("./project-dashboard-writes");
 const SESSION_COLLECTION = "presenceSessions";
 const ROLLUP_COLLECTION = "presenceDailyRollups";
 const SESSION_TIMEOUT_MS = 12 * 60 * 1000;
@@ -126,3 +127,11 @@ exports.aggregatePresenceSessions = onSchedule({
   }
   console.log(`Presence aggregation complete: ${aggregated} session(s).`);
 });
+
+exports.saveDashboardProject = projectDashboardWrites.saveDashboardProject;
+exports.deleteDashboardProject = projectDashboardWrites.deleteDashboardProject;
+exports.setDashboardProjectAttention = projectDashboardWrites.setDashboardProjectAttention;
+exports.setDashboardWeekRelease = projectDashboardWrites.setDashboardWeekRelease;
+exports.saveDashboardWeekFields = projectDashboardWrites.saveDashboardWeekFields;
+exports.createDashboardWeek = projectDashboardWrites.createDashboardWeek;
+exports.saveDashboardGanttTemplateSettings = projectDashboardWrites.saveDashboardGanttTemplateSettings;

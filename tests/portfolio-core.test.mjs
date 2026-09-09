@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as portfolioCore from '../team-2/js/portfolio-core.mjs';
+import * as portfolioCore from '../js/portfolio-core.mjs';
 
 import {
   BUILT_IN_WORKSTREAM_TEMPLATES,
@@ -35,7 +35,7 @@ import {
   validateResourceInput,
   validateWorkstreamTemplateConfig,
   validateWorkstreams,
-} from '../team-2/js/portfolio-core.mjs';
+} from '../js/portfolio-core.mjs';
 
 test('team effort summary reports average allocation and FTE instead of a summed percent', () => {
   assert.equal(typeof portfolioCore.summarizeTeamEffort, 'function');
@@ -169,16 +169,16 @@ test('normalizeRiskActionRows preserves asymmetric risk and action pairing', () 
       { description: 'Legacy risk', mitigation: 'Legacy mitigation' },
     ],
   }), [
-    { risk: '', action: 'Action without a risk' },
-    { risk: 'Risk without an action', action: '' },
-    { risk: 'Legacy risk', action: 'Legacy mitigation' },
+    { risk: '', action: 'Action without a risk', primary: true },
+    { risk: 'Risk without an action', action: '', primary: false },
+    { risk: 'Legacy risk', action: 'Legacy mitigation', primary: false },
   ]);
   assert.deepEqual(normalizeRiskActionRows({
     risk: 'Risk A\nRisk B',
     next: 'Action A',
   }), [
-    { risk: 'Risk A', action: 'Action A' },
-    { risk: 'Risk B', action: '' },
+    { risk: 'Risk A', action: 'Action A', primary: true },
+    { risk: 'Risk B', action: '', primary: false },
   ]);
 });
 

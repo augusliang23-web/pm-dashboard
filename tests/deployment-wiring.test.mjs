@@ -3,22 +3,21 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const production = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const testVersion = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
 
-test('v2.0 uses confirmed immutable release writes', () => {
+test('Production uses confirmed release state with a protected Callable write', () => {
   assert.match(
     production,
     /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\/sync-core\.js"/
   );
-  assert.match(production, /await updateDoc\(doc\(db, "weeks", id\), \{/);
+  assert.match(production, /await projectDashboardApi\.setWeekRelease\(\{ weekId: id, isReleased: newStatus \}\)/);
   assert.match(
     production,
     /finally\s*\{\s*releaseWriteInProgress = false;\s*hideLoader\(\)/s
   );
 });
 
-test('v2.0 strategy save commits a clone after confirmation', () => {
-  assert.match(production, /const savedWeek = await confirmWeekMutation\(/);
+test('Production strategy save commits the server-returned week', () => {
+  assert.match(production, /await projectDashboardApi\.saveWeekFields\(\{ weekId, fields: \{ strategyLayer \} \}\)/);
   assert.match(production, /allWeeks\[currentIdx\] = savedWeek/);
 });
 
@@ -35,27 +34,6 @@ test('v2.1 serializes executive timeline cells for Firestore without discarding 
     production,
     /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
   );
-  assert.match(
-    testVersion,
-    /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
-  );
-});
-
-test('v2.0T uses confirmed immutable release writes', () => {
-  assert.match(
-    testVersion,
-    /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\.\/sync-core\.js"/
-  );
-  assert.match(testVersion, /await updateDoc\(doc\(db, "weeks", id\), \{/);
-  assert.match(
-    testVersion,
-    /finally\s*\{\s*releaseWriteInProgress = false;\s*hideLoader\(\)/s
-  );
-});
-
-test('v2.0T strategy save commits a clone after confirmation', () => {
-  assert.match(testVersion, /const savedWeek = await confirmWeekMutation\(/);
-  assert.match(testVersion, /allWeeks\[currentIdx\] = savedWeek/);
 });
 
 test('Overview PDF picker wires Executive milestones before Quarterly Roadmap', () => {

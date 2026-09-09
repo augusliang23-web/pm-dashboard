@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { isAuthInitializationCurrent } from '../team-2/js/auth-session.mjs';
+import { isAuthInitializationCurrent } from '../js/auth-session.mjs';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 function deferred() {
   let resolve;

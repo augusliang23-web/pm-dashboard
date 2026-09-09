@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('dashboard roles include engineering, business, and product access groups', () => {
   assert.match(dashboard, /engineering/);
@@ -31,8 +31,10 @@ test('executive outcome status changes require a reason', () => {
 test('released weeks block content mutations at every write entry point', () => {
   assert.match(dashboard, /function assertCurrentWeekEditable\(/);
   assert.match(dashboard, /assertCurrentWeekEditable\(week\)/);
-  assert.match(dashboard, /assertCurrentWeekEditable\(liveWeek\)/);
   assert.match(dashboard, /if \(isWeekReleased\(week\)\) return/);
+  assert.match(dashboard, /projectDashboardApi\.saveProject\(\{/);
+  assert.match(dashboard, /projectDashboardApi\.saveWeekFields\(\{/);
+  assert.match(dashboard, /projectDashboardApi\.setAttention\(\{/);
 });
 
 test('single project detail exposes one-page PDF export from the card header', () => {

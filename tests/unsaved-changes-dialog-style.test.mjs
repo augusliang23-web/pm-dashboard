@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const dashboards = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../team-2/index.html', import.meta.url), 'utf8'),
+  readFile(new URL('../index.html', import.meta.url), 'utf8'),
 ]);
 
 test('styles the unsaved-change discard action as a dashboard danger button', () => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const helpers = await import("../team-2/js/presence-usage.mjs").catch(() => ({}));
+const helpers = await import("../js/presence-usage.mjs").catch(() => ({}));
 
 test("uses a 2,000-write scale and only the 20% line below 2,000 writes", () => {
   assert.equal(typeof helpers.selectPresenceWriteScale, "function");
@@ -140,7 +140,7 @@ test("uses last-seen only when a user has no session or estimated activity", () 
 
 test("dashboard wires dynamic scale, timeline lanes, and last-seen fallback", async () => {
   const source = await readFile(
-    new URL("../team-2/index.html", import.meta.url),
+    new URL("../index.html", import.meta.url),
     "utf8",
   );
 
@@ -154,7 +154,7 @@ test("dashboard wires dynamic scale, timeline lanes, and last-seen fallback", as
 
 test("presence timeline keeps user names frozen while the chart scrolls horizontally", async () => {
   const source = await readFile(
-    new URL("../team-2/index.html", import.meta.url),
+    new URL("../index.html", import.meta.url),
     "utf8",
   );
 

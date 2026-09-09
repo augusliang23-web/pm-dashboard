@@ -2658,19 +2658,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
+import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
-import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
+import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
-import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
@@ -2679,11 +2680,14 @@ const app = initializeApp(FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
+const functions = getFunctions(app, 'us-central1');
 const localEmulator = getLocalEmulatorConfig(window.location);
 if (localEmulator) {
   connectFirestoreEmulator(db, '127.0.0.1', localEmulator.firestorePort);
   connectAuthEmulator(auth, `http://127.0.0.1:${localEmulator.authPort}`, { disableWarnings: true });
+  connectFunctionsEmulator(functions, '127.0.0.1', localEmulator.functionsPort);
 }
+const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
 // ── STATE ──
@@ -3001,27 +3005,11 @@ window.saveGanttTemplateSettings = async () => {
   setGanttTemplateControlsDisabled(true);
   document.getElementById('ganttTemplateError').textContent = '';
   try {
-    const settingsRef = doc(db, 'dashboardSettings', 'team-2-portfolio');
-    const savedRevision = await runTransaction(db, async transaction => {
-      const snapshot = await transaction.get(settingsRef);
-      const liveData = snapshot.exists() ? snapshot.data() : {};
-      const liveRevision = Number.isSafeInteger(liveData.revision) && liveData.revision >= 0
-        ? liveData.revision
-        : 0;
-      if (liveRevision !== session.revision) {
-        throw new Error('These defaults changed in another Admin session. Reload the dashboard to review the latest version.');
-      }
-      if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session)) {
-        throw new Error('Authorization changed. Reopen settings as an Admin.');
-      }
-      transaction.set(settingsRef, {
-        ...validation.config,
-        revision: liveRevision + 1,
-        updatedBy: getEmailKey(currentUser),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      return liveRevision + 1;
-    }, { maxAttempts: 1 });
+    const response = await projectDashboardApi.saveGanttTemplateSettings({
+      expectedRevision: session.revision,
+      config: validation.config,
+    });
+    const savedRevision = response.revision;
 
     if (!isGanttTemplateSessionCurrent(session)) return;
     currentGanttTemplateConfig = resolveWorkstreamTemplateConfig(validation.config);
@@ -3136,6 +3124,41 @@ let presenceSessionHeartbeatInterval = null;
 let presenceActivityHandler = null;
 
 let activityThrottle = null;
+function buildInitialPresencePayload({ uid, name, role, userKey, now = Date.now() }) {
+  return {
+    name,
+    role,
+    status: 'active',
+    lastActive: now,
+    lastSeenAt: now,
+    usageBuckets: {},
+    ownerUid: uid,
+    userKey,
+  };
+}
+
+async function ensurePresenceDocument(isCurrentPresenceSession, owner = currentUser) {
+  if (!owner || !isCurrentPresenceSession()) return false;
+  const userKey = getEmailKey(owner);
+  const presenceRef = doc(db, 'presence', userKey);
+  try {
+    await runTransaction(db, async transaction => {
+      const existing = await transaction.get(presenceRef);
+      if (existing.exists()) return;
+      transaction.set(presenceRef, buildInitialPresencePayload({
+        uid: owner.uid,
+        name: getUserDisplayName(owner.email),
+        role: currentRole,
+        userKey,
+      }));
+    });
+    return isCurrentPresenceSession();
+  } catch (error) {
+    console.warn('Presence initialization failed:', error);
+    return false;
+  }
+}
+
 const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
   if (!isCurrentPresenceSession()) return;
   if (activityThrottle) return;
@@ -3147,13 +3170,15 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
     if(heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(pingPresence, PRESENCE_HEARTBEAT_MS);
     const now = Date.now();
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       name: getUserDisplayName(currentUser.email),
       role: currentRole,
       status: 'active',
       lastActive: now,
-      lastSeenAt: now
-    }, { merge: true }).then(() => queuePresenceUsage('active')).catch(()=>{});
+      lastSeenAt: now,
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
+    }).then(() => queuePresenceUsage('active')).catch(()=>{});
     trackPresenceSession('active');
   }
   
@@ -3163,11 +3188,13 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
     isIdle = true;
     if(heartbeatInterval) clearInterval(heartbeatInterval); 
     const now = Date.now();
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: now,
-      lastSeenAt: now
-    }, { merge: true }).then(() => queuePresenceUsage('idle')).catch(()=>{});
+      lastSeenAt: now,
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
+    }).then(() => queuePresenceUsage('idle')).catch(()=>{});
     trackPresenceSession('idle');
   }, IDLE_TIMEOUT);
 };
@@ -3829,13 +3856,15 @@ window.openPresenceUsage = async () => {
 const pingPresence = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
   if (!isCurrentPresenceSession() || !currentUser || isIdle) return;
   const now = Date.now();
-  setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+  updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
     name: getUserDisplayName(currentUser.email),
     role: currentRole,
     status: 'active',
     lastActive: now,
-    lastSeenAt: now
-  }, { merge: true })
+    lastSeenAt: now,
+    ownerUid: currentUser.uid,
+    userKey: getEmailKey(currentUser)
+  })
     .then(() => {
       if (!isCurrentPresenceSession()) return;
       queuePresenceUsage('active');
@@ -3863,7 +3892,7 @@ function updatePresenceUI() {
   renderOnlineUsers(onlineUsers);
 }
 
-function startPresenceSystem(authGeneration, authUser) {
+async function startPresenceSystem(authGeneration, authUser) {
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
   const isCurrentPresenceSession = () => isAuthInitializationCurrent(
@@ -3873,6 +3902,8 @@ function startPresenceSystem(authGeneration, authUser) {
     ownerUid,
     ownerEmail,
   );
+  if (!isCurrentPresenceSession()) return;
+  if (!await ensurePresenceDocument(isCurrentPresenceSession, authUser)) return;
   if (!isCurrentPresenceSession()) return;
   startPresenceSession();
   pingPresence(isCurrentPresenceSession);
@@ -3933,10 +3964,12 @@ function stopPresenceSystem() {
     const stoppedGeneration = authSessionGeneration;
     const stoppedUid = currentUser.uid || '';
     const stoppedEmail = getEmailKey(currentUser);
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
-      lastSeenAt: Date.now()
-    }, { merge: true })
+      lastSeenAt: Date.now(),
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
+    })
       .then(() => {
         if (
           authSessionGeneration === stoppedGeneration
@@ -3989,10 +4022,12 @@ function renderOnlineUsers(users) {
 
 window.addEventListener('beforeunload', () => {
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
-      lastSeenAt: Date.now()
-    }, { merge: true })
+      lastSeenAt: Date.now(),
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
+    })
       .then(() => queuePresenceUsage('logout'));
     closePresenceSession('page-close');
   }
@@ -4304,19 +4339,18 @@ window.toggleReleaseWeek = async () => {
   releaseWriteInProgress = true;
   showLoader(newStatus ? "Releasing to VIP..." : "Reverting to Draft...");
   
-  const id = week.weekLabel.replace(/\s+/g, '-');
+  const id = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
   try {
+    let serverWeek;
     const savedWeek = await confirmWeekMutation(
       week,
       changes,
       async () => {
-        await updateDoc(doc(db, "weeks", id), {
-          isReleased: newStatus,
-          lastModifiedBy: currentUser.email
-        });
+        const result = await projectDashboardApi.setWeekRelease({ weekId: id, isReleased: newStatus });
+        serverWeek = result.week;
       }
     );
-    allWeeks[currentIdx] = savedWeek;
+    allWeeks[currentIdx] = { ...savedWeek, ...serverWeek };
     render();
     showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
   } catch (err) {
@@ -4354,7 +4388,14 @@ function initData(authGeneration, authUser) {
       const week = d.data();
       const normalizedWeek = {
         ...week,
-        projects: (week.projects || []).map(normalizeProject)
+        projects: (week.projects || []).map(project => {
+          const normalizedProject = normalizeProject(project);
+          Object.defineProperty(normalizedProject, '__revisionFingerprint', {
+            value: projectRevisionFingerprint(project),
+            enumerable: false,
+          });
+          return normalizedProject;
+        })
       };
       Object.defineProperty(normalizedWeek, '__documentId', {
         value: d.id,
@@ -7419,12 +7460,23 @@ function renderExec(projs, summary, allProjects = projs) {
   bindDecisionControls(editableDecisionView);
 }
 
-async function saveCurrentWeekQuietly() {
+async function saveCurrentWeekQuietly(project) {
   const week = allWeeks[currentIdx];
-  if (!week || !currentUser) return;
+  if (!week || !currentUser || !project) return;
   assertCurrentWeekEditable(week);
-  week.lastModifiedBy = currentUser.email;
-  await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
+  const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+  const result = await projectDashboardApi.saveProject({
+    weekId,
+    originalCode: project.code,
+    projectCode: project.code,
+    project,
+    expectedRevision: project.__revisionFingerprint || projectRevisionFingerprint(project),
+  });
+  if (result?.week) {
+    Object.defineProperty(result.week, '__documentId', { value: weekId, enumerable: false, configurable: true });
+    allWeeks[currentIdx] = result.week;
+  }
+  return result;
 }
 
 window.setStrategicTrack = (trackId) => {
@@ -7868,14 +7920,10 @@ window.saveStrategyLayer = async () => {
       executiveMilestoneTimeline,
       projectMap
     };
-    const savedWeek = await confirmWeekMutation(
-      week,
-      { strategyLayer, lastModifiedBy: currentUser.email },
-      candidate => setDoc(
-        doc(db, "weeks", candidate.weekLabel.replace(/\s+/g, '-')),
-        candidate
-      )
-    );
+    const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+    const response = await projectDashboardApi.saveWeekFields({ weekId, fields: { strategyLayer } });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: weekId, enumerable: false, configurable: true });
     allWeeks[currentIdx] = savedWeek;
     closeModal('strategyOverlay', { force: true });
     render();
@@ -7904,27 +7952,9 @@ async function updateProjectAttention(code, attention) {
     render();
     return false;
   }
-  const weekRef = doc(db, 'weeks', weekId);
   try {
-    const result = await runTransaction(db, async transaction => {
-      const snapshot = await transaction.get(weekRef);
-      if (!snapshot.exists()) throw new Error('The selected week no longer exists.');
-      const mutation = applyProjectAttentionUpdate(snapshot.data(), {
-        projectCode: code,
-        attention,
-        role,
-        canEdit: project => projectOwnershipMatchesIdentity(project, {
-          displayName: getUserDisplayName(authEmail),
-          email: authEmail,
-        }),
-        lastModifiedBy: authEmail,
-      });
-      transaction.update(weekRef, {
-        projects: mutation.week.projects,
-        lastModifiedBy: authEmail,
-      });
-      return mutation;
-    });
+    const response = await projectDashboardApi.setAttention({ weekId, projectCode: code, attention });
+    const result = { week: response.week };
     const selectionStillCurrent = currentIdx === selectedIndex
       && (currentUser?.uid || '') === authUid
       && getEmailKey(currentUser) === authEmail
@@ -7962,7 +7992,7 @@ function bindDecisionControls(editable) {
       if (!p || !canEditProject(p)) return;
       p.riskList = chk.checked;
       p.riskManual = true;
-      await saveCurrentWeekQuietly();
+      await saveCurrentWeekQuietly(p);
       render();
       showSaveToast("Risk list updated");
     };
@@ -9227,7 +9257,7 @@ window.openProjEdit = (code, isNew = false) => {
     role: currentRole,
     isNew,
     code,
-    revisionFingerprint: projectRevisionFingerprint(existingProject),
+    revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject),
     originalProject: isNew ? null : p
   });
   document.getElementById('pe_details').open = isNew;
@@ -9351,7 +9381,6 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
-  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -9360,36 +9389,21 @@ window.saveProjEdit = async () => {
   setProjectMutationControlsDisabled(true);
   showLoader("Saving Project...");
   try {
-    transactionResult = await runTransaction(db, async transaction => {
-      assertProjectEditorSessionCurrent(session);
-      const liveSnapshot = await transaction.get(targetWeekRef);
-      assertProjectEditorSessionCurrent(session);
-      if (!liveSnapshot.exists()) {
-        throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
-      }
-      const liveWeek = liveSnapshot.data();
-      assertCurrentWeekEditable(liveWeek);
-      const result = applyProjectSave(liveSnapshot.data(), {
-        draft: pData,
-        originalCode: session.code,
-        isNew: session.isNew,
-        role: session.role,
-        canEdit: project => projectOwnershipMatchesIdentity(project, {
-          displayName: getUserDisplayName(session.authEmail),
-          email: session.authEmail
-        }),
-        expectedFingerprint: session.revisionFingerprint,
-        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
-        lastModifiedBy: session.authEmail,
-        editorName: getUserDisplayName(session.authEmail),
-        savedAt: new Date().toISOString()
-      });
-      transaction.update(targetWeekRef, {
-        projects: result.week.projects,
-        lastModifiedBy: session.authEmail
-      });
-      return result;
+    const response = await projectDashboardApi.saveProject({
+      weekId: session.weekId,
+      originalCode: session.isNew ? '' : session.code,
+      projectCode: pData.code,
+      project: pData,
+      isNew: session.isNew,
+      ...(session.isNew ? {} : { expectedRevision: session.revisionFingerprint }),
     });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
+    transactionResult = {
+      week: savedWeek,
+      project: savedWeek.projects.find(project => project.code === pData.code) || pData,
+    };
+    allWeeks[currentIdx] = savedWeek;
   } catch (error) {
     if (isProjectEditorSessionCurrent(session)) {
       showProjectMutationError(
@@ -9431,7 +9445,6 @@ window.deleteProject = async () => {
   }
   if (session.role !== 'admin') return;
   if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
-  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -9440,28 +9453,11 @@ window.deleteProject = async () => {
   setProjectMutationControlsDisabled(true);
   showLoader("Deleting Project...");
   try {
-    transactionResult = await runTransaction(db, async transaction => {
-      assertProjectEditorSessionCurrent(session);
-      const liveSnapshot = await transaction.get(targetWeekRef);
-      assertProjectEditorSessionCurrent(session);
-      if (!liveSnapshot.exists()) {
-        throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
-      }
-      const liveWeek = liveSnapshot.data();
-      assertCurrentWeekEditable(liveWeek);
-      const result = applyProjectDelete(liveSnapshot.data(), {
-        originalCode: session.code,
-        role: session.role,
-        expectedFingerprint: session.revisionFingerprint,
-        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
-        lastModifiedBy: session.authEmail
-      });
-      transaction.update(targetWeekRef, {
-        projects: result.week.projects,
-        lastModifiedBy: session.authEmail
-      });
-      return result;
-    });
+    const response = await projectDashboardApi.deleteProject({ weekId: session.weekId, originalCode: session.code });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
+    transactionResult = { week: savedWeek };
+    allWeeks[currentIdx] = savedWeek;
   } catch (error) {
     if (isProjectEditorSessionCurrent(session)) {
       showProjectMutationError(
@@ -9784,19 +9780,21 @@ window.saveWeekSummary = async () => {
     return;
   }
 
-  const id = week.weekLabel.replace(/\s+/g, '-');
-  const updatedWeek = {
-    ...week,
-    summary: result.canonicalText,
-    lastModifiedBy: currentUser.email
-  };
+  const id = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+  const summary = result.canonicalText;
   setWeeklySummaryValidation();
   showLoader("Updating Summary...");
   try {
-    await setDoc(doc(db, "weeks", id), updatedWeek);
+    const response = await projectDashboardApi.saveWeekFields({ weekId: id, fields: { summary } });
+    if (response?.week) {
+      Object.defineProperty(response.week, '__documentId', { value: id, enumerable: false, configurable: true });
+      allWeeks[currentIdx] = response.week;
+    } else {
+      week.summary = summary;
+      week.lastModifiedBy = currentUser.email;
+    }
     await new Promise(r => setTimeout(r, 600));
-    Object.assign(week, updatedWeek);
-    field.value = result.canonicalText;
+    field.value = summary;
     hideLoader();
     closeModal('weekManageOverlay', { force: true });
     showSaveToast("Summary updated");
@@ -9816,21 +9814,20 @@ window.createNewWeekFromManage = async () => {
   closeModal('weekManageOverlay', { force: true });
   showLoader("Creating New Week...");
   
-  const carryover = allWeeks.length > 0
-    ? copyPreviousWeekCarryover(allWeeks[allWeeks.length - 1])
-    : { projects: [] };
-  
-  const newWeek = {
+  const sourceWeek = allWeeks.length > 0 ? allWeeks[allWeeks.length - 1] : null;
+  const sourceWeekId = sourceWeek?.__documentId || sourceWeek?.weekLabel?.replace(/\s+/g, '-');
+  jumpToLatestOnNextRender = true;
+  const weekId = label.replace(/\s+/g, '-');
+  const response = await projectDashboardApi.createWeek({
+    weekId,
     weekLabel: label,
     weekDate: date,
-    summary: '', 
-    lastModifiedBy: currentUser.email,
-    ...carryover,
-    isReleased: false 
-  };
-  
-  jumpToLatestOnNextRender = true;
-  await setDoc(doc(db, "weeks", label.replace(/\s+/g, '-')), newWeek);
+    ...(sourceWeekId ? { sourceWeekId } : {}),
+  });
+  if (response?.week) {
+    Object.defineProperty(response.week, '__documentId', { value: weekId, enumerable: false, configurable: true });
+    allWeeks.push(response.week);
+  }
   
   await new Promise(r => setTimeout(r, 600));
   hideLoader();

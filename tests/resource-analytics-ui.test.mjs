@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const dashboard = readFileSync(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 test('Overview resource analytics shows executive KPIs and aggregated charts', () => {
   for (const label of [

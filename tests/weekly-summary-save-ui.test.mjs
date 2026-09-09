@@ -2,10 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const sources = await Promise.all([
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../team-2/index.html', import.meta.url), 'utf8')
-]);
+const sources = [await readFile(new URL('../index.html', import.meta.url), 'utf8')];
 
 for (const [index, source] of sources.entries()) {
   test(`dashboard ${index + 1} exposes the Weekly Summary validation panel`, () => {
@@ -20,7 +17,8 @@ for (const [index, source] of sources.entries()) {
     const saveSource = source.slice(start, end);
     assert.match(saveSource, /const result = normalizeWeeklySummaryForSave\(field\.value, summaryProjectContext\(week\)\)/);
     assert.match(saveSource, /if \(!result\.ok\) \{\s+setWeeklySummaryValidation\(result\);\s+return;/);
-    assert.ok(saveSource.indexOf('normalizeWeeklySummaryForSave') < saveSource.indexOf('await setDoc'));
+    assert.ok(saveSource.indexOf('normalizeWeeklySummaryForSave') < saveSource.indexOf('await projectDashboardApi.saveWeekFields'));
+    assert.doesNotMatch(saveSource, /await setDoc/);
     assert.doesNotMatch(saveSource, /cleanWeeklySummaryTextarea/);
 });
 

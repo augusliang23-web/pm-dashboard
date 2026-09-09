@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const dashboard = readFileSync(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const deployedDashboards = [
   ['root', readFileSync(new URL('../index.html', import.meta.url), 'utf8')],
   ['team-2', dashboard],

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildResourceAnalytics } from '../team-2/js/portfolio-core.mjs';
+import { buildResourceAnalytics } from '../js/portfolio-core.mjs';
 
 test('resource analytics summarizes FTE by project level and function without exposing member names', () => {
   const result = buildResourceAnalytics([

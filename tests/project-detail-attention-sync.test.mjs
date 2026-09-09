@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('project detail places Gantt and quarterly milestones below the upper grid', () => {
   const gridStart = html.indexOf('<div class="detail-grid">');
@@ -36,14 +36,11 @@ test('overview orders portfolio and routes both attention controls through one t
   assert.doesNotMatch(bindSource, /p\.attention\s*=/);
 });
 
-test('attention transaction reads live week and commits UI only after success', () => {
+test('attention Callable commits server state to UI only after success', () => {
   const start = html.indexOf('async function updateProjectAttention(code, attention)');
   const end = html.indexOf('function bindDecisionControls(editable)', start);
   const source = html.slice(start, end);
-  assert.match(source, /await runTransaction\(db, async transaction =>/);
-  assert.match(source, /await transaction\.get\(weekRef\)/);
-  assert.match(source, /applyProjectAttentionUpdate\(snapshot\.data\(\)/);
-  assert.match(source, /transaction\.update\(weekRef/);
-  assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await runTransaction'));
+  assert.match(source, /await projectDashboardApi\.setAttention\(\{ weekId, projectCode: code, attention \}\)/);
+  assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await projectDashboardApi.setAttention'));
   assert.match(source, /render\(\)/);
 });

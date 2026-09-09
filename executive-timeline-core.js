@@ -1,4 +1,4 @@
-import { serializeExecutiveOutcome } from './team-2/js/executive-outcomes.mjs';
+import { serializeExecutiveOutcome } from './js/executive-outcomes.mjs';
 
 export function getExecutiveTimelineCell(cells, index) {
   if (Array.isArray(cells)) {

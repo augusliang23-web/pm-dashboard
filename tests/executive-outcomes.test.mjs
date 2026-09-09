@@ -5,7 +5,7 @@ import {
   calculateExecutiveOutcome,
   executiveSourceKey,
   normalizeExecutiveOutcome,
-} from '../team-2/js/executive-outcomes.mjs';
+} from '../js/executive-outcomes.mjs';
 
 test('legacy executive text becomes a manual outcome without rewriting history', () => {
   assert.deepEqual(normalizeExecutiveOutcome('Launch lighthouse site'), {
