@@ -22,6 +22,12 @@ const DEFAULT_LIMITS = Object.freeze({
   maxStringLength: 20000,
 });
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX = Object.freeze({
+  'augus.liang': 'Augus',
+  'josiah.winkler': 'Josiah',
+  'qianyun.zhu': 'Bonnie',
+  'huichong.kong': 'Huichong',
+});
 
 function database() {
   return getFirestore();
@@ -29,6 +35,16 @@ function database() {
 
 function normalized(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function resolveActorDisplayName(email, storedDisplayName) {
+  const explicitName = String(storedDisplayName || '').trim();
+  if (explicitName) return explicitName;
+  const emailPrefix = normalized(email).split('@')[0];
+  if (LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX[emailPrefix]) {
+    return LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX[emailPrefix];
+  }
+  return emailPrefix;
 }
 
 function securityError(code, reason, message) {
@@ -47,10 +63,21 @@ function assertActor(actor) {
   }
 }
 
+function buildAuthenticatedActor(authIdentity = {}, userData = {}) {
+  const actor = {
+    uid: String(authIdentity.uid || '').trim(),
+    email: normalized(authIdentity.email),
+    role: normalized(userData.role),
+    displayName: resolveActorDisplayName(authIdentity.email, userData.displayName),
+  };
+  assertActor(actor);
+  return actor;
+}
+
 function identityTokens(actor = {}) {
   const email = normalized(actor.email);
   const displayName = normalized(actor.displayName);
-  if (!email || !displayName) return new Set();
+  if (!email) return new Set();
   return new Set([displayName, email, email.split('@')[0]].filter(Boolean));
 }
 
@@ -391,12 +418,7 @@ async function authenticatedActor(transaction, request) {
   if (!snapshot.exists) {
     throw securityError('permission-denied', 'role-forbidden', 'Dashboard identity is missing.');
   }
-  const actor = {
-    uid, email, role: normalized(snapshot.data()?.role),
-    displayName: String(snapshot.data()?.displayName || '').trim(),
-  };
-  assertActor(actor);
-  return actor;
+  return buildAuthenticatedActor({ uid, email }, snapshot.data());
 }
 
 const saveDashboardProject = onCall(async request => database().runTransaction(async transaction => {
@@ -542,6 +564,7 @@ const saveDashboardGanttTemplateSettings = onCall(async request => database().ru
 
 module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
+  buildAuthenticatedActor,
   buildGanttTemplateSettingsPatch, buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
   canManageWeekFields, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
