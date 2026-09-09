@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboards = ['index.html', 'team-2/index.html'];
+const dashboards = ['index.html'];
 
 for (const dashboard of dashboards) {
   test(`${dashboard} falls back to weekLabel when PDF metadata is unavailable`, async () => {

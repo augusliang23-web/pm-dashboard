@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import * as portfolioCore from '../team-2/js/portfolio-core.mjs';
+import * as portfolioCore from '../js/portfolio-core.mjs';
 
 const dashboard = await readFile(
-  new URL('../team-2/index.html', import.meta.url),
+  new URL('../index.html', import.meta.url),
   'utf8'
 );
 

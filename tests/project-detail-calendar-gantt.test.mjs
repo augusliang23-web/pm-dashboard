@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const detailStart = html.indexOf('<div class="overlay" id="projDetailOverlay"');
 const detailEnd = html.indexOf('<div class="overlay" id="onePageStatusModal"', detailStart);
 const detail = html.slice(detailStart, detailEnd);

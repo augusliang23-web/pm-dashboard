@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('Project Editor keeps PM multiline fields as native textareas', () => {
-  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-1["']/);
+  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-2["']/);
   assert.doesNotMatch(html, /function enhanceListTextarea\(textarea\)/);
   assert.doesNotMatch(html, /const LIST_COMMANDS\s*=\s*\[/);
   assert.doesNotMatch(html, /Enter: new item · Tab: sub-item · Shift\+Tab: move up/);

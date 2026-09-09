@@ -5,7 +5,7 @@ import {
   calculateExecutiveCategory,
   executiveOutcomeStatusLabel,
   normalizeExecutiveCategoryOverride,
-} from '../team-2/js/executive-outcomes.mjs';
+} from '../js/executive-outcomes.mjs';
 
 test('category averages valid outcomes and uses worst health', () => {
   const result = calculateExecutiveCategory([

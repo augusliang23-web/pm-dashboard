@@ -4,7 +4,7 @@ import test from 'node:test';
 
 test('project cards display member count, average allocation, and FTE', async () => {
   const html = await readFile(
-    new URL('../team-2/index.html', import.meta.url),
+    new URL('../index.html', import.meta.url),
     'utf8',
   );
 

@@ -1,5 +1,6 @@
 const DEFAULT_FIRESTORE_PORT = 8080;
 const DEFAULT_AUTH_PORT = 9099;
+const DEFAULT_FUNCTIONS_PORT = 5001;
 
 function readPort(value, fallback) {
   const port = Number(value);
@@ -12,6 +13,7 @@ export function getLocalEmulatorConfig(locationLike = {}) {
   if (!['localhost', '127.0.0.1'].includes(hostname) || params.get('emulator') !== '1') return null;
   return {
     firestorePort: readPort(params.get('firestorePort'), DEFAULT_FIRESTORE_PORT),
-    authPort: readPort(params.get('authPort'), DEFAULT_AUTH_PORT)
+    authPort: readPort(params.get('authPort'), DEFAULT_AUTH_PORT),
+    functionsPort: readPort(params.get('functionsPort'), DEFAULT_FUNCTIONS_PORT)
   };
 }

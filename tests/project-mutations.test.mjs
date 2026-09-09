@@ -10,10 +10,10 @@ import {
   mergePreservingUnknown,
   projectRevisionFingerprint,
   withProjectEditorRowIds,
-} from '../team-2/js/project-mutations.mjs';
+} from '../js/project-mutations.mjs';
 
 const dashboard = await readFile(
-  new URL('../team-2/index.html', import.meta.url),
+  new URL('../index.html', import.meta.url),
   'utf8',
 );
 
@@ -426,7 +426,7 @@ test('renaming a team member preserves metadata by ID and legacy row IDs are det
   assert.equal(merged.teamMembers[0].directoryRef, 'keep');
 });
 
-test('project save and delete use retryable transactions and commit UI state only after await', () => {
+test('project save and delete use protected Callables and commit UI state only after await', () => {
   const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
   const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
   const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
@@ -434,15 +434,16 @@ test('project save and delete use retryable transactions and commit UI state onl
   const deleteSource = dashboard.slice(deleteStart, deleteEnd);
 
   assert.ok(saveStart >= 0 && deleteStart > saveStart && deleteEnd > deleteStart);
-  for (const source of [saveSource, deleteSource]) {
-    const awaitPosition = source.indexOf('await runTransaction(db, async transaction =>');
-    const closePosition = source.indexOf("closeModal('projEditOverlay')");
+  for (const [source, callable] of [
+    [saveSource, 'projectDashboardApi.saveProject'],
+    [deleteSource, 'projectDashboardApi.deleteProject'],
+  ]) {
+    const awaitPosition = source.indexOf(`await ${callable}`);
+    const closePosition = source.indexOf("closeModal('projEditOverlay'");
     assert.ok(awaitPosition >= 0);
-    assert.ok(source.indexOf('await transaction.get(targetWeekRef)', awaitPosition) > awaitPosition);
-    assert.ok(source.indexOf('transaction.update(targetWeekRef', awaitPosition) > awaitPosition);
     assert.ok(closePosition > awaitPosition);
     assert.doesNotMatch(source, /setDoc\s*\(/);
-    assert.doesNotMatch(source, /maxAttempts/);
+    assert.doesNotMatch(source, /runTransaction\s*\(/);
     assert.match(source, /finally\s*\{[\s\S]*hideLoader\(\)/);
     assert.ok(source.includes('showProjectMutationError('));
   }
@@ -454,11 +455,11 @@ test('project save and delete use retryable transactions and commit UI state onl
   assert.ok(saveSource.includes('if (projectMutationInFlight) return;'));
   assert.ok(deleteSource.includes('if (projectMutationInFlight) return;'));
   assert.doesNotMatch(
-    saveSource.slice(0, saveSource.indexOf('await runTransaction')),
+    saveSource.slice(0, saveSource.indexOf('await projectDashboardApi.saveProject')),
     /week\.projects\.(?:push|splice)|week\.projects\[[^\]]+\]\s*=/,
   );
   assert.doesNotMatch(
-    deleteSource.slice(0, deleteSource.indexOf('await runTransaction')),
+    deleteSource.slice(0, deleteSource.indexOf('await projectDashboardApi.deleteProject')),
     /week\.projects\.(?:push|splice)|week\.projects\[[^\]]+\]\s*=/,
   );
 });
@@ -476,7 +477,7 @@ test('project editor pins week and identity session and stale completions cannot
   assert.ok(dashboard.includes('let projectEditorSession = null;'));
   assert.ok(dashboard.includes('projectEditorSession = Object.freeze({'));
   assert.ok(dashboard.includes('weekId: week.__documentId ||'));
-  assert.ok(dashboard.includes('revisionFingerprint: projectRevisionFingerprint(existingProject)'));
+  assert.ok(dashboard.includes('revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)'));
   assert.ok(dashboard.includes("Object.defineProperty(normalizedWeek, '__documentId'"));
   assert.ok(dashboard.includes('session.authUid === (currentUser?.uid ||'));
   assert.ok(dashboard.includes('session.authEmail === getEmailKey(currentUser)'));
@@ -485,16 +486,14 @@ test('project editor pins week and identity session and stale completions cannot
 
   for (const source of [saveSource, deleteSource]) {
     assert.ok(source.includes('const session = projectEditorSession;'));
-    assert.ok(source.includes("doc(db, 'weeks', session.weekId)"));
-    assert.ok(source.includes('assertProjectEditorSessionCurrent(session);'));
-    assert.ok(source.includes('expectedFingerprint: session.revisionFingerprint'));
-    assert.doesNotMatch(source, /allWeeks\[currentIdx\]/);
+    assert.ok(source.includes('weekId: session.weekId'));
     assert.ok(source.includes('if (!isProjectEditorSessionCurrent(session)) return;'));
     assert.ok(
       source.indexOf('if (!isProjectEditorSessionCurrent(session)) return;')
-        < source.indexOf("closeModal('projEditOverlay')"),
+        < source.indexOf("closeModal('projEditOverlay'"),
     );
   }
+  assert.ok(saveSource.includes('expectedRevision: session.revisionFingerprint'));
   assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
 });
 

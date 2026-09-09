@@ -1,10 +1,14 @@
 # pm-dashboard
 DCDC PM dashboard for PMs status update
 
-## UAT security handoff
+## Production security handoff
 
-The client authorization checks are defense-in-depth only. Before production release, verify and deploy Firestore Security Rules that enforce admin project creation/deletion, PM updates only for owned projects, and VIP read-only access. The complete production data schema and deployed rules are not present in this repository, so UAT approval must include a review against the actual Firebase project rather than relying on browser checks.
+The client authorization checks are defense-in-depth only. Business-data writes use authenticated Callable Functions, while Firestore Security Rules deny direct browser writes to weeks, Gantt settings, and Executive milestone collections. Before release, deploy and verify Functions before deploying the matching restrictive Rules so the dashboard does not enter a read-only gap.
 
-## Vendored dependencies
+The legacy `team-2/` source and deployment entrypoint is retired. Historical plans under `docs/superpowers/` may still describe that former layout, but they are not active runtime, test, configuration, or deployment instructions.
 
-`team-2/vendor/xlsx.full.min.js` is SheetJS CE 0.20.3 from `https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js`. SHA-256: `CC015130AA8521E7F088F88898EBA949CCDCBFB38DF0BD129B44B7273C3A6F41`.
+The root dashboard intentionally retains `team2.portfolioScope`,
+`team2.overviewScope.*`, and `dashboardSettings/team-2-portfolio`. These are
+data-compatibility identifiers, not source paths or deployment dependencies.
+Renaming them requires a separately reviewed data migration so existing user
+preferences and Gantt settings do not appear to disappear.

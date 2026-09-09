@@ -5,7 +5,7 @@ import {
   calculateQuarterlyKpi,
   normalizeQuarterlyMilestone,
   quarterlyWeightValue,
-} from '../team-2/js/quarterly-kpi.mjs';
+} from '../js/quarterly-kpi.mjs';
 
 test('legacy quarterly milestone statuses normalize without inventing progress', () => {
   assert.deepEqual(

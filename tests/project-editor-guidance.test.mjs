@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('project detail and one-page Gantt stay contained at narrow widths', () => {
   assert.match(html, /\.detail-left,\s*\.detail-right\s*\{\s*min-width:\s*0/);

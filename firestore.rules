@@ -5,10 +5,176 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
+    function dashboardRole() {
       return isSignedIn()
         && request.auth.token.email != null
-        && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        : '';
+    }
+
+    function isAdmin() {
+      return dashboardRole() == 'admin';
+    }
+
+    function hasBoundedString(data, key, maximumLength) {
+      return data.get(key, '') is string
+        && data.get(key, '').size() > 0
+        && data.get(key, '').size() <= maximumLength;
+    }
+
+    function hasValidAuditContext(context) {
+      return context is map
+        && context.keys().hasAll(['source'])
+        && context.keys().hasOnly(['source'])
+        && hasBoundedString(context, 'source', 64);
+    }
+
+    function hasBoundedUsageBuckets(data) {
+      return data.get('usageBuckets', {}) is map
+        && data.get('usageBuckets', {}).keys().size() <= 256;
+    }
+
+    function hasValidAuditLogEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && hasBoundedString(request.resource.data, 'eventType', 64)
+        && hasBoundedString(request.resource.data, 'actorUid', 128)
+        && hasBoundedString(request.resource.data, 'actorEmail', 320)
+        && hasBoundedString(request.resource.data, 'weekId', 128)
+        && hasBoundedString(request.resource.data, 'projectCode', 128)
+        && hasBoundedString(request.resource.data, 'message', 2000)
+        && hasValidAuditContext(request.resource.data.get('context', {}))
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actorEmail == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function hasOnlyPresenceFields(data) {
+      return data.keys().hasOnly([
+        'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+        'ownerUid', 'userKey'
+      ]);
+    }
+
+    function hasValidPresenceFieldTypes(data) {
+      return data.get('name', '') is string
+        && data.get('name', '').size() <= 128
+        && data.get('role', '') is string
+        && data.get('role', '').size() <= 64
+        && data.get('status', '') is string
+        && data.get('status', '').size() <= 64
+        && data.get('lastActive', 0) is number
+        && data.get('lastSeenAt', 0) is number
+        && hasBoundedUsageBuckets(data);
+    }
+
+    function hasValidNewPresenceEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+          'ownerUid', 'userKey'
+        ])
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data);
+    }
+
+    function hasMatchingPresenceIdentity(document) {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && document == request.auth.token.email
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email;
+    }
+
+    function keepsOrEstablishesPresenceIdentity() {
+      return resource.data.keys().hasAll(['ownerUid', 'userKey'])
+        ? resource.data.ownerUid == request.auth.uid
+          && resource.data.userKey == request.auth.token.email
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.userKey == resource.data.userKey
+        : !resource.data.keys().hasAny(['ownerUid', 'userKey']);
+    }
+
+    function hasOnlyPresenceSessionFields(data) {
+      return data.keys().hasOnly([
+        'sessionId', 'ownerUid', 'userKey', 'displayName', 'role', 'environment',
+        'startedAt', 'lastSeenAt', 'endedAt', 'activeMs', 'idleMs', 'state',
+        'endReason', 'aggregatedAt', 'expiresAt', 'createdAt', 'updatedAt'
+      ]);
+    }
+
+    function hasValidPresenceSessionTypes(data) {
+      return hasOnlyPresenceSessionFields(data)
+        && hasBoundedString(data, 'sessionId', 256)
+        && hasBoundedString(data, 'ownerUid', 128)
+        && hasBoundedString(data, 'userKey', 320)
+        && hasBoundedString(data, 'displayName', 128)
+        && hasBoundedString(data, 'role', 64)
+        && data.environment == 'v2.1'
+        && data.startedAt is number
+        && data.lastSeenAt is number
+        && data.lastSeenAt >= data.startedAt
+        && (data.endedAt == null || data.endedAt is number)
+        && data.activeMs is number
+        && data.activeMs >= 0
+        && data.activeMs <= 7776000000
+        && data.idleMs is number
+        && data.idleMs >= 0
+        && data.idleMs <= 7776000000
+        && data.state in ['active', 'idle', 'closed']
+        && (data.endReason == null || (data.endReason is string && data.endReason.size() <= 64))
+        && data.expiresAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidNewPresenceSession(document) {
+      return request.resource.data.keys().hasAll([
+          'sessionId', 'ownerUid', 'userKey', 'displayName', 'role', 'environment',
+          'startedAt', 'lastSeenAt', 'endedAt', 'activeMs', 'idleMs', 'state',
+          'endReason', 'aggregatedAt', 'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && hasValidPresenceSessionTypes(request.resource.data)
+        && request.resource.data.sessionId == document
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email
+        && request.resource.data.role == dashboardRole()
+        && request.resource.data.lastSeenAt == request.resource.data.startedAt
+        && request.resource.data.startedAt >= request.time.toMillis() - 300000
+        && request.resource.data.startedAt <= request.time.toMillis() + 300000
+        && request.resource.data.endedAt == null
+        && request.resource.data.activeMs == 0
+        && request.resource.data.idleMs == 0
+        && request.resource.data.state == 'active'
+        && request.resource.data.endReason == null
+        && request.resource.data.aggregatedAt == null
+        && request.resource.data.expiresAt.toMillis() >= request.resource.data.startedAt + 7689600000
+        && request.resource.data.expiresAt.toMillis() <= request.resource.data.startedAt + 7862400000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidPresenceSessionUpdate() {
+      return hasValidPresenceSessionTypes(request.resource.data)
+        && resource.data.state != 'closed'
+        && request.resource.data.activeMs >= resource.data.activeMs
+        && request.resource.data.idleMs >= resource.data.idleMs
+        && request.resource.data.lastSeenAt >= resource.data.lastSeenAt
+        && request.resource.data.lastSeenAt <= request.time.toMillis() + 300000
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.state == 'closed'
+          ? request.resource.data.endedAt is number
+            && request.resource.data.endedAt >= request.resource.data.startedAt
+            && request.resource.data.endedAt == request.resource.data.lastSeenAt
+            && request.resource.data.endReason is string
+            && request.resource.data.endReason.size() > 0
+          : request.resource.data.endedAt == null
+            && request.resource.data.endReason == null);
     }
 
     match /users/{userId} {
@@ -17,28 +183,45 @@ service cloud.firestore {
     }
 
     match /weeks/{weekId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /dashboardSettings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /logs/{logId} {
-      allow create, read: if isSignedIn();
+      allow create: if isSignedIn() && hasValidAuditLogEnvelope();
+      allow read: if isSignedIn();
+      allow update, delete: if false;
     }
 
     match /presence/{document} {
-      allow read, write: if isSignedIn();
+      allow create: if hasMatchingPresenceIdentity(document)
+        && hasValidNewPresenceEnvelope();
+      allow update: if hasMatchingPresenceIdentity(document)
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data)
+        && keepsOrEstablishesPresenceIdentity();
+      allow read: if isSignedIn();
+      allow delete: if false;
     }
 
     match /presenceSessions/{sessionId} {
       allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.userKey == request.auth.token.email
-        && request.resource.data.sessionId == sessionId;
+        && request.auth.token.email != null
+        && hasValidNewPresenceSession(sessionId);
 
       allow update: if isSignedIn()
+        && request.auth.token.email != null
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.userKey == resource.data.userKey
         && request.resource.data.sessionId == resource.data.sessionId
+        && hasValidPresenceSessionUpdate()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'lastSeenAt',
           'endedAt',
