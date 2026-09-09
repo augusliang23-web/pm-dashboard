@@ -4,6 +4,7 @@ const {
   assertAllowedKeys,
   assertBoundedJson,
   assertDraftWeek,
+  buildAuthenticatedActor,
   buildCreatedWeek,
   buildProjectPatch,
   buildWeekFieldsPatch,
@@ -61,6 +62,68 @@ test('protected draft saves permit Admin, owner, and deputy identities', () => {
   }
 });
 
+test('legacy Admin without displayName keeps protected management authority', () => {
+  const legacyAdmin = buildAuthenticatedActor(
+    { uid: 'legacy-admin', email: 'augus.liang@example.com' },
+    { role: 'admin' },
+  );
+
+  assert.equal(legacyAdmin.displayName, 'Augus');
+  assert.equal(canSetWeekRelease(legacyAdmin.role), true);
+  assert.doesNotThrow(() => buildWeekFieldsPatch({ version: 1, isReleased: false }, {
+    weekId: 'W1', fields: { summary: 'Updated by legacy Admin' },
+  }, legacyAdmin));
+  assert.equal(buildAuthenticatedActor(
+    { uid: 'named-admin', email: 'augus.liang@example.com' },
+    { role: 'admin', displayName: 'Stored Admin Name' },
+  ).displayName, 'Stored Admin Name');
+  assert.throws(
+    () => buildAuthenticatedActor(
+      { uid: 'unknown-role', email: 'augus.liang@example.com' },
+      { role: 'unknown' },
+    ),
+    error => error?.details?.reason === 'role-forbidden',
+  );
+});
+
+test('legacy PM without displayName can save a project assigned to the trusted email alias', () => {
+  const legacyPm = buildAuthenticatedActor(
+    { uid: 'legacy-pm', email: 'qianyun.zhu@example.com' },
+    { role: 'pm' },
+  );
+  const liveProject = { code: 'ALPHA', name: 'Alpha', owner: 'Bonnie', deputy: '' };
+  const week = { projects: [liveProject], version: 1, isReleased: false };
+
+  assert.equal(legacyPm.displayName, 'Bonnie');
+  assert.doesNotThrow(() => buildProjectPatch(week, {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...liveProject, highlight: 'Updated' },
+    expectedRevision: projectRevisionFingerprint(liveProject),
+  }, legacyPm, '2026-09-10T00:00:00.000Z'));
+
+  for (const [email, displayName] of [
+    ['augus.liang@example.com', 'Augus'],
+    ['josiah.winkler@example.com', 'Josiah'],
+    ['qianyun.zhu@example.com', 'Bonnie'],
+    ['huichong.kong@example.com', 'Huichong'],
+  ]) {
+    assert.equal(buildAuthenticatedActor(
+      { uid: `legacy-${displayName}`, email },
+      { role: 'pm' },
+    ).displayName, displayName);
+  }
+});
+
+test('legacy PM fallback does not grant ownership from a similar first name', () => {
+  const unrelatedPm = buildAuthenticatedActor(
+    { uid: 'unrelated-pm', email: 'bonnie.other@example.com' },
+    { role: 'pm' },
+  );
+
+  assert.equal(unrelatedPm.displayName, 'bonnie.other');
+  assert.equal(ownerOrDeputyMatches({ owner: 'Bonnie' }, unrelatedPm), false);
+});
+
 test('ownership uses exact canonical display-name, email, or email-prefix tokens', () => {
   assert.deepEqual([...identityTokens(actor)].sort(), ['augus', 'augus liang', 'augus@example.com']);
   assert.deepEqual(ownershipTokens('Ann, owner@example.com / Deputy\nThird'), [
@@ -71,7 +134,7 @@ test('ownership uses exact canonical display-name, email, or email-prefix tokens
   }
   assert.equal(ownerOrDeputyMatches({ owner: 'Joann' }, { ...actor, displayName: 'Ann' }), false);
   assert.equal(ownerOrDeputyMatches({ owner: 'augustus' }, actor), false);
-  assert.equal(ownerOrDeputyMatches({ owner: 'augus@example.com' }, { ...actor, displayName: '' }), false);
+  assert.equal(ownerOrDeputyMatches({ owner: 'augus@example.com' }, { ...actor, displayName: '' }), true);
 });
 
 test('released weeks reject writes and only PM or Admin changes release state', () => {
