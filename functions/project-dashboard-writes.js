@@ -2,6 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
+const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
 
 const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
@@ -208,13 +209,22 @@ function requireWeekId(data) {
   return requireId(data?.weekId, 'Week identifier');
 }
 
+// Project codes are values inside weeks.projects, not Firestore document paths.
+function requireProjectCode(value, label = 'Project code') {
+  const result = String(value || '').trim();
+  if (!result || result.length > 128) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} must contain 1 to 128 characters.`);
+  }
+  return result;
+}
+
 function nextWeekVersion(week = {}) {
   const current = Number(week.version);
   return Number.isFinite(current) && current >= 0 ? current + 1 : 1;
 }
 
 function requestedProjectCode(data, fallback = '') {
-  return requireId(data?.projectCode || data?.project?.code || fallback, 'Project code');
+  return requireProjectCode(data?.projectCode || data?.project?.code || fallback);
 }
 
 function canonicalValue(value) {
@@ -277,7 +287,11 @@ function assertProjectRevision(liveProject, expectedRevision) {
 
 function buildProjectPatch(week, data, actor, nowIso) {
   assertActor(actor);
-  assertBoundedJson(data);
+  // The revision is a serialized project, not an editable text field.
+  // Keep the total request cap while applying field limits to the actual draft.
+  assertBoundedJson(data, { maxStringLength: DEFAULT_LIMITS.maxBytes });
+  const { expectedRevision, ...editableRequest } = data;
+  assertBoundedJson(editableRequest);
   assertAllowedKeys(data, SAVE_PROJECT_KEYS, 'Project save request');
   assertDraftWeek(week);
   const projects = Array.isArray(week?.projects) ? week.projects : [];
@@ -295,7 +309,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
     }
     committedProject = { ...draft, code };
   } else {
-    const originalCode = requireId(data.originalCode || code, 'Original project code');
+    const originalCode = requireProjectCode(data.originalCode || code, 'Original project code');
     targetIndex = projects.findIndex(project => String(project?.code || '').trim() === originalCode);
     if (targetIndex < 0) {
       throw securityError('not-found', 'not-found', 'The project no longer exists.');
@@ -305,7 +319,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
     }
     assertProjectRevision(liveProject, data.expectedRevision);
-    committedProject = { ...liveProject, ...draft, code };
+    committedProject = { ...mergePreservingUnknown(withProjectEditorRowIds(liveProject), draft), code };
   }
 
   const sectionUpdatedAt = updateProjectSectionMetadata(
@@ -447,7 +461,7 @@ const deleteDashboardProject = onCall(async request => database().runTransaction
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
   const week = weekSnapshot.data();
   assertDraftWeek(week);
-  const code = requireId(request.data.originalCode, 'Original project code');
+  const code = requireProjectCode(request.data.originalCode, 'Original project code');
   const projects = Array.isArray(week.projects) ? week.projects : [];
   if (!projects.some(project => String(project?.code || '').trim() === code)) {
     throw securityError('not-found', 'not-found', 'The project no longer exists.');
@@ -469,7 +483,7 @@ const setDashboardProjectAttention = onCall(async request => database().runTrans
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
   const week = weekSnapshot.data();
   assertDraftWeek(week);
-  const code = requireId(request.data.projectCode, 'Project code');
+  const code = requireProjectCode(request.data.projectCode);
   const projects = Array.isArray(week.projects) ? week.projects : [];
   const index = projects.findIndex(project => String(project?.code || '').trim() === code);
   if (index < 0) throw securityError('not-found', 'not-found', 'The project no longer exists.');
