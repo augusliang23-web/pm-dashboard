@@ -7460,7 +7460,7 @@ function renderExec(projs, summary, allProjects = projs) {
   bindDecisionControls(editableDecisionView);
 }
 
-async function saveCurrentWeekQuietly(project) {
+async function saveCurrentWeekQuietly(project, riskFields) {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || !project) return;
   assertCurrentWeekEditable(week);
@@ -7469,7 +7469,7 @@ async function saveCurrentWeekQuietly(project) {
     weekId,
     originalCode: project.code,
     projectCode: project.code,
-    project,
+    project: { code: project.code, ...riskFields },
     expectedRevision: project.__revisionFingerprint || projectRevisionFingerprint(project),
   });
   if (result?.week) {
@@ -7990,11 +7990,17 @@ function bindDecisionControls(editable) {
     chk.onchange = async () => {
       const p = findCurrentProject(chk.dataset.code);
       if (!p || !canEditProject(p)) return;
-      p.riskList = chk.checked;
-      p.riskManual = true;
-      await saveCurrentWeekQuietly(p);
-      render();
-      showSaveToast("Risk list updated");
+      chk.disabled = true;
+      try {
+        await saveCurrentWeekQuietly(p, { riskList: chk.checked, riskManual: true });
+        render();
+        showSaveToast("Risk list updated");
+      } catch (error) {
+        chk.checked = p.riskList === true;
+        alert(error.message || 'Risk list was not saved. Your previous selection is unchanged.');
+      } finally {
+        chk.disabled = false;
+      }
     };
   });
   document.querySelectorAll(".attention-item[draggable='true']").forEach(item => {
@@ -9091,7 +9097,7 @@ function showProjectMutationError(error, fallback) {
   if (_toastTimer) clearTimeout(_toastTimer);
   document.getElementById('saveToast').classList.remove('show');
   const detail = error instanceof Error && error.message ? error.message : '';
-  const message = detail ? `${detail} ${fallback}` : fallback;
+  const message = detail ? `${detail} Your changes are still in this editor. Copy them before closing or reloading.` : fallback;
   const errorElement = document.getElementById('projectMutationError');
   errorElement.textContent = message;
   errorElement.classList.add('show');
@@ -9354,7 +9360,7 @@ window.saveProjEdit = async () => {
     ganttWorkstreams,
     resources: editorResources,
     name: document.getElementById('pe_name').value,
-    code: document.getElementById('pe_code').value,
+    code: document.getElementById('pe_code').value.trim(),
     owner: document.getElementById('pe_owner').value,
     deputy: document.getElementById('pe_deputy').value,
     customer: document.getElementById('pe_customer').value,
@@ -9401,14 +9407,14 @@ window.saveProjEdit = async () => {
     Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
     transactionResult = {
       week: savedWeek,
-      project: savedWeek.projects.find(project => project.code === pData.code) || pData,
+      project: response.project || savedWeek.projects.find(project => project.code === pData.code) || pData,
     };
     allWeeks[currentIdx] = savedWeek;
   } catch (error) {
     if (isProjectEditorSessionCurrent(session)) {
       showProjectMutationError(
         error,
-        'Project save failed. Check your connection, refresh the dashboard, and try again.'
+        'Project was not saved. Your changes are still in this editor. Copy them before closing or reloading.'
       );
     }
   } finally {
