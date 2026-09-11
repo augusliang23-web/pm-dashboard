@@ -192,6 +192,227 @@ function planWeekMirror({ sourceWeeks, destinationWeeks }) {
   };
 }
 
+const LEASE_DURATION_MS = 15 * 60 * 1000;
+const MIRROR_BATCH_SIZE = 200;
+
+function nowIso(clock) {
+  const value = clock();
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new TypeError('Sync clock must return a valid date.');
+  return date.toISOString();
+}
+
+function leaseExpiryIso(clock) {
+  const value = clock();
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new TypeError('Sync clock must return a valid date.');
+  return new Date(date.getTime() + LEASE_DURATION_MS).toISOString();
+}
+
+function sanitizeActor(actor) {
+  return {
+    uid: String(actor?.uid || ''),
+    email: String(actor?.email || ''),
+    role: String(actor?.role || ''),
+    displayName: String(actor?.displayName || ''),
+  };
+}
+
+function runMetadata({ runId, actor, phase, operation, extra = {} }) {
+  return { runId, actor: sanitizeActor(actor), phase, operation, ...extra };
+}
+
+function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
+  if (expectedWeeks.length !== actualWeeks.length
+    || digestWeekEntries(expectedWeeks) !== digestWeekEntries(actualWeeks)) {
+    throw new Error(message);
+  }
+}
+
+function assertVerifiedSnapshot(snapshot, expectedWeeks) {
+  if (!snapshot || snapshot.complete === false
+    || snapshot.digest !== digestWeekEntries(expectedWeeks)) {
+    throw new Error('Snapshot digest verification failed.');
+  }
+  assertMatchingWeeks(expectedWeeks, snapshot.weeks || [], 'Snapshot digest verification failed.');
+}
+
+function sanitizedFailure() {
+  return { errorCode: 'operation-failed', errorMessage: 'The operation could not be completed safely.' };
+}
+
+function sanitizeStatus(value) {
+  if (Array.isArray(value)) return value.map(sanitizeStatus);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !/(credential|token|secret|password|weeks|data)/i.test(key))
+    .map(([key, child]) => [key, sanitizeStatus(child)]));
+}
+
+async function pruneSnapshots(destinationStore) {
+  const snapshots = await destinationStore.listCompleteSnapshots();
+  const newestFirst = [...snapshots].sort((left, right) => {
+    const leftTime = String(left.completedAt || left.createdAt || '');
+    const rightTime = String(right.completedAt || right.createdAt || '');
+    return compareCodeUnits(rightTime, leftTime);
+  });
+  for (const snapshot of newestFirst.slice(SNAPSHOT_RETENTION_COUNT)) {
+    await destinationStore.deleteSnapshot({ snapshotId: snapshot.snapshotId });
+  }
+}
+
+async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned }) {
+  await destinationStore.updateRun(runMetadata({
+    runId, actor, operation, phase: 'reading_source', extra: { result: 'failed', ...sanitizedFailure() },
+  }));
+  if (leaseOwned) await destinationStore.releaseLease({ runId });
+}
+
+async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks }) {
+  try {
+    await destinationStore.updateRun(runMetadata({
+      runId, actor, operation, phase: 'rolling_back', extra: { snapshotId, ...sanitizedFailure() },
+    }));
+    await destinationStore.applyMirror({ weeks: snapshotWeeks, runId, batchSize: MIRROR_BATCH_SIZE, rollback: true });
+    const restoredWeeks = await destinationStore.listWeeks();
+    assertMatchingWeeks(snapshotWeeks, restoredWeeks, 'Rollback verification failed.');
+    await destinationStore.updateRun(runMetadata({
+      runId, actor, operation, phase: 'rolled_back', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
+    }));
+    await destinationStore.releaseLease({ runId });
+    return { ok: false, phase: 'rolled_back', runId, snapshotId };
+  } catch (_rollbackError) {
+    await destinationStore.updateRun(runMetadata({
+      runId, actor, operation, phase: 'rollback_failed', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
+    }));
+    return { ok: false, phase: 'rollback_failed', runId, snapshotId };
+  }
+}
+
+async function runSync({ sourceStore, destinationStore, clock, idFactory, actor }) {
+  const runId = idFactory();
+  const operation = 'sync';
+  const acquired = await destinationStore.acquireLease({
+    runId, actor: sanitizeActor(actor), expiresAt: leaseExpiryIso(clock),
+  });
+  if (!acquired?.acquired) throw new Error('A Production week sync is already running.');
+
+  let snapshotId = runId;
+  let snapshotWeeks;
+  let applyStarted = false;
+  await destinationStore.createRun(runMetadata({
+    runId, actor, operation, phase: 'reading_source', extra: { startedAt: nowIso(clock) },
+  }));
+  try {
+    const sourceWeeks = validateSourceWeeks(await sourceStore.listWeeks());
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'validating_source' }));
+    const destinationWeeks = await destinationStore.listWeeks();
+    const plan = planWeekMirror({ sourceWeeks, destinationWeeks });
+    snapshotWeeks = plan.destinationWeeks;
+
+    await destinationStore.updateRun(runMetadata({
+      runId, actor, operation, phase: 'snapshotting',
+      extra: { snapshotId, sourceWeekCount: plan.sourceWeeks.length, destinationWeekCount: snapshotWeeks.length, snapshotDigest: plan.destinationDigest },
+    }));
+    await destinationStore.writeSnapshot({
+      snapshotId, weeks: snapshotWeeks, digest: plan.destinationDigest, createdAt: nowIso(clock), operation,
+    });
+    assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId }), snapshotWeeks);
+
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'applying', extra: { snapshotId } }));
+    await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
+    applyStarted = true;
+    await destinationStore.applyMirror({ weeks: plan.sourceWeeks, runId, batchSize: MIRROR_BATCH_SIZE });
+
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'verifying', extra: { snapshotId } }));
+    assertMatchingWeeks(plan.sourceWeeks, await destinationStore.listWeeks(), 'UAT mirror verification failed.');
+    const result = {
+      ok: true, phase: 'succeeded', runId, snapshotId, sourceWeekCount: plan.sourceWeeks.length,
+      createdCount: plan.createdIds.length, updatedCount: plan.updatedIds.length, deletedCount: plan.deletedIds.length,
+    };
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'succeeded', extra: result }));
+    await destinationStore.releaseLease({ runId });
+    try {
+      await pruneSnapshots(destinationStore);
+    } catch (_cleanupError) {
+      await destinationStore.updateRun(runMetadata({
+        runId, actor, operation, phase: 'succeeded', extra: { cleanupWarning: 'snapshot-retention-cleanup-failed' },
+      }));
+    }
+    return result;
+  } catch (error) {
+    if (applyStarted) {
+      return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks });
+    }
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned: true });
+    throw error;
+  }
+}
+
+async function runRestore({ destinationStore, clock, idFactory, actor, snapshotId }) {
+  const runId = idFactory();
+  const operation = 'restore';
+  const acquired = await destinationStore.acquireLease({
+    runId, actor: sanitizeActor(actor), expiresAt: leaseExpiryIso(clock),
+  });
+  if (!acquired?.acquired) throw new Error('A UAT week restore is already running.');
+
+  let currentSnapshotWeeks;
+  let applyStarted = false;
+  try {
+    const retained = await destinationStore.listCompleteSnapshots();
+    const selected = retained.find(snapshot => snapshot.snapshotId === snapshotId && snapshot.complete !== false);
+    if (!selected) throw new Error('Requested snapshot is not retained.');
+    assertVerifiedSnapshot(selected, selected.weeks || []);
+
+    await destinationStore.createRun(runMetadata({
+      runId, actor, operation, phase: 'restoring', extra: { startedAt: nowIso(clock), snapshotId },
+    }));
+    currentSnapshotWeeks = await destinationStore.listWeeks();
+    const currentDigest = digestWeekEntries(currentSnapshotWeeks);
+    await destinationStore.writeSnapshot({
+      snapshotId: runId, weeks: currentSnapshotWeeks, digest: currentDigest, createdAt: nowIso(clock), operation,
+    });
+    assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId: runId }), currentSnapshotWeeks);
+    await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
+    applyStarted = true;
+    await destinationStore.applyMirror({ weeks: selected.weeks, runId, batchSize: MIRROR_BATCH_SIZE });
+    assertMatchingWeeks(selected.weeks, await destinationStore.listWeeks(), 'UAT restore verification failed.');
+    const result = { ok: true, phase: 'restored', runId, snapshotId };
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'restored', extra: result }));
+    await destinationStore.releaseLease({ runId });
+    try {
+      await pruneSnapshots(destinationStore);
+    } catch (_cleanupError) {
+      await destinationStore.updateRun(runMetadata({
+        runId, actor, operation, phase: 'restored', extra: { cleanupWarning: 'snapshot-retention-cleanup-failed' },
+      }));
+    }
+    return result;
+  } catch (error) {
+    if (applyStarted) {
+      return recoverOrFail({
+        destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks,
+      });
+    }
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned: true });
+    throw error;
+  }
+}
+
+function createWeekSyncService({ sourceStore, destinationStore, clock, idFactory }) {
+  async function sync({ actor }) {
+    return runSync({ sourceStore, destinationStore, clock, idFactory, actor });
+  }
+  async function status({ actor }) {
+    return sanitizeStatus(await destinationStore.readStatus({ actor: sanitizeActor(actor) }));
+  }
+  async function restore({ actor, snapshotId }) {
+    return runRestore({ destinationStore, clock, idFactory, actor, snapshotId });
+  }
+  return { sync, status, restore };
+}
+
 module.exports = {
   PRODUCTION_PROJECT_ID,
   UAT_PROJECT_ID,
@@ -203,4 +424,5 @@ module.exports = {
   digestWeekEntries,
   validateSourceWeeks,
   planWeekMirror,
+  createWeekSyncService,
 };
