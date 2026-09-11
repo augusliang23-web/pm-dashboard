@@ -23,14 +23,29 @@ function assertPlainObject(value) {
     && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 }
 
+function hasExactSafeOwnKeys(value, expectedKeys) {
+  if (!assertPlainObject(value)) return false;
+  let keys;
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch (_error) {
+    return false;
+  }
+  if (keys.length !== expectedKeys.length || keys.some(key => typeof key !== 'string' || !expectedKeys.includes(key))) return false;
+  return keys.every(key => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor?.enumerable === true && Object.prototype.hasOwnProperty.call(descriptor, 'value');
+  });
+}
+
 function assertEmptyRequest(data) {
-  if (!assertPlainObject(data) || Object.keys(data).length !== 0) {
+  if (!hasExactSafeOwnKeys(data, [])) {
     throw callableError('invalid-argument', 'This operation does not accept request fields.', 'invalid-request-schema');
   }
 }
 
 function assertRestoreRequest(data) {
-  if (!assertPlainObject(data) || Object.keys(data).length !== 1
+  if (!hasExactSafeOwnKeys(data, ['snapshotId'])
     || typeof data.snapshotId !== 'string' || !data.snapshotId.trim() || data.snapshotId.includes('/')) {
     throw callableError('invalid-argument', 'A valid snapshotId is required.', 'invalid-request-schema');
   }
@@ -73,7 +88,12 @@ function createProductionReadStore(productionDb) {
   return Object.freeze({
     async listWeeks() {
       const snapshot = await productionDb.collection(core.SYNC_COLLECTION).get();
-      return snapshot.docs.map(document => ({ id: document.id, data: document.data() }));
+      const weeks = snapshot.docs.map(document => ({ id: document.id, data: document.data() }));
+      const readTime = snapshot.readTime?.toDate?.();
+      if (readTime instanceof Date && !Number.isNaN(readTime.getTime())) {
+        Object.defineProperty(weeks, 'sourceReadTime', { value: readTime.toISOString() });
+      }
+      return weeks;
     },
   });
 }
@@ -92,8 +112,9 @@ function reconstructUatValue(value, uatDb) {
   return value;
 }
 
-async function commitBoundedOperations(db, operations) {
+async function commitBoundedOperations(db, operations, beforeBatch) {
   for (let start = 0; start < operations.length; start += BATCH_SIZE) {
+    await beforeBatch();
     const batch = db.batch();
     for (const operation of operations.slice(start, start + BATCH_SIZE)) {
       if (operation.type === 'set') batch.set(operation.ref, operation.data, operation.options);
@@ -104,20 +125,32 @@ async function commitBoundedOperations(db, operations) {
 }
 
 function snapshotMetadata({ snapshotId, digest, weekCount, createdAt, operation }) {
-  return { snapshotId, digest, weekCount, createdAt, operation, complete: true };
+  return { snapshotId, digest, weekCount, createdAt, operation, complete: false };
 }
 
 function createUatSyncStore(uatDb) {
   const controlRef = () => uatDb.collection(CONTROL_COLLECTION).doc(CONTROL_DOCUMENT);
   const runRef = runId => uatDb.collection(RUNS_COLLECTION).doc(runId);
   const weeks = () => uatDb.collection(core.SYNC_COLLECTION);
+  async function renewOwnedLease(runId) {
+    if (typeof runId !== 'string' || !runId) throw new Error('Sync lease owner is required.');
+    await uatDb.runTransaction(async transaction => {
+      const current = await transaction.get(controlRef());
+      const lease = current.exists ? current.data() : {};
+      const expiry = Date.parse(lease.expiresAt || '');
+      if (!current.exists || lease.activeRunId !== runId) throw new Error('Sync lease is not owned by this run.');
+      if (!Number.isFinite(expiry) || expiry <= Date.now()) throw new Error('Sync lease has expired.');
+      transaction.set(controlRef(), { expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() }, { merge: true });
+    });
+  }
 
   return {
     async acquireLease({ runId, actor, expiresAt }) {
       return uatDb.runTransaction(async transaction => {
         const current = await transaction.get(controlRef());
         const lease = current.exists ? current.data() : {};
-        if (lease.activeRunId && new Date(lease.expiresAt || 0).getTime() > Date.now()) return { acquired: false };
+        const expiry = Date.parse(lease.expiresAt || '');
+        if (lease.activeRunId && (!Number.isFinite(expiry) || expiry > Date.now())) return { acquired: false };
         transaction.set(controlRef(), { activeRunId: runId, actor, expiresAt }, { merge: true });
         return { acquired: true };
       });
@@ -125,7 +158,10 @@ function createUatSyncStore(uatDb) {
     async renewLease({ runId, expiresAt }) {
       await uatDb.runTransaction(async transaction => {
         const current = await transaction.get(controlRef());
-        if (!current.exists || current.data().activeRunId !== runId) throw new Error('Sync lease is not owned by this run.');
+        const lease = current.exists ? current.data() : {};
+        const expiry = Date.parse(lease.expiresAt || '');
+        if (!current.exists || lease.activeRunId !== runId) throw new Error('Sync lease is not owned by this run.');
+        if (!Number.isFinite(expiry) || expiry <= Date.now()) throw new Error('Sync lease has expired.');
         transaction.set(controlRef(), { expiresAt }, { merge: true });
       });
     },
@@ -143,19 +179,35 @@ function createUatSyncStore(uatDb) {
       await runRef(metadata.runId).set(metadata, { merge: true });
     },
     async readStatus() {
-      const [control, latestRuns] = await Promise.all([
-        controlRef().get(), runRefQuery(uatDb).get(),
-      ]);
-      const latestRun = latestRuns.docs[0]?.data();
-      const running = Boolean(control.exists && control.data().activeRunId
-        && new Date(control.data().expiresAt || 0).getTime() > Date.now());
-      return { running, phase: latestRun?.phase, latestRun };
+      const [control, runs] = await Promise.all([controlRef().get(), uatDb.collection(RUNS_COLLECTION).get()]);
+      const controlData = control.exists ? control.data() : {};
+      const activeExpiry = Date.parse(controlData.expiresAt || '');
+      const running = Boolean(controlData.activeRunId && Number.isFinite(activeExpiry) && activeExpiry > Date.now());
+      const allRuns = runs.docs.map(document => document.data());
+      const byNewest = (left, right) => String(right.completedAt || right.createdAt || '').localeCompare(String(left.completedAt || left.createdAt || ''))
+        || String(right.runId || right.snapshotId || '').localeCompare(String(left.runId || left.snapshotId || ''));
+      const currentRun = running ? allRuns.find(run => run.runId === controlData.activeRunId) : undefined;
+      const completed = allRuns.filter(run => ['succeeded', 'restored'].includes(run.phase)).sort(byNewest)[0];
+      const latestSnapshot = allRuns.filter(run => run.complete === true).sort(byNewest)[0];
+      const summary = run => run && Object.fromEntries([
+        'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId', 'sourceReadTime',
+        'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount', 'deletedCount', 'snapshotId',
+        'snapshotDigest', 'startedAt', 'completedAt', 'errorCode', 'errorMessage', 'cleanupWarning', 'leaseReleaseWarning',
+      ].filter(key => run[key] === null || ['string', 'number', 'boolean'].includes(typeof run[key])).map(key => [key, run[key]]));
+      return {
+        running,
+        ...(currentRun?.phase ? { phase: currentRun.phase } : {}),
+        ...(completed ? { latestCompletedRun: summary(completed) } : {}),
+        ...(latestSnapshot ? { latestSnapshot: Object.fromEntries(['snapshotId', 'createdAt', 'completedAt']
+          .filter(key => latestSnapshot[key] === null || ['string', 'number', 'boolean'].includes(typeof latestSnapshot[key]))
+          .map(key => [key, latestSnapshot[key]])) } : {}),
+      };
     },
     async listWeeks() {
       const snapshot = await weeks().get();
       return snapshot.docs.map(document => ({ id: document.id, data: document.data() }));
     },
-    async writeSnapshot({ snapshotId, weeks: snapshotWeeks, digest, weekCount, createdAt, operation }) {
+    async writeSnapshot({ snapshotId, runId, weeks: snapshotWeeks, digest, weekCount, createdAt, operation }) {
       const target = runRef(snapshotId);
       const operations = [
         { type: 'set', ref: target, data: snapshotMetadata({ snapshotId, digest, weekCount, createdAt, operation }), options: { merge: true } },
@@ -164,7 +216,11 @@ function createUatSyncStore(uatDb) {
           data: { data: reconstructUatValue(week.data, uatDb) },
         })),
       ];
-      await commitBoundedOperations(uatDb, operations);
+      await commitBoundedOperations(uatDb, operations, () => renewOwnedLease(runId));
+    },
+    async completeSnapshot({ snapshotId, runId }) {
+      await renewOwnedLease(runId);
+      await runRef(snapshotId).set({ complete: true }, { merge: true });
     },
     async readSnapshot({ snapshotId }) {
       const target = runRef(snapshotId);
@@ -175,7 +231,7 @@ function createUatSyncStore(uatDb) {
         weeks: entries.docs.map(document => ({ id: document.id, data: document.data().data })),
       };
     },
-    async applyMirror({ weeks: sourceWeeks, batchSize }) {
+    async applyMirror({ weeks: sourceWeeks, batchSize, runId }) {
       if (batchSize !== BATCH_SIZE) throw new Error('UAT mirror batch size must be 200.');
       const current = await weeks().get();
       const sourceIds = new Set(sourceWeeks.map(week => week.id));
@@ -185,7 +241,7 @@ function createUatSyncStore(uatDb) {
         })),
         ...current.docs.filter(document => !sourceIds.has(document.id)).map(document => ({ type: 'delete', ref: document.ref || weeks().doc(document.id) })),
       ];
-      await commitBoundedOperations(uatDb, operations);
+      await commitBoundedOperations(uatDb, operations, () => renewOwnedLease(runId));
     },
     async listCompleteSnapshots() {
       const snapshot = await uatDb.collection(RUNS_COLLECTION).where('complete', '==', true).get();
@@ -202,19 +258,15 @@ function createUatSyncStore(uatDb) {
         return metadata;
       });
     },
-    async deleteSnapshot({ snapshotId }) {
+    async deleteSnapshot({ snapshotId, runId }) {
       const target = runRef(snapshotId);
       const entries = await target.collection('weeks').get();
       await commitBoundedOperations(uatDb, [
         ...entries.docs.map(document => ({ type: 'delete', ref: document.ref })),
         { type: 'delete', ref: target },
-      ]);
+      ], () => renewOwnedLease(runId));
     },
   };
-}
-
-function runRefQuery(uatDb) {
-  return uatDb.collection(RUNS_COLLECTION).orderBy('startedAt', 'desc').limit(1);
 }
 
 function getProductionFirestore() {

@@ -229,8 +229,8 @@ function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
   }
 }
 
-function assertVerifiedSnapshot(snapshot, expectedWeeks, expectedDigest) {
-  if (!snapshot || snapshot.complete !== true) {
+function assertVerifiedSnapshot(snapshot, expectedWeeks, expectedDigest, { requireComplete = true } = {}) {
+  if (!snapshot || (requireComplete && snapshot.complete !== true)) {
     throw new Error('Snapshot digest verification failed.');
   }
   if (!Array.isArray(snapshot.weeks)) throw new Error('Snapshot payload must be an array.');
@@ -274,7 +274,7 @@ function sanitizeStatus(value) {
   return status;
 }
 
-async function pruneSnapshots(destinationStore) {
+async function pruneSnapshots(destinationStore, runId) {
   const snapshots = await destinationStore.listCompleteSnapshots();
   const newestFirst = [...snapshots].sort((left, right) => {
     const leftTime = String(left.completedAt || left.createdAt || '');
@@ -284,7 +284,7 @@ async function pruneSnapshots(destinationStore) {
     );
   });
   for (const snapshot of newestFirst.slice(SNAPSHOT_RETENTION_COUNT)) {
-    await destinationStore.deleteSnapshot({ snapshotId: snapshot.snapshotId });
+    await destinationStore.deleteSnapshot({ snapshotId: snapshot.snapshotId, runId, batchSize: MIRROR_BATCH_SIZE });
   }
 }
 
@@ -308,14 +308,14 @@ async function finishFailedBeforeApply({ destinationStore, runId, actor, operati
 async function finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result, warning }) {
   let finalWarning = warning;
   try {
+    await pruneSnapshots(destinationStore, runId);
+  } catch (_cleanupError) {
+    finalWarning = finalWarning || 'snapshot-retention-cleanup-failed';
+  }
+  try {
     await destinationStore.releaseLease({ runId });
   } catch (_releaseError) {
     finalWarning = finalWarning || 'lease-release-failed';
-  }
-  try {
-    await pruneSnapshots(destinationStore);
-  } catch (_cleanupError) {
-    finalWarning = finalWarning || 'snapshot-retention-cleanup-failed';
   }
   if (finalWarning) {
     try {
@@ -395,7 +395,9 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
     await destinationStore.createRun(runMetadata({
       runId, actor, operation, phase, extra: { startedAt: nowIso(clock) },
     }));
-    const sourceWeeks = validateSourceWeeks(await sourceStore.listWeeks());
+    const sourceResult = await sourceStore.listWeeks();
+    const sourceWeeks = validateSourceWeeks(sourceResult);
+    const sourceReadTime = typeof sourceResult?.sourceReadTime === 'string' ? sourceResult.sourceReadTime : undefined;
     phase = 'validating_source';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase }));
     const destinationWeeks = await destinationStore.listWeeks();
@@ -408,8 +410,10 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
       extra: { snapshotId, sourceWeekCount: plan.sourceWeeks.length, destinationWeekCount: snapshotWeeks.length, snapshotDigest: plan.destinationDigest },
     }));
     await destinationStore.writeSnapshot({
-      snapshotId, weeks: snapshotWeeks, digest: plan.destinationDigest, weekCount: snapshotWeeks.length, createdAt: nowIso(clock), operation,
+      snapshotId, runId, weeks: snapshotWeeks, digest: plan.destinationDigest, weekCount: snapshotWeeks.length, createdAt: nowIso(clock), operation,
     });
+    assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId }), snapshotWeeks, undefined, { requireComplete: false });
+    await destinationStore.completeSnapshot({ snapshotId, runId });
     assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId }), snapshotWeeks);
 
     phase = 'applying';
@@ -425,6 +429,14 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
       ok: true, phase: 'succeeded', runId, snapshotId, sourceWeekCount: plan.sourceWeeks.length,
       createdCount: plan.createdIds.length, updatedCount: plan.updatedIds.length, deletedCount: plan.deletedIds.length,
     };
+    if (sourceReadTime) {
+      Object.assign(verifiedResult, {
+        sourceProjectId: PRODUCTION_PROJECT_ID,
+        destinationProjectId: UAT_PROJECT_ID,
+        sourceReadTime,
+        completedAt: nowIso(clock),
+      });
+    }
     phase = 'succeeded';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
     return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
@@ -472,8 +484,10 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
     currentSnapshotWeeks = await destinationStore.listWeeks();
     const currentDigest = digestWeekEntries(currentSnapshotWeeks);
     await destinationStore.writeSnapshot({
-      snapshotId: runId, weeks: currentSnapshotWeeks, digest: currentDigest, weekCount: currentSnapshotWeeks.length, createdAt: nowIso(clock), operation,
+      snapshotId: runId, runId, weeks: currentSnapshotWeeks, digest: currentDigest, weekCount: currentSnapshotWeeks.length, createdAt: nowIso(clock), operation,
     });
+    assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId: runId }), currentSnapshotWeeks, undefined, { requireComplete: false });
+    await destinationStore.completeSnapshot({ snapshotId: runId, runId });
     assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId: runId }), currentSnapshotWeeks);
     await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
     applyStarted = true;

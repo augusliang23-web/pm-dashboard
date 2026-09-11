@@ -89,6 +89,23 @@ test('closed callable request schemas reject caller-selected source, destination
   }
 });
 
+test('closed request schemas reject hidden, symbol, and accessor keys without reading them', () => {
+  for (const build of [
+    () => Object.defineProperty({}, 'sourceProjectId', { value: 'x' }),
+    () => ({ [Symbol('destination')]: 'x' }),
+    () => Object.defineProperty({}, 'collection', { enumerable: true, get() { throw new Error('must not read accessor'); } }),
+  ]) {
+    assert.throws(() => sync.assertEmptyRequest(build()), error => error.details?.reason === 'invalid-request-schema');
+  }
+  for (const build of [
+    () => Object.defineProperty({ snapshotId: 'run-1' }, 'sourceProjectId', { value: 'x' }),
+    () => ({ snapshotId: 'run-1', [Symbol('destination')]: 'x' }),
+    () => Object.defineProperty({}, 'snapshotId', { enumerable: true, get() { throw new Error('must not read accessor'); } }),
+  ]) {
+    assert.throws(() => sync.assertRestoreRequest(build()), error => error.details?.reason === 'invalid-request-schema');
+  }
+});
+
 test('runtime guard rejects any non-UAT Cloud project before service construction', () => {
   assert.doesNotThrow(() => sync.assertUatRuntimeProject({ GCLOUD_PROJECT: 'pm-dashboard-uat-20260820-a7f3' }));
   assert.throws(

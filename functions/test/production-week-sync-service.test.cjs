@@ -48,7 +48,13 @@ function createMemoryDestination({ weeks = [], snapshots = [], status, failApply
     },
     async writeSnapshot({ snapshotId, weeks: snapshotWeeks, digest, ...metadata }) {
       order.push('writeSnapshot');
-      state.snapshots.push({ snapshotId, weeks: clone(snapshotWeeks), digest, complete: true, ...clone(metadata) });
+      state.snapshots.push({ snapshotId, weeks: clone(snapshotWeeks), digest, complete: false, ...clone(metadata) });
+    },
+    async completeSnapshot({ snapshotId }) {
+      order.push('completeSnapshot');
+      const snapshot = state.snapshots.find(candidate => candidate.snapshotId === snapshotId);
+      if (!snapshot) throw new Error('snapshot is missing');
+      snapshot.complete = true;
     },
     async readSnapshot({ snapshotId }) {
       order.push('readSnapshot');
@@ -84,6 +90,26 @@ function createService({ sourceWeeks = [week('W36-2026', 'NEW')], destination, i
     idFactory: () => ids[idIndex++] || `run-${idIndex}`,
   });
 }
+
+test('sync records and returns fixed environment IDs, preserved source read time, and completion time', async () => {
+  const sourceWeeks = [week('W36-2026', 'NEW')];
+  Object.defineProperty(sourceWeeks, 'sourceReadTime', { value: '2026-09-12T01:02:03.000Z' });
+  const destination = createMemoryDestination();
+  const service = core.createWeekSyncService({
+    sourceStore: { listWeeks: async () => sourceWeeks },
+    destinationStore: destination,
+    clock: () => new Date('2026-09-12T02:03:04.000Z'),
+    idFactory: () => 'run-1',
+  });
+
+  const result = await service.sync({ actor: admin() });
+
+  assert.equal(result.sourceProjectId, 'project-manager-dashboar-a067f');
+  assert.equal(result.destinationProjectId, 'pm-dashboard-uat-20260820-a7f3');
+  assert.equal(result.sourceReadTime, '2026-09-12T01:02:03.000Z');
+  assert.equal(result.completedAt, '2026-09-12T02:03:04.000Z');
+  assert.equal(destination.state.runs.at(-1).sourceReadTime, '2026-09-12T01:02:03.000Z');
+});
 
 test('sync snapshots before applying and exactly mirrors Production weeks', async () => {
   const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD'), week('W36-2026', 'STALE')] });
