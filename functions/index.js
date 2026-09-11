@@ -7,6 +7,7 @@ initializeApp();
 const db = getFirestore();
 const executiveMilestones = require("./executive-milestones");
 const projectDashboardWrites = require("./project-dashboard-writes");
+const productionWeekSync = require("./production-week-sync");
 const SESSION_COLLECTION = "presenceSessions";
 const ROLLUP_COLLECTION = "presenceDailyRollups";
 const SESSION_TIMEOUT_MS = 12 * 60 * 1000;
@@ -143,3 +144,6 @@ exports.setDashboardProjectAttention = projectDashboardWrites.setDashboardProjec
 exports.setDashboardWeekRelease = projectDashboardWrites.setDashboardWeekRelease;
 exports.saveDashboardWeekFields = projectDashboardWrites.saveDashboardWeekFields;
 exports.createDashboardWeek = projectDashboardWrites.createDashboardWeek;
+exports.syncProductionWeeksToUat = productionWeekSync.syncProductionWeeksToUat;
+exports.getProductionWeekSyncStatus = productionWeekSync.getProductionWeekSyncStatus;
+exports.restoreUatWeeksSnapshot = productionWeekSync.restoreUatWeeksSnapshot;
