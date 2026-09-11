@@ -332,27 +332,49 @@ async function finalizeVerifiedResult({ destinationStore, runId, actor, operatio
   return result;
 }
 
-async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks }) {
-  let rollbackVerified = false;
+async function recordRunBestEffort(destinationStore, metadata) {
   try {
-    await destinationStore.updateRun(runMetadata({
+    await destinationStore.updateRun(metadata);
+  } catch (_recordError) {
+    // Recovery and its truthful terminal result must not depend on audit availability.
+  }
+}
+
+async function releaseLeaseBestEffort(destinationStore, runId) {
+  try {
+    await destinationStore.releaseLease({ runId });
+  } catch (_releaseError) {
+    // The owned bounded lease expires if release cannot be recorded.
+  }
+}
+
+async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks }) {
+  try {
+    await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rolling_back', extra: { snapshotId, ...sanitizedFailure() },
     }));
     await destinationStore.applyMirror({ weeks: snapshotWeeks, runId, batchSize: MIRROR_BATCH_SIZE, rollback: true });
     const restoredWeeks = await destinationStore.listWeeks();
     assertMatchingWeeks(snapshotWeeks, restoredWeeks, 'Rollback verification failed.');
-    rollbackVerified = true;
-    await destinationStore.updateRun(runMetadata({
+    await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rolled_back', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
     }));
-    await destinationStore.releaseLease({ runId });
+    await releaseLeaseBestEffort(destinationStore, runId);
     return { ok: false, phase: 'rolled_back', runId, snapshotId };
   } catch (_rollbackError) {
-    if (rollbackVerified) return { ok: false, phase: 'rolled_back', runId, snapshotId };
-    await destinationStore.updateRun(runMetadata({
+    await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rollback_failed', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
     }));
     return { ok: false, phase: 'rollback_failed', runId, snapshotId };
+  }
+}
+
+function assertRetainedSnapshotMetadata(snapshot, snapshotId) {
+  const canonicalDigest = typeof snapshot?.digest === 'string' && /^[a-f0-9]{64}$/.test(snapshot.digest);
+  if (!snapshot || snapshot.complete !== true || typeof snapshotId !== 'string' || !snapshotId
+    || snapshot.snapshotId !== snapshotId || !canonicalDigest
+    || !Number.isSafeInteger(snapshot.weekCount) || snapshot.weekCount < 0) {
+    throw new Error('Snapshot metadata integrity is invalid.');
   }
 }
 
@@ -440,9 +462,11 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
     const retained = await destinationStore.listCompleteSnapshots();
     const selected = retained.find(snapshot => snapshot.snapshotId === snapshotId && snapshot.complete === true);
     if (!selected) throw new Error('Requested snapshot is not retained.');
+    assertRetainedSnapshotMetadata(selected, snapshotId);
     const selectedSnapshot = await destinationStore.readSnapshot({ snapshotId });
+    if (selectedSnapshot?.snapshotId !== snapshotId) throw new Error('Snapshot ID does not match retained metadata.');
     assertVerifiedSnapshot(selectedSnapshot, undefined, selected.digest);
-    if (Number.isSafeInteger(selected.weekCount) && selected.weekCount !== selectedSnapshot.weeks.length) {
+    if (selected.weekCount !== selectedSnapshot.weeks.length) {
       throw new Error('Snapshot digest verification failed.');
     }
     currentSnapshotWeeks = await destinationStore.listWeeks();
