@@ -229,24 +229,49 @@ function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
   }
 }
 
-function assertVerifiedSnapshot(snapshot, expectedWeeks) {
-  if (!snapshot || snapshot.complete === false
-    || snapshot.digest !== digestWeekEntries(expectedWeeks)) {
+function assertVerifiedSnapshot(snapshot, expectedWeeks, expectedDigest) {
+  if (!snapshot || snapshot.complete !== true) {
     throw new Error('Snapshot digest verification failed.');
   }
-  assertMatchingWeeks(expectedWeeks, snapshot.weeks || [], 'Snapshot digest verification failed.');
+  if (!Array.isArray(snapshot.weeks)) throw new Error('Snapshot payload must be an array.');
+  const payloadDigest = digestWeekEntries(snapshot.weeks);
+  if (snapshot.digest !== payloadDigest || (expectedDigest && expectedDigest !== payloadDigest)
+    || (Number.isSafeInteger(snapshot.weekCount) && snapshot.weekCount !== snapshot.weeks.length)) {
+    throw new Error('Snapshot digest verification failed.');
+  }
+  if (expectedWeeks) assertMatchingWeeks(expectedWeeks, snapshot.weeks, 'Snapshot digest verification failed.');
 }
 
 function sanitizedFailure() {
   return { errorCode: 'operation-failed', errorMessage: 'The operation could not be completed safely.' };
 }
 
+function copyStatusFields(value, fields) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const allowed = {};
+  for (const field of fields) {
+    const candidate = value[field];
+    if (candidate === null || ['string', 'number', 'boolean'].includes(typeof candidate)) {
+      allowed[field] = candidate;
+    }
+  }
+  return allowed;
+}
+
 function sanitizeStatus(value) {
-  if (Array.isArray(value)) return value.map(sanitizeStatus);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !/(credential|token|secret|password|weeks|data)/i.test(key))
-    .map(([key, child]) => [key, sanitizeStatus(child)]));
+  const status = copyStatusFields(value, ['running', 'phase']);
+  const runFields = [
+    'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId',
+    'sourceReadTime', 'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount',
+    'deletedCount', 'snapshotId', 'snapshotDigest', 'startedAt', 'completedAt', 'errorCode',
+    'errorMessage', 'cleanupWarning', 'leaseReleaseWarning',
+  ];
+  const snapshotFields = ['snapshotId', 'createdAt', 'completedAt'];
+  for (const key of ['latestRun', 'latestCompletedRun']) {
+    if (value?.[key]) status[key] = copyStatusFields(value[key], runFields);
+  }
+  if (value?.latestSnapshot) status.latestSnapshot = copyStatusFields(value.latestSnapshot, snapshotFields);
+  return status;
 }
 
 async function pruneSnapshots(destinationStore) {
@@ -254,21 +279,61 @@ async function pruneSnapshots(destinationStore) {
   const newestFirst = [...snapshots].sort((left, right) => {
     const leftTime = String(left.completedAt || left.createdAt || '');
     const rightTime = String(right.completedAt || right.createdAt || '');
-    return compareCodeUnits(rightTime, leftTime);
+    return compareCodeUnits(rightTime, leftTime) || compareCodeUnits(
+      String(right.snapshotId || ''), String(left.snapshotId || ''),
+    );
   });
   for (const snapshot of newestFirst.slice(SNAPSHOT_RETENTION_COUNT)) {
     await destinationStore.deleteSnapshot({ snapshotId: snapshot.snapshotId });
   }
 }
 
-async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned }) {
-  await destinationStore.updateRun(runMetadata({
-    runId, actor, operation, phase: 'reading_source', extra: { result: 'failed', ...sanitizedFailure() },
-  }));
-  if (leaseOwned) await destinationStore.releaseLease({ runId });
+async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned }) {
+  try {
+    await destinationStore.updateRun(runMetadata({
+      runId, actor, operation, phase, extra: { result: 'failed', ...sanitizedFailure() },
+    }));
+  } catch (_recordError) {
+    // Preserve the original operation error even when an audit write also fails.
+  }
+  if (leaseOwned) {
+    try {
+      await destinationStore.releaseLease({ runId });
+    } catch (_releaseError) {
+      // The bounded lease expires if ownership cannot be released safely.
+    }
+  }
+}
+
+async function finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result, warning }) {
+  let finalWarning = warning;
+  try {
+    await destinationStore.releaseLease({ runId });
+  } catch (_releaseError) {
+    finalWarning = finalWarning || 'lease-release-failed';
+  }
+  try {
+    await pruneSnapshots(destinationStore);
+  } catch (_cleanupError) {
+    finalWarning = finalWarning || 'snapshot-retention-cleanup-failed';
+  }
+  if (finalWarning) {
+    try {
+      await destinationStore.updateRun(runMetadata({
+        runId, actor, operation, phase,
+        extra: finalWarning === 'lease-release-failed'
+          ? { leaseReleaseWarning: finalWarning }
+          : { cleanupWarning: finalWarning },
+      }));
+    } catch (_warningRecordError) {
+      // A verified business result remains final even when its warning cannot be recorded.
+    }
+  }
+  return result;
 }
 
 async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks }) {
+  let rollbackVerified = false;
   try {
     await destinationStore.updateRun(runMetadata({
       runId, actor, operation, phase: 'rolling_back', extra: { snapshotId, ...sanitizedFailure() },
@@ -276,12 +341,14 @@ async function recoverOrFail({ destinationStore, runId, actor, operation, snapsh
     await destinationStore.applyMirror({ weeks: snapshotWeeks, runId, batchSize: MIRROR_BATCH_SIZE, rollback: true });
     const restoredWeeks = await destinationStore.listWeeks();
     assertMatchingWeeks(snapshotWeeks, restoredWeeks, 'Rollback verification failed.');
+    rollbackVerified = true;
     await destinationStore.updateRun(runMetadata({
       runId, actor, operation, phase: 'rolled_back', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
     }));
     await destinationStore.releaseLease({ runId });
     return { ok: false, phase: 'rolled_back', runId, snapshotId };
   } catch (_rollbackError) {
+    if (rollbackVerified) return { ok: false, phase: 'rolled_back', runId, snapshotId };
     await destinationStore.updateRun(runMetadata({
       runId, actor, operation, phase: 'rollback_failed', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
     }));
@@ -300,51 +367,56 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
   let snapshotId = runId;
   let snapshotWeeks;
   let applyStarted = false;
-  await destinationStore.createRun(runMetadata({
-    runId, actor, operation, phase: 'reading_source', extra: { startedAt: nowIso(clock) },
-  }));
+  let phase = 'reading_source';
+  let verifiedResult;
   try {
+    await destinationStore.createRun(runMetadata({
+      runId, actor, operation, phase, extra: { startedAt: nowIso(clock) },
+    }));
     const sourceWeeks = validateSourceWeeks(await sourceStore.listWeeks());
-    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'validating_source' }));
+    phase = 'validating_source';
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase }));
     const destinationWeeks = await destinationStore.listWeeks();
     const plan = planWeekMirror({ sourceWeeks, destinationWeeks });
     snapshotWeeks = plan.destinationWeeks;
 
+    phase = 'snapshotting';
     await destinationStore.updateRun(runMetadata({
-      runId, actor, operation, phase: 'snapshotting',
+      runId, actor, operation, phase,
       extra: { snapshotId, sourceWeekCount: plan.sourceWeeks.length, destinationWeekCount: snapshotWeeks.length, snapshotDigest: plan.destinationDigest },
     }));
     await destinationStore.writeSnapshot({
-      snapshotId, weeks: snapshotWeeks, digest: plan.destinationDigest, createdAt: nowIso(clock), operation,
+      snapshotId, weeks: snapshotWeeks, digest: plan.destinationDigest, weekCount: snapshotWeeks.length, createdAt: nowIso(clock), operation,
     });
     assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId }), snapshotWeeks);
 
-    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'applying', extra: { snapshotId } }));
+    phase = 'applying';
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: { snapshotId } }));
     await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
     applyStarted = true;
     await destinationStore.applyMirror({ weeks: plan.sourceWeeks, runId, batchSize: MIRROR_BATCH_SIZE });
 
-    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'verifying', extra: { snapshotId } }));
+    phase = 'verifying';
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: { snapshotId } }));
     assertMatchingWeeks(plan.sourceWeeks, await destinationStore.listWeeks(), 'UAT mirror verification failed.');
-    const result = {
+    verifiedResult = {
       ok: true, phase: 'succeeded', runId, snapshotId, sourceWeekCount: plan.sourceWeeks.length,
       createdCount: plan.createdIds.length, updatedCount: plan.updatedIds.length, deletedCount: plan.deletedIds.length,
     };
-    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'succeeded', extra: result }));
-    await destinationStore.releaseLease({ runId });
-    try {
-      await pruneSnapshots(destinationStore);
-    } catch (_cleanupError) {
-      await destinationStore.updateRun(runMetadata({
-        runId, actor, operation, phase: 'succeeded', extra: { cleanupWarning: 'snapshot-retention-cleanup-failed' },
-      }));
-    }
-    return result;
+    phase = 'succeeded';
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
+    return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
   } catch (error) {
+    if (verifiedResult) {
+      return finalizeVerifiedResult({
+        destinationStore, runId, actor, operation, phase: 'succeeded', result: verifiedResult,
+        warning: 'success-recording-failed',
+      });
+    }
     if (applyStarted) {
       return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned: true });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true });
     throw error;
   }
 }
@@ -359,43 +431,47 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
 
   let currentSnapshotWeeks;
   let applyStarted = false;
+  let phase = 'restoring';
+  let verifiedResult;
   try {
-    const retained = await destinationStore.listCompleteSnapshots();
-    const selected = retained.find(snapshot => snapshot.snapshotId === snapshotId && snapshot.complete !== false);
-    if (!selected) throw new Error('Requested snapshot is not retained.');
-    assertVerifiedSnapshot(selected, selected.weeks || []);
-
     await destinationStore.createRun(runMetadata({
-      runId, actor, operation, phase: 'restoring', extra: { startedAt: nowIso(clock), snapshotId },
+      runId, actor, operation, phase, extra: { startedAt: nowIso(clock), snapshotId },
     }));
+    const retained = await destinationStore.listCompleteSnapshots();
+    const selected = retained.find(snapshot => snapshot.snapshotId === snapshotId && snapshot.complete === true);
+    if (!selected) throw new Error('Requested snapshot is not retained.');
+    const selectedSnapshot = await destinationStore.readSnapshot({ snapshotId });
+    assertVerifiedSnapshot(selectedSnapshot, undefined, selected.digest);
+    if (Number.isSafeInteger(selected.weekCount) && selected.weekCount !== selectedSnapshot.weeks.length) {
+      throw new Error('Snapshot digest verification failed.');
+    }
     currentSnapshotWeeks = await destinationStore.listWeeks();
     const currentDigest = digestWeekEntries(currentSnapshotWeeks);
     await destinationStore.writeSnapshot({
-      snapshotId: runId, weeks: currentSnapshotWeeks, digest: currentDigest, createdAt: nowIso(clock), operation,
+      snapshotId: runId, weeks: currentSnapshotWeeks, digest: currentDigest, weekCount: currentSnapshotWeeks.length, createdAt: nowIso(clock), operation,
     });
     assertVerifiedSnapshot(await destinationStore.readSnapshot({ snapshotId: runId }), currentSnapshotWeeks);
     await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
     applyStarted = true;
-    await destinationStore.applyMirror({ weeks: selected.weeks, runId, batchSize: MIRROR_BATCH_SIZE });
-    assertMatchingWeeks(selected.weeks, await destinationStore.listWeeks(), 'UAT restore verification failed.');
-    const result = { ok: true, phase: 'restored', runId, snapshotId };
-    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase: 'restored', extra: result }));
-    await destinationStore.releaseLease({ runId });
-    try {
-      await pruneSnapshots(destinationStore);
-    } catch (_cleanupError) {
-      await destinationStore.updateRun(runMetadata({
-        runId, actor, operation, phase: 'restored', extra: { cleanupWarning: 'snapshot-retention-cleanup-failed' },
-      }));
-    }
-    return result;
+    await destinationStore.applyMirror({ weeks: selectedSnapshot.weeks, runId, batchSize: MIRROR_BATCH_SIZE });
+    assertMatchingWeeks(selectedSnapshot.weeks, await destinationStore.listWeeks(), 'UAT restore verification failed.');
+    verifiedResult = { ok: true, phase: 'restored', runId, snapshotId };
+    phase = 'restored';
+    await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
+    return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
   } catch (error) {
+    if (verifiedResult) {
+      return finalizeVerifiedResult({
+        destinationStore, runId, actor, operation, phase: 'restored', result: verifiedResult,
+        warning: 'success-recording-failed',
+      });
+    }
     if (applyStarted) {
       return recoverOrFail({
         destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks,
       });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, leaseOwned: true });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true });
     throw error;
   }
 }

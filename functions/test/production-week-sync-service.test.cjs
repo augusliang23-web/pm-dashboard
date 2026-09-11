@@ -125,6 +125,7 @@ test('sync rejects a mismatched snapshot digest before UAT-week mutation', async
   assert.equal(destination.order.includes('writeSnapshot'), true);
   assert.equal(destination.order.includes('applyMirror'), false);
   assert.deepEqual(destination.state.weeks, [week('W35-2026', 'OLD')]);
+  assert.equal(destination.state.runs.at(-1).phase, 'snapshotting');
 });
 
 test('sync rolls back and verifies the original UAT weeks when apply fails', async () => {
@@ -198,6 +199,8 @@ test('restore rejects a snapshot that is not among the retained complete snapsho
   );
   assert.equal(destination.order.includes('writeSnapshot'), false);
   assert.equal(destination.order.includes('applyMirror'), false);
+  assert.equal(destination.state.runs.at(-1).phase, 'restoring');
+  assert.equal(destination.state.runs.some(run => run.phase === 'reading_source'), false);
 });
 
 test('status removes business payloads and credentials from destination metadata', async () => {
@@ -216,6 +219,122 @@ test('status removes business payloads and credentials from destination metadata
   });
 });
 
+test('status uses a closed summary allowlist and drops unrecognised nested payloads', async () => {
+  const destination = createMemoryDestination({ status: {
+    running: true, phase: 'applying', arbitraryTopLevel: 'do-not-return',
+    latestRun: {
+      runId: 'run-1', phase: 'applying', sourceWeekCount: 1, createdCount: 1,
+      projects: [{ code: 'SECRET' }], payload: 'secret', nested: { kept: 'no' },
+    },
+    latestSnapshot: { snapshotId: 'run-1', createdAt: '2026-09-11T00:00:00.000Z', weeks: [week('W36-2026', 'SECRET')] },
+  } });
+
+  assert.deepEqual(await createService({ destination }).status({ actor: admin() }), {
+    running: true, phase: 'applying',
+    latestRun: { runId: 'run-1', phase: 'applying', sourceWeekCount: 1, createdCount: 1 },
+    latestSnapshot: { snapshotId: 'run-1', createdAt: '2026-09-11T00:00:00.000Z' },
+  });
+});
+
+test('verified sync success stays successful when finalization writes, release, or cleanup-warning recording fails', async () => {
+  for (const failure of ['success-recording', 'release', 'cleanup-warning']) {
+    const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
+    const originalRelease = destination.releaseLease;
+    if (failure === 'success-recording') {
+      const originalUpdate = destination.updateRun;
+      let failed = false;
+      destination.updateRun = async metadata => {
+        if (metadata.phase === 'succeeded' && !failed) {
+          failed = true;
+          throw new Error('success recording failed');
+        }
+        return originalUpdate(metadata);
+      };
+    } else if (failure === 'release') {
+      destination.releaseLease = async () => { destination.order.push('releaseLease'); throw new Error('release failed'); };
+    } else {
+      destination.listCompleteSnapshots = async () => { throw new Error('cleanup failed'); };
+      destination.updateRun = async metadata => {
+        destination.order.push(`updateRun:${metadata.phase}`);
+        if (metadata.cleanupWarning) throw new Error('cleanup warning recording failed');
+        destination.state.runs.push(clone(metadata));
+      };
+    }
+
+    const result = await createService({ destination }).sync({ actor: admin() });
+
+    assert.equal(result.phase, 'succeeded', failure);
+    assert.deepEqual(destination.state.weeks, [week('W36-2026', 'NEW')], failure);
+    assert.equal(destination.order.includes('updateRun:rolling_back'), false, failure);
+    if (failure === 'release') destination.releaseLease = originalRelease;
+  }
+});
+
+test('verified restore stays restored when its lease release fails', async () => {
+  const retained = {
+    snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+    digest: core.digestWeekEntries([week('W34-2026', 'RESTORE')]), weeks: [week('W34-2026', 'RESTORE')],
+  };
+  const destination = createMemoryDestination({ weeks: [week('W36-2026', 'CURRENT')], snapshots: [retained] });
+  destination.releaseLease = async () => { destination.order.push('releaseLease'); throw new Error('release failed'); };
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.equal(result.phase, 'restored');
+  assert.deepEqual(destination.state.weeks, [week('W34-2026', 'RESTORE')]);
+  assert.equal(destination.order.includes('updateRun:rolling_back'), false);
+});
+
+test('createRun failure releases the acquired lease and preserves the create error', async () => {
+  const destination = createMemoryDestination();
+  destination.createRun = async () => { throw new Error('cannot create run'); };
+
+  await assert.rejects(() => createService({ destination }).sync({ actor: admin() }), /cannot create run/);
+
+  assert.equal(destination.state.lease, null);
+  assert.equal(destination.order.includes('releaseLease'), true);
+});
+
+test('restore reads the selected complete snapshot payload instead of list metadata', async () => {
+  const retained = {
+    snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+    digest: core.digestWeekEntries([week('W34-2026', 'RESTORE')]), weeks: [week('W34-2026', 'RESTORE')],
+  };
+  const destination = createMemoryDestination({ weeks: [week('W36-2026', 'CURRENT')], snapshots: [retained] });
+  destination.listCompleteSnapshots = async () => [{
+    snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+    digest: retained.digest, weekCount: 1,
+  }];
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.equal(result.phase, 'restored');
+  assert.equal(destination.order.includes('readSnapshot'), true);
+  assert.deepEqual(destination.state.weeks, [week('W34-2026', 'RESTORE')]);
+});
+
+test('restore requires complete metadata and a well-formed snapshot payload', async () => {
+  const notMarkedComplete = createMemoryDestination({ snapshots: [{
+    snapshotId: 'missing-complete', digest: core.digestWeekEntries([]), weeks: [],
+  }] });
+  await assert.rejects(
+    () => createService({ destination: notMarkedComplete }).restore({ actor: admin(), snapshotId: 'missing-complete' }),
+    /not retained/i,
+  );
+
+  const malformed = createMemoryDestination({ snapshots: [{
+    snapshotId: 'malformed', complete: true, digest: core.digestWeekEntries([]), weeks: [],
+  }] });
+  malformed.readSnapshot = async () => ({ snapshotId: 'malformed', complete: true, digest: core.digestWeekEntries([]), weeks: {} });
+  await assert.rejects(
+    () => createService({ destination: malformed }).restore({ actor: admin(), snapshotId: 'malformed' }),
+    /snapshot payload/i,
+  );
+  assert.equal(malformed.order.includes('applyMirror'), false);
+});
+
 test('sync retains only the five newest complete snapshots after verified success', async () => {
   const snapshots = Array.from({ length: 6 }, (_, index) => ({
     snapshotId: `old-${index + 1}`, complete: true, createdAt: `2026-09-0${index + 1}T00:00:00.000Z`,
@@ -228,6 +347,20 @@ test('sync retains only the five newest complete snapshots after verified succes
   assert.deepEqual(destination.state.snapshots.map(snapshot => snapshot.snapshotId).sort(),
     ['newest', 'old-3', 'old-4', 'old-5', 'old-6']);
   assert.deepEqual(destination.order.filter(entry => entry === 'deleteSnapshot'), ['deleteSnapshot', 'deleteSnapshot']);
+});
+
+test('snapshot retention deterministically keeps the newest IDs when timestamps tie', async () => {
+  const tiedAt = '2026-09-11T00:00:00.000Z';
+  const snapshots = Array.from({ length: 6 }, (_, index) => ({
+    snapshotId: `run-${index + 1}`, complete: true, createdAt: tiedAt,
+    digest: core.digestWeekEntries([]), weeks: [],
+  }));
+  const destination = createMemoryDestination({ snapshots });
+
+  await createService({ destination, ids: ['run-7'] }).sync({ actor: admin() });
+
+  assert.deepEqual(destination.state.snapshots.map(snapshot => snapshot.snapshotId).sort(),
+    ['run-3', 'run-4', 'run-5', 'run-6', 'run-7']);
 });
 
 test('run metadata excludes week payloads and credentials', async () => {
