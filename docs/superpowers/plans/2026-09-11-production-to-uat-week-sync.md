@@ -45,17 +45,14 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const core = require('../production-week-sync-core');
 
-test('constants fix the one permitted direction and collection', () => {
-  assert.equal(core.PRODUCTION_PROJECT_ID, 'project-manager-dashboar-a067f');
-  assert.equal(core.UAT_PROJECT_ID, 'pm-dashboard-uat-20260820-a7f3');
-  assert.equal(core.SYNC_COLLECTION, 'weeks');
-  assert.equal(core.SNAPSHOT_RETENTION_COUNT, 5);
-});
-
-test('environment guard rejects a reversed direction', () => {
+test('environment guard allows only the fixed Production-to-UAT direction', () => {
+  assert.doesNotThrow(() => core.assertSyncEnvironment({
+    sourceProjectId: 'project-manager-dashboar-a067f',
+    destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+  }));
   assert.throws(() => core.assertSyncEnvironment({
-    sourceProjectId: core.UAT_PROJECT_ID,
-    destinationProjectId: core.PRODUCTION_PROJECT_ID,
+    sourceProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    destinationProjectId: 'project-manager-dashboar-a067f',
   }), /fixed Production-to-UAT direction/);
 });
 
@@ -215,30 +212,37 @@ git commit -m "feat: protect UAT week sync with snapshots"
 **Files:**
 - Create: `functions/production-week-sync.js`
 - Create: `functions/test/production-week-sync.test.cjs`
-- Create: `functions/test/production-week-sync-source.test.cjs`
+- Create: `functions/test/production-week-sync-boundary.test.cjs`
 - Modify: `functions/index.js:1-145`
 
 **Interfaces:**
 - Consumes: Task 1/2 core exports.
 - Produces: `syncProductionWeeksToUat`, `getProductionWeekSyncStatus`, `restoreUatWeeksSnapshot`, `authenticatedSyncAdmin`, `createProductionReadStore`, `createUatSyncStore`, `SYNC_FUNCTION_OPTIONS`.
 
-- [ ] **Step 1: Write failing adapter and source-boundary tests**
+- [ ] **Step 1: Write failing adapter and source-boundary behavior tests**
 
 Test unauthenticated, missing user, missing display name, non-Admin, and Admin authorization. Test closed request schemas: `{}` for sync/status and `{ snapshotId }` for restore. Test 200-operation destination batches and remapping DocumentReferences onto UAT by path.
 
-In the source-contract test, isolate `createProductionReadStore` and assert:
+In the boundary test, exercise the real Production adapter against a fake database whose only collection supports `get()`. Assert the adapter requests literal `weeks`, returns the snapshot documents, and exposes no write method:
 
 ```js
-assert.match(body, /collection\(SYNC_COLLECTION\)\.get\(\)/);
-assert.doesNotMatch(body, /\.set\(|\.update\(|\.delete\(|\.batch\(|bulkWriter|runTransaction/);
-assert.doesNotMatch(source, /request\.data\.(?:sourceProjectId|destinationProjectId|collection)/);
+const requested = [];
+const store = createProductionReadStore({
+  collection(name) {
+    requested.push(name);
+    return { get: async () => ({ docs: [{ id: 'W36-2026', data: () => ({ projects: [] }) }] }) };
+  },
+});
+assert.deepEqual(Object.keys(store), ['listWeeks']);
+assert.deepEqual(await store.listWeeks(), [{ id: 'W36-2026', data: { projects: [] } }]);
+assert.deepEqual(requested, ['weeks']);
 ```
 
-Also require all three exact exports in `functions/index.js` and explicit dedicated-service-account options.
+Require `functions/index.js` and assert its three callable properties are functions. Exercise request validators to prove callers cannot choose a source/destination project or collection. Review the explicit dedicated-service-account options as part of the task diff rather than adding a constant-value change detector.
 
 - [ ] **Step 2: Run RED**
 
-Run: `node --test functions/test/production-week-sync.test.cjs functions/test/production-week-sync-source.test.cjs`
+Run: `node --test functions/test/production-week-sync.test.cjs functions/test/production-week-sync-boundary.test.cjs`
 
 Expected: FAIL because the Firebase module and exports do not exist.
 
@@ -276,7 +280,7 @@ Expected: PASS with zero failures.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add functions/production-week-sync.js functions/index.js functions/test/production-week-sync.test.cjs functions/test/production-week-sync-source.test.cjs
+git add functions/production-week-sync.js functions/index.js functions/test/production-week-sync.test.cjs functions/test/production-week-sync-boundary.test.cjs
 git commit -m "feat: expose Admin-only UAT sync callables"
 ```
 
@@ -287,12 +291,11 @@ git commit -m "feat: expose Admin-only UAT sync callables"
 **Files:**
 - Create: `js/uat-production-sync.mjs`
 - Create: `tests/uat-production-sync.test.mjs`
-- Create: `tests/uat-production-sync-ui.test.mjs`
 - Modify: `index.html:2700-2750,2844-2868,4538-4578,10682-10714`
 
 **Interfaces:**
 - Consumes: browser `functions`, `httpsCallable`, `currentRole`, and Week Management lifecycle.
-- Produces: `createUatProductionSyncApi`, `canUseProductionWeekSync`, `formatProductionSyncResult`, plus window actions for confirm, sync, status, and restore.
+- Produces: `createUatProductionSyncApi`, `createUatProductionSyncController`, `canUseProductionWeekSync`, `formatProductionSyncResult`, plus window actions for confirm, sync, status, and restore.
 
 - [ ] **Step 1: Write failing browser module and UI tests**
 
@@ -317,11 +320,11 @@ assert.deepEqual(calls, [
 ]);
 ```
 
-The source-contract UI test must require Admin-only markup, exact warning copy from the spec, disabled buttons during work, status refresh when Week Management opens, rolled-back and rollback-failed copy, restore confirmation, and no direct browser write to `weeks` or sync operational namespaces.
+Test `createUatProductionSyncController` with a real controller and fake external API/view boundary. Require Admin-only actions, exact warning copy from the spec, disabled actions during work, status refresh, rolled-back and rollback-failed messages, restore confirmation, and no direct week mutation callback.
 
 - [ ] **Step 2: Run RED**
 
-Run: `node --test tests/uat-production-sync.test.mjs tests/uat-production-sync-ui.test.mjs`
+Run: `node --test tests/uat-production-sync.test.mjs`
 
 Expected: FAIL because the module and UI panel do not exist.
 
@@ -348,7 +351,7 @@ export function formatProductionSyncResult(result = {}) {
 }
 ```
 
-Add tested phase labels and safe rolled-back/rollback-failed messages.
+Add tested phase labels, safe rolled-back/rollback-failed messages, and `createUatProductionSyncController({ api, getRole, view })`. The controller owns confirm/status/busy/result state and calls only the three API methods; the view owns DOM rendering.
 
 - [ ] **Step 4: Implement accessible Admin UI**
 
@@ -356,14 +359,14 @@ Add `.admin-only` `Production Data Sync` panel IDs `productionWeekSyncPanel`, `p
 
 - [ ] **Step 5: Run GREEN and full browser-side suite**
 
-Run: `node --test tests/uat-production-sync.test.mjs tests/uat-production-sync-ui.test.mjs && npm run test:all`
+Run: `node --test tests/uat-production-sync.test.mjs && npm run test:all`
 
 Expected: PASS with zero failures.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add js/uat-production-sync.mjs index.html tests/uat-production-sync.test.mjs tests/uat-production-sync-ui.test.mjs
+git add js/uat-production-sync.mjs index.html tests/uat-production-sync.test.mjs
 git commit -m "feat: add UAT Production sync controls"
 ```
 
@@ -374,17 +377,24 @@ git commit -m "feat: add UAT Production sync controls"
 **Files:**
 - Modify: `firestore.rules:122-207`
 - Modify: `firestore.shared-backend.rules:122-207`
-- Create: `tests/production-week-sync-isolation.test.mjs`
+- Modify: `tests/firestore-rules-emulator.test.mjs`
+- Create: `scripts/verify-production-sync-boundary.mjs`
+- Create: `tests/production-week-sync-boundary.test.mjs`
+- Modify: `package.json`
 - Modify: `functions/README.md`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: Tasks 1-4.
-- Produces: explicit browser denial for sync records, executable deployment safety checks, and a non-executing rollout runbook.
+- Produces: explicit browser denial for sync records, an executable deployment-boundary verifier, and a non-executing rollout runbook.
 
 - [ ] **Step 1: Write failing isolation tests**
 
-Require both Rules files to contain:
+Extend the Rules emulator test so signed-in Admin and non-Admin clients are denied read/write access to `uatProductionWeekSync/control` and `uatProductionWeekSyncRuns/run-1`, including the snapshot subcollection.
+
+Create a real boundary verifier that returns violations from supplied repository sources and checks the live checkout when run as a command. Test it with one safe fixture and mutations containing a Production write role, caller-selected project ID, a second source collection, an old local-sync runtime import, and a Production Firebase deploy target. Each mutation must cause a non-zero violation result.
+
+The Rules implementation contains:
 
 ```text
 match /uatProductionWeekSync/{document=**} {
@@ -395,22 +405,24 @@ match /uatProductionWeekSyncRuns/{document=**} {
 }
 ```
 
-Assert the fixed service account, project IDs, exact `weeks` allowlist, three UAT callable deployment names, absence of Production deploy/write-role commands, absence of runtime imports of the old local sync script, and documentation stating that deploy never starts a sync.
+Add `"verify:sync-boundary": "node scripts/verify-production-sync-boundary.mjs"` to root package scripts. Run the verifier against the actual repository during full verification.
 
 - [ ] **Step 2: Run RED**
 
-Run: `node --test tests/production-week-sync-isolation.test.mjs`
+Run: `node --test tests/production-week-sync-boundary.test.mjs tests/firestore-rules-emulator.test.mjs`
 
-Expected: FAIL because explicit Rules blocks and documentation are absent.
+Expected: FAIL because the verifier and explicit Rules behavior are absent. If the Rules test requires its emulator harness, run the new boundary test first for RED and run `npm run test:rules` after adding the Rules cases.
 
 - [ ] **Step 3: Add Rules and runbook**
 
-Add the two exact default-deny blocks to both Rules files. Document the three callables, dedicated service account, UAT `roles/datastore.user`, Production `roles/datastore.viewer`, five-snapshot behavior, automatic rollback, preserved namespaces, and separate cloud gate. Do not add executable IAM mutation commands.
+Add the two exact default-deny blocks to both Rules files. Implement the verifier with exported `verifyProductionSyncBoundary(sources)` and a CLI that reads the planned runtime/deployment files, prints every violation, and exits 1 on violations. Document the three callables, dedicated service account, UAT `roles/datastore.user`, Production `roles/datastore.viewer`, five-snapshot behavior, automatic rollback, preserved namespaces, and separate cloud gate. Do not add executable IAM mutation commands.
 
 - [ ] **Step 4: Run all local verification**
 
 ```bash
-node --test tests/production-week-sync-isolation.test.mjs tests/firestore-rules-source.test.mjs tests/team2-retirement-isolation.test.mjs
+node --test tests/production-week-sync-boundary.test.mjs
+npm run test:rules
+npm run verify:sync-boundary
 npm --prefix functions test
 npm run test:all
 git diff --check
@@ -430,7 +442,7 @@ Require Production ID only in the read-only source constant, tests, spec, and pr
 - [ ] **Step 6: Commit**
 
 ```bash
-git add firestore.rules firestore.shared-backend.rules tests/production-week-sync-isolation.test.mjs functions/README.md README.md
+git add firestore.rules firestore.shared-backend.rules tests/firestore-rules-emulator.test.mjs scripts/verify-production-sync-boundary.mjs tests/production-week-sync-boundary.test.mjs package.json functions/README.md README.md
 git commit -m "test: guard Production to UAT sync boundary"
 ```
 
