@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto');
+const { DocumentReference, GeoPoint, Timestamp } = require('firebase-admin/firestore');
 
 const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
 const UAT_PROJECT_ID = 'pm-dashboard-uat-20260820-a7f3';
@@ -7,15 +8,29 @@ const SNAPSHOT_RETENTION_COUNT = 5;
 const MAX_WEEK_DOCUMENT_BYTES = 1_000_000;
 const MAX_DOCUMENT_ID_BYTES = 1_500;
 
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function assertSyncEnvironment({ sourceProjectId, destinationProjectId }) {
   if (sourceProjectId !== PRODUCTION_PROJECT_ID || destinationProjectId !== UAT_PROJECT_ID) {
     throw new Error('Sync is restricted to the fixed Production-to-UAT direction.');
   }
 }
 
-function hasPrototypeMethod(value, name) {
-  const prototype = Object.getPrototypeOf(value);
-  return Boolean(prototype && typeof prototype[name] === 'function');
+function isSpoofedFirestoreType(value) {
+  const constructorName = value.constructor?.name;
+  return Object.prototype.hasOwnProperty.call(value, 'constructor')
+    && ['Timestamp', 'GeoPoint', 'DocumentReference'].includes(constructorName);
+}
+
+function assertSafeMapProperties(value) {
+  const hasSymbols = Object.getOwnPropertySymbols(value).length > 0;
+  const hasNonEnumerableStringKey = Object.getOwnPropertyNames(value)
+    .some(key => !Object.getOwnPropertyDescriptor(value, key).enumerable);
+  if (hasSymbols || hasNonEnumerableStringKey) {
+    throw new TypeError('Week maps must satisfy the own-enumerable string-key map contract.');
+  }
 }
 
 function canonicalizeValue(value, seen = new Set()) {
@@ -28,6 +43,10 @@ function canonicalizeValue(value, seen = new Set()) {
     throw new TypeError(`Unsupported ${typeof value} value in week data.`);
   }
 
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+    return { __firestoreType: 'bytes', base64: Buffer.from(value).toString('base64') };
+  }
+
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) throw new TypeError('Unsupported invalid date in week data.');
     return { __firestoreType: 'timestamp', milliseconds: value.getTime() };
@@ -37,19 +56,26 @@ function canonicalizeValue(value, seen = new Set()) {
   if (seen.has(value)) throw new TypeError('Unsupported cyclic value in week data.');
   seen.add(value);
   try {
-    const typeName = value.constructor?.name;
-    if (typeName === 'Timestamp' || (hasPrototypeMethod(value, 'toMillis')
-      && Number.isFinite(value.seconds) && Number.isFinite(value.nanoseconds))) {
+    if (isSpoofedFirestoreType(value)) throw new TypeError('Unsupported Firestore type spoof in week data.');
+    if (value instanceof Timestamp) {
+      const { seconds, nanoseconds } = value;
+      if (!Number.isSafeInteger(seconds) || !Number.isSafeInteger(nanoseconds)
+        || seconds < -62_135_596_800 || seconds > 253_402_300_799
+        || nanoseconds < 0 || nanoseconds > 999_999_999) {
+        throw new TypeError('Invalid Timestamp value in week data.');
+      }
       return {
         __firestoreType: 'timestamp',
-        nanoseconds: value.nanoseconds,
-        seconds: value.seconds,
+        nanoseconds,
+        seconds,
       };
     }
-    if (typeName === 'GeoPoint' || (hasPrototypeMethod(value, 'isEqual')
-      && Number.isFinite(value.latitude) && Number.isFinite(value.longitude))) {
+    if (value instanceof GeoPoint) {
       if (!Number.isFinite(value.latitude) || !Number.isFinite(value.longitude)) {
         throw new TypeError('Unsupported GeoPoint coordinates in week data.');
+      }
+      if (value.latitude < -90 || value.latitude > 90 || value.longitude < -180 || value.longitude > 180) {
+        throw new TypeError('Invalid GeoPoint value in week data.');
       }
       return {
         __firestoreType: 'geoPoint',
@@ -57,23 +83,23 @@ function canonicalizeValue(value, seen = new Set()) {
         longitude: value.longitude,
       };
     }
-    if (typeName === 'Bytes' || hasPrototypeMethod(value, 'toBase64')) {
-      const base64 = value.toBase64();
-      if (typeof base64 !== 'string') throw new TypeError('Unsupported bytes value in week data.');
-      return { __firestoreType: 'bytes', base64 };
-    }
-    if (typeName === 'DocumentReference' || (value.firestore && typeof value.firestore === 'object'
-      && typeof value.path === 'string' && hasPrototypeMethod(value, 'withConverter'))) {
-      if (!value.path || value.path.startsWith('/') || value.path.endsWith('/') || value.path.split('/').length % 2 !== 0) {
+    if (value instanceof DocumentReference) {
+      if (!value.path || value.path.startsWith('/') || value.path.endsWith('/')
+        || value.path.split('/').some(segment => segment === '') || value.path.split('/').length % 2 !== 0) {
         throw new TypeError('Unsupported DocumentReference path in week data.');
       }
       return { __firestoreType: 'documentReference', path: value.path };
     }
     if (Array.isArray(value)) return value.map(item => canonicalizeValue(item, seen));
     if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
-      throw new TypeError(`Unsupported ${typeName || 'object'} value in week data.`);
+      throw new TypeError(`Unsupported ${value.constructor?.name || 'object'} value in week data.`);
     }
-    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalizeValue(value[key], seen)]));
+    assertSafeMapProperties(value);
+    return {
+      __firestoreType: 'map',
+      fields: Object.fromEntries(Object.keys(value).sort(compareCodeUnits)
+        .map(key => [key, canonicalizeValue(value[key], seen)])),
+    };
   } finally {
     seen.delete(value);
   }
@@ -108,7 +134,7 @@ function validateWeekEntries(entries, { requireNonEmpty }) {
     return { id, data: entry.data };
   });
 
-  return validated.sort((left, right) => left.id.localeCompare(right.id));
+  return validated.sort((left, right) => compareCodeUnits(left.id, right.id));
 }
 
 function validateSourceWeeks(entries) {

@@ -1,41 +1,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { DocumentReference, Firestore, GeoPoint, Timestamp } = require('firebase-admin/firestore');
 const core = require('../production-week-sync-core');
 
-class Timestamp {
-  constructor(seconds, nanoseconds) {
-    this.seconds = seconds;
-    this.nanoseconds = nanoseconds;
-  }
-
-  toMillis() {
-    return this.seconds * 1000 + Math.floor(this.nanoseconds / 1_000_000);
-  }
-}
-
-class GeoPoint {
-  constructor(latitude, longitude) {
-    this.latitude = latitude;
-    this.longitude = longitude;
-  }
-}
-
-class Bytes {
-  constructor(base64) {
-    this.base64 = base64;
-  }
-
-  toBase64() {
-    return this.base64;
-  }
-}
-
-class DocumentReference {
-  constructor(path) {
-    this.path = path;
-    this.firestore = {};
-  }
-}
+const firestore = new Firestore({ projectId: 'canonicalization-test-project' });
 
 test('environment guard allows only the fixed Production-to-UAT direction', () => {
   assert.doesNotThrow(() => core.assertSyncEnvironment({
@@ -81,16 +49,21 @@ test('canonicalization sorts map keys and preserves Firestore values', () => {
     array: [null, 2, { b: true, a: false }],
     timestamp: new Timestamp(1_725_000_000, 123_000_000),
     geo: new GeoPoint(25.033, 121.565),
-    bytes: new Bytes('AAE='),
-    reference: new DocumentReference('users/admin-1'),
+    bytes: Buffer.from([0, 1]),
+    uint8Array: new Uint8Array([2, 3]),
+    reference: firestore.doc('users/admin-1'),
   });
   assert.deepEqual(canonical, {
-    array: [null, 2, { a: false, b: true }],
-    bytes: { __firestoreType: 'bytes', base64: 'AAE=' },
-    geo: { __firestoreType: 'geoPoint', latitude: 25.033, longitude: 121.565 },
-    reference: { __firestoreType: 'documentReference', path: 'users/admin-1' },
-    timestamp: { __firestoreType: 'timestamp', nanoseconds: 123_000_000, seconds: 1_725_000_000 },
-    z: 'last',
+    __firestoreType: 'map',
+    fields: {
+      array: [null, 2, { __firestoreType: 'map', fields: { a: false, b: true } }],
+      bytes: { __firestoreType: 'bytes', base64: 'AAE=' },
+      geo: { __firestoreType: 'geoPoint', latitude: 25.033, longitude: 121.565 },
+      reference: { __firestoreType: 'documentReference', path: 'users/admin-1' },
+      timestamp: { __firestoreType: 'timestamp', nanoseconds: 123_000_000, seconds: 1_725_000_000 },
+      uint8Array: { __firestoreType: 'bytes', base64: 'AgM=' },
+      z: 'last',
+    },
   });
 });
 
@@ -105,6 +78,63 @@ test('canonical digests ignore input and map key ordering', () => {
   ];
   assert.deepEqual(core.canonicalizeWeekEntries(first), core.canonicalizeWeekEntries(second));
   assert.equal(core.digestWeekEntries(first), core.digestWeekEntries(second));
+});
+
+test('canonicalization rejects spoofed Firestore types and malformed native ranges', () => {
+  for (const spoofedValue of [
+    { constructor: { name: 'Timestamp' }, seconds: 1, nanoseconds: 2 },
+    { constructor: { name: 'GeoPoint' }, latitude: 25.033, longitude: 121.565 },
+    { constructor: { name: 'DocumentReference' }, path: 'users/admin-1' },
+  ]) {
+    assert.throws(() => core.canonicalizeValue(spoofedValue), /unsupported Firestore type/i);
+  }
+
+  const malformedTimestamp = new Timestamp(1, 2);
+  malformedTimestamp._nanoseconds = 1_000_000_000;
+  assert.throws(() => core.canonicalizeValue(malformedTimestamp), /invalid Timestamp/i);
+
+  const malformedGeoPoint = new GeoPoint(25.033, 121.565);
+  malformedGeoPoint._latitude = 91;
+  assert.throws(() => core.canonicalizeValue(malformedGeoPoint), /invalid GeoPoint/i);
+});
+
+test('ordinary maps cannot collide with any tagged Firestore canonical value', () => {
+  const reference = firestore.doc('users/admin-1');
+  const pairs = [
+    [{ __firestoreType: 'timestamp', seconds: 1, nanoseconds: 2 }, new Timestamp(1, 2)],
+    [{ __firestoreType: 'geoPoint', latitude: 25.033, longitude: 121.565 }, new GeoPoint(25.033, 121.565)],
+    [{ __firestoreType: 'bytes', base64: 'AAE=' }, Buffer.from([0, 1])],
+    [{ __firestoreType: 'documentReference', path: 'users/admin-1' }, reference],
+  ];
+  for (const [plainMap, firestoreValue] of pairs) {
+    assert.notDeepEqual(core.canonicalizeValue(plainMap), core.canonicalizeValue(firestoreValue));
+  }
+});
+
+test('canonicalization rejects native DocumentReference paths with empty segments', () => {
+  const malformedReference = firestore.doc('users/admin-1');
+  malformedReference._path = { relativeName: 'users//admin-1/profile' };
+  assert.throws(() => core.canonicalizeValue(malformedReference), /DocumentReference path/i);
+});
+
+test('mirror plans sort document IDs by locale-independent code units', () => {
+  const plan = core.planWeekMirror({
+    sourceWeeks: ['ä', 'A', 'Z', 'a'].map(id => ({ id, data: { projects: [] } })),
+    destinationWeeks: [],
+  });
+  assert.deepEqual(plan.sourceIds, ['A', 'Z', 'a', 'ä']);
+  assert.deepEqual(plan.createdIds, ['A', 'Z', 'a', 'ä']);
+});
+
+test('canonicalization rejects maps with symbol-keyed or non-enumerable properties', () => {
+  const symbolKeyed = { visible: true };
+  symbolKeyed[Symbol('hidden')] = 'must-not-be-ignored';
+  const nonEnumerable = { visible: true };
+  Object.defineProperty(nonEnumerable, 'hidden', { enumerable: false, value: 'must-not-be-ignored' });
+
+  for (const value of [symbolKeyed, nonEnumerable]) {
+    assert.throws(() => core.canonicalizeValue(value), /own-enumerable string-key map contract/i);
+  }
 });
 
 test('source validation rejects unsafe values before a mirror can be planned', () => {
