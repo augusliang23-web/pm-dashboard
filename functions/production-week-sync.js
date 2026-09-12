@@ -1,14 +1,13 @@
-const { applicationDefault, getApp, initializeApp } = require('firebase-admin/app');
 const { DocumentReference, GeoPoint, Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const core = require('./production-week-sync-core');
+const productionRead = require('./production-week-sync-production-read');
 
 const SYNC_SERVICE_ACCOUNT =
   'uat-production-sync@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com';
 const SYNC_FUNCTION_OPTIONS = Object.freeze({
   region: 'us-central1', timeoutSeconds: 540, memory: '512MiB', serviceAccount: SYNC_SERVICE_ACCOUNT,
 });
-const PRODUCTION_APP_NAME = 'production-week-sync-read-only';
 const CONTROL_COLLECTION = 'uatProductionWeekSync';
 const CONTROL_DOCUMENT = 'control';
 const RUNS_COLLECTION = 'uatProductionWeekSyncRuns';
@@ -82,20 +81,6 @@ async function authenticatedSyncAdmin(request, uatDb) {
     throw callableError('permission-denied', 'Only UAT administrators can run this operation.', 'admin-role-required');
   }
   return { uid: String(auth.uid), email, displayName, role: 'admin' };
-}
-
-function createProductionReadStore(productionDb) {
-  return Object.freeze({
-    async listWeeks() {
-      const snapshot = await productionDb.collection(core.SYNC_COLLECTION).get();
-      const weeks = snapshot.docs.map(document => ({ id: document.id, data: document.data() }));
-      const readTime = snapshot.readTime?.toDate?.();
-      if (readTime instanceof Date && !Number.isNaN(readTime.getTime())) {
-        Object.defineProperty(weeks, 'sourceReadTime', { value: readTime.toISOString() });
-      }
-      return weeks;
-    },
-  });
 }
 
 function reconstructUatValue(value, uatDb) {
@@ -269,16 +254,6 @@ function createUatSyncStore(uatDb) {
   };
 }
 
-function getProductionFirestore() {
-  let app;
-  try {
-    app = getApp(PRODUCTION_APP_NAME);
-  } catch (_notInitialized) {
-    app = initializeApp({ credential: applicationDefault(), projectId: core.PRODUCTION_PROJECT_ID }, PRODUCTION_APP_NAME);
-  }
-  return getFirestore(app);
-}
-
 function defaultService({ sourceStore, destinationStore }) {
   return core.createWeekSyncService({
     sourceStore,
@@ -297,7 +272,7 @@ function createCallableHandlers({
   onCall: register = onCall,
   environment = process.env,
   getUatDb = () => getFirestore(),
-  getProductionDb = getProductionFirestore,
+  getProductionDb = productionRead.getProductionFirestore,
   createService = defaultService,
 } = {}) {
   async function invoke(request, operation) {
@@ -306,7 +281,7 @@ function createCallableHandlers({
     const actor = await authenticatedSyncAdmin(request, uatDb);
     const destinationStore = createUatSyncStore(uatDb);
     const sourceStore = operation === 'sync'
-      ? createProductionReadStore(getProductionDb())
+      ? productionRead.createProductionReadStore(getProductionDb())
       : Object.freeze({ listWeeks: async () => { throw new Error('Production reads are unavailable for this operation.'); } });
     const service = createService({ sourceStore, destinationStore });
     if (operation === 'sync') return service.sync({ actor });
@@ -342,7 +317,7 @@ module.exports = {
   ...callables,
   SYNC_FUNCTION_OPTIONS,
   authenticatedSyncAdmin,
-  createProductionReadStore,
+  createProductionReadStore: productionRead.createProductionReadStore,
   createUatSyncStore,
   assertEmptyRequest,
   assertRestoreRequest,

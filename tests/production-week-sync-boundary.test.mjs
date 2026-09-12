@@ -19,6 +19,12 @@ const safeSources = {
     UAT access uses roles/datastore.user.
   `,
   imports: `import { createWeekSyncService } from './production-week-sync-core.js';`,
+  productionRead: `
+    const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
+    function createProductionReadStore(productionDb) {
+      return { listWeeks: async () => productionDb.collection('weeks').get() };
+    }
+  `,
 };
 
 test('the fixed read-only Production-to-UAT boundary has no violations', () => {
@@ -46,6 +52,22 @@ for (const [name, code, mutation] of [
     ...sources,
     deployment: `${sources.deployment}\nfirebase deploy --project project-manager-dashboar-a067f --only functions`,
   })],
+  ['aliased dynamic source collection', 'source-collection-not-allowlisted', sources => ({
+    ...sources,
+    productionRead: `${sources.productionRead}\nconst c = request.data.collection; sourceDb.collection(c).get();`,
+  })],
+  ['aliased Production write API', 'production-write-capability', sources => ({
+    ...sources,
+    productionRead: `${sources.productionRead}\nconst p = sourceDb; p.collection('weeks').set({});`,
+  })],
+  ['destructured caller-selected project', 'caller-selected-project-id', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst { projectId } = request.data; initializeApp({ projectId });`,
+  })],
+  ['Production alias selected before deploy', 'production-deploy-target', sources => ({
+    ...sources,
+    deployment: `${sources.deployment}\nfirebase use production\nfirebase deploy`,
+  })],
 ]) {
   test(`the verifier rejects ${name}`, () => {
     const violations = verifyProductionSyncBoundary(mutation(safeSources));
@@ -53,6 +75,13 @@ for (const [name, code, mutation] of [
     assert.ok(violations.some(item => item.code === code), `${name} must identify its failed guard`);
   });
 }
+
+test('a combined Production viewer and UAT user policy is valid', () => {
+  assert.deepEqual(verifyProductionSyncBoundary({
+    ...safeSources,
+    deployment: 'Production roles/datastore.viewer; UAT roles/datastore.user',
+  }), []);
+});
 
 test('the actual checkout passes the executable boundary verifier', async () => {
   const result = spawnSync(process.execPath, ['scripts/verify-production-sync-boundary.mjs'], {

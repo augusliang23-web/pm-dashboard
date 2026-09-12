@@ -15,8 +15,12 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 
+const rulesFile = process.env.FIRESTORE_RULES_FILE;
+if (!process.env.FIRESTORE_EMULATOR_PORT || !rulesFile) {
+  test('Rules tests require an explicitly managed checkout emulator', { skip: 'run npm run test:rules' }, () => {});
+} else {
 const projectId = 'demo-pm-dashboard-v22t';
-const firestorePort = Number(process.env.FIRESTORE_EMULATOR_PORT || 8080);
+const firestorePort = Number(process.env.FIRESTORE_EMULATOR_PORT);
 const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 let environment;
 
@@ -55,7 +59,7 @@ before(async () => {
   environment = await initializeTestEnvironment({
     projectId,
     firestore: {
-      rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8'),
+      rules: await readFile(new URL(`../${rulesFile}`, import.meta.url), 'utf8'),
       host: '127.0.0.1',
       port: firestorePort,
     },
@@ -226,3 +230,4 @@ test('Admin and non-Admin clients cannot read or write sync control, run, or sna
     }
   }
 });
+}

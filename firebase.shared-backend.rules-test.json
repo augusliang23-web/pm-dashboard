@@ -1,0 +1,12 @@
+{
+  "firestore": {
+    "rules": "firestore.shared-backend.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8082
+    },
+    "singleProjectMode": true
+  }
+}
