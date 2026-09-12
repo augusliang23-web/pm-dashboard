@@ -4,7 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
 const UAT_PROJECT_ID = 'pm-dashboard-uat-20260820-a7f3';
-const REQUIRED_RUNTIME_KEYS = ['runtime', 'imports', 'productionRead'];
+const POLICY_KEYS = [
+  'productionProjectId',
+  'productionRoles',
+  'uatProjectId',
+  'uatRoles',
+  'sourceCollections',
+];
+const REQUIRED_RUNTIME_KEYS = ['policy', 'runtime', 'imports', 'productionRead'];
 const REQUIRED_DEPLOYMENT_KEYS = ['deployment'];
 
 function violation(code, message, source = 'supplied sources') {
@@ -26,6 +33,68 @@ function collectText(sources, keys) {
     .filter(value => value !== null).join('\n');
 }
 
+function policyError(code, message) {
+  const error = new Error(message);
+  error.violations = [violation(code, message, 'policy')];
+  return error;
+}
+
+/**
+ * Parse the single local allowlist for the Production-to-UAT sync boundary.
+ * This policy verifies source control only; it does not grant cloud IAM.
+ */
+export function parseProductionSyncBoundaryPolicy(text) {
+  if (typeof text !== 'string') {
+    throw policyError('invalid-policy-source', 'The sync boundary policy must be JSON text.');
+  }
+
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw policyError('invalid-policy-json', 'The sync boundary policy must contain valid JSON.');
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw policyError('invalid-policy-shape', 'The sync boundary policy root must be an object.');
+  }
+
+  const keys = Object.keys(value);
+  if (keys.length !== POLICY_KEYS.length || keys.some(key => !POLICY_KEYS.includes(key))) {
+    throw policyError('policy-top-level-keys', 'The sync boundary policy must contain exactly its required keys.');
+  }
+  for (const key of ['productionRoles', 'uatRoles', 'sourceCollections']) {
+    if (!Array.isArray(value[key])) {
+      throw policyError('invalid-policy-shape', `${key} must be an array.`);
+    }
+    if (value[key].some(item => typeof item !== 'string')) {
+      throw policyError('policy-array-member', `${key} entries must be strings.`);
+    }
+  }
+  if (value.productionProjectId !== PRODUCTION_PROJECT_ID) {
+    throw policyError('policy-production-project-id', 'The policy must use the fixed Production project ID.');
+  }
+  if (value.uatProjectId !== UAT_PROJECT_ID) {
+    throw policyError('policy-uat-project-id', 'The policy must use the fixed UAT project ID.');
+  }
+  if (value.productionRoles.length !== 1 || value.productionRoles[0] !== 'roles/datastore.viewer') {
+    throw policyError('policy-production-roles', 'Production may allow only roles/datastore.viewer.');
+  }
+  if (value.uatRoles.length !== 1 || value.uatRoles[0] !== 'roles/datastore.user') {
+    throw policyError('policy-uat-roles', 'UAT may allow only roles/datastore.user.');
+  }
+  if (value.sourceCollections.length !== 1 || value.sourceCollections[0] !== 'weeks') {
+    throw policyError('policy-source-collections', 'The policy may allow only the weeks source collection.');
+  }
+
+  return Object.freeze({
+    productionProjectId: value.productionProjectId,
+    productionRoles: Object.freeze([...value.productionRoles]),
+    uatProjectId: value.uatProjectId,
+    uatRoles: Object.freeze([...value.uatRoles]),
+    sourceCollections: Object.freeze([...value.sourceCollections]),
+  });
+}
+
 /**
  * Check the sync boundary as behavior over source fixtures, not as a source-grep test.
  * The returned violations are intentionally structured so callers and tests can act on
@@ -38,6 +107,12 @@ export function verifyProductionSyncBoundary(sources) {
   }
 
   for (const key of REQUIRED_RUNTIME_KEYS) {
+    if (key === 'policy') {
+      if (typeof sources.policy !== 'string') {
+        violations.push(violation('missing-policy-source', 'Missing required policy source fixture.', key));
+      }
+      continue;
+    }
     const aliases = key === 'runtime' ? ['runtimeSource', 'productionRuntime']
       : key === 'imports' ? ['importSource'] : ['productionReadSource'];
     if (sourceText(sources, key, aliases)) {
@@ -52,43 +127,52 @@ export function verifyProductionSyncBoundary(sources) {
   }
   if (violations.length) return violations;
 
+  let policy;
+  try {
+    policy = parseProductionSyncBoundaryPolicy(sources.policy);
+  } catch (error) {
+    if (Array.isArray(error?.violations)) return error.violations;
+    return [violation('invalid-policy', 'The sync boundary policy could not be parsed.', 'policy')];
+  }
+
   const runtime = collectText(sources, ['runtime', 'imports']);
   const productionRead = sourceText(sources, 'productionRead', ['productionReadSource']);
   const deployment = sourceText(sources, 'deployment', ['deploymentSource', 'deploymentConfig']);
+  const executableText = `${runtime}\n${deployment}`;
 
-  if (!runtime.includes(PRODUCTION_PROJECT_ID) || !runtime.includes(UAT_PROJECT_ID)) {
+  if (!runtime.includes(policy.productionProjectId) || !runtime.includes(policy.uatProjectId)) {
     violations.push(violation('fixed-project-direction-missing', 'Runtime must bind the fixed Production and UAT project IDs.', 'runtime'));
   }
 
-  const sourceCollectionCalls = [...runtime.matchAll(/(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g)];
+  const sourceCollectionCalls = [...executableText.matchAll(/(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g)];
   if (sourceCollectionCalls.some(([, , collection]) => collection !== 'weeks')) {
     violations.push(violation('source-collection-not-allowlisted', 'The Production read boundary may access only the literal weeks collection.', 'runtime'));
   }
-  const syncCollection = runtime.match(/\bSYNC_COLLECTION\s*=\s*['"]([^'"]+)['"]/i)?.[1];
+  const syncCollection = executableText.match(/\bSYNC_COLLECTION\s*=\s*['"]([^'"]+)['"]/i)?.[1];
   if (syncCollection && syncCollection !== 'weeks') {
     violations.push(violation('source-collection-not-allowlisted', 'The shared sync collection constant must remain weeks.', 'runtime'));
   }
   if (!sourceCollectionCalls.length && syncCollection !== 'weeks') {
     violations.push(violation('source-collection-not-allowlisted', 'The Production read boundary must identify the fixed weeks collection.', 'runtime'));
   }
-  if (/\b(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(?:request|data|payload)\b/.test(runtime)) {
+  if (/\b(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(?:request|data|payload)\b/.test(executableText)) {
     violations.push(violation('caller-selected-source-collection', 'The caller cannot select the Production collection.', 'runtime'));
   }
 
-  const requestDataAliases = [...runtime.matchAll(/\b(?:const|let|var)\s+(\w+)\s*=\s*request\.data\b/g)]
+  const requestDataAliases = [...executableText.matchAll(/\b(?:const|let|var)\s+(\w+)\s*=\s*request\.data\b/g)]
     .map(match => match[1]);
   const callerSelectsBoundaryKey = requestDataAliases.some(alias =>
-    new RegExp(`\\b${alias}\\s*\\.\\s*(?:projectId|collection)\\b`).test(runtime));
-  if (/(?:request|data|payload)\s*(?:\?|\.|\[['"]?)\s*(?:projectId|collection)\b|\b(?:projectId|collection)\b\s*:\s*(?:request|data|payload)\b|\{[^}]*\b(?:projectId|collection)\b[^}]*\}\s*=\s*request\.data\b/i.test(runtime)
+    new RegExp(`\\b${alias}\\s*\\.\\s*(?:projectId|collection)\\b`).test(executableText));
+  if (/(?:request|data|payload)\s*(?:\?|\.|\[['"]?)\s*(?:projectId|collection)\b|\b(?:projectId|collection)\b\s*:\s*(?:request|data|payload)\b|\{[^}]*\b(?:projectId|collection)\b[^}]*\}\s*=\s*request\.data\b/i.test(executableText)
     || callerSelectsBoundaryKey) {
     violations.push(violation('caller-selected-project-id', 'The caller cannot select the source or destination project ID.', 'runtime'));
   }
 
-  if (/\b(?:productionDb|sourceDb|sourceStore)\b[^;]*(?:\.(?:set|update|delete|create|batch|bulkWriter|runTransaction))\s*\(/i.test(runtime)) {
+  if (/\b(?:productionDb|sourceDb|sourceStore)\b[^;]*(?:\.(?:set|update|delete|create|batch|bulkWriter|runTransaction))\s*\(/i.test(executableText)) {
     violations.push(violation('production-write-capability', 'The Production boundary must expose reads only; no write operation may target its database.', 'runtime'));
   }
 
-  if (/(?:sync-v2\.2t-local-data|local-sync|production-snapshot-import)/i.test(runtime)) {
+  if (/(?:sync-v2\.2t-local-data|local-sync|production-snapshot-import)/i.test(executableText)) {
     violations.push(violation('local-sync-runtime-import', 'The UAT callable runtime cannot import the old local snapshot-sync utility.', 'runtime'));
   }
 
@@ -104,38 +188,16 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('production-write-capability', 'Production Firestore handles may not be aliased in the read module.', 'productionRead'));
   }
 
-  const roleFindings = [];
-  for (const [source, text] of [['deployment', deployment], ['runtime', runtime]]) {
-    let carriedScope = null;
-    for (const line of text.split(/\r?\n/)) {
-      const markers = [];
-      for (const match of line.matchAll(new RegExp(`${PRODUCTION_PROJECT_ID}|\\bproduction[\\w-]*`, 'gi'))) {
-        markers.push({ index: match.index, scope: 'production' });
-      }
-      for (const match of line.matchAll(new RegExp(`${UAT_PROJECT_ID}|\\buat[\\w-]*|\\bdestination[\\w-]*`, 'gi'))) {
-        markers.push({ index: match.index, scope: 'uat' });
-      }
-      markers.sort((left, right) => left.index - right.index);
-      for (const role of line.matchAll(/roles\/datastore\.([a-z-]+)\b/gi)) {
-        const nearest = [...markers].sort((left, right) => (
-          Math.abs(left.index - role.index) - Math.abs(right.index - role.index)
-        ))[0];
-        roleFindings.push({ source, role: role[1].toLowerCase(), scope: nearest?.scope || carriedScope });
-      }
-      if (markers.length) carriedScope = markers.at(-1).scope;
-    }
-  }
-  if (roleFindings.some(item => item.scope === 'production' && item.role !== 'viewer')) {
-    violations.push(violation('production-write-role', 'Production may use roles/datastore.viewer only; write roles are forbidden.', 'deployment'));
-  }
-  if (roleFindings.some(item => item.scope === 'uat' && item.role !== 'user')) {
-    violations.push(violation('uat-datastore-role-invalid', 'UAT sync access must use roles/datastore.user.', 'deployment'));
-  }
-  if (roleFindings.some(item => !item.scope)) {
-    violations.push(violation('datastore-role-unscoped', 'Every datastore role must be associated with an explicit Production or UAT scope.', 'deployment'));
+  if (/roles\s*\/\s*datastore/i.test(executableText)) {
+    violations.push(violation(
+      'datastore-role-outside-policy',
+      'Datastore roles must be declared only in the structured sync boundary policy.',
+      'deployment',
+    ));
   }
 
-  const productionDeploy = deployment.includes(PRODUCTION_PROJECT_ID)
+  const productionDeploy = new RegExp(`\\bfirebase\\s+deploy\\b[^\\r\\n]*\\s--project\\s+['"]?${PRODUCTION_PROJECT_ID}(?=\\s|$)`, 'i').test(deployment)
+    || new RegExp(`\\bfirebase\\s+--project\\s+['"]?${PRODUCTION_PROJECT_ID}(?=\\s|$)[^\\r\\n]*\\bdeploy\\b`, 'i').test(deployment)
     || (/firebase\s+use\s+production\b/i.test(deployment) && /firebase\s+deploy\b/i.test(deployment));
   if (productionDeploy) {
     violations.push(violation('production-deploy-target', 'Deployment commands must never target the Production Firebase project.', 'deployment'));
@@ -168,15 +230,18 @@ async function readSources(repoRoot) {
   ];
   const deploymentPaths = [
     '.firebaserc', 'firebase.json', 'firebase.shared-backend.json', 'package.json', 'functions/package.json',
+    'pdf-service/deploy.ps1',
     ...scriptFiles.filter(path => !path.endsWith('verify-production-sync-boundary.mjs')
       && !path.endsWith('sync-v2.2t-local-data.mjs')),
   ];
-  const [runtimeSources, deploymentSources, productionRead] = await Promise.all([
+  const [runtimeSources, deploymentSources, productionRead, policy] = await Promise.all([
     Promise.all(runtimePaths.map(read)),
     Promise.all(deploymentPaths.map(read)),
     read('functions/production-week-sync-production-read.js'),
+    read('config/production-week-sync-boundary.json'),
   ]);
   return {
+    policy,
     runtime: runtimeSources.join('\n'),
     imports: runtimeSources.join('\n'),
     productionRead,

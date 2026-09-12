@@ -1,9 +1,26 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { verifyProductionSyncBoundary } from '../scripts/verify-production-sync-boundary.mjs';
+import * as boundary from '../scripts/verify-production-sync-boundary.mjs';
+
+const { verifyProductionSyncBoundary } = boundary;
+
+const safePolicy = JSON.stringify({
+  productionProjectId: 'project-manager-dashboar-a067f',
+  productionRoles: ['roles/datastore.viewer'],
+  uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+  uatRoles: ['roles/datastore.user'],
+  sourceCollections: ['weeks'],
+});
+
+function parsePolicy(text) {
+  assert.equal(typeof boundary.parseProductionSyncBoundaryPolicy, 'function',
+    'the structured policy parser must be exported');
+  return boundary.parseProductionSyncBoundaryPolicy(text);
+}
 
 const safeSources = {
+  policy: safePolicy,
   runtime: `
     const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
     const UAT_PROJECT_ID = 'pm-dashboard-uat-20260820-a7f3';
@@ -13,11 +30,7 @@ const safeSources = {
     const serviceAccount = 'uat-production-sync@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com';
     const options = { serviceAccount };
   `,
-  deployment: `
-    firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only functions
-    Production access is read-only with roles/datastore.viewer.
-    UAT access uses roles/datastore.user.
-  `,
+  deployment: 'firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only functions',
   imports: `import { createWeekSyncService } from './production-week-sync-core.js';`,
   productionRead: `
     const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
@@ -27,15 +40,57 @@ const safeSources = {
   `,
 };
 
-test('the fixed read-only Production-to-UAT boundary has no violations', () => {
+function policyViolation(text, code) {
+  const violations = verifyProductionSyncBoundary({ ...safeSources, policy: text });
+  assert.ok(violations.some(item => item.code === code),
+    `policy must report ${code}; received ${JSON.stringify(violations)}`);
+}
+
+test('the policy parser returns an immutable normalized allowlist', () => {
+  const policy = parsePolicy(safePolicy);
+  assert.deepEqual(policy, {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    productionRoles: ['roles/datastore.viewer'],
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    uatRoles: ['roles/datastore.user'],
+    sourceCollections: ['weeks'],
+  });
+  assert.ok(Object.isFrozen(policy));
+  assert.ok(Object.isFrozen(policy.productionRoles));
+  assert.throws(() => { policy.productionRoles.push('roles/datastore.user'); }, TypeError);
+});
+
+for (const [name, text, code] of [
+  ['missing a top-level key', JSON.stringify({
+    productionProjectId: 'project-manager-dashboar-a067f', productionRoles: ['roles/datastore.viewer'],
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3', uatRoles: ['roles/datastore.user'],
+  }), 'policy-top-level-keys'],
+  ['adding a top-level key', JSON.stringify({ ...JSON.parse(safePolicy), unexpected: true }), 'policy-top-level-keys'],
+  ['changing Production project ID', JSON.stringify({ ...JSON.parse(safePolicy), productionProjectId: 'another-production' }), 'policy-production-project-id'],
+  ['changing UAT project ID', JSON.stringify({ ...JSON.parse(safePolicy), uatProjectId: 'another-uat' }), 'policy-uat-project-id'],
+  ['emptying Production roles', JSON.stringify({ ...JSON.parse(safePolicy), productionRoles: [] }), 'policy-production-roles'],
+  ['duplicating Production roles', JSON.stringify({ ...JSON.parse(safePolicy), productionRoles: ['roles/datastore.viewer', 'roles/datastore.viewer'] }), 'policy-production-roles'],
+  ['adding a Production write role', JSON.stringify({ ...JSON.parse(safePolicy), productionRoles: ['roles/datastore.viewer', 'roles/datastore.user'] }), 'policy-production-roles'],
+  ['emptying UAT roles', JSON.stringify({ ...JSON.parse(safePolicy), uatRoles: [] }), 'policy-uat-roles'],
+  ['duplicating UAT roles', JSON.stringify({ ...JSON.parse(safePolicy), uatRoles: ['roles/datastore.user', 'roles/datastore.user'] }), 'policy-uat-roles'],
+  ['adding a UAT role', JSON.stringify({ ...JSON.parse(safePolicy), uatRoles: ['roles/datastore.user', 'roles/datastore.viewer'] }), 'policy-uat-roles'],
+  ['omitting weeks source collection', JSON.stringify({ ...JSON.parse(safePolicy), sourceCollections: [] }), 'policy-source-collections'],
+  ['duplicating weeks source collection', JSON.stringify({ ...JSON.parse(safePolicy), sourceCollections: ['weeks', 'weeks'] }), 'policy-source-collections'],
+  ['adding a second source collection', JSON.stringify({ ...JSON.parse(safePolicy), sourceCollections: ['weeks', 'users'] }), 'policy-source-collections'],
+  ['invalid JSON', '{', 'invalid-policy-json'],
+  ['a non-object root', '[]', 'invalid-policy-shape'],
+  ['a non-string array member', JSON.stringify({ ...JSON.parse(safePolicy), uatRoles: [1] }), 'policy-array-member'],
+]) {
+  test(`the verifier returns a structured violation when policy ${name}`, () => {
+    policyViolation(text, code);
+  });
+}
+
+test('the fixed read-only Production-to-UAT boundary and valid policy have no violations', () => {
   assert.deepEqual(verifyProductionSyncBoundary(safeSources), []);
 });
 
 for (const [name, code, mutation] of [
-  ['Production write role', 'production-write-role', sources => ({
-    ...sources,
-    deployment: `${sources.deployment}\nProduction service account: roles/datastore.user`,
-  })],
   ['caller-selected project ID', 'caller-selected-project-id', sources => ({
     ...sources,
     runtime: `${sources.runtime}\nconst sourceProjectId = request.data.projectId; initializeApp({ projectId: sourceProjectId });`,
@@ -76,36 +131,46 @@ for (const [name, code, mutation] of [
   });
 }
 
-test('a combined Production viewer and UAT user policy is valid', () => {
-  assert.deepEqual(verifyProductionSyncBoundary({
-    ...safeSources,
-    deployment: 'Production roles/datastore.viewer; UAT roles/datastore.user',
-  }), []);
-});
-
-for (const [name, deployment] of [
-  ['a second same-line Production write role', 'Production roles/datastore.viewer roles/datastore.user'],
-  ['a multiline Production write role', 'Production service account:\n  - roles/datastore.viewer\n  - roles/datastore.user'],
-  ['a Production role variable alias', "const productionRole = 'roles/datastore.user';"],
-  ['a common deployment config with the Production project', JSON.stringify({
-    project: 'project-manager-dashboar-a067f', role: 'roles/datastore.user',
-  })],
+for (const [name, source, text] of [
+  ['same-line role', 'deployment', "const role = 'roles/datastore.viewer';"],
+  ['multiline role', 'deployment', "const role =\n  'roles/datastore.user';"],
+  ['variable alias role', 'runtime', "const datastoreRole = 'roles/datastore.viewer';"],
+  ['object config role', 'deployment', "const config = { role: 'roles/datastore.user' };"],
+  ['grant call role', 'deployment', "grant('Production', 'roles/datastore.viewer');"],
 ]) {
-  test(`the verifier inspects every datastore role occurrence in ${name}`, () => {
-    const violations = verifyProductionSyncBoundary({ ...safeSources, deployment });
-    assert.ok(violations.some(item => item.code === 'production-write-role'), name);
+  test(`the verifier rejects every datastore role outside policy: ${name}`, () => {
+    const violations = verifyProductionSyncBoundary({ ...safeSources, [source]: text });
+    assert.ok(violations.some(item => item.code === 'datastore-role-outside-policy'), name);
   });
 }
 
-test('the verifier rejects an unscoped datastore role instead of guessing its project', () => {
-  const violations = verifyProductionSyncBoundary({
+test('an unrelated Production deploy target does not mask sync IAM, import, or write violations', () => {
+  const unrelatedProductionDeploy = 'gcloud run deploy pm-dashboard-pdf --project project-manager-dashboar-a067f';
+  assert.deepEqual(verifyProductionSyncBoundary({
     ...safeSources,
-    deployment: "const role = 'roles/datastore.user';",
-  });
-  assert.ok(violations.some(item => item.code === 'datastore-role-unscoped'));
+    deployment: unrelatedProductionDeploy,
+  }), []);
+
+  for (const [name, sources, code] of [
+    ['IAM role', { deployment: `${unrelatedProductionDeploy}\ngrant('Production', 'roles/datastore.viewer');` }, 'datastore-role-outside-policy'],
+    ['old local import', { deployment: `${unrelatedProductionDeploy}\nnode scripts/sync-v2.2t-local-data.mjs` }, 'local-sync-runtime-import'],
+    ['caller-selected boundary', { deployment: `${unrelatedProductionDeploy}\nconst sourceProjectId = request.data.projectId; initializeApp({ projectId: sourceProjectId });` }, 'caller-selected-project-id'],
+    ['Production write', { deployment: `${unrelatedProductionDeploy}\nproductionDb.collection('weeks').doc('W33').set({});` }, 'production-write-capability'],
+  ]) {
+    const violations = verifyProductionSyncBoundary({
+      ...safeSources,
+      deployment: unrelatedProductionDeploy,
+      ...sources,
+    });
+    assert.ok(violations.some(item => item.code === code), name);
+  }
 });
 
-test('the actual checkout passes the executable boundary verifier', async () => {
+test('README IAM prose is not executable scanner input', () => {
+  assert.deepEqual(verifyProductionSyncBoundary(safeSources), []);
+});
+
+test('the actual checkout passes the executable boundary verifier despite README IAM prose', () => {
   const result = spawnSync(process.execPath, ['scripts/verify-production-sync-boundary.mjs'], {
     cwd: new URL('..', import.meta.url),
     encoding: 'utf8',

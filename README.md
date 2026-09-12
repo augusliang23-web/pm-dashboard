@@ -35,6 +35,11 @@ dedicated service account
 `weeks` collection; the browser cannot select a project, collection, or write
 destination.
 
+`config/production-week-sync-boundary.json` is the machine-readable local
+source of truth for that sync boundary. Its verifier checks repository files;
+it does not grant IAM or prove deployed IAM. Cloud authorization remains a
+separate explicit gate.
+
 Before applying a mirror, the service creates and verifies a snapshot. Five
 complete snapshots are retained. Apply or verification failures trigger
 automatic restore and verification; an unverified rollback is surfaced as

@@ -33,6 +33,11 @@ The service account has `roles/datastore.user` in UAT and only
 uses the fixed Production project, and reads only `weeks`; callers cannot
 choose a project, collection, or write destination.
 
+`../config/production-week-sync-boundary.json` is the machine-readable local
+source of truth for this boundary. Local verification reads it to check checked
+in executable surfaces only; it neither grants IAM nor proves deployed IAM.
+The separate cloud authorization gate remains required.
+
 Each sync creates and verifies a complete UAT snapshot before applying the
 mirror. Five complete snapshots are retained. Apply or verification failure
 automatically restores and verifies the prior snapshot; a failed rollback
