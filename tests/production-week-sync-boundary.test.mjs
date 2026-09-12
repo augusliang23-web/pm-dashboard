@@ -135,6 +135,38 @@ for (const [name, code, mutation] of [
     ...sources,
     runtime: `${sources.runtime}\nconst replica = productionDb; replica.collection('weeks').doc('W33').set({});`,
   })],
+  ['Production collection reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = productionDb.collection('weeks'); weeksRef.doc('W33').set({});`,
+  })],
+  ['Production document reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = productionDb.collection('weeks'); const weekRef = weeksRef.doc('W33'); weekRef.update({ status: 'unsafe' });`,
+  })],
+  ['Production query reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = productionDb.collection('weeks'); const queryRef = weeksRef.where('isReleased', '==', false); queryRef.delete();`,
+  })],
+  ['transitive Production reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = productionDb.collection('weeks'); const replicaRef = weeksRef; replicaRef.doc('W33').delete();`,
+  })],
+  ['parenthesized Production collection reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = (productionDb.collection('weeks')); weeksRef.doc('W33').set({});`,
+  })],
+  ['parenthesized Production document reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = (productionDb.collection('weeks')); const weekRef = (weeksRef.doc('W33')); weekRef.update({ status: 'unsafe' });`,
+  })],
+  ['parenthesized Production query reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = (productionDb.collection('weeks')); const queryRef = (weeksRef.where('isReleased', '==', false)); queryRef.delete();`,
+  })],
+  ['parenthesized transitive Production reference alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst weeksRef = (productionDb.collection('weeks')); const replicaRef = (weeksRef); replicaRef.doc('W33').delete();`,
+  })],
 ]) {
   test(`the verifier rejects ${name}`, () => {
     const violations = verifyProductionSyncBoundary(mutation(safeSources));

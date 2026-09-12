@@ -38,7 +38,7 @@ function productionHandleNames(text) {
   let changed = true;
   while (changed) {
     changed = false;
-    for (const match of text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\b/g)) {
+    for (const match of text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\(\s*)*([A-Za-z_$][\w$]*)\b/g)) {
       if (names.has(match[2]) && !names.has(match[1])) {
         names.add(match[1]);
         changed = true;
