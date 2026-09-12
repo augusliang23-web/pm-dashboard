@@ -8,6 +8,7 @@
     "local:seed": "node scripts/local-stack.mjs --seed-only",
     "test:all": "node --test *.test.cjs tests/*.test.mjs functions/test/*.test.cjs",
     "test:rules": "FIRESTORE_EMULATOR_PORT=8081 firebase emulators:exec --config firebase.rules-test.json --only firestore --project demo-pm-dashboard-v22t \"node --test tests/firestore-rules-emulator.test.mjs\"",
+    "verify:sync-boundary": "node scripts/verify-production-sync-boundary.mjs",
     "test:local": "node scripts/local-health.mjs",
     "verify:local": "npm run test:all && npm run test:local && git diff --check",
     "deploy": "node scripts/deploy-after-verify.mjs"

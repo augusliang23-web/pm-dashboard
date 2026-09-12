@@ -195,3 +195,34 @@ test('a legacy presence record may establish identity once for its matching owne
   }, { merge: true }));
   await assertFails(updateDoc(doc(owner, 'presence/owner@example.com'), { ownerUid: 'replacement' }));
 });
+
+test('Admin and non-Admin clients cannot read or write sync control, run, or snapshot records', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'uatProductionWeekSync/control'), {
+      activeRunId: 'run-1', expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    await setDoc(doc(db, 'uatProductionWeekSyncRuns/run-1'), {
+      runId: 'run-1', phase: 'succeeded', complete: true,
+    });
+    await setDoc(doc(db, 'uatProductionWeekSyncRuns/run-1/weeks/W33-2026'), {
+      data: { weekLabel: 'W33 2026' },
+    });
+  });
+
+  for (const db of [
+    auth('admin-uid', 'admin@example.com'),
+    auth('owner-uid', 'owner@example.com'),
+  ]) {
+    for (const path of [
+      'uatProductionWeekSync/control',
+      'uatProductionWeekSyncRuns/run-1',
+      'uatProductionWeekSyncRuns/run-1/weeks/W33-2026',
+    ]) {
+      await assertFails(getDoc(doc(db, path)));
+      await assertFails(setDoc(doc(db, path), { blocked: true }));
+      await assertFails(updateDoc(doc(db, path), { blocked: true }));
+      await assertFails(deleteDoc(doc(db, path)));
+    }
+  }
+});

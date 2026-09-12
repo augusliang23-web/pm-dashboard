@@ -131,6 +131,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /uatProductionWeekSync/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /uatProductionWeekSyncRuns/{document=**} {
+      allow read, write: if false;
+    }
+
     match /executiveMilestoneConfig/{configId} {
       allow read: if isSignedIn();
       allow write: if false;

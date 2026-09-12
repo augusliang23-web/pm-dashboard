@@ -14,32 +14,42 @@ daily per-user documents in `presenceDailyRollups`.
 
 Each callable reloads the authenticated user's role inside its transaction. Released weeks are immutable. Update history, change requests, and audit records are client read-only.
 
-## Deploy
+## Deployment and Production-to-UAT sync runbook
 
-1. Install the Firebase CLI and authenticate to the Firebase project.
-2. From the repository root, run:
+This is a review checklist, not an executable deployment or IAM script. Run
+the local verification suite first, then stop for a separately recorded cloud
+authorization gate before any Firebase/Google Cloud action. The gate must
+identify the exact UAT project, reviewed Rules and Functions, and the person
+authorizing the action. Do not copy commands from this document into a shell.
+The reviewed Firebase target is `--project pm-dashboard-uat-20260820-a7f3`;
+there is no Production deployment target.
 
-   ```powershell
-   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only functions:aggregatePresenceSessions,functions:addExecutiveMilestoneUpdate,functions:createExecutiveMilestoneChangeRequest,functions:decideExecutiveMilestoneChangeRequest,functions:applyDirectExecutiveMilestoneChange,functions:setExecutiveRagOverride
-   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only firestore:rules
-   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only firestore:indexes
-   ```
+The three UAT-only callable entry points are `syncProductionWeeksToUat`,
+`getProductionWeekSyncStatus`, and `restoreUatWeeksSnapshot`. They run under
+the dedicated service account
+`uat-production-sync@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`.
+The service account has `roles/datastore.user` in UAT and only
+`roles/datastore.viewer` in Production. The Production client is read-only,
+uses the fixed Production project, and reads only `weeks`; callers cannot
+choose a project, collection, or write destination.
 
-   Keep the literal `--project pm-dashboard-uat-20260820-a7f3` guard on every
-   command. Do not select a Firebase CLI alias for this UAT repository.
+Each sync creates and verifies a complete UAT snapshot before applying the
+mirror. Five complete snapshots are retained. Apply or verification failure
+automatically restores and verifies the prior snapshot; a failed rollback
+returns `rollback_failed` and requires an authorized restore review. Restore
+also snapshots current UAT weeks first and never reads Production.
 
-3. In Google Cloud Firestore, create a TTL policy for collection group
-   `presenceSessions` using the timestamp field `expiresAt`.
+The sync records and snapshots live under `uatProductionWeekSync` and
+`uatProductionWeekSyncRuns`; Firestore Rules deny browser reads and writes for
+Admins and all other roles. Existing users, permissions, settings, Executive
+workflow, usage records, and the legacy compatibility namespaces
+`team2.portfolioScope`, `team2.overviewScope.*`, and
+`dashboardSettings/team-2-portfolio` are preserved.
 
-   ```powershell
-   gcloud firestore fields ttls update expiresAt `
-     --collection-group=presenceSessions `
-     --project=pm-dashboard-uat-20260820-a7f3 `
-     --enable-ttl
-   ```
-
-Session detail is retained for 90 days. Daily rollups do not contain an
-`expiresAt` field and are therefore retained.
+Cloud steps remain separate gates: service-account creation, IAM grants,
+Functions/Rules/index deployment, TTL configuration, a live status probe, and
+the first live sync or restore are all intentionally unexecuted by local
+verification.
 
 ## Required access
 
