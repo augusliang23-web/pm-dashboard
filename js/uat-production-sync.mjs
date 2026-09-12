@@ -135,3 +135,18 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     confirmRestore: () => confirm('restore'),
   };
 }
+
+// Start the controller first: confirmSync/confirmRestore synchronously clear
+// the pending confirmation and mark the request busy before the modal closes.
+// The close callback may therefore use the normal cancellation path safely.
+export function submitUatProductionSyncConfirmation({ controller, close }) {
+  const operation = controller.confirmSync();
+  close();
+  return operation;
+}
+
+export function submitUatProductionRestoreConfirmation({ controller, close }) {
+  const operation = controller.confirmRestore();
+  close();
+  return operation;
+}

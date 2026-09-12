@@ -9,6 +9,8 @@ import {
   PRODUCTION_SYNC_CONFIRMATION,
   ROLLED_BACK_MESSAGE,
   ROLLBACK_FAILED_MESSAGE,
+  submitUatProductionSyncConfirmation,
+  submitUatProductionRestoreConfirmation,
 } from '../js/uat-production-sync.mjs';
 
 const SYNC_WARNING = 'This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.';
@@ -216,4 +218,63 @@ test('restore is confirmed and can restore only the latest backend-retained snap
 
   assert.deepEqual(calls, ['latest-retained']);
   assert.equal(view.renders.at(-1).result, 'UAT weeks were restored from the latest retained snapshot.');
+});
+
+test('sync submit starts the real controller before the modal close cancellation path', async () => {
+  let role = 'admin';
+  const events = [];
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { events.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => role,
+    view,
+  });
+
+  controller.requestSync();
+  const operation = submitUatProductionSyncConfirmation({
+    controller,
+    close: () => { events.push('close'); controller.cancelConfirmation(); },
+  });
+
+  assert.equal(view.renders.at(-1).busy, true);
+  assert.deepEqual(events, ['sync', 'close']);
+  assert.equal(await operation, true);
+  role = 'pm';
+});
+
+test('restore submit starts the real controller before close and rejects a role changed to non-Admin', async () => {
+  let role = 'admin';
+  const events = [];
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false, latestSnapshot: { snapshotId: 'retained' } }),
+      sync: async () => ({ phase: 'succeeded' }),
+      restore: async snapshotId => { events.push(`restore:${snapshotId}`); return { phase: 'restored' }; },
+    },
+    getRole: () => role,
+    view,
+  });
+
+  await controller.open();
+  controller.requestRestore();
+  const operation = submitUatProductionRestoreConfirmation({
+    controller,
+    close: () => { events.push('close'); controller.cancelConfirmation(); },
+  });
+  assert.deepEqual(events, ['restore:retained', 'close']);
+  assert.equal(await operation, true);
+
+  controller.requestRestore();
+  role = 'pm';
+  const rejected = submitUatProductionRestoreConfirmation({
+    controller,
+    close: () => { events.push('rejected-close'); controller.cancelConfirmation(); },
+  });
+  assert.equal(await rejected, false);
+  assert.deepEqual(events, ['restore:retained', 'close', 'rejected-close']);
 });
