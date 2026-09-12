@@ -2712,6 +2712,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Copilot Prompt Preview</label><textarea class="ft copilot-prompt-box" id="copilotPrompt" readonly></textarea></div>
   </div>
 
+  <section id="productionWeekSyncPanel" class="admin-only" style="display:none; background:var(--s1); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;" aria-labelledby="productionWeekSyncHeading">
+    <h4 id="productionWeekSyncHeading" style="margin-bottom:8px; font-size:14px; color:var(--text);">Production Data Sync</h4>
+    <p style="font-size:12px; color:var(--text-light); margin-bottom:12px;">Admin-only controls for the protected Production-to-UAT reporting-week mirror.</p>
+    <div id="productionWeekSyncStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:6px;">No Production sync has been recorded.</div>
+    <div id="productionWeekSyncLastRun" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
+    <div id="productionWeekSyncResult" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="productionWeekSyncButton" class="btn btn-primary" type="button" onclick="requestProductionWeekSync()">Sync from Production</button>
+      <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" onclick="requestRestoreUatWeekSnapshot()" disabled>Restore Last Snapshot</button>
+    </div>
+  </section>
+
   <div style="background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;">
     <h4 style="margin-bottom:16px; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
       <span id="wm_current_title" style="font-weight:700;">Current Week</span>
@@ -2734,6 +2746,34 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 
 </div>
+</div>
+
+<div class="overlay" id="productionWeekSyncConfirmOverlay" role="dialog" aria-modal="true" aria-labelledby="productionWeekSyncConfirmTitle" aria-describedby="productionWeekSyncConfirmMessage">
+  <div class="modal" style="width:620px">
+    <div class="modal-hdr">
+      <h3 id="productionWeekSyncConfirmTitle">Confirm Production Data Sync</h3>
+      <button class="modal-x" type="button" onclick="cancelProductionWeekSync()" aria-label="Close Production sync confirmation">×</button>
+    </div>
+    <p id="productionWeekSyncConfirmMessage" style="color:var(--text-light); line-height:1.6;"></p>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn btn-ghost" type="button" onclick="cancelProductionWeekSync()">Cancel</button>
+      <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button" onclick="confirmProductionWeekSync()">Confirm Sync</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="productionWeekRestoreConfirmOverlay" role="dialog" aria-modal="true" aria-labelledby="productionWeekRestoreConfirmTitle" aria-describedby="productionWeekRestoreConfirmMessage">
+  <div class="modal" style="width:620px">
+    <div class="modal-hdr">
+      <h3 id="productionWeekRestoreConfirmTitle">Confirm UAT Snapshot Restore</h3>
+      <button class="modal-x" type="button" onclick="cancelProductionWeekRestore()" aria-label="Close UAT snapshot restore confirmation">×</button>
+    </div>
+    <p id="productionWeekRestoreConfirmMessage" style="color:var(--text-light); line-height:1.6;"></p>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button class="btn btn-ghost" type="button" onclick="cancelProductionWeekRestore()">Cancel</button>
+      <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button" onclick="confirmProductionWeekRestore()">Restore Snapshot</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="weeklySummaryCorrectionOverlay" role="dialog" aria-modal="true" aria-labelledby="weeklySummaryCorrectionTitle">
@@ -2866,6 +2906,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
+import { createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync } from "./js/uat-production-sync.mjs";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2884,6 +2925,7 @@ if (useLocalEmulator) {
 }
 const executiveApi = createExecutiveApi({ functions, httpsCallable });
 const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });
+const uatProductionSyncApi = createUatProductionSyncApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
 // ── STATE ──
@@ -2891,6 +2933,69 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pending';
+const uatProductionSyncController = createUatProductionSyncController({
+  api: uatProductionSyncApi,
+  getRole: () => currentRole,
+  view: {
+    render(state) {
+      const panel = document.getElementById('productionWeekSyncPanel');
+      const status = document.getElementById('productionWeekSyncStatus');
+      const lastRun = document.getElementById('productionWeekSyncLastRun');
+      const result = document.getElementById('productionWeekSyncResult');
+      const syncButton = document.getElementById('productionWeekSyncButton');
+      const restoreButton = document.getElementById('restoreUatWeekSnapshotButton');
+      if (!panel || !status || !lastRun || !result || !syncButton || !restoreButton) return;
+      panel.style.display = state.isAdmin && !isAdminExecutivePreview ? '' : 'none';
+      status.textContent = state.statusText || '';
+      const completed = state.status?.latestCompletedRun || state.status?.latestRun;
+      if (completed) {
+        const counts = ['createdCount', 'updatedCount', 'deletedCount'].some(key => completed[key] !== undefined)
+          ? ` · ${Number(completed.createdCount || 0)} created, ${Number(completed.updatedCount || 0)} updated, ${Number(completed.deletedCount || 0)} deleted`
+          : '';
+        lastRun.textContent = `Last successful operation: ${completed.completedAt || 'time unavailable'}${counts}.`;
+      } else {
+        lastRun.textContent = '';
+      }
+      result.textContent = state.result || '';
+      syncButton.disabled = !state.isAdmin || state.syncDisabled;
+      restoreButton.disabled = !state.isAdmin || state.restoreDisabled;
+      syncButton.setAttribute('aria-busy', state.busy ? 'true' : 'false');
+      restoreButton.setAttribute('aria-busy', state.busy ? 'true' : 'false');
+    },
+    confirm({ kind, message }) {
+      const overlayId = kind === 'sync'
+        ? 'productionWeekSyncConfirmOverlay'
+        : 'productionWeekRestoreConfirmOverlay';
+      const messageId = kind === 'sync'
+        ? 'productionWeekSyncConfirmMessage'
+        : 'productionWeekRestoreConfirmMessage';
+      const messageNode = document.getElementById(messageId);
+      const overlay = document.getElementById(overlayId);
+      if (!messageNode || !overlay) return;
+      messageNode.textContent = message;
+      openAccessibleModal(overlay);
+    },
+  },
+});
+window.requestProductionWeekSync = () => uatProductionSyncController.requestSync();
+window.confirmProductionWeekSync = async () => {
+  closeModal('productionWeekSyncConfirmOverlay', { force: true });
+  return uatProductionSyncController.confirmSync();
+};
+window.cancelProductionWeekSync = () => {
+  uatProductionSyncController.cancelConfirmation();
+  closeModal('productionWeekSyncConfirmOverlay', { force: true });
+};
+window.requestRestoreUatWeekSnapshot = () => uatProductionSyncController.requestRestore();
+window.confirmProductionWeekRestore = async () => {
+  closeModal('productionWeekRestoreConfirmOverlay', { force: true });
+  return uatProductionSyncController.confirmRestore();
+};
+window.cancelProductionWeekRestore = () => {
+  uatProductionSyncController.cancelConfirmation();
+  closeModal('productionWeekRestoreConfirmOverlay', { force: true });
+};
+window.refreshProductionWeekSyncStatus = () => uatProductionSyncController.refreshStatus();
 let executiveUpdateSession = null;
 let executiveUpdateHistoryUnsub = null;
 let executiveUpdateSaving = false;
@@ -4562,6 +4667,7 @@ function setupUI() {
   
   if(currentRole === 'admin') {
     rBadge.classList.add('admin');
+    document.getElementById('productionWeekSyncPanel').style.display = isAdminExecutivePreview ? 'none' : '';
     document.getElementById('onlineUsersContainer').style.display = 'flex';
     document.getElementById('visSelect').style.display = 'inline-block';
     document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
@@ -9358,6 +9464,7 @@ window.toggleExecutivePreview = () => {
   document.getElementById('visSelect').style.display = isAdminExecutivePreview ? 'none' : 'inline-block';
   document.getElementById('presenceUsageBtn').style.display = isAdminExecutivePreview ? 'none' : 'inline-flex';
   document.getElementById('ganttTemplateSettingsBtn').style.display = isAdminExecutivePreview ? 'none' : 'inline-flex';
+  document.getElementById('productionWeekSyncPanel').style.display = isAdminExecutivePreview ? 'none' : '';
 
   const button = document.getElementById('executivePreviewBtn');
   button.classList.toggle('active', isAdminExecutivePreview);
@@ -9491,6 +9598,9 @@ window.closeModal = (id, { force = false } = {}) => {
     clearProjectMutationError();
   }
   if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
+  if (id === 'productionWeekSyncConfirmOverlay' || id === 'productionWeekRestoreConfirmOverlay') {
+    uatProductionSyncController.cancelConfirmation();
+  }
   modal.classList.remove('open');
   delete modal.dataset.editorBaseline;
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();
@@ -10712,6 +10822,9 @@ window.openWeekManagement = () => {
   window.updateWmDate();
   updateCopilotPrompt();
   openAccessibleModal(document.getElementById('weekManageOverlay'));
+  if (canUseProductionWeekSync(currentRole) && !isAdminExecutivePreview) {
+    void uatProductionSyncController.open();
+  }
 };
 
 window.updateWmDate = () => {
