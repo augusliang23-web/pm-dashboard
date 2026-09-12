@@ -7,6 +7,32 @@ const SYNC_COLLECTION = 'weeks';
 const SNAPSHOT_RETENTION_COUNT = 5;
 const MAX_WEEK_DOCUMENT_BYTES = 1_000_000;
 const MAX_DOCUMENT_ID_BYTES = 1_500;
+const MIN_SIGNED_INT64 = -9_223_372_036_854_775_808n;
+const MAX_SIGNED_INT64 = 9_223_372_036_854_775_807n;
+const SYNC_DOMAIN_ERROR_MESSAGES = Object.freeze({
+  'operation-in-progress': 'A UAT week data operation is already running.',
+  'production-source-empty': 'Production source has no reporting weeks.',
+  'production-source-invalid': 'Production source contains a value that cannot be copied safely.',
+  'production-source-incomplete': 'Production source read could not be verified as complete.',
+  'snapshot-integrity-failed': 'Snapshot digest verification failed.',
+  'snapshot-not-retained': 'Requested snapshot is not retained.',
+  'lease-lost': 'The UAT week operation lease is no longer valid.',
+});
+
+class SyncDomainError extends Error {
+  constructor(code, message = SYNC_DOMAIN_ERROR_MESSAGES[code]) {
+    if (!Object.hasOwn(SYNC_DOMAIN_ERROR_MESSAGES, code)) {
+      throw new TypeError('Sync failures must use a closed safe domain error code.');
+    }
+    super(message);
+    this.name = 'SyncDomainError';
+    this.code = code;
+  }
+}
+
+function domainError(code, message) {
+  return new SyncDomainError(code, message);
+}
 
 function compareCodeUnits(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -37,9 +63,15 @@ function canonicalizeValue(value, seen = new Set()) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new TypeError('Unsupported non-finite number in week data.');
-    return value;
+    return { __firestoreType: 'double', value: Object.is(value, -0) ? '-0' : value };
   }
-  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+  if (typeof value === 'bigint') {
+    if (value < MIN_SIGNED_INT64 || value > MAX_SIGNED_INT64) {
+      throw new RangeError('Firestore integer values must remain within the signed 64-bit range.');
+    }
+    return { __firestoreType: 'integer', value: value.toString() };
+  }
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
     throw new TypeError(`Unsupported ${typeof value} value in week data.`);
   }
 
@@ -231,18 +263,25 @@ function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
 
 function assertVerifiedSnapshot(snapshot, expectedWeeks, expectedDigest, { requireComplete = true } = {}) {
   if (!snapshot || (requireComplete && snapshot.complete !== true)) {
-    throw new Error('Snapshot digest verification failed.');
+    throw domainError('snapshot-integrity-failed');
   }
-  if (!Array.isArray(snapshot.weeks)) throw new Error('Snapshot payload must be an array.');
+  if (!Array.isArray(snapshot.weeks)) throw domainError('snapshot-integrity-failed', 'Snapshot payload must be an array.');
   const payloadDigest = digestWeekEntries(snapshot.weeks);
   if (snapshot.digest !== payloadDigest || (expectedDigest && expectedDigest !== payloadDigest)
     || (Number.isSafeInteger(snapshot.weekCount) && snapshot.weekCount !== snapshot.weeks.length)) {
-    throw new Error('Snapshot digest verification failed.');
+    throw domainError('snapshot-integrity-failed');
   }
-  if (expectedWeeks) assertMatchingWeeks(expectedWeeks, snapshot.weeks, 'Snapshot digest verification failed.');
+  if (expectedWeeks) {
+    try {
+      assertMatchingWeeks(expectedWeeks, snapshot.weeks, 'Snapshot digest verification failed.');
+    } catch (_mismatch) {
+      throw domainError('snapshot-integrity-failed');
+    }
+  }
 }
 
-function sanitizedFailure() {
+function sanitizedFailure(error) {
+  if (error instanceof SyncDomainError) return { errorCode: error.code, errorMessage: error.message };
   return { errorCode: 'operation-failed', errorMessage: 'The operation could not be completed safely.' };
 }
 
@@ -264,7 +303,8 @@ function sanitizeStatus(value) {
     'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId',
     'sourceReadTime', 'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount',
     'deletedCount', 'snapshotId', 'snapshotDigest', 'startedAt', 'completedAt', 'errorCode',
-    'errorMessage', 'cleanupWarning', 'leaseReleaseWarning',
+    'errorMessage', 'cleanupWarning', 'leaseReleaseWarning', 'sourceDigest', 'resultDigest',
+    'resultWeekCount', 'restoredFromSnapshotId', 'restoredDigest', 'restoredWeekCount',
   ];
   const snapshotFields = ['snapshotId', 'createdAt', 'completedAt'];
   for (const key of ['latestRun', 'latestCompletedRun']) {
@@ -288,10 +328,11 @@ async function pruneSnapshots(destinationStore, runId) {
   }
 }
 
-async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned }) {
+async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned, clock, error }) {
   try {
     await destinationStore.updateRun(runMetadata({
-      runId, actor, operation, phase, extra: { result: 'failed', ...sanitizedFailure() },
+      runId, actor, operation, phase,
+      extra: { result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure(error) },
     }));
   } catch (_recordError) {
     // Preserve the original operation error even when an audit write also fails.
@@ -348,7 +389,7 @@ async function releaseLeaseBestEffort(destinationStore, runId) {
   }
 }
 
-async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks }) {
+async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock }) {
   try {
     await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rolling_back', extra: { snapshotId, ...sanitizedFailure() },
@@ -357,13 +398,15 @@ async function recoverOrFail({ destinationStore, runId, actor, operation, snapsh
     const restoredWeeks = await destinationStore.listWeeks();
     assertMatchingWeeks(snapshotWeeks, restoredWeeks, 'Rollback verification failed.');
     await recordRunBestEffort(destinationStore, runMetadata({
-      runId, actor, operation, phase: 'rolled_back', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
+      runId, actor, operation, phase: 'rolled_back',
+      extra: { snapshotId, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure() },
     }));
     await releaseLeaseBestEffort(destinationStore, runId);
     return { ok: false, phase: 'rolled_back', runId, snapshotId };
   } catch (_rollbackError) {
     await recordRunBestEffort(destinationStore, runMetadata({
-      runId, actor, operation, phase: 'rollback_failed', extra: { snapshotId, result: 'failed', ...sanitizedFailure() },
+      runId, actor, operation, phase: 'rollback_failed',
+      extra: { snapshotId, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure() },
     }));
     return { ok: false, phase: 'rollback_failed', runId, snapshotId };
   }
@@ -374,7 +417,7 @@ function assertRetainedSnapshotMetadata(snapshot, snapshotId) {
   if (!snapshot || snapshot.complete !== true || typeof snapshotId !== 'string' || !snapshotId
     || snapshot.snapshotId !== snapshotId || !canonicalDigest
     || !Number.isSafeInteger(snapshot.weekCount) || snapshot.weekCount < 0) {
-    throw new Error('Snapshot metadata integrity is invalid.');
+    throw domainError('snapshot-integrity-failed', 'Snapshot metadata integrity is invalid.');
   }
 }
 
@@ -384,7 +427,7 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
   const acquired = await destinationStore.acquireLease({
     runId, actor: sanitizeActor(actor), expiresAt: leaseExpiryIso(clock),
   });
-  if (!acquired?.acquired) throw new Error('A Production week sync is already running.');
+  if (!acquired?.acquired) throw domainError('operation-in-progress', 'A Production week sync is already running.');
 
   let snapshotId = runId;
   let snapshotWeeks;
@@ -395,9 +438,25 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
     await destinationStore.createRun(runMetadata({
       runId, actor, operation, phase, extra: { startedAt: nowIso(clock) },
     }));
-    const sourceResult = await sourceStore.listWeeks();
-    const sourceWeeks = validateSourceWeeks(sourceResult);
-    const sourceReadTime = typeof sourceResult?.sourceReadTime === 'string' ? sourceResult.sourceReadTime : undefined;
+    let sourceResult;
+    try {
+      sourceResult = await sourceStore.listWeeks();
+    } catch (_sourceError) {
+      throw domainError('production-source-incomplete');
+    }
+    let sourceWeeks;
+    try {
+      sourceWeeks = validateSourceWeeks(sourceResult);
+    } catch (error) {
+      throw Array.isArray(sourceResult) && sourceResult.length === 0
+        ? domainError('production-source-empty')
+        : domainError('production-source-invalid');
+    }
+    const sourceReadTime = typeof sourceResult?.sourceReadTime === 'string' ? sourceResult.sourceReadTime : '';
+    const parsedSourceReadTime = Date.parse(sourceReadTime);
+    if (!Number.isFinite(parsedSourceReadTime) || new Date(parsedSourceReadTime).toISOString() !== sourceReadTime) {
+      throw domainError('production-source-incomplete');
+    }
     phase = 'validating_source';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase }));
     const destinationWeeks = await destinationStore.listWeeks();
@@ -424,19 +483,19 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
 
     phase = 'verifying';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: { snapshotId } }));
-    assertMatchingWeeks(plan.sourceWeeks, await destinationStore.listWeeks(), 'UAT mirror verification failed.');
+    const resultWeeks = await destinationStore.listWeeks();
+    assertMatchingWeeks(plan.sourceWeeks, resultWeeks, 'UAT mirror verification failed.');
     verifiedResult = {
       ok: true, phase: 'succeeded', runId, snapshotId, sourceWeekCount: plan.sourceWeeks.length,
       createdCount: plan.createdIds.length, updatedCount: plan.updatedIds.length, deletedCount: plan.deletedIds.length,
+      sourceProjectId: PRODUCTION_PROJECT_ID,
+      destinationProjectId: UAT_PROJECT_ID,
+      sourceReadTime,
+      sourceDigest: plan.sourceDigest,
+      resultDigest: digestWeekEntries(resultWeeks),
+      resultWeekCount: resultWeeks.length,
+      completedAt: nowIso(clock),
     };
-    if (sourceReadTime) {
-      Object.assign(verifiedResult, {
-        sourceProjectId: PRODUCTION_PROJECT_ID,
-        destinationProjectId: UAT_PROJECT_ID,
-        sourceReadTime,
-        completedAt: nowIso(clock),
-      });
-    }
     phase = 'succeeded';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
     return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
@@ -448,9 +507,9 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
       });
     }
     if (applyStarted) {
-      return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks });
+      return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error });
     throw error;
   }
 }
@@ -461,7 +520,7 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
   const acquired = await destinationStore.acquireLease({
     runId, actor: sanitizeActor(actor), expiresAt: leaseExpiryIso(clock),
   });
-  if (!acquired?.acquired) throw new Error('A UAT week restore is already running.');
+  if (!acquired?.acquired) throw domainError('operation-in-progress', 'A UAT week restore is already running.');
 
   let currentSnapshotWeeks;
   let applyStarted = false;
@@ -469,17 +528,20 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
   let verifiedResult;
   try {
     await destinationStore.createRun(runMetadata({
-      runId, actor, operation, phase, extra: { startedAt: nowIso(clock), snapshotId },
+      runId, actor, operation, phase,
+      extra: { startedAt: nowIso(clock), snapshotId: runId, restoredFromSnapshotId: snapshotId },
     }));
     const retained = await destinationStore.listCompleteSnapshots();
     const selected = retained.find(snapshot => snapshot.snapshotId === snapshotId && snapshot.complete === true);
-    if (!selected) throw new Error('Requested snapshot is not retained.');
+    if (!selected) throw domainError('snapshot-not-retained');
     assertRetainedSnapshotMetadata(selected, snapshotId);
     const selectedSnapshot = await destinationStore.readSnapshot({ snapshotId });
-    if (selectedSnapshot?.snapshotId !== snapshotId) throw new Error('Snapshot ID does not match retained metadata.');
+    if (selectedSnapshot?.snapshotId !== snapshotId) {
+      throw domainError('snapshot-integrity-failed', 'Snapshot ID does not match retained metadata.');
+    }
     assertVerifiedSnapshot(selectedSnapshot, undefined, selected.digest);
     if (selected.weekCount !== selectedSnapshot.weeks.length) {
-      throw new Error('Snapshot digest verification failed.');
+      throw domainError('snapshot-integrity-failed');
     }
     currentSnapshotWeeks = await destinationStore.listWeeks();
     const currentDigest = digestWeekEntries(currentSnapshotWeeks);
@@ -492,8 +554,14 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
     await destinationStore.renewLease({ runId, expiresAt: leaseExpiryIso(clock) });
     applyStarted = true;
     await destinationStore.applyMirror({ weeks: selectedSnapshot.weeks, runId, batchSize: MIRROR_BATCH_SIZE });
-    assertMatchingWeeks(selectedSnapshot.weeks, await destinationStore.listWeeks(), 'UAT restore verification failed.');
-    verifiedResult = { ok: true, phase: 'restored', runId, snapshotId };
+    const restoredWeeks = await destinationStore.listWeeks();
+    assertMatchingWeeks(selectedSnapshot.weeks, restoredWeeks, 'UAT restore verification failed.');
+    verifiedResult = {
+      ok: true, phase: 'restored', runId, snapshotId: runId, restoredFromSnapshotId: snapshotId,
+      restoredDigest: digestWeekEntries(restoredWeeks),
+      restoredWeekCount: restoredWeeks.length,
+      completedAt: nowIso(clock),
+    };
     phase = 'restored';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
     return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
@@ -506,10 +574,10 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
     }
     if (applyStarted) {
       return recoverOrFail({
-        destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks,
+        destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks, clock,
       });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error });
     throw error;
   }
 }
@@ -539,4 +607,5 @@ module.exports = {
   validateSourceWeeks,
   planWeekMirror,
   createWeekSyncService,
+  SyncDomainError,
 };

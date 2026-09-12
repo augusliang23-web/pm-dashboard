@@ -1,4 +1,4 @@
-const { DocumentReference, GeoPoint, Timestamp, getFirestore } = require('firebase-admin/firestore');
+const { DocumentReference, Firestore, GeoPoint, Timestamp, v1 } = require('firebase-admin/firestore');
 const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const core = require('./production-week-sync-core');
 const productionRead = require('./production-week-sync-production-read');
@@ -12,6 +12,9 @@ const CONTROL_COLLECTION = 'uatProductionWeekSync';
 const CONTROL_DOCUMENT = 'control';
 const RUNS_COLLECTION = 'uatProductionWeekSyncRuns';
 const BATCH_SIZE = 200;
+const UAT_DATABASE_NAME = `projects/${core.UAT_PROJECT_ID}/databases/(default)`;
+let exactUatDb;
+let rawUatClient;
 
 function callableError(code, message, reason) {
   return new HttpsError(code, message, { reason });
@@ -69,32 +72,61 @@ async function authenticatedSyncAdmin(request, uatDb) {
   if (!email) {
     throw callableError('unauthenticated', 'The signed-in account must have an email.', 'authenticated-email-required');
   }
-  const displayName = String(auth.token?.name || auth.token?.displayName || '').trim();
-  if (!displayName) {
-    throw callableError('unauthenticated', 'The signed-in account must have a display name.', 'authenticated-display-name-required');
-  }
   const userSnapshot = await uatDb.collection('users').doc(email).get();
   if (!userSnapshot.exists) {
     throw callableError('permission-denied', 'The dashboard account was not found.', 'dashboard-user-not-found');
   }
-  if (String(userSnapshot.data()?.role || '').trim().toLowerCase() !== 'admin') {
+  const user = userSnapshot.data() || {};
+  if (String(user.role || '').trim().toLowerCase() !== 'admin') {
     throw callableError('permission-denied', 'Only UAT administrators can run this operation.', 'admin-role-required');
+  }
+  const displayName = String(user.displayName || '').trim();
+  if (!displayName) {
+    throw callableError('unauthenticated', 'The dashboard account must have a display name.', 'authenticated-display-name-required');
   }
   return { uid: String(auth.uid), email, displayName, role: 'admin' };
 }
 
-function reconstructUatValue(value, uatDb) {
+function getExactUatFirestore() {
+  if (!exactUatDb) exactUatDb = new Firestore({ projectId: core.UAT_PROJECT_ID, useBigInt: true });
+  return exactUatDb;
+}
+
+function encodeExactFirestoreValue(value, databaseName = UAT_DATABASE_NAME) {
   core.canonicalizeValue(value);
-  if (Buffer.isBuffer(value) || value instanceof Uint8Array) return Buffer.from(value);
-  if (value instanceof Timestamp) return new Timestamp(value.seconds, value.nanoseconds);
-  if (value instanceof GeoPoint) return new GeoPoint(value.latitude, value.longitude);
-  if (value instanceof DocumentReference) return uatDb.doc(value.path);
-  if (value instanceof Date) return Timestamp.fromDate(value);
-  if (Array.isArray(value)) return value.map(entry => reconstructUatValue(entry, uatDb));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).map(key => [key, reconstructUatValue(value[key], uatDb)]));
+  function encode(candidate) {
+    if (candidate === null) return { nullValue: 'NULL_VALUE' };
+    if (typeof candidate === 'string') return { stringValue: candidate };
+    if (typeof candidate === 'boolean') return { booleanValue: candidate };
+    if (typeof candidate === 'bigint') return { integerValue: candidate.toString() };
+    if (typeof candidate === 'number') return { doubleValue: candidate };
+    if (Buffer.isBuffer(candidate) || candidate instanceof Uint8Array) {
+      return { bytesValue: Buffer.from(candidate) };
+    }
+    if (candidate instanceof Date) return encode(Timestamp.fromDate(candidate));
+    if (candidate instanceof Timestamp) {
+      return { timestampValue: { seconds: String(candidate.seconds), nanos: candidate.nanoseconds } };
+    }
+    if (candidate instanceof GeoPoint) {
+      return { geoPointValue: { latitude: candidate.latitude, longitude: candidate.longitude } };
+    }
+    if (candidate instanceof DocumentReference) {
+      return { referenceValue: `${databaseName}/documents/${candidate.path}` };
+    }
+    if (Array.isArray(candidate)) return { arrayValue: { values: candidate.map(encode) } };
+    return { mapValue: { fields: Object.fromEntries(Object.keys(candidate).map(key => [key, encode(candidate[key])])) } };
   }
-  return value;
+  return encode(value);
+}
+
+function exactSetWrite(ref, data) {
+  const map = encodeExactFirestoreValue(data);
+  return { update: { name: `${UAT_DATABASE_NAME}/documents/${ref.path}`, fields: map.mapValue.fields } };
+}
+
+async function commitRawUatWrites(writes) {
+  if (!rawUatClient) rawUatClient = new v1.FirestoreClient();
+  await rawUatClient.commit({ database: UAT_DATABASE_NAME, writes });
 }
 
 async function commitBoundedOperations(db, operations, beforeBatch) {
@@ -113,7 +145,16 @@ function snapshotMetadata({ snapshotId, digest, weekCount, createdAt, operation 
   return { snapshotId, digest, weekCount, createdAt, operation, complete: false };
 }
 
-function createUatSyncStore(uatDb) {
+async function commitBoundedRawOperations(operations, beforeBatch, commitRawWrites) {
+  for (let start = 0; start < operations.length; start += BATCH_SIZE) {
+    await beforeBatch();
+    await commitRawWrites(operations.slice(start, start + BATCH_SIZE));
+  }
+}
+
+function createUatSyncStore(uatDb, options = {}) {
+  const commitRawWrites = options.commitRawWrites
+    || (typeof uatDb.commitRawWrites === 'function' ? writes => uatDb.commitRawWrites(writes) : commitRawUatWrites);
   const controlRef = () => uatDb.collection(CONTROL_COLLECTION).doc(CONTROL_DOCUMENT);
   const runRef = runId => uatDb.collection(RUNS_COLLECTION).doc(runId);
   const weeks = () => uatDb.collection(core.SYNC_COLLECTION);
@@ -123,8 +164,12 @@ function createUatSyncStore(uatDb) {
       const current = await transaction.get(controlRef());
       const lease = current.exists ? current.data() : {};
       const expiry = Date.parse(lease.expiresAt || '');
-      if (!current.exists || lease.activeRunId !== runId) throw new Error('Sync lease is not owned by this run.');
-      if (!Number.isFinite(expiry) || expiry <= Date.now()) throw new Error('Sync lease has expired.');
+      if (!current.exists || lease.activeRunId !== runId) {
+        throw new core.SyncDomainError('lease-lost', 'Sync lease is not owned by this run.');
+      }
+      if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+        throw new core.SyncDomainError('lease-lost', 'Sync lease has expired.');
+      }
       transaction.set(controlRef(), { expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() }, { merge: true });
     });
   }
@@ -145,8 +190,12 @@ function createUatSyncStore(uatDb) {
         const current = await transaction.get(controlRef());
         const lease = current.exists ? current.data() : {};
         const expiry = Date.parse(lease.expiresAt || '');
-        if (!current.exists || lease.activeRunId !== runId) throw new Error('Sync lease is not owned by this run.');
-        if (!Number.isFinite(expiry) || expiry <= Date.now()) throw new Error('Sync lease has expired.');
+        if (!current.exists || lease.activeRunId !== runId) {
+          throw new core.SyncDomainError('lease-lost', 'Sync lease is not owned by this run.');
+        }
+        if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+          throw new core.SyncDomainError('lease-lost', 'Sync lease has expired.');
+        }
         transaction.set(controlRef(), { expiresAt }, { merge: true });
       });
     },
@@ -173,15 +222,20 @@ function createUatSyncStore(uatDb) {
         || String(right.runId || right.snapshotId || '').localeCompare(String(left.runId || left.snapshotId || ''));
       const currentRun = running ? allRuns.find(run => run.runId === controlData.activeRunId) : undefined;
       const completed = allRuns.filter(run => ['succeeded', 'restored'].includes(run.phase)).sort(byNewest)[0];
+      const latestRun = allRuns.filter(run => typeof run.completedAt === 'string'
+        && (['succeeded', 'restored', 'rolled_back', 'rollback_failed'].includes(run.phase) || run.result === 'failed'))
+        .sort(byNewest)[0];
       const latestSnapshot = allRuns.filter(run => run.complete === true).sort(byNewest)[0];
       const summary = run => run && Object.fromEntries([
         'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId', 'sourceReadTime',
         'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount', 'deletedCount', 'snapshotId',
         'snapshotDigest', 'startedAt', 'completedAt', 'errorCode', 'errorMessage', 'cleanupWarning', 'leaseReleaseWarning',
+        'sourceDigest', 'resultDigest', 'resultWeekCount', 'restoredFromSnapshotId', 'restoredDigest', 'restoredWeekCount',
       ].filter(key => run[key] === null || ['string', 'number', 'boolean'].includes(typeof run[key])).map(key => [key, run[key]]));
       return {
         running,
         ...(currentRun?.phase ? { phase: currentRun.phase } : {}),
+        ...(latestRun ? { latestRun: summary(latestRun) } : {}),
         ...(completed ? { latestCompletedRun: summary(completed) } : {}),
         ...(latestSnapshot ? { latestSnapshot: Object.fromEntries(['snapshotId', 'createdAt', 'completedAt']
           .filter(key => latestSnapshot[key] === null || ['string', 'number', 'boolean'].includes(typeof latestSnapshot[key]))
@@ -194,14 +248,12 @@ function createUatSyncStore(uatDb) {
     },
     async writeSnapshot({ snapshotId, runId, weeks: snapshotWeeks, digest, weekCount, createdAt, operation }) {
       const target = runRef(snapshotId);
-      const operations = [
+      await commitBoundedOperations(uatDb, [
         { type: 'set', ref: target, data: snapshotMetadata({ snapshotId, digest, weekCount, createdAt, operation }), options: { merge: true } },
-        ...snapshotWeeks.map(week => ({
-          type: 'set', ref: target.collection('weeks').doc(week.id),
-          data: { data: reconstructUatValue(week.data, uatDb) },
-        })),
-      ];
-      await commitBoundedOperations(uatDb, operations, () => renewOwnedLease(runId));
+      ], () => renewOwnedLease(runId));
+      await commitBoundedRawOperations(snapshotWeeks.map(week => exactSetWrite(
+        target.collection('weeks').doc(week.id), { data: week.data },
+      )), () => renewOwnedLease(runId), commitRawWrites);
     },
     async completeSnapshot({ snapshotId, runId }) {
       await renewOwnedLease(runId);
@@ -221,19 +273,19 @@ function createUatSyncStore(uatDb) {
       const current = await weeks().get();
       const sourceIds = new Set(sourceWeeks.map(week => week.id));
       const operations = [
-        ...sourceWeeks.map(week => ({
-          type: 'set', ref: weeks().doc(week.id), data: reconstructUatValue(week.data, uatDb), options: { merge: false },
+        ...sourceWeeks.map(week => exactSetWrite(weeks().doc(week.id), week.data)),
+        ...current.docs.filter(document => !sourceIds.has(document.id)).map(document => ({
+          delete: `${UAT_DATABASE_NAME}/documents/${(document.ref || weeks().doc(document.id)).path}`,
         })),
-        ...current.docs.filter(document => !sourceIds.has(document.id)).map(document => ({ type: 'delete', ref: document.ref || weeks().doc(document.id) })),
       ];
-      await commitBoundedOperations(uatDb, operations, () => renewOwnedLease(runId));
+      await commitBoundedRawOperations(operations, () => renewOwnedLease(runId), commitRawWrites);
     },
     async listCompleteSnapshots() {
       const snapshot = await uatDb.collection(RUNS_COLLECTION).where('complete', '==', true).get();
       return snapshot.docs.map(document => {
         const data = document.data();
         const metadata = {
-          snapshotId: data.snapshotId,
+          snapshotId: document.id,
           complete: data.complete,
           digest: data.digest,
           weekCount: data.weekCount,
@@ -265,13 +317,18 @@ function defaultService({ sourceStore, destinationStore }) {
 
 function asCallableFailure(error) {
   if (error instanceof HttpsError) return error;
+  if (error instanceof core.SyncDomainError) {
+    const callableCode = error.code === 'snapshot-not-retained' ? 'not-found'
+      : error.code === 'lease-lost' ? 'aborted' : 'failed-precondition';
+    return callableError(callableCode, error.message, error.code);
+  }
   return callableError('internal', 'The UAT week operation could not be completed safely.', 'uat-week-sync-failed');
 }
 
 function createCallableHandlers({
   onCall: register = onCall,
   environment = process.env,
-  getUatDb = () => getFirestore(),
+  getUatDb = getExactUatFirestore,
   getProductionDb = productionRead.getProductionFirestore,
   createService = defaultService,
 } = {}) {
@@ -323,4 +380,6 @@ module.exports = {
   assertRestoreRequest,
   assertUatRuntimeProject,
   createCallableHandlers,
+  encodeExactFirestoreValue,
+  getExactUatFirestore,
 };

@@ -20,9 +20,20 @@ export function formatProductionSyncResult(result = {}) {
   return `Production sync completed: ${Number(result.createdCount || 0)} created, ${Number(result.updatedCount || 0)} updated, ${Number(result.deletedCount || 0)} deleted.`;
 }
 
+export function applyProductionSyncButtonState({ syncButton, restoreButton }, state) {
+  syncButton.disabled = !state.isAdmin || state.syncDisabled;
+  restoreButton.disabled = !state.isAdmin || state.restoreDisabled;
+  const ariaBusy = state.operationBusy ? 'true' : 'false';
+  syncButton.setAttribute('aria-busy', ariaBusy);
+  restoreButton.setAttribute('aria-busy', ariaBusy);
+}
+
 export function formatProductionSyncStatus(status = {}) {
+  const latestRun = status.latestRun || status.latestCompletedRun;
+  if (status.phase === 'rollback_failed' || latestRun?.phase === 'rollback_failed') return ROLLBACK_FAILED_MESSAGE;
+  if (latestRun?.phase === 'rolled_back') return ROLLED_BACK_MESSAGE;
+  if (SAFE_ERROR_MESSAGES[latestRun?.errorCode]) return SAFE_ERROR_MESSAGES[latestRun.errorCode];
   if (status.running && status.phase) return `Sync in progress: ${status.phase}.`;
-  const latestRun = status.latestCompletedRun || status.latestRun;
   if (latestRun?.phase) return `Last operation: ${latestRun.phase}.`;
   return 'No Production sync has been recorded.';
 }
@@ -35,6 +46,24 @@ function resultMessage(result = {}, kind) {
   return 'Production data operation completed.';
 }
 
+const SAFE_ERROR_MESSAGES = Object.freeze({
+  'operation-in-progress': 'Another UAT data operation is already running. Wait for it to finish, then refresh status.',
+  'production-source-empty': 'Production returned no reporting weeks. No UAT data was changed; verify Production data before retrying.',
+  'production-source-invalid': 'Production contains a reporting week value that cannot be copied safely. No UAT data was changed; correct the source data before retrying.',
+  'production-source-incomplete': 'The Production read could not be verified as complete. No UAT data was changed; retry after checking the source service.',
+  'snapshot-integrity-failed': 'The safety snapshot could not be verified. No UAT data was changed; contact an administrator.',
+  'snapshot-not-retained': 'The selected snapshot is no longer retained. Refresh status before trying restore again.',
+  'lease-lost': 'The operation stopped because its safety lease was lost. Refresh status before retrying.',
+});
+
+function errorMessage(error, kind) {
+  const safe = SAFE_ERROR_MESSAGES[error?.details?.reason];
+  if (safe) return safe;
+  return kind === 'sync'
+    ? 'Unable to complete Production data sync.'
+    : 'Unable to restore the latest retained UAT snapshot.';
+}
+
 export function createUatProductionSyncController({ api, getRole, view }) {
   const state = { busy: false, status: null, result: '', confirmation: null };
   const isAdmin = () => canUseProductionWeekSync(getRole());
@@ -44,11 +73,13 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     || '';
 
   function publish() {
+    const operationIsBusy = operationBusy();
     view.render({
       ...state,
       isAdmin: isAdmin(),
-      syncDisabled: operationBusy(),
-      restoreDisabled: operationBusy() || !latestSnapshotId(),
+      operationBusy: operationIsBusy,
+      syncDisabled: operationIsBusy,
+      restoreDisabled: operationIsBusy || !latestSnapshotId(),
       statusText: formatProductionSyncStatus(state.status || {}),
     });
   }
@@ -113,10 +144,8 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     try {
       const result = kind === 'sync' ? await api.sync() : await api.restore(snapshotId);
       state.result = resultMessage(result, kind);
-    } catch {
-      state.result = kind === 'sync'
-        ? 'Unable to complete Production data sync.'
-        : 'Unable to restore the latest retained UAT snapshot.';
+    } catch (error) {
+      state.result = errorMessage(error, kind);
     } finally {
       await refreshStatus({ keepBusy: true });
       state.busy = false;

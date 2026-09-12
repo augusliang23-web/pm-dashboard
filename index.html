@@ -2906,7 +2906,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs";
+import { applyProductionSyncButtonState, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2957,10 +2957,7 @@ const uatProductionSyncController = createUatProductionSyncController({
         lastRun.textContent = '';
       }
       result.textContent = state.result || '';
-      syncButton.disabled = !state.isAdmin || state.syncDisabled;
-      restoreButton.disabled = !state.isAdmin || state.restoreDisabled;
-      syncButton.setAttribute('aria-busy', state.busy ? 'true' : 'false');
-      restoreButton.setAttribute('aria-busy', state.busy ? 'true' : 'false');
+      applyProductionSyncButtonState({ syncButton, restoreButton }, state);
     },
     confirm({ kind, message }) {
       const overlayId = kind === 'sync'

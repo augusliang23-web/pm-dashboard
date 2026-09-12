@@ -3,6 +3,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const core = require('./production-week-sync-core');
 
 const PRODUCTION_APP_NAME = 'production-week-sync-read-only';
+let exactProductionDb;
 
 function createProductionReadStore(productionDb) {
   return Object.freeze({
@@ -19,13 +20,16 @@ function createProductionReadStore(productionDb) {
 }
 
 function getProductionFirestore() {
+  if (exactProductionDb) return exactProductionDb;
   let app;
   try {
     app = getApp(PRODUCTION_APP_NAME);
   } catch (_notInitialized) {
     app = initializeApp({ credential: applicationDefault(), projectId: core.PRODUCTION_PROJECT_ID }, PRODUCTION_APP_NAME);
   }
-  return getFirestore(app);
+  exactProductionDb = getFirestore(app);
+  exactProductionDb.settings({ useBigInt: true });
+  return exactProductionDb;
 }
 
 module.exports = { createProductionReadStore, getProductionFirestore };

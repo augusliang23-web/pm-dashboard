@@ -6,6 +6,7 @@ import {
   createUatProductionSyncController,
   formatProductionSyncResult,
   formatProductionSyncStatus,
+  applyProductionSyncButtonState,
   PRODUCTION_SYNC_CONFIRMATION,
   ROLLED_BACK_MESSAGE,
   ROLLBACK_FAILED_MESSAGE,
@@ -99,9 +100,71 @@ test('a server-reported running operation keeps both actions disabled after stat
 
   await controller.open();
   assert.equal(view.renders.at(-1).busy, false);
+  assert.equal(view.renders.at(-1).operationBusy, true);
   assert.equal(view.renders.at(-1).syncDisabled, true);
   assert.equal(view.renders.at(-1).restoreDisabled, true);
   assert.equal(view.renders.at(-1).statusText, 'Sync in progress: applying.');
+});
+
+test('server-reported operationBusy binds disabled and aria-busy together', () => {
+  const button = () => ({
+    disabled: false,
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  });
+  const syncButton = button();
+  const restoreButton = button();
+
+  applyProductionSyncButtonState({ syncButton, restoreButton }, {
+    isAdmin: true, operationBusy: true, syncDisabled: true, restoreDisabled: true,
+  });
+
+  assert.equal(syncButton.disabled, true);
+  assert.equal(restoreButton.disabled, true);
+  assert.equal(syncButton.attributes['aria-busy'], 'true');
+  assert.equal(restoreButton.attributes['aria-busy'], 'true');
+});
+
+test('a reloaded Admin sees the critical rollback failure before and after lease expiry', async () => {
+  for (const running of [true, false]) {
+    const view = createView();
+    const controller = createUatProductionSyncController({
+      api: {
+        status: async () => ({
+          running,
+          ...(running ? { phase: 'rollback_failed' } : {}),
+          latestRun: { phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
+        }),
+        sync: async () => ({}),
+        restore: async () => ({}),
+      },
+      getRole: () => 'admin',
+      view,
+    });
+
+    await controller.open();
+    assert.equal(view.renders.at(-1).statusText, ROLLBACK_FAILED_MESSAGE, `running=${running}`);
+  }
+});
+
+test('a reloaded Admin sees actionable copy for a recorded safe terminal failure', async () => {
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({
+        running: false,
+        latestRun: { phase: 'reading_source', result: 'failed', errorCode: 'production-source-empty' },
+      }),
+      sync: async () => ({}),
+      restore: async () => ({}),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  await controller.open();
+  assert.equal(view.renders.at(-1).statusText,
+    'Production returned no reporting weeks. No UAT data was changed; verify Production data before retrying.');
 });
 
 test('sync requires the exact destructive-data warning and rechecks Admin at confirmation time', async () => {
@@ -195,6 +258,34 @@ test('rolled-back and rollback-failed responses expose the specified safe recove
   }
   assert.equal(ROLLED_BACK_MESSAGE, 'UAT sync failed safely; the original UAT weeks were restored.');
   assert.equal(ROLLBACK_FAILED_MESSAGE, 'Critical: automatic rollback failed. Do not edit UAT weeks until the restore callable succeeds.');
+});
+
+test('safe callable reasons produce actionable UI copy without exposing server payloads', async () => {
+  const cases = [
+    ['operation-in-progress', 'Another UAT data operation is already running. Wait for it to finish, then refresh status.'],
+    ['production-source-empty', 'Production returned no reporting weeks. No UAT data was changed; verify Production data before retrying.'],
+    ['production-source-invalid', 'Production contains a reporting week value that cannot be copied safely. No UAT data was changed; correct the source data before retrying.'],
+    ['production-source-incomplete', 'The Production read could not be verified as complete. No UAT data was changed; retry after checking the source service.'],
+    ['snapshot-integrity-failed', 'The safety snapshot could not be verified. No UAT data was changed; contact an administrator.'],
+    ['snapshot-not-retained', 'The selected snapshot is no longer retained. Refresh status before trying restore again.'],
+    ['lease-lost', 'The operation stopped because its safety lease was lost. Refresh status before retrying.'],
+  ];
+  for (const [reason, expected] of cases) {
+    const view = createView();
+    const controller = createUatProductionSyncController({
+      api: {
+        status: async () => ({ running: false }),
+        sync: async () => { throw { details: { reason, secret: 'must-not-render' } }; },
+        restore: async () => ({}),
+      },
+      getRole: () => 'admin',
+      view,
+    });
+    controller.requestSync();
+    await controller.confirmSync();
+    assert.equal(view.renders.at(-1).result, expected, reason);
+    assert.equal(view.renders.at(-1).result.includes('must-not-render'), false, reason);
+  }
 });
 
 test('restore is confirmed and can restore only the latest backend-retained snapshot', async () => {

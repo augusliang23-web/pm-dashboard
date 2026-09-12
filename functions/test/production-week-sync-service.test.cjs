@@ -82,7 +82,11 @@ function createMemoryDestination({ weeks = [], snapshots = [], status, failApply
 
 function createService({ sourceWeeks = [week('W36-2026', 'NEW')], destination, ids = ['run-1'] } = {}) {
   let idIndex = 0;
-  const sourceStore = { listWeeks: async () => clone(sourceWeeks) };
+  const sourceStore = { listWeeks: async () => {
+    const result = clone(sourceWeeks);
+    Object.defineProperty(result, 'sourceReadTime', { value: '2026-09-11T00:00:00.000Z' });
+    return result;
+  } };
   return core.createWeekSyncService({
     sourceStore,
     destinationStore: destination,
@@ -108,7 +112,39 @@ test('sync records and returns fixed environment IDs, preserved source read time
   assert.equal(result.destinationProjectId, 'pm-dashboard-uat-20260820-a7f3');
   assert.equal(result.sourceReadTime, '2026-09-12T01:02:03.000Z');
   assert.equal(result.completedAt, '2026-09-12T02:03:04.000Z');
-  assert.equal(destination.state.runs.at(-1).sourceReadTime, '2026-09-12T01:02:03.000Z');
+  assert.equal(result.sourceDigest, core.digestWeekEntries(sourceWeeks));
+  assert.equal(result.resultDigest, core.digestWeekEntries(sourceWeeks));
+  assert.equal(result.resultWeekCount, 1);
+  assertRunContains(destination.state.runs.at(-1), {
+    sourceProjectId: 'project-manager-dashboar-a067f',
+    destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    sourceReadTime: '2026-09-12T01:02:03.000Z',
+    sourceDigest: core.digestWeekEntries(sourceWeeks),
+    resultDigest: core.digestWeekEntries(sourceWeeks),
+    resultWeekCount: 1,
+    completedAt: '2026-09-12T02:03:04.000Z',
+  });
+});
+
+function assertRunContains(actual, expected) {
+  for (const [key, value] of Object.entries(expected)) assert.deepEqual(actual[key], value, key);
+}
+
+test('sync rejects a missing source read time before reading or mutating UAT weeks', async () => {
+  const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
+  const service = core.createWeekSyncService({
+    sourceStore: { listWeeks: async () => [week('W36-2026', 'NEW')] },
+    destinationStore: destination,
+    clock: () => new Date('2026-09-12T02:03:04.000Z'),
+    idFactory: () => 'run-1',
+  });
+
+  await assert.rejects(() => service.sync({ actor: admin() }), error => (
+    error.code === 'production-source-incomplete' && /read/i.test(error.message)
+  ));
+  assert.equal(destination.order.includes('listWeeks'), false);
+  assert.equal(destination.order.includes('writeSnapshot'), false);
+  assert.equal(destination.order.includes('applyMirror'), false);
 });
 
 test('sync snapshots before applying and exactly mirrors Production weeks', async () => {
@@ -127,14 +163,23 @@ test('sync snapshots before applying and exactly mirrors Production weeks', asyn
   assert.deepEqual(result, {
     ok: true, phase: 'succeeded', runId: 'run-1', snapshotId: 'run-1',
     sourceWeekCount: 2, createdCount: 1, updatedCount: 1, deletedCount: 1,
+    sourceProjectId: 'project-manager-dashboar-a067f', destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    sourceReadTime: '2026-09-11T00:00:00.000Z', sourceDigest: core.digestWeekEntries(resultWeeks()),
+    resultDigest: core.digestWeekEntries(resultWeeks()), resultWeekCount: 2, completedAt: '2026-09-11T00:00:00.000Z',
   });
 });
+
+function resultWeeks() {
+  return [week('W36-2026', 'NEW'), week('W37-2026', 'ADDED')];
+}
 
 test('sync rejects an invalid Production source before snapshot or UAT-week mutation', async () => {
   const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
   const service = createService({ sourceWeeks: [], destination });
 
-  await assert.rejects(() => service.sync({ actor: admin() }), /no reporting weeks/);
+  await assert.rejects(() => service.sync({ actor: admin() }), error => (
+    error.code === 'production-source-empty' && /no reporting weeks/i.test(error.message)
+  ));
 
   assert.deepEqual(destination.state.weeks, [week('W35-2026', 'OLD')]);
   assert.equal(destination.order.includes('writeSnapshot'), false);
@@ -146,12 +191,29 @@ test('sync rejects a mismatched snapshot digest before UAT-week mutation', async
   const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')], snapshotDigest: 'not-the-snapshot-digest' });
   const service = createService({ destination });
 
-  await assert.rejects(() => service.sync({ actor: admin() }), /snapshot digest/i);
+  await assert.rejects(() => service.sync({ actor: admin() }), error => (
+    error.code === 'snapshot-integrity-failed' && /snapshot digest/i.test(error.message)
+  ));
 
   assert.equal(destination.order.includes('writeSnapshot'), true);
   assert.equal(destination.order.includes('applyMirror'), false);
   assert.deepEqual(destination.state.weeks, [week('W35-2026', 'OLD')]);
   assert.equal(destination.state.runs.at(-1).phase, 'snapshotting');
+});
+
+test('sync classifies a self-consistent but wrong snapshot payload as an integrity failure', async () => {
+  const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
+  const originalRead = destination.readSnapshot;
+  destination.readSnapshot = async input => {
+    const snapshot = await originalRead(input);
+    const wrongWeeks = [week('W99-2026', 'WRONG')];
+    return { ...snapshot, weeks: wrongWeeks, digest: core.digestWeekEntries(wrongWeeks) };
+  };
+
+  await assert.rejects(() => createService({ destination }).sync({ actor: admin() }), error => (
+    error.code === 'snapshot-integrity-failed'
+  ));
+  assert.equal(destination.order.includes('applyMirror'), false);
 });
 
 test('sync rolls back and verifies the original UAT weeks when apply fails', async () => {
@@ -219,7 +281,9 @@ test('sync rejects an active lease and reclaims an expired lease', async () => {
   const active = createMemoryDestination();
   active.state.lease = { runId: 'other-run', expiresAt: '2026-09-11T00:15:00.000Z' };
   const activeService = createService({ destination: active });
-  await assert.rejects(() => activeService.sync({ actor: admin() }), /already running/i);
+  await assert.rejects(() => activeService.sync({ actor: admin() }), error => (
+    error.code === 'operation-in-progress' && /already running/i.test(error.message)
+  ));
   assert.equal(active.order.includes('createRun:reading_source'), false);
 
   const expired = createMemoryDestination();
@@ -244,10 +308,23 @@ test('restore snapshots current UAT weeks then mirrors a retained snapshot witho
 
   const result = await service.restore({ actor: admin(), snapshotId: 'before-sync' });
 
-  assert.deepEqual(result, { ok: true, phase: 'restored', runId: 'restore-run', snapshotId: 'before-sync' });
+  assert.deepEqual(result, {
+    ok: true,
+    phase: 'restored',
+    runId: 'restore-run',
+    snapshotId: 'restore-run',
+    restoredFromSnapshotId: 'before-sync',
+    restoredDigest: retained.digest,
+    restoredWeekCount: 1,
+    completedAt: '2026-09-11T00:00:00.000Z',
+  });
   assert.equal(sourceReads, 0);
   assert.deepEqual(destination.state.weeks, [week('W34-2026', 'RESTORE')]);
   assert.ok(destination.order.indexOf('writeSnapshot') < destination.order.indexOf('applyMirror'));
+  assert.deepEqual(destination.state.snapshots.map(snapshot => snapshot.snapshotId).sort(), ['before-sync', 'restore-run']);
+  const terminalRun = destination.state.runs.at(-1);
+  assert.equal(terminalRun.snapshotId, 'restore-run');
+  assert.equal(terminalRun.restoredFromSnapshotId, 'before-sync');
 });
 
 test('restore rejects a snapshot that is not among the retained complete snapshots', async () => {
@@ -257,7 +334,7 @@ test('restore rejects a snapshot that is not among the retained complete snapsho
 
   await assert.rejects(
     () => createService({ destination }).restore({ actor: admin(), snapshotId: 'incomplete' }),
-    /not retained/i,
+    error => error.code === 'snapshot-not-retained' && /not retained/i.test(error.message),
   );
   assert.equal(destination.order.includes('writeSnapshot'), false);
   assert.equal(destination.order.includes('applyMirror'), false);

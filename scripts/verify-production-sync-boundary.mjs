@@ -104,16 +104,35 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('production-write-capability', 'Production Firestore handles may not be aliased in the read module.', 'productionRead'));
   }
 
-  const hasProductionWriteRole = [...deployment.split(/\r?\n/), ...runtime.split(/\r?\n/)].some(line => {
-    const role = /roles\/datastore\.([a-z-]+)\b/i.exec(line);
-    if (!role || role[1].toLowerCase() === 'viewer') return false;
-    const beforeRole = line.slice(0, role.index);
-    const labels = [...beforeRole.matchAll(/\b(Production|UAT|destination)\b/gi)];
-    return labels.at(-1)?.[1].toLowerCase() !== 'uat'
-      && labels.at(-1)?.[1].toLowerCase() !== 'destination';
-  });
-  if (hasProductionWriteRole) {
+  const roleFindings = [];
+  for (const [source, text] of [['deployment', deployment], ['runtime', runtime]]) {
+    let carriedScope = null;
+    for (const line of text.split(/\r?\n/)) {
+      const markers = [];
+      for (const match of line.matchAll(new RegExp(`${PRODUCTION_PROJECT_ID}|\\bproduction[\\w-]*`, 'gi'))) {
+        markers.push({ index: match.index, scope: 'production' });
+      }
+      for (const match of line.matchAll(new RegExp(`${UAT_PROJECT_ID}|\\buat[\\w-]*|\\bdestination[\\w-]*`, 'gi'))) {
+        markers.push({ index: match.index, scope: 'uat' });
+      }
+      markers.sort((left, right) => left.index - right.index);
+      for (const role of line.matchAll(/roles\/datastore\.([a-z-]+)\b/gi)) {
+        const nearest = [...markers].sort((left, right) => (
+          Math.abs(left.index - role.index) - Math.abs(right.index - role.index)
+        ))[0];
+        roleFindings.push({ source, role: role[1].toLowerCase(), scope: nearest?.scope || carriedScope });
+      }
+      if (markers.length) carriedScope = markers.at(-1).scope;
+    }
+  }
+  if (roleFindings.some(item => item.scope === 'production' && item.role !== 'viewer')) {
     violations.push(violation('production-write-role', 'Production may use roles/datastore.viewer only; write roles are forbidden.', 'deployment'));
+  }
+  if (roleFindings.some(item => item.scope === 'uat' && item.role !== 'user')) {
+    violations.push(violation('uat-datastore-role-invalid', 'UAT sync access must use roles/datastore.user.', 'deployment'));
+  }
+  if (roleFindings.some(item => !item.scope)) {
+    violations.push(violation('datastore-role-unscoped', 'Every datastore role must be associated with an explicit Production or UAT scope.', 'deployment'));
   }
 
   const productionDeploy = deployment.includes(PRODUCTION_PROJECT_ID)

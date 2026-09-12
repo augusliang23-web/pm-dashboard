@@ -56,7 +56,7 @@ test('canonicalization sorts map keys and preserves Firestore values', () => {
   assert.deepEqual(canonical, {
     __firestoreType: 'map',
     fields: {
-      array: [null, 2, { __firestoreType: 'map', fields: { a: false, b: true } }],
+      array: [null, { __firestoreType: 'double', value: 2 }, { __firestoreType: 'map', fields: { a: false, b: true } }],
       bytes: { __firestoreType: 'bytes', base64: 'AAE=' },
       geo: { __firestoreType: 'geoPoint', latitude: 25.033, longitude: 121.565 },
       reference: { __firestoreType: 'documentReference', path: 'users/admin-1' },
@@ -65,6 +65,19 @@ test('canonicalization sorts map keys and preserves Firestore values', () => {
       z: 'last',
     },
   });
+});
+
+test('canonicalization preserves Firestore integer and double identity across signed int64 bounds', () => {
+  assert.deepEqual(core.canonicalizeValue(-9_223_372_036_854_775_808n), {
+    __firestoreType: 'integer', value: '-9223372036854775808',
+  });
+  assert.deepEqual(core.canonicalizeValue(9_223_372_036_854_775_807n), {
+    __firestoreType: 'integer', value: '9223372036854775807',
+  });
+  assert.deepEqual(core.canonicalizeValue(1), { __firestoreType: 'double', value: 1 });
+  assert.notDeepEqual(core.canonicalizeValue(1n), core.canonicalizeValue(1));
+  assert.throws(() => core.canonicalizeValue(-9_223_372_036_854_775_809n), /signed 64-bit/i);
+  assert.throws(() => core.canonicalizeValue(9_223_372_036_854_775_808n), /signed 64-bit/i);
 });
 
 test('canonical digests ignore input and map key ordering', () => {

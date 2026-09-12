@@ -83,6 +83,28 @@ test('a combined Production viewer and UAT user policy is valid', () => {
   }), []);
 });
 
+for (const [name, deployment] of [
+  ['a second same-line Production write role', 'Production roles/datastore.viewer roles/datastore.user'],
+  ['a multiline Production write role', 'Production service account:\n  - roles/datastore.viewer\n  - roles/datastore.user'],
+  ['a Production role variable alias', "const productionRole = 'roles/datastore.user';"],
+  ['a common deployment config with the Production project', JSON.stringify({
+    project: 'project-manager-dashboar-a067f', role: 'roles/datastore.user',
+  })],
+]) {
+  test(`the verifier inspects every datastore role occurrence in ${name}`, () => {
+    const violations = verifyProductionSyncBoundary({ ...safeSources, deployment });
+    assert.ok(violations.some(item => item.code === 'production-write-role'), name);
+  });
+}
+
+test('the verifier rejects an unscoped datastore role instead of guessing its project', () => {
+  const violations = verifyProductionSyncBoundary({
+    ...safeSources,
+    deployment: "const role = 'roles/datastore.user';",
+  });
+  assert.ok(violations.some(item => item.code === 'datastore-role-unscoped'));
+});
+
 test('the actual checkout passes the executable boundary verifier', async () => {
   const result = spawnSync(process.execPath, ['scripts/verify-production-sync-boundary.mjs'], {
     cwd: new URL('..', import.meta.url),
