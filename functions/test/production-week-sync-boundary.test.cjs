@@ -59,6 +59,111 @@ function createBatchDb() {
   return db;
 }
 
+function createSerializerBackedDb({ serializer, runs, snapshotWeeks, currentWeeks }) {
+  const state = {
+    lease: null,
+    runs: new Map(runs.map(({ id, data }) => [id, data])),
+    snapshotWeeks: new Map([...snapshotWeeks].map(([snapshotId, weeks]) => [snapshotId, new Map(weeks)])),
+    currentWeeks: new Map(currentWeeks),
+    rawWrites: [],
+  };
+
+  const runDocument = id => ({
+    id,
+    path: `uatProductionWeekSyncRuns/${id}`,
+    async get() {
+      const data = state.runs.get(id);
+      return { exists: data !== undefined, data: () => data };
+    },
+    async create(data) { state.runs.set(id, data); },
+    async set(data, options = {}) {
+      state.runs.set(id, options.merge ? { ...state.runs.get(id), ...data } : data);
+    },
+    collection(child) {
+      if (child !== 'weeks') throw new Error(`Unexpected snapshot child collection: ${child}`);
+      return {
+        doc: weekId => ({ path: `uatProductionWeekSyncRuns/${id}/weeks/${weekId}`, id: weekId }),
+        get: async () => ({ docs: [...(state.snapshotWeeks.get(id) || new Map())]
+          .map(([weekId, data]) => ({ id: weekId, data: () => data, ref: { path: `uatProductionWeekSyncRuns/${id}/weeks/${weekId}` } })) }),
+      };
+    },
+  });
+  const controlDocument = () => ({
+    path: 'uatProductionWeekSync/control',
+    async get() { return { exists: state.lease !== null, data: () => state.lease || {} }; },
+  });
+  const weeksCollection = () => ({
+    doc: id => ({ path: `weeks/${id}`, id }),
+    get: async () => ({ docs: [...state.currentWeeks]
+      .map(([id, data]) => ({ id, data: () => data, ref: { path: `weeks/${id}` } })) }),
+  });
+  const runsCollection = () => ({
+    doc: runDocument,
+    get: async () => ({ docs: [...state.runs].map(([id, data]) => ({ id, data: () => data })) }),
+    where(field, operator, value) {
+      assert.deepEqual([field, operator, value], ['complete', '==', true]);
+      return { get: async () => ({ docs: [...state.runs]
+        .filter(([, data]) => data.complete === true)
+        .map(([id, data]) => ({ id, data: () => data })) }) };
+    },
+  });
+
+  return {
+    state,
+    collection(name) {
+      if (name === 'weeks') return weeksCollection();
+      if (name === 'uatProductionWeekSync') return { doc: controlDocument };
+      if (name === 'uatProductionWeekSyncRuns') return runsCollection();
+      throw new Error(`Unexpected collection: ${name}`);
+    },
+    async runTransaction(work) {
+      return work({
+        get: ref => ref.get(),
+        set(ref, data) {
+          if (ref.path !== 'uatProductionWeekSync/control') throw new Error(`Unexpected transaction write: ${ref.path}`);
+          state.lease = {
+            ...state.lease,
+            ...data,
+            ...(data.expiresAt ? { expiresAt: '2999-01-01T00:00:00.000Z' } : {}),
+          };
+        },
+      });
+    },
+    batch() {
+      const operations = [];
+      return {
+        set(ref, data, options) { operations.push(() => ref.set(data, options)); },
+        delete() { throw new Error('Snapshot pruning is outside this fixture.'); },
+        async commit() { await Promise.all(operations.map(operation => operation())); },
+      };
+    },
+    async commitRawWrites(writes) {
+      state.rawWrites.push(...writes);
+      for (const write of writes) {
+        if (write.update) {
+          const path = write.update.name.split('/documents/')[1];
+          const decoded = serializer.decodeValue({ mapValue: { fields: write.update.fields } });
+          const snapshotMatch = /^uatProductionWeekSyncRuns\/([^/]+)\/weeks\/([^/]+)$/.exec(path);
+          const weekMatch = /^weeks\/([^/]+)$/.exec(path);
+          if (snapshotMatch) {
+            const [, snapshotId, weekId] = snapshotMatch;
+            if (!state.snapshotWeeks.has(snapshotId)) state.snapshotWeeks.set(snapshotId, new Map());
+            state.snapshotWeeks.get(snapshotId).set(weekId, decoded);
+          } else if (weekMatch) {
+            state.currentWeeks.set(weekMatch[1], decoded);
+          } else {
+            throw new Error(`Unexpected raw update: ${path}`);
+          }
+        } else if (write.delete) {
+          const weekMatch = /^.*\/documents\/weeks\/([^/]+)$/.exec(write.delete);
+          if (!weekMatch) throw new Error(`Unexpected raw delete: ${write.delete}`);
+          state.currentWeeks.delete(weekMatch[1]);
+        }
+      }
+    },
+  };
+}
+
 test('Production adapter reads exactly weeks and exposes only listWeeks', async () => {
   const requested = [];
   const store = sync.createProductionReadStore({
@@ -131,6 +236,69 @@ test('installed Firestore serializer and adapters preserve int64 bounds and inte
     assert.deepEqual(numericFields.doubleOne, { doubleValue: 1 });
     const decodedWrite = serializer.decodeValue({ mapValue: { fields: numericFields } });
     assert.equal(core.digestWeekEntries([{ id: 'W36-2026', data: decodedWrite }]), core.digestWeekEntries(sourceWeeks));
+  }
+});
+
+test('Firestore-decoded operational metadata is normalized at status and restore boundaries without changing week numeric tags', async () => {
+  const serializerDb = new Firestore({ projectId: 'metadata-round-trip-fixture', useBigInt: true });
+  const serializer = serializerDb._serializer;
+  const countFields = [
+    'weekCount', 'sourceWeekCount', 'destinationWeekCount', 'resultWeekCount',
+    'restoredWeekCount', 'createdCount', 'updatedCount', 'deletedCount',
+  ];
+  const retainedWeek = serializer.decodeValue({ mapValue: { fields: {
+    projects: { arrayValue: { values: [] } },
+    exactInteger: { integerValue: '9007199254740993' },
+    doubleOne: { doubleValue: 1 },
+    negativeZero: { doubleValue: -0 },
+  } } });
+  const decodedSnapshot = serializer.decodeValue({ mapValue: { fields: {
+    snapshotId: { stringValue: 'untrusted-payload-id' },
+    complete: { booleanValue: true },
+    digest: { stringValue: core.digestWeekEntries([{ id: 'W36-2026', data: retainedWeek }]) },
+    createdAt: { stringValue: '2026-09-12T00:00:00.000Z' },
+    ...Object.fromEntries(countFields.map(field => [field, { integerValue: '1' }])),
+  } } });
+  const decodedCompletedRun = serializer.decodeValue({ mapValue: { fields: {
+    runId: { stringValue: 'completed-run' },
+    phase: { stringValue: 'succeeded' },
+    completedAt: { stringValue: '2026-09-12T01:00:00.000Z' },
+    ...Object.fromEntries(countFields.map(field => [field, { integerValue: '1' }])),
+  } } });
+  assert.equal(typeof decodedSnapshot.weekCount, 'bigint');
+  assert.equal(typeof decodedCompletedRun.resultWeekCount, 'bigint');
+
+  const db = createSerializerBackedDb({
+    serializer,
+    runs: [{ id: 'before-sync', data: decodedSnapshot }, { id: 'completed-run', data: decodedCompletedRun }],
+    snapshotWeeks: [['before-sync', [['W36-2026', { data: retainedWeek }]]]],
+    currentWeeks: [['W36-2026', retainedWeek]],
+  });
+  const store = sync.createUatSyncStore(db);
+  const status = await store.readStatus();
+  assert.equal(status.latestCompletedRun.resultWeekCount, 1);
+  assert.equal(typeof status.latestCompletedRun.resultWeekCount, 'number');
+
+  const snapshot = await store.readSnapshot({ snapshotId: 'before-sync' });
+  assert.equal(snapshot.snapshotId, 'before-sync');
+  assert.equal(snapshot.weekCount, 1);
+  assert.equal(typeof snapshot.weeks[0].data.exactInteger, 'bigint');
+
+  const service = core.createWeekSyncService({
+    sourceStore: { listWeeks: async () => { throw new Error('Restore must not read Production.'); } },
+    destinationStore: store,
+    clock: () => new Date('2026-09-12T02:00:00.000Z'),
+    idFactory: () => 'restore-run',
+  });
+  assert.equal((await service.restore({ actor: { uid: 'admin', email: 'admin@example.com' }, snapshotId: 'before-sync' })).phase, 'restored');
+
+  const snapshotWrite = db.state.rawWrites.find(write => write.update?.name.endsWith('/uatProductionWeekSyncRuns/restore-run/weeks/W36-2026'));
+  const applyWrite = db.state.rawWrites.find(write => write.update?.name.endsWith('/weeks/W36-2026'));
+  for (const write of [snapshotWrite, applyWrite]) {
+    const fields = write.update.fields.data?.mapValue?.fields || write.update.fields;
+    assert.deepEqual(fields.exactInteger, { integerValue: '9007199254740993' });
+    assert.deepEqual(fields.doubleOne, { doubleValue: 1 });
+    assert.equal(Object.is(fields.negativeZero.doubleValue, -0), true);
   }
 });
 

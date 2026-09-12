@@ -1,6 +1,7 @@
 const { DocumentReference, Firestore, GeoPoint, Timestamp, v1 } = require('firebase-admin/firestore');
 const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const core = require('./production-week-sync-core');
+const metadata = require('./production-week-sync-metadata');
 const productionRead = require('./production-week-sync-production-read');
 
 const SYNC_SERVICE_ACCOUNT =
@@ -217,7 +218,7 @@ function createUatSyncStore(uatDb, options = {}) {
       const controlData = control.exists ? control.data() : {};
       const activeExpiry = Date.parse(controlData.expiresAt || '');
       const running = Boolean(controlData.activeRunId && Number.isFinite(activeExpiry) && activeExpiry > Date.now());
-      const allRuns = runs.docs.map(document => document.data());
+      const allRuns = runs.docs.map(document => metadata.normalizeRunMetadata(document.data()));
       const byNewest = (left, right) => String(right.completedAt || right.createdAt || '').localeCompare(String(left.completedAt || left.createdAt || ''))
         || String(right.runId || right.snapshotId || '').localeCompare(String(left.runId || left.snapshotId || ''));
       const currentRun = running ? allRuns.find(run => run.runId === controlData.activeRunId) : undefined;
@@ -261,10 +262,10 @@ function createUatSyncStore(uatDb, options = {}) {
     },
     async readSnapshot({ snapshotId }) {
       const target = runRef(snapshotId);
-      const [metadata, entries] = await Promise.all([target.get(), target.collection('weeks').get()]);
-      if (!metadata.exists) return null;
+      const [snapshotDocument, entries] = await Promise.all([target.get(), target.collection('weeks').get()]);
+      if (!snapshotDocument.exists) return null;
       return {
-        ...metadata.data(), snapshotId,
+        ...metadata.normalizeSnapshotMetadata(snapshotDocument.data(), target.id),
         weeks: entries.docs.map(document => ({ id: document.id, data: document.data().data })),
       };
     },
@@ -283,16 +284,16 @@ function createUatSyncStore(uatDb, options = {}) {
     async listCompleteSnapshots() {
       const snapshot = await uatDb.collection(RUNS_COLLECTION).where('complete', '==', true).get();
       return snapshot.docs.map(document => {
-        const data = document.data();
-        const metadata = {
+        const data = metadata.normalizeSnapshotMetadata(document.data(), document.id);
+        const snapshotMetadata = {
           snapshotId: document.id,
           complete: data.complete,
           digest: data.digest,
           weekCount: data.weekCount,
           createdAt: data.createdAt,
         };
-        if (data.completedAt !== undefined) metadata.completedAt = data.completedAt;
-        return metadata;
+        if (data.completedAt !== undefined) snapshotMetadata.completedAt = data.completedAt;
+        return snapshotMetadata;
       });
     },
     async deleteSnapshot({ snapshotId, runId }) {
