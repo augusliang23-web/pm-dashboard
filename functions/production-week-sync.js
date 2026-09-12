@@ -250,7 +250,7 @@ function createUatSyncStore(uatDb, options = {}) {
         .sort(byNewest)[0];
       const latestSnapshot = allRuns.filter(run => run.complete === true).sort(byNewest)[0];
       const summary = run => run && Object.fromEntries([
-        'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId', 'sourceReadTime',
+        'runId', 'phase', 'operation', 'result', 'productionProjectId', 'uatProjectId', 'sourceProjectId', 'destinationProjectId', 'sourceReadTime',
         'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount', 'deletedCount', 'snapshotId',
         'snapshotDigest', 'startedAt', 'completedAt', 'errorCode', 'errorMessage', 'cleanupWarning', 'leaseReleaseWarning',
         'sourceDigest', 'resultDigest', 'resultWeekCount', 'restoredFromSnapshotId', 'restoredDigest', 'restoredWeekCount',

@@ -381,6 +381,7 @@ test('status returns only current lease state, latest completed summary, and new
     { runId: 'complete-old', phase: 'succeeded', completedAt: '2026-09-12T03:00:00.000Z', sourceWeekCount: 1 },
     {
       runId: 'complete-new', phase: 'restored', completedAt: '2026-09-12T04:00:00.000Z', snapshotId: 'snapshot-2',
+      productionProjectId: 'project-manager-dashboar-a067f', uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
       restoredFromSnapshotId: 'snapshot-1', restoredDigest: 'b'.repeat(64), restoredWeekCount: 2,
     },
     { snapshotId: 'snapshot-1', complete: true, createdAt: '2026-09-12T02:00:00.000Z', weeks: ['secret'] },
@@ -393,6 +394,7 @@ test('status returns only current lease state, latest completed summary, and new
     latestRun: { runId: 'failed', phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
     latestCompletedRun: {
       runId: 'complete-new', phase: 'restored', completedAt: '2026-09-12T04:00:00.000Z', snapshotId: 'snapshot-2',
+      productionProjectId: 'project-manager-dashboar-a067f', uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
       restoredFromSnapshotId: 'snapshot-1', restoredDigest: 'b'.repeat(64), restoredWeekCount: 2,
     },
     latestSnapshot: { snapshotId: 'snapshot-2', createdAt: '2026-09-12T06:00:00.000Z' },

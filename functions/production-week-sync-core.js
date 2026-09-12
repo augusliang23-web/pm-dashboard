@@ -254,7 +254,16 @@ function runMetadata({ runId, actor, phase, operation, extra = {} }) {
   const environment = operation === 'sync'
     ? { sourceProjectId: PRODUCTION_PROJECT_ID, destinationProjectId: UAT_PROJECT_ID }
     : { sourceProjectId: UAT_PROJECT_ID, destinationProjectId: UAT_PROJECT_ID };
-  return { runId, actor: sanitizeActor(actor), phase, operation, ...extra, ...environment };
+  return {
+    runId,
+    actor: sanitizeActor(actor),
+    phase,
+    operation,
+    ...extra,
+    ...environment,
+    productionProjectId: PRODUCTION_PROJECT_ID,
+    uatProjectId: UAT_PROJECT_ID,
+  };
 }
 
 function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
@@ -305,7 +314,7 @@ function sanitizeStatus(value) {
     'running', 'phase', 'recoveryRequired', 'rollbackFailedRunId', 'rollbackFailedAt',
   ]);
   const runFields = [
-    'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId',
+    'runId', 'phase', 'operation', 'result', 'productionProjectId', 'uatProjectId', 'sourceProjectId', 'destinationProjectId',
     'sourceReadTime', 'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount',
     'deletedCount', 'snapshotId', 'snapshotDigest', 'startedAt', 'completedAt', 'errorCode',
     'errorMessage', 'cleanupWarning', 'leaseReleaseWarning', 'sourceDigest', 'resultDigest',
@@ -317,6 +326,30 @@ function sanitizeStatus(value) {
   }
   if (value?.latestSnapshot) status.latestSnapshot = copyStatusFields(value.latestSnapshot, snapshotFields);
   return status;
+}
+
+function syncTerminalAudit({
+  sourceReadTime = null,
+  sourceDigest = null,
+  resultDigest = null,
+  resultWeekCount = 0,
+  createdCount = 0,
+  updatedCount = 0,
+  deletedCount = 0,
+} = {}) {
+  return {
+    sourceReadTime,
+    sourceDigest,
+    resultDigest,
+    resultWeekCount,
+    createdCount,
+    updatedCount,
+    deletedCount,
+  };
+}
+
+function restoreTerminalAudit({ restoredFromSnapshotId, restoredDigest = null, restoredWeekCount = 0 }) {
+  return { restoredFromSnapshotId, restoredDigest, restoredWeekCount };
 }
 
 async function pruneSnapshots(destinationStore, runId) {
@@ -333,11 +366,11 @@ async function pruneSnapshots(destinationStore, runId) {
   }
 }
 
-async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned, clock, error }) {
+async function finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned, clock, error, terminalAudit }) {
   try {
     await destinationStore.updateRun(runMetadata({
       runId, actor, operation, phase,
-      extra: { result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure(error) },
+      extra: { ...terminalAudit, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure(error) },
     }));
   } catch (_recordError) {
     // Preserve the original operation error even when an audit write also fails.
@@ -402,7 +435,7 @@ async function releaseLeaseBestEffort(destinationStore, runId) {
   }
 }
 
-async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock }) {
+async function recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock, terminalAudit }) {
   try {
     await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rolling_back', extra: { snapshotId, ...sanitizedFailure() },
@@ -410,9 +443,12 @@ async function recoverOrFail({ destinationStore, runId, actor, operation, snapsh
     await destinationStore.applyMirror({ weeks: snapshotWeeks, runId, batchSize: MIRROR_BATCH_SIZE, rollback: true });
     const restoredWeeks = await destinationStore.listWeeks();
     assertMatchingWeeks(snapshotWeeks, restoredWeeks, 'Rollback verification failed.');
+    const completedAudit = operation === 'sync'
+      ? { ...terminalAudit, resultDigest: digestWeekEntries(restoredWeeks), resultWeekCount: restoredWeeks.length }
+      : terminalAudit;
     await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rolled_back',
-      extra: { snapshotId, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure() },
+      extra: { snapshotId, ...completedAudit, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure() },
     }));
     await releaseLeaseBestEffort(destinationStore, runId);
     return { ok: false, phase: 'rolled_back', runId, snapshotId };
@@ -421,7 +457,7 @@ async function recoverOrFail({ destinationStore, runId, actor, operation, snapsh
     await recordRecoveryBestEffort(destinationStore, { runId, failedAt });
     await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rollback_failed',
-      extra: { snapshotId, result: 'failed', completedAt: failedAt, ...sanitizedFailure() },
+      extra: { snapshotId, ...terminalAudit, result: 'failed', completedAt: failedAt, ...sanitizedFailure() },
     }));
     return { ok: false, phase: 'rollback_failed', runId, snapshotId };
   }
@@ -449,6 +485,7 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
   let applyStarted = false;
   let phase = 'reading_source';
   let verifiedResult;
+  let terminalAudit = syncTerminalAudit();
   try {
     await destinationStore.createRun(runMetadata({
       runId, actor, operation, phase, extra: { startedAt: nowIso(clock) },
@@ -477,6 +514,13 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
     const destinationWeeks = await destinationStore.listWeeks();
     const plan = planWeekMirror({ sourceWeeks, destinationWeeks });
     snapshotWeeks = plan.destinationWeeks;
+    terminalAudit = syncTerminalAudit({
+      sourceReadTime,
+      sourceDigest: plan.sourceDigest,
+      createdCount: plan.createdIds.length,
+      updatedCount: plan.updatedIds.length,
+      deletedCount: plan.deletedIds.length,
+    });
 
     phase = 'snapshotting';
     await destinationStore.updateRun(runMetadata({
@@ -505,8 +549,7 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
       createdCount: plan.createdIds.length, updatedCount: plan.updatedIds.length, deletedCount: plan.deletedIds.length,
       sourceProjectId: PRODUCTION_PROJECT_ID,
       destinationProjectId: UAT_PROJECT_ID,
-      sourceReadTime,
-      sourceDigest: plan.sourceDigest,
+      ...terminalAudit,
       resultDigest: digestWeekEntries(resultWeeks),
       resultWeekCount: resultWeeks.length,
       completedAt: nowIso(clock),
@@ -522,9 +565,9 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
       });
     }
     if (applyStarted) {
-      return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock });
+      return recoverOrFail({ destinationStore, runId, actor, operation, snapshotId, snapshotWeeks, clock, terminalAudit });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error, terminalAudit });
     throw error;
   }
 }
@@ -541,6 +584,7 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
   let applyStarted = false;
   let phase = 'restoring';
   let verifiedResult;
+  const terminalAudit = restoreTerminalAudit({ restoredFromSnapshotId: snapshotId });
   try {
     await destinationStore.createRun(runMetadata({
       runId, actor, operation, phase,
@@ -596,10 +640,10 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
     }
     if (applyStarted) {
       return recoverOrFail({
-        destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks, clock,
+        destinationStore, runId, actor, operation, snapshotId: runId, snapshotWeeks: currentSnapshotWeeks, clock, terminalAudit,
       });
     }
-    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error });
+    await finishFailedBeforeApply({ destinationStore, runId, actor, operation, phase, leaseOwned: true, clock, error, terminalAudit });
     throw error;
   }
 }

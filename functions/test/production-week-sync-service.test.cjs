@@ -139,6 +139,8 @@ test('sync records and returns fixed environment IDs, preserved source read time
   assert.equal(result.resultDigest, core.digestWeekEntries(sourceWeeks));
   assert.equal(result.resultWeekCount, 1);
   assertRunContains(destination.state.runs.at(-1), {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
     sourceProjectId: 'project-manager-dashboar-a067f',
     destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
     sourceReadTime: '2026-09-12T01:02:03.000Z',
@@ -168,6 +170,18 @@ test('sync rejects a missing source read time before reading or mutating UAT wee
   assert.equal(destination.order.includes('listWeeks'), false);
   assert.equal(destination.order.includes('writeSnapshot'), false);
   assert.equal(destination.order.includes('applyMirror'), false);
+  assertRunContains(destination.state.runs.at(-1), {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    sourceReadTime: null,
+    sourceDigest: null,
+    resultDigest: null,
+    resultWeekCount: 0,
+    createdCount: 0,
+    updatedCount: 0,
+    deletedCount: 0,
+    completedAt: '2026-09-12T02:03:04.000Z',
+  });
 });
 
 test('sync snapshots before applying and exactly mirrors Production weeks', async () => {
@@ -251,6 +265,18 @@ test('sync rolls back and verifies the original UAT weeks when apply fails', asy
   assert.deepEqual(destination.order.filter(entry => entry === 'applyMirror'), ['applyMirror', 'applyMirror']);
   assert.ok(destination.order.indexOf('updateRun:rolling_back') < destination.order.lastIndexOf('applyMirror'));
   assert.equal(destination.state.lease, null);
+  assertRunContains(destination.state.runs.at(-1), {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    sourceReadTime: '2026-09-11T00:00:00.000Z',
+    sourceDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultDigest: core.digestWeekEntries(original),
+    resultWeekCount: 1,
+    createdCount: 1,
+    updatedCount: 0,
+    deletedCount: 1,
+    completedAt: '2026-09-11T00:00:00.000Z',
+  });
 });
 
 test('sync reports rollback_failed and retains its lease when rollback cannot be applied', async () => {
@@ -263,6 +289,18 @@ test('sync reports rollback_failed and retains its lease when rollback cannot be
   assert.equal(destination.state.lease.runId, 'run-1');
   assert.equal(destination.order.includes('setRecoveryRequired'), true);
   assert.equal(destination.order.includes('releaseLease'), false);
+  assertRunContains(destination.state.runs.at(-1), {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    sourceReadTime: '2026-09-11T00:00:00.000Z',
+    sourceDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultDigest: null,
+    resultWeekCount: 0,
+    createdCount: 1,
+    updatedCount: 0,
+    deletedCount: 1,
+    completedAt: '2026-09-11T00:00:00.000Z',
+  });
 });
 
 test('recovery-required survives an expired lease, failed restore, and successful sync until a verified restore clears it', async () => {
@@ -407,6 +445,8 @@ test('restore snapshots current UAT weeks then mirrors a retained snapshot witho
   const terminalRun = destination.state.runs.at(-1);
   assert.equal(terminalRun.snapshotId, 'restore-run');
   assert.equal(terminalRun.restoredFromSnapshotId, 'before-sync');
+  assert.equal(terminalRun.productionProjectId, 'project-manager-dashboar-a067f');
+  assert.equal(terminalRun.uatProjectId, 'pm-dashboard-uat-20260820-a7f3');
 });
 
 test('restore rejects a snapshot that is not among the retained complete snapshots', async () => {
@@ -422,6 +462,14 @@ test('restore rejects a snapshot that is not among the retained complete snapsho
   assert.equal(destination.order.includes('applyMirror'), false);
   assert.equal(destination.state.runs.at(-1).phase, 'restoring');
   assert.equal(destination.state.runs.some(run => run.phase === 'reading_source'), false);
+  assertRunContains(destination.state.runs.at(-1), {
+    productionProjectId: 'project-manager-dashboar-a067f',
+    uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    restoredFromSnapshotId: 'incomplete',
+    restoredDigest: null,
+    restoredWeekCount: 0,
+    completedAt: '2026-09-11T00:00:00.000Z',
+  });
 });
 
 test('status removes business payloads and credentials from destination metadata', async () => {
