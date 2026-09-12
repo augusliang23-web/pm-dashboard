@@ -123,6 +123,18 @@ for (const [name, code, mutation] of [
     ...sources,
     deployment: `${sources.deployment}\nfirebase use production\nfirebase deploy`,
   })],
+  ['safe literal source masked by environment-derived collection', 'source-collection-not-allowlisted', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nproductionDb.collection(process.env.PRODUCTION_COLLECTION).get();`,
+  })],
+  ['arbitrary Production handle alias with dynamic collection', 'source-collection-not-allowlisted', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst replica = productionDb; replica.collection(process.env.PRODUCTION_COLLECTION).get();`,
+  })],
+  ['arbitrary Production handle alias with write', 'production-write-capability', sources => ({
+    ...sources,
+    runtime: `${sources.runtime}\nconst replica = productionDb; replica.collection('weeks').doc('W33').set({});`,
+  })],
 ]) {
   test(`the verifier rejects ${name}`, () => {
     const violations = verifyProductionSyncBoundary(mutation(safeSources));
@@ -137,10 +149,24 @@ for (const [name, source, text] of [
   ['variable alias role', 'runtime', "const datastoreRole = 'roles/datastore.viewer';"],
   ['object config role', 'deployment', "const config = { role: 'roles/datastore.user' };"],
   ['grant call role', 'deployment', "grant('Production', 'roles/datastore.viewer');"],
+  ['dedicated Production read module role', 'productionRead', "const datastoreRole = 'roles/datastore.viewer';"],
 ]) {
   test(`the verifier rejects every datastore role outside policy: ${name}`, () => {
     const violations = verifyProductionSyncBoundary({ ...safeSources, [source]: text });
     assert.ok(violations.some(item => item.code === 'datastore-role-outside-policy'), name);
+  });
+}
+
+for (const [name, deployment] of [
+  ['equals-form project flag', 'firebase deploy --project=project-manager-dashboar-a067f --only functions'],
+  ['shell continuation project flag', 'firebase deploy \\\n+  --project project-manager-dashboar-a067f --only functions'],
+  ['PowerShell continuation project flag', 'firebase deploy `\n  --project project-manager-dashboar-a067f --only functions'],
+  ['JavaScript Production project alias', "const targetProject = 'project-manager-dashboar-a067f';\nfirebase deploy --project $targetProject --only functions"],
+  ['PowerShell Production project alias', "$targetProject = 'project-manager-dashboar-a067f'\nfirebase deploy --project $targetProject --only functions"],
+]) {
+  test(`the verifier rejects Production Firebase deploy target using ${name}`, () => {
+    const violations = verifyProductionSyncBoundary({ ...safeSources, deployment });
+    assert.ok(violations.some(item => item.code === 'production-deploy-target'), name);
   });
 }
 

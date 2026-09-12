@@ -33,6 +33,49 @@ function collectText(sources, keys) {
     .filter(value => value !== null).join('\n');
 }
 
+function productionHandleNames(text) {
+  const names = new Set(['productionDb', 'sourceDb', 'sourceStore']);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const match of text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\b/g)) {
+      if (names.has(match[2]) && !names.has(match[1])) {
+        names.add(match[1]);
+        changed = true;
+      }
+    }
+  }
+  return [...names];
+}
+
+function productionHandlePattern(names) {
+  return names.map(name => name.replace(/[$]/g, '\\$&')).join('|');
+}
+
+function isLiteralWeeksCollection(argument) {
+  return /^\s*(['"`])weeks\1\s*$/.test(argument);
+}
+
+function hasProductionFirebaseDeployTarget(text) {
+  const normalized = text.replace(/[\\`]\r?\n/g, ' ');
+  const productionAliases = new Set();
+  for (const match of normalized.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*['"]project-manager-dashboar-a067f['"]/g)) {
+    productionAliases.add(match[1]);
+  }
+  for (const match of normalized.matchAll(/\$([A-Za-z_][\w]*)\s*=\s*['"]project-manager-dashboar-a067f['"]/g)) {
+    productionAliases.add(match[1]);
+  }
+
+  for (const line of normalized.split(/\r?\n/)) {
+    if (!/\bfirebase\b.*\bdeploy\b/i.test(line)) continue;
+    const project = /--project(?:\s*=\s*|\s+)([^\s]+)/i.exec(line)?.[1]
+      ?.replace(/^['"]|['"]$/g, '') || '';
+    const projectAlias = project.replace(/^\$\{?([^}]+)\}?$/, '$1');
+    if (project === PRODUCTION_PROJECT_ID || productionAliases.has(projectAlias)) return true;
+  }
+  return /firebase\s+use\s+production\b/i.test(normalized) && /firebase\s+deploy\b/i.test(normalized);
+}
+
 function policyError(code, message) {
   const error = new Error(message);
   error.violations = [violation(code, message, 'policy')];
@@ -139,13 +182,15 @@ export function verifyProductionSyncBoundary(sources) {
   const productionRead = sourceText(sources, 'productionRead', ['productionReadSource']);
   const deployment = sourceText(sources, 'deployment', ['deploymentSource', 'deploymentConfig']);
   const executableText = `${runtime}\n${deployment}`;
+  const productionHandles = productionHandleNames(executableText);
+  const productionHandle = productionHandlePattern(productionHandles);
 
   if (!runtime.includes(policy.productionProjectId) || !runtime.includes(policy.uatProjectId)) {
     violations.push(violation('fixed-project-direction-missing', 'Runtime must bind the fixed Production and UAT project IDs.', 'runtime'));
   }
 
-  const sourceCollectionCalls = [...executableText.matchAll(/(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g)];
-  if (sourceCollectionCalls.some(([, , collection]) => collection !== 'weeks')) {
+  const sourceCollectionCalls = [...executableText.matchAll(new RegExp(`\\b(${productionHandle})\\s*\\.collection\\s*\\(([^)]*)\\)`, 'g'))];
+  if (sourceCollectionCalls.some(([, , argument]) => !isLiteralWeeksCollection(argument))) {
     violations.push(violation('source-collection-not-allowlisted', 'The Production read boundary may access only the literal weeks collection.', 'runtime'));
   }
   const syncCollection = executableText.match(/\bSYNC_COLLECTION\s*=\s*['"]([^'"]+)['"]/i)?.[1];
@@ -155,7 +200,7 @@ export function verifyProductionSyncBoundary(sources) {
   if (!sourceCollectionCalls.length && syncCollection !== 'weeks') {
     violations.push(violation('source-collection-not-allowlisted', 'The Production read boundary must identify the fixed weeks collection.', 'runtime'));
   }
-  if (/\b(?:productionDb|sourceDb|sourceStore)\s*\.collection\s*\(\s*(?:request|data|payload)\b/.test(executableText)) {
+  if (new RegExp(`\\b(?:${productionHandle})\\s*\\.collection\\s*\\(\\s*(?:request|data|payload)\\b`).test(executableText)) {
     violations.push(violation('caller-selected-source-collection', 'The caller cannot select the Production collection.', 'runtime'));
   }
 
@@ -168,7 +213,7 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('caller-selected-project-id', 'The caller cannot select the source or destination project ID.', 'runtime'));
   }
 
-  if (/\b(?:productionDb|sourceDb|sourceStore)\b[^;]*(?:\.(?:set|update|delete|create|batch|bulkWriter|runTransaction))\s*\(/i.test(executableText)) {
+  if (new RegExp(`\\b(?:${productionHandle})\\b[^;\\n]*(?:\\.(?:set|update|delete|create|batch|bulkWriter|runTransaction))\\s*\\(`, 'i').test(executableText)) {
     violations.push(violation('production-write-capability', 'The Production boundary must expose reads only; no write operation may target its database.', 'runtime'));
   }
 
@@ -188,7 +233,7 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('production-write-capability', 'Production Firestore handles may not be aliased in the read module.', 'productionRead'));
   }
 
-  if (/roles\s*\/\s*datastore/i.test(executableText)) {
+  if (/roles\s*\/\s*datastore/i.test(`${executableText}\n${productionRead}`)) {
     violations.push(violation(
       'datastore-role-outside-policy',
       'Datastore roles must be declared only in the structured sync boundary policy.',
@@ -196,9 +241,7 @@ export function verifyProductionSyncBoundary(sources) {
     ));
   }
 
-  const productionDeploy = new RegExp(`\\bfirebase\\s+deploy\\b[^\\r\\n]*\\s--project\\s+['"]?${PRODUCTION_PROJECT_ID}(?=\\s|$)`, 'i').test(deployment)
-    || new RegExp(`\\bfirebase\\s+--project\\s+['"]?${PRODUCTION_PROJECT_ID}(?=\\s|$)[^\\r\\n]*\\bdeploy\\b`, 'i').test(deployment)
-    || (/firebase\s+use\s+production\b/i.test(deployment) && /firebase\s+deploy\b/i.test(deployment));
+  const productionDeploy = hasProductionFirebaseDeployTarget(deployment);
   if (productionDeploy) {
     violations.push(violation('production-deploy-target', 'Deployment commands must never target the Production Firebase project.', 'deployment'));
   }
