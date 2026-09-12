@@ -2906,7 +2906,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs";
+import { applyProductionSyncButtonState, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2947,7 +2947,7 @@ const uatProductionSyncController = createUatProductionSyncController({
       if (!panel || !status || !lastRun || !result || !syncButton || !restoreButton) return;
       panel.style.display = state.isAdmin && !isAdminExecutivePreview ? '' : 'none';
       status.textContent = state.statusText || '';
-      const completed = state.status?.latestCompletedRun || state.status?.latestRun;
+      const completed = getLatestSuccessfulOperation(state.status);
       if (completed) {
         const counts = ['createdCount', 'updatedCount', 'deletedCount'].some(key => completed[key] !== undefined)
           ? ` · ${Number(completed.createdCount || 0)} created, ${Number(completed.updatedCount || 0)} updated, ${Number(completed.deletedCount || 0)} deleted`

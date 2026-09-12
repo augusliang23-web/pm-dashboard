@@ -6,6 +6,7 @@ import {
   createUatProductionSyncController,
   formatProductionSyncResult,
   formatProductionSyncStatus,
+  getLatestSuccessfulOperation,
   applyProductionSyncButtonState,
   PRODUCTION_SYNC_CONFIRMATION,
   ROLLED_BACK_MESSAGE,
@@ -62,6 +63,19 @@ test('Admin eligibility and server result labels are understandable', () => {
   assert.equal(formatProductionSyncStatus({ running: true, phase: 'applying' }), 'Sync in progress: applying.');
   assert.equal(formatProductionSyncStatus({ running: false, latestRun: { phase: 'succeeded' } }), 'Last operation: succeeded.');
   assert.equal(formatProductionSyncStatus({ running: false, latestCompletedRun: { phase: 'restored' } }), 'Last operation: restored.');
+  assert.equal(formatProductionSyncStatus({
+    recoveryRequired: true,
+    rollbackFailedRunId: 'failed-run',
+    latestRun: { phase: 'restoring', result: 'failed' },
+  }), ROLLBACK_FAILED_MESSAGE);
+  assert.equal(getLatestSuccessfulOperation({
+    latestRun: { phase: 'succeeded' },
+    latestCompletedRun: { phase: 'restoring' },
+  }), null);
+  assert.deepEqual(getLatestSuccessfulOperation({
+    latestRun: { phase: 'rollback_failed' },
+    latestCompletedRun: { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' },
+  }), { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' });
 });
 
 test('opening Week Management refreshes status and disables both actions while the request runs', async () => {

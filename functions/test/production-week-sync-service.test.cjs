@@ -10,6 +10,7 @@ function createMemoryDestination({ weeks = [], snapshots = [], status, failApply
   const order = [];
   const state = {
     weeks: clone(weeks), snapshots: clone(snapshots), runs: [], lease: null, applyCount: 0,
+    recovery: { recoveryRequired: false, rollbackFailedRunId: null, rollbackFailedAt: null },
   };
   const now = () => new Date('2026-09-11T00:00:00.000Z');
   const store = {
@@ -40,7 +41,29 @@ function createMemoryDestination({ weeks = [], snapshots = [], status, failApply
     },
     async readStatus() {
       order.push('readStatus');
-      return status || { running: false, latestRun: { phase: 'succeeded', sourceWeekCount: 2 } };
+      return status || {
+        running: false,
+        ...clone(state.recovery),
+        latestRun: { phase: 'succeeded', sourceWeekCount: 2 },
+      };
+    },
+    async setRecoveryRequired({ runId, failedAt }) {
+      order.push('setRecoveryRequired');
+      state.recovery = {
+        recoveryRequired: true,
+        rollbackFailedRunId: runId,
+        rollbackFailedAt: failedAt,
+      };
+    },
+    async clearRecoveryRequired({ runId }) {
+      order.push('clearRecoveryRequired');
+      if (state.recovery.recoveryRequired) {
+        state.recovery = {
+          recoveryRequired: false,
+          rollbackFailedRunId: null,
+          rollbackFailedAt: null,
+        };
+      }
     },
     async listWeeks() {
       order.push('listWeeks');
@@ -238,6 +261,63 @@ test('sync reports rollback_failed and retains its lease when rollback cannot be
 
   assert.deepEqual(result, { ok: false, phase: 'rollback_failed', runId: 'run-1', snapshotId: 'run-1' });
   assert.equal(destination.state.lease.runId, 'run-1');
+  assert.equal(destination.order.includes('setRecoveryRequired'), true);
+  assert.equal(destination.order.includes('releaseLease'), false);
+});
+
+test('recovery-required survives an expired lease, failed restore, and successful sync until a verified restore clears it', async () => {
+  const original = [week('W35-2026', 'OLD')];
+  const destination = createMemoryDestination({ weeks: original, failApply: 2 });
+  const originalUpdate = destination.updateRun;
+  destination.updateRun = async metadata => {
+    if (metadata.phase === 'rollback_failed') throw new Error('rollback audit unavailable');
+    return originalUpdate(metadata);
+  };
+  const service = createService({
+    destination,
+    ids: ['failed-sync', 'failed-restore', 'later-sync', 'verified-restore'],
+  });
+
+  assert.deepEqual(await service.sync({ actor: admin() }), {
+    ok: false, phase: 'rollback_failed', runId: 'failed-sync', snapshotId: 'failed-sync',
+  });
+  assert.deepEqual(destination.state.recovery, {
+    recoveryRequired: true,
+    rollbackFailedRunId: 'failed-sync',
+    rollbackFailedAt: '2026-09-11T00:00:00.000Z',
+  });
+  assert.equal(destination.state.lease.runId, 'failed-sync');
+
+  destination.state.lease.expiresAt = '2000-01-01T00:00:00.000Z';
+  const originalSnapshots = destination.listCompleteSnapshots;
+  destination.listCompleteSnapshots = async () => { throw new Error('retained snapshot lookup failed'); };
+  await assert.rejects(() => service.restore({ actor: admin(), snapshotId: 'failed-sync' }));
+  destination.listCompleteSnapshots = originalSnapshots;
+  assert.equal(destination.state.recovery.recoveryRequired, true);
+
+  assert.equal((await service.sync({ actor: admin() })).phase, 'succeeded');
+  assert.equal(destination.state.recovery.recoveryRequired, true);
+
+  assert.equal((await service.restore({ actor: admin(), snapshotId: 'failed-sync' })).phase, 'restored');
+  assert.deepEqual(destination.state.recovery, {
+    recoveryRequired: false,
+    rollbackFailedRunId: null,
+    rollbackFailedAt: null,
+  });
+  assert.equal(destination.order.includes('clearRecoveryRequired'), true);
+});
+
+test('rollback failure remains truthful and retains its lease when recording recovery-required also fails', async () => {
+  const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')], failApply: 2 });
+  destination.setRecoveryRequired = async () => {
+    destination.order.push('setRecoveryRequired');
+    throw new Error('recovery control write unavailable');
+  };
+
+  const result = await createService({ destination }).sync({ actor: admin() });
+
+  assert.deepEqual(result, { ok: false, phase: 'rollback_failed', runId: 'run-1', snapshotId: 'run-1' });
+  assert.equal(destination.state.lease.runId, 'run-1');
   assert.equal(destination.order.includes('releaseLease'), false);
 });
 
@@ -316,6 +396,8 @@ test('restore snapshots current UAT weeks then mirrors a retained snapshot witho
     restoredFromSnapshotId: 'before-sync',
     restoredDigest: retained.digest,
     restoredWeekCount: 1,
+    sourceProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
     completedAt: '2026-09-11T00:00:00.000Z',
   });
   assert.equal(sourceReads, 0);

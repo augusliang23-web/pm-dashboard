@@ -207,6 +207,28 @@ function createUatSyncStore(uatDb, options = {}) {
         transaction.set(controlRef(), { activeRunId: null, expiresAt: null }, { merge: true });
       });
     },
+    async setRecoveryRequired({ runId, failedAt }) {
+      await uatDb.runTransaction(async transaction => {
+        await transaction.get(controlRef());
+        transaction.set(controlRef(), {
+          recoveryRequired: true,
+          rollbackFailedRunId: runId,
+          rollbackFailedAt: failedAt,
+        }, { merge: true });
+      });
+    },
+    async clearRecoveryRequired() {
+      return uatDb.runTransaction(async transaction => {
+        const current = await transaction.get(controlRef());
+        if (!current.exists || current.data().recoveryRequired !== true) return false;
+        transaction.set(controlRef(), {
+          recoveryRequired: false,
+          rollbackFailedRunId: null,
+          rollbackFailedAt: null,
+        }, { merge: true });
+        return true;
+      });
+    },
     async createRun(metadata) {
       await runRef(metadata.runId).create(metadata);
     },
@@ -236,6 +258,11 @@ function createUatSyncStore(uatDb, options = {}) {
       return {
         running,
         ...(currentRun?.phase ? { phase: currentRun.phase } : {}),
+        recoveryRequired: controlData.recoveryRequired === true,
+        ...(controlData.recoveryRequired === true && typeof controlData.rollbackFailedRunId === 'string'
+          ? { rollbackFailedRunId: controlData.rollbackFailedRunId } : {}),
+        ...(controlData.recoveryRequired === true && typeof controlData.rollbackFailedAt === 'string'
+          ? { rollbackFailedAt: controlData.rollbackFailedAt } : {}),
         ...(latestRun ? { latestRun: summary(latestRun) } : {}),
         ...(completed ? { latestCompletedRun: summary(completed) } : {}),
         ...(latestSnapshot ? { latestSnapshot: Object.fromEntries(['snapshotId', 'createdAt', 'completedAt']

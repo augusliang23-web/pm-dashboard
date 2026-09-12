@@ -25,6 +25,12 @@ function createBatchDb() {
         doc: id => ({
           path: `${name}/${id}`,
           id,
+          async set(data, options = {}) {
+            const runs = db.runs || [];
+            const prior = runs.find(run => run.runId === id || run.snapshotId === id);
+            const next = options.merge ? { ...prior, ...data } : data;
+            db.runs = [...runs.filter(run => run !== prior), next];
+          },
           collection: child => ({ doc: key => ({ path: `${name}/${id}/${child}/${key}`, id: key }) }),
           get: async () => name === 'uatProductionWeekSync'
             ? { exists: Boolean(db.lease), data: () => db.lease }
@@ -383,6 +389,7 @@ test('status returns only current lease state, latest completed summary, and new
   assert.deepEqual(await sync.createUatSyncStore(db).readStatus(), {
     running: true,
     phase: 'applying',
+    recoveryRequired: false,
     latestRun: { runId: 'failed', phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
     latestCompletedRun: {
       runId: 'complete-new', phase: 'restored', completedAt: '2026-09-12T04:00:00.000Z', snapshotId: 'snapshot-2',
@@ -403,6 +410,7 @@ test('rollback_failed remains the latest terminal run before and after lease exp
   assert.deepEqual(await sync.createUatSyncStore(db).readStatus(), {
     running: true,
     phase: 'rollback_failed',
+    recoveryRequired: false,
     latestRun: {
       runId: 'failed-run', phase: 'rollback_failed', result: 'failed', completedAt: '2026-09-12T05:00:00.000Z',
     },
@@ -414,12 +422,46 @@ test('rollback_failed remains the latest terminal run before and after lease exp
   db.lease.expiresAt = '2000-01-01T00:00:00.000Z';
   assert.deepEqual(await sync.createUatSyncStore(db).readStatus(), {
     running: false,
+    recoveryRequired: false,
     latestRun: {
       runId: 'failed-run', phase: 'rollback_failed', result: 'failed', completedAt: '2026-09-12T05:00:00.000Z',
     },
     latestCompletedRun: {
       runId: 'older-success', phase: 'succeeded', result: 'succeeded', completedAt: '2026-09-12T03:00:00.000Z',
     },
+  });
+});
+
+test('durable recovery status survives lease replacement and newer failed runs until explicitly cleared', async () => {
+  const db = createBatchDb();
+  db.lease = {
+    activeRunId: 'failed-run',
+    expiresAt: '2000-01-01T00:00:00.000Z',
+    recoveryRequired: true,
+    rollbackFailedRunId: 'failed-run',
+    rollbackFailedAt: '2026-09-12T05:00:00.000Z',
+  };
+  const store = sync.createUatSyncStore(db);
+
+  assert.deepEqual(await store.acquireLease({ runId: 'new-run', actor: {}, expiresAt: '2999-01-01T00:00:00.000Z' }), { acquired: true });
+  await store.renewLease({ runId: 'new-run', expiresAt: '2999-01-01T00:15:00.000Z' });
+  await store.updateRun({ runId: 'new-run', phase: 'restoring', result: 'failed', completedAt: '2026-09-12T06:10:00.000Z' });
+
+  assert.deepEqual(await store.readStatus(), {
+    running: true,
+    phase: 'restoring',
+    recoveryRequired: true,
+    rollbackFailedRunId: 'failed-run',
+    rollbackFailedAt: '2026-09-12T05:00:00.000Z',
+    latestRun: { runId: 'new-run', phase: 'restoring', result: 'failed', completedAt: '2026-09-12T06:10:00.000Z' },
+  });
+
+  await store.clearRecoveryRequired({ runId: 'verified-restore' });
+  assert.deepEqual(await store.readStatus(), {
+    running: true,
+    phase: 'restoring',
+    recoveryRequired: false,
+    latestRun: { runId: 'new-run', phase: 'restoring', result: 'failed', completedAt: '2026-09-12T06:10:00.000Z' },
   });
 });
 

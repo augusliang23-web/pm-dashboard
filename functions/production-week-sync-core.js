@@ -251,7 +251,10 @@ function sanitizeActor(actor) {
 }
 
 function runMetadata({ runId, actor, phase, operation, extra = {} }) {
-  return { runId, actor: sanitizeActor(actor), phase, operation, ...extra };
+  const environment = operation === 'sync'
+    ? { sourceProjectId: PRODUCTION_PROJECT_ID, destinationProjectId: UAT_PROJECT_ID }
+    : { sourceProjectId: UAT_PROJECT_ID, destinationProjectId: UAT_PROJECT_ID };
+  return { runId, actor: sanitizeActor(actor), phase, operation, ...extra, ...environment };
 }
 
 function assertMatchingWeeks(expectedWeeks, actualWeeks, message) {
@@ -298,7 +301,9 @@ function copyStatusFields(value, fields) {
 }
 
 function sanitizeStatus(value) {
-  const status = copyStatusFields(value, ['running', 'phase']);
+  const status = copyStatusFields(value, [
+    'running', 'phase', 'recoveryRequired', 'rollbackFailedRunId', 'rollbackFailedAt',
+  ]);
   const runFields = [
     'runId', 'phase', 'operation', 'result', 'sourceProjectId', 'destinationProjectId',
     'sourceReadTime', 'sourceWeekCount', 'destinationWeekCount', 'createdCount', 'updatedCount',
@@ -381,6 +386,14 @@ async function recordRunBestEffort(destinationStore, metadata) {
   }
 }
 
+async function recordRecoveryBestEffort(destinationStore, { runId, failedAt }) {
+  try {
+    await destinationStore.setRecoveryRequired({ runId, failedAt });
+  } catch (_recordError) {
+    // A failed durable-record write must never turn an unsafe rollback into success.
+  }
+}
+
 async function releaseLeaseBestEffort(destinationStore, runId) {
   try {
     await destinationStore.releaseLease({ runId });
@@ -404,9 +417,11 @@ async function recoverOrFail({ destinationStore, runId, actor, operation, snapsh
     await releaseLeaseBestEffort(destinationStore, runId);
     return { ok: false, phase: 'rolled_back', runId, snapshotId };
   } catch (_rollbackError) {
+    const failedAt = nowIso(clock);
+    await recordRecoveryBestEffort(destinationStore, { runId, failedAt });
     await recordRunBestEffort(destinationStore, runMetadata({
       runId, actor, operation, phase: 'rollback_failed',
-      extra: { snapshotId, result: 'failed', completedAt: nowIso(clock), ...sanitizedFailure() },
+      extra: { snapshotId, result: 'failed', completedAt: failedAt, ...sanitizedFailure() },
     }));
     return { ok: false, phase: 'rollback_failed', runId, snapshotId };
   }
@@ -560,9 +575,16 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
       ok: true, phase: 'restored', runId, snapshotId: runId, restoredFromSnapshotId: snapshotId,
       restoredDigest: digestWeekEntries(restoredWeeks),
       restoredWeekCount: restoredWeeks.length,
+      sourceProjectId: UAT_PROJECT_ID,
+      destinationProjectId: UAT_PROJECT_ID,
       completedAt: nowIso(clock),
     };
     phase = 'restored';
+    try {
+      await destinationStore.clearRecoveryRequired({ runId });
+    } catch (_clearError) {
+      // The verified restore is still true, but the durable warning remains until it can be cleared.
+    }
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
     return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
   } catch (error) {
