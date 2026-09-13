@@ -31,6 +31,7 @@ const safeSources = {
     const options = { serviceAccount };
   `,
   deployment: 'firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only functions',
+  firebaseRc: JSON.stringify({ projects: { default: 'pm-dashboard-uat-20260820-a7f3' } }),
   imports: `import { createWeekSyncService } from './production-week-sync-core.js';`,
   productionRead: `
     const PRODUCTION_PROJECT_ID = 'project-manager-dashboar-a067f';
@@ -185,22 +186,39 @@ for (const [name, source, text] of [
 ]) {
   test(`the verifier rejects every datastore role outside policy: ${name}`, () => {
     const violations = verifyProductionSyncBoundary({ ...safeSources, [source]: text });
-    assert.ok(violations.some(item => item.code === 'datastore-role-outside-policy'), name);
+    assert.ok(violations.some(item => item.code === 'datastore-role-outside-policy' && item.source === source), name);
   });
 }
 
 for (const [name, deployment] of [
   ['equals-form project flag', 'firebase deploy --project=project-manager-dashboar-a067f --only functions'],
-  ['shell continuation project flag', 'firebase deploy \\\n+  --project project-manager-dashboar-a067f --only functions'],
+  ['shell continuation project flag', 'firebase deploy \\\n  --project project-manager-dashboar-a067f --only functions'],
   ['PowerShell continuation project flag', 'firebase deploy `\n  --project project-manager-dashboar-a067f --only functions'],
   ['JavaScript Production project alias', "const targetProject = 'project-manager-dashboar-a067f';\nfirebase deploy --project $targetProject --only functions"],
   ['PowerShell Production project alias', "$targetProject = 'project-manager-dashboar-a067f'\nfirebase deploy --project $targetProject --only functions"],
+  ['shell Production project alias', "SYNC_TARGET='project-manager-dashboar-a067f'\nfirebase deploy --project \"$SYNC_TARGET\" --only functions"],
+  ['unresolved shell project target', 'firebase deploy --project "$SYNC_TARGET" --only functions'],
 ]) {
   test(`the verifier rejects Production Firebase deploy target using ${name}`, () => {
     const violations = verifyProductionSyncBoundary({ ...safeSources, deployment });
     assert.ok(violations.some(item => item.code === 'production-deploy-target'), name);
   });
 }
+
+test('the verifier resolves a .firebaserc Production alias used by Firebase deploy', () => {
+  const violations = verifyProductionSyncBoundary({
+    ...safeSources,
+    firebaseRc: JSON.stringify({
+      projects: {
+        default: 'pm-dashboard-uat-20260820-a7f3',
+        prod: 'project-manager-dashboar-a067f',
+      },
+    }),
+    deployment: 'firebase deploy --project prod --only functions',
+  });
+
+  assert.ok(violations.some(item => item.code === 'production-deploy-target' && item.source === 'firebaseRc'));
+});
 
 test('an unrelated Production deploy target does not mask sync IAM, import, or write violations', () => {
   const unrelatedProductionDeploy = 'gcloud run deploy pm-dashboard-pdf --project project-manager-dashboar-a067f';

@@ -18,12 +18,24 @@ function violation(code, message, source = 'supplied sources') {
   return { code, message, source };
 }
 
-function sourceText(sources, key, aliases = []) {
+function sourceParts(sources, key, aliases = []) {
   const candidates = [key, ...aliases];
   for (const candidate of candidates) {
-    if (typeof sources?.[candidate] === 'string') return sources[candidate];
+    const value = sources?.[candidate];
+    if (typeof value === 'string') return [{ source: candidate, text: value }];
+    if (value && typeof value === 'object' && typeof value.text === 'string') {
+      return [{ source: value.source || candidate, text: value.text }];
+    }
+    if (Array.isArray(value) && value.every(item => item && typeof item.text === 'string')) {
+      return value.map(item => ({ source: item.source || candidate, text: item.text }));
+    }
   }
-  return null;
+  return [];
+}
+
+function sourceText(sources, key, aliases = []) {
+  const parts = sourceParts(sources, key, aliases);
+  return parts.length ? parts.map(part => part.text).join('\n') : null;
 }
 
 function collectText(sources, keys) {
@@ -56,24 +68,68 @@ function isLiteralWeeksCollection(argument) {
   return /^\s*(['"`])weeks\1\s*$/.test(argument);
 }
 
-function hasProductionFirebaseDeployTarget(text) {
-  const normalized = text.replace(/[\\`]\r?\n/g, ' ');
-  const productionAliases = new Set();
-  for (const match of normalized.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*['"]project-manager-dashboar-a067f['"]/g)) {
-    productionAliases.add(match[1]);
+function parseFirebaseAliases(firebaseRc) {
+  if (!firebaseRc) return new Map();
+  let value;
+  try {
+    value = JSON.parse(firebaseRc.text);
+  } catch {
+    return null;
   }
-  for (const match of normalized.matchAll(/\$([A-Za-z_][\w]*)\s*=\s*['"]project-manager-dashboar-a067f['"]/g)) {
-    productionAliases.add(match[1]);
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !value.projects || typeof value.projects !== 'object' || Array.isArray(value.projects)
+    || Object.values(value.projects).some(project => typeof project !== 'string' || !project)) {
+    return null;
   }
+  return new Map(Object.entries(value.projects));
+}
 
-  for (const line of normalized.split(/\r?\n/)) {
-    if (!/\bfirebase\b.*\bdeploy\b/i.test(line)) continue;
-    const project = /--project(?:\s*=\s*|\s+)([^\s]+)/i.exec(line)?.[1]
-      ?.replace(/^['"]|['"]$/g, '') || '';
-    const projectAlias = project.replace(/^\$\{?([^}]+)\}?$/, '$1');
-    if (project === PRODUCTION_PROJECT_ID || productionAliases.has(projectAlias)) return true;
+function shellAssignments(text) {
+  const assignments = new Map();
+  const normalized = text.replace(/[\\`]\r?\n/g, ' ');
+  for (const match of normalized.matchAll(/(?:^|[;\n])\s*(?:export\s+)?([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/gm)) {
+    assignments.set(match[1], match[3]);
   }
-  return /firebase\s+use\s+production\b/i.test(normalized) && /firebase\s+deploy\b/i.test(normalized);
+  for (const match of normalized.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([^'"\r\n]*)\2/g)) {
+    assignments.set(match[1], match[3]);
+  }
+  for (const match of normalized.matchAll(/\$([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/g)) {
+    assignments.set(match[1], match[3]);
+  }
+  return assignments;
+}
+
+function resolveFirebaseProject(token, assignments, aliases) {
+  const unquoted = String(token || '').trim().replace(/^['"]|['"]$/g, '');
+  const variable = /^\$\{?([A-Za-z_]\w*)\}?$/.exec(unquoted)?.[1];
+  const target = variable ? assignments.get(variable) : unquoted;
+  if (!target) return null;
+  return aliases.get(target) || target;
+}
+
+function firebaseDeployViolation(deploymentParts, firebaseRcPart) {
+  const aliases = parseFirebaseAliases(firebaseRcPart);
+  if (aliases === null) {
+    return violation('invalid-firebase-rc', 'The .firebaserc aliases must be valid structured project mappings.', firebaseRcPart.source);
+  }
+  for (const part of deploymentParts) {
+    const normalized = part.text.replace(/[\\`]\r?\n/g, ' ');
+    const assignments = shellAssignments(part.text);
+    const activeAlias = /\bfirebase\s+use\s+([^\s]+)/i.exec(normalized)?.[1];
+    for (const line of normalized.split(/\r?\n/)) {
+      if (!/\bfirebase\b.*\bdeploy\b/i.test(line)) continue;
+      const projectToken = /--project(?:\s*=\s*|\s+)([^\s]+)/i.exec(line)?.[1]
+        || activeAlias || aliases.get('default') || '';
+      const resolvedProject = resolveFirebaseProject(projectToken, assignments, aliases);
+      if (resolvedProject !== UAT_PROJECT_ID) {
+        const source = aliases.has(String(projectToken).replace(/^['"]|['"]$/g, ''))
+          ? firebaseRcPart?.source || part.source
+          : part.source;
+        return violation('production-deploy-target', 'Sync deployment commands must use a resolved fixed UAT Firebase project target.', source);
+      }
+    }
+  }
+  return null;
 }
 
 function policyError(code, message) {
@@ -181,6 +237,11 @@ export function verifyProductionSyncBoundary(sources) {
   const runtime = collectText(sources, ['runtime', 'imports']);
   const productionRead = sourceText(sources, 'productionRead', ['productionReadSource']);
   const deployment = sourceText(sources, 'deployment', ['deploymentSource', 'deploymentConfig']);
+  const runtimeParts = sourceParts(sources, 'runtime', ['runtimeSource', 'productionRuntime']);
+  const importParts = sourceParts(sources, 'imports', ['importSource']);
+  const productionReadParts = sourceParts(sources, 'productionRead', ['productionReadSource']);
+  const deploymentParts = sourceParts(sources, 'deployment', ['deploymentSource', 'deploymentConfig']);
+  const firebaseRcPart = sourceParts(sources, 'firebaseRc')[0];
   const executableText = `${runtime}\n${deployment}`;
   const productionHandles = productionHandleNames(executableText);
   const productionHandle = productionHandlePattern(productionHandles);
@@ -233,18 +294,18 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('production-write-capability', 'Production Firestore handles may not be aliased in the read module.', 'productionRead'));
   }
 
-  if (/roles\s*\/\s*datastore/i.test(`${executableText}\n${productionRead}`)) {
-    violations.push(violation(
-      'datastore-role-outside-policy',
-      'Datastore roles must be declared only in the structured sync boundary policy.',
-      'deployment',
-    ));
+  for (const part of [...runtimeParts, ...importParts, ...productionReadParts, ...deploymentParts]) {
+    if (/roles\s*\/\s*datastore/i.test(part.text)) {
+      violations.push(violation(
+        'datastore-role-outside-policy',
+        'Datastore roles must be declared only in the structured sync boundary policy.',
+        part.source,
+      ));
+    }
   }
 
-  const productionDeploy = hasProductionFirebaseDeployTarget(deployment);
-  if (productionDeploy) {
-    violations.push(violation('production-deploy-target', 'Deployment commands must never target the Production Firebase project.', 'deployment'));
-  }
+  const deploymentViolation = firebaseDeployViolation(deploymentParts, firebaseRcPart);
+  if (deploymentViolation) violations.push(deploymentViolation);
 
   return violations;
 }
@@ -272,23 +333,25 @@ async function readSources(repoRoot) {
     ...browserFiles.filter(path => /\.m?js$/.test(path)),
   ];
   const deploymentPaths = [
-    '.firebaserc', 'firebase.json', 'firebase.shared-backend.json', 'package.json', 'functions/package.json',
+    'firebase.json', 'firebase.shared-backend.json', 'package.json', 'functions/package.json',
     'pdf-service/deploy.ps1',
     ...scriptFiles.filter(path => !path.endsWith('verify-production-sync-boundary.mjs')
       && !path.endsWith('sync-v2.2t-local-data.mjs')),
   ];
-  const [runtimeSources, deploymentSources, productionRead, policy] = await Promise.all([
-    Promise.all(runtimePaths.map(read)),
-    Promise.all(deploymentPaths.map(read)),
+  const [runtimeSources, deploymentSources, productionRead, policy, firebaseRc] = await Promise.all([
+    Promise.all(runtimePaths.map(async path => ({ source: path, text: await read(path) }))),
+    Promise.all(deploymentPaths.map(async path => ({ source: path, text: await read(path) }))),
     read('functions/production-week-sync-production-read.js'),
     read('config/production-week-sync-boundary.json'),
+    read('.firebaserc'),
   ]);
   return {
     policy,
-    runtime: runtimeSources.join('\n'),
-    imports: runtimeSources.join('\n'),
+    runtime: runtimeSources,
+    imports: runtimeSources,
     productionRead,
-    deployment: deploymentSources.join('\n'),
+    deployment: deploymentSources,
+    firebaseRc: { source: '.firebaserc', text: firebaseRc },
   };
 }
 

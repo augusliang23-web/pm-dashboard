@@ -539,6 +539,140 @@ test('verified sync success stays successful when finalization writes, release, 
   }
 });
 
+test('a transient verified sync audit failure retries the complete result with its cleanup warning', async () => {
+  const destination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
+  destination.listCompleteSnapshots = async () => { throw new Error('cleanup failed'); };
+  const originalUpdate = destination.updateRun;
+  let failed = false;
+  destination.updateRun = async metadata => {
+    if (metadata.phase === 'succeeded' && !failed) {
+      failed = true;
+      throw new Error('terminal audit unavailable once');
+    }
+    return originalUpdate(metadata);
+  };
+
+  const result = await createService({ destination }).sync({ actor: admin() });
+  const completed = destination.state.runs.at(-1);
+
+  assert.equal(result.phase, 'succeeded');
+  assertRunContains(completed, {
+    phase: 'succeeded',
+    sourceDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultWeekCount: 1,
+    createdCount: 1,
+    updatedCount: 0,
+    deletedCount: 1,
+    completedAt: '2026-09-11T00:00:00.000Z',
+    cleanupWarning: 'success-recording-failed',
+  });
+
+  const cleanupDestination = createMemoryDestination({ weeks: [week('W35-2026', 'OLD')] });
+  cleanupDestination.listCompleteSnapshots = async () => { throw new Error('cleanup failed'); };
+  const cleanupUpdate = cleanupDestination.updateRun;
+  let cleanupWarningFailed = false;
+  cleanupDestination.updateRun = async metadata => {
+    if (metadata.cleanupWarning === 'snapshot-retention-cleanup-failed' && !cleanupWarningFailed) {
+      cleanupWarningFailed = true;
+      throw new Error('cleanup warning audit unavailable once');
+    }
+    return cleanupUpdate(metadata);
+  };
+
+  await createService({ destination: cleanupDestination }).sync({ actor: admin() });
+  assertRunContains(cleanupDestination.state.runs.at(-1), {
+    phase: 'succeeded',
+    sourceDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultDigest: core.digestWeekEntries([week('W36-2026', 'NEW')]),
+    resultWeekCount: 1,
+    cleanupWarning: 'snapshot-retention-cleanup-failed',
+  });
+});
+
+test('restore apply failure records a complete rolled-back audit while retaining the requested and current snapshots', async () => {
+  const requestedWeeks = [week('W34-2026', 'RESTORE')];
+  const currentWeeks = [week('W36-2026', 'CURRENT')];
+  const destination = createMemoryDestination({
+    weeks: currentWeeks,
+    snapshots: [{
+      snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+      digest: core.digestWeekEntries(requestedWeeks), weekCount: 1, weeks: requestedWeeks,
+    }],
+    failApply: 1,
+  });
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.deepEqual(result, { ok: false, phase: 'rolled_back', runId: 'restore-run', snapshotId: 'restore-run' });
+  assert.deepEqual(destination.state.weeks, currentWeeks);
+  assert.deepEqual(destination.state.snapshots.find(snapshot => snapshot.snapshotId === 'before-sync').weeks, requestedWeeks);
+  assert.deepEqual(destination.state.snapshots.find(snapshot => snapshot.snapshotId === 'restore-run').weeks, currentWeeks);
+  assertRunContains(destination.state.runs.at(-1), {
+    phase: 'rolled_back', operation: 'restore', snapshotId: 'restore-run', restoredFromSnapshotId: 'before-sync',
+    sourceProjectId: 'pm-dashboard-uat-20260820-a7f3', destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    productionProjectId: 'project-manager-dashboar-a067f', uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    restoredDigest: null, restoredWeekCount: 0, completedAt: '2026-09-11T00:00:00.000Z', result: 'failed',
+  });
+  assert.equal(destination.state.recovery.recoveryRequired, false);
+});
+
+test('restore apply and rollback failure records durable recovery with immutable snapshot identities', async () => {
+  const requestedWeeks = [week('W34-2026', 'RESTORE')];
+  const currentWeeks = [week('W36-2026', 'CURRENT')];
+  const destination = createMemoryDestination({
+    weeks: currentWeeks,
+    snapshots: [{
+      snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+      digest: core.digestWeekEntries(requestedWeeks), weekCount: 1, weeks: requestedWeeks,
+    }],
+    failApply: 2,
+  });
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.deepEqual(result, { ok: false, phase: 'rollback_failed', runId: 'restore-run', snapshotId: 'restore-run' });
+  assert.deepEqual(destination.state.snapshots.find(snapshot => snapshot.snapshotId === 'before-sync').weeks, requestedWeeks);
+  assert.deepEqual(destination.state.snapshots.find(snapshot => snapshot.snapshotId === 'restore-run').weeks, currentWeeks);
+  assertRunContains(destination.state.runs.at(-1), {
+    phase: 'rollback_failed', operation: 'restore', snapshotId: 'restore-run', restoredFromSnapshotId: 'before-sync',
+    sourceProjectId: 'pm-dashboard-uat-20260820-a7f3', destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    productionProjectId: 'project-manager-dashboar-a067f', uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    restoredDigest: null, restoredWeekCount: 0, completedAt: '2026-09-11T00:00:00.000Z', result: 'failed',
+  });
+  assert.deepEqual(destination.state.recovery, {
+    recoveryRequired: true, rollbackFailedRunId: 'restore-run', rollbackFailedAt: '2026-09-11T00:00:00.000Z',
+  });
+});
+
+test('restore leaves durable recovery in place when its verified terminal audit cannot be persisted', async () => {
+  const restoredWeeks = [week('W34-2026', 'RESTORE')];
+  const destination = createMemoryDestination({
+    weeks: [week('W36-2026', 'CURRENT')],
+    snapshots: [{
+      snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+      digest: core.digestWeekEntries(restoredWeeks), weekCount: 1, weeks: restoredWeeks,
+    }],
+  });
+  destination.state.recovery = {
+    recoveryRequired: true, rollbackFailedRunId: 'old-failed', rollbackFailedAt: '2026-09-10T00:00:00.000Z',
+  };
+  const originalUpdate = destination.updateRun;
+  destination.updateRun = async metadata => {
+    if (metadata.phase === 'restored') throw new Error('terminal audit unavailable');
+    return originalUpdate(metadata);
+  };
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.equal(result.phase, 'restored');
+  assert.equal(destination.order.includes('clearRecoveryRequired'), false);
+  assert.equal(destination.state.recovery.recoveryRequired, true);
+});
+
 test('verified restore stays restored when its lease release fails', async () => {
   const retained = {
     snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',

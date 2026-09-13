@@ -65,7 +65,7 @@ function createBatchDb() {
   return db;
 }
 
-function createSerializerBackedDb({ serializer, runs, snapshotWeeks, currentWeeks }) {
+function createSerializerBackedDb({ serializer, runs, snapshotWeeks, currentWeeks, failRunSet }) {
   const state = {
     lease: null,
     runs: new Map(runs.map(({ id, data }) => [id, data])),
@@ -83,6 +83,7 @@ function createSerializerBackedDb({ serializer, runs, snapshotWeeks, currentWeek
     },
     async create(data) { state.runs.set(id, data); },
     async set(data, options = {}) {
+      if (failRunSet?.(data)) throw new Error('transient run audit write failure');
       state.runs.set(id, options.merge ? { ...state.runs.get(id), ...data } : data);
     },
     collection(child) {
@@ -306,6 +307,57 @@ test('Firestore-decoded operational metadata is normalized at status and restore
     assert.deepEqual(fields.doubleOne, { doubleValue: 1 });
     assert.equal(Object.is(fields.negativeZero.doubleValue, -0), true);
   }
+});
+
+test('adapter status reload keeps complete successful audit fields after a one-time terminal audit failure', async () => {
+  const serializer = new Firestore({ projectId: 'terminal-audit-reload-fixture', useBigInt: true })._serializer;
+  let failSucceededAudit = true;
+  const oldWeeks = [{ id: 'W35-2026', data: { projects: [], status: 'OLD' } }];
+  const sourceWeeks = [{ id: 'W36-2026', data: { projects: [], status: 'NEW' } }];
+  const db = createSerializerBackedDb({
+    serializer,
+    runs: [{ id: 'old-failed', data: {
+      runId: 'old-failed', phase: 'rollback_failed', result: 'failed', completedAt: '2026-09-12T01:00:00.000Z',
+    } }],
+    snapshotWeeks: [],
+    currentWeeks: oldWeeks.map(week => [week.id, week.data]),
+    failRunSet: data => {
+      if (data.phase === 'succeeded' && failSucceededAudit) {
+        failSucceededAudit = false;
+        return true;
+      }
+      return false;
+    },
+  });
+  const service = core.createWeekSyncService({
+    sourceStore: { listWeeks: async () => {
+      const result = structuredClone(sourceWeeks);
+      Object.defineProperty(result, 'sourceReadTime', { value: '2026-09-13T01:00:00.000Z' });
+      return result;
+    } },
+    destinationStore: sync.createUatSyncStore(db),
+    clock: () => new Date('2026-09-13T02:00:00.000Z'),
+    idFactory: () => 'completed-run',
+  });
+
+  assert.equal((await service.sync({ actor: { uid: 'admin', email: 'admin@example.com' } })).phase, 'succeeded');
+  const status = await service.status({ actor: { uid: 'admin', email: 'admin@example.com' } });
+
+  assert.equal(status.latestRun.runId, 'completed-run');
+  assert.equal(status.latestRun.phase, 'succeeded');
+  const expectedCompleted = {
+    runId: 'completed-run', phase: 'succeeded', operation: 'sync',
+    sourceProjectId: 'project-manager-dashboar-a067f', destinationProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    productionProjectId: 'project-manager-dashboar-a067f', uatProjectId: 'pm-dashboard-uat-20260820-a7f3',
+    snapshotId: 'completed-run', sourceReadTime: '2026-09-13T01:00:00.000Z',
+    sourceWeekCount: 1, destinationWeekCount: 1, createdCount: 1, updatedCount: 0, deletedCount: 1,
+    sourceDigest: core.digestWeekEntries(sourceWeeks), resultDigest: core.digestWeekEntries(sourceWeeks), resultWeekCount: 1,
+    completedAt: '2026-09-13T02:00:00.000Z',
+  };
+  for (const [field, value] of Object.entries(expectedCompleted)) {
+    assert.deepEqual(status.latestCompletedRun[field], value, field);
+  }
+  assert.equal(status.latestCompletedRun.cleanupWarning, 'success-recording-failed');
 });
 
 test('UAT adapter commits no more than 200 operations and remaps Production document references by path', async () => {

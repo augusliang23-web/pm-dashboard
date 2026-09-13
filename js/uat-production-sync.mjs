@@ -30,10 +30,13 @@ export function applyProductionSyncButtonState({ syncButton, restoreButton }, st
 
 export function formatProductionSyncStatus(status = {}) {
   const latestRun = status.latestRun || status.latestCompletedRun;
-  if (status.recoveryRequired === true || status.phase === 'rollback_failed' || latestRun?.phase === 'rollback_failed') return ROLLBACK_FAILED_MESSAGE;
+  if (status.recoveryRequired === true) return ROLLBACK_FAILED_MESSAGE;
+  if (status.running && status.phase && !['rolled_back', 'rollback_failed'].includes(status.phase)) {
+    return `Sync in progress: ${status.phase}.`;
+  }
+  if (status.phase === 'rollback_failed' || latestRun?.phase === 'rollback_failed') return ROLLBACK_FAILED_MESSAGE;
   if (latestRun?.phase === 'rolled_back') return ROLLED_BACK_MESSAGE;
   if (SAFE_ERROR_MESSAGES[latestRun?.errorCode]) return SAFE_ERROR_MESSAGES[latestRun.errorCode];
-  if (status.running && status.phase) return `Sync in progress: ${status.phase}.`;
   if (latestRun?.phase) return `Last operation: ${latestRun.phase}.`;
   return 'No Production sync has been recorded.';
 }

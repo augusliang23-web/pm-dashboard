@@ -78,6 +78,19 @@ test('Admin eligibility and server result labels are understandable', () => {
   }), { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' });
 });
 
+test('a valid active operation takes precedence over an earlier historical failure', () => {
+  assert.equal(formatProductionSyncStatus({
+    running: true,
+    phase: 'applying',
+    latestRun: { phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
+  }), 'Sync in progress: applying.');
+  assert.equal(formatProductionSyncStatus({
+    running: true,
+    phase: 'verifying',
+    latestRun: { phase: 'rolled_back', completedAt: '2026-09-12T05:00:00.000Z' },
+  }), 'Sync in progress: verifying.');
+});
+
 test('opening Week Management refreshes status and disables both actions while the request runs', async () => {
   const status = deferred();
   const view = createView();

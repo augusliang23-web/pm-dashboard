@@ -384,7 +384,9 @@ async function finishFailedBeforeApply({ destinationStore, runId, actor, operati
   }
 }
 
-async function finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result, warning }) {
+async function finalizeVerifiedResult({
+  destinationStore, runId, actor, operation, phase, result, warning, auditPersisted = false, afterAuditPersisted,
+}) {
   let finalWarning = warning;
   try {
     await pruneSnapshots(destinationStore, runId);
@@ -396,18 +398,25 @@ async function finalizeVerifiedResult({ destinationStore, runId, actor, operatio
   } catch (_releaseError) {
     finalWarning = finalWarning || 'lease-release-failed';
   }
-  if (finalWarning) {
-    try {
-      await destinationStore.updateRun(runMetadata({
-        runId, actor, operation, phase,
-        extra: finalWarning === 'lease-release-failed'
-          ? { leaseReleaseWarning: finalWarning }
-          : { cleanupWarning: finalWarning },
-      }));
-    } catch (_warningRecordError) {
-      // A verified business result remains final even when its warning cannot be recorded.
+  if (!auditPersisted || finalWarning) {
+    const extra = {
+      ...result,
+      ...(finalWarning === 'lease-release-failed'
+        ? { leaseReleaseWarning: finalWarning }
+        : finalWarning ? { cleanupWarning: finalWarning } : {}),
+    };
+    let finalAuditPersisted = auditPersisted && !finalWarning;
+    for (let attempt = 0; attempt < 2 && !finalAuditPersisted; attempt += 1) {
+      try {
+        await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra }));
+        auditPersisted = true;
+        finalAuditPersisted = true;
+      } catch (_auditRecordError) {
+        // Retry the complete verified result because a phase-only retry loses audit evidence.
+      }
     }
   }
+  if (auditPersisted && afterAuditPersisted) await afterAuditPersisted();
   return result;
 }
 
@@ -556,7 +565,7 @@ async function runSync({ sourceStore, destinationStore, clock, idFactory, actor 
     };
     phase = 'succeeded';
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
-    return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
+    return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult, auditPersisted: true });
   } catch (error) {
     if (verifiedResult) {
       return finalizeVerifiedResult({
@@ -624,18 +633,29 @@ async function runRestore({ destinationStore, clock, idFactory, actor, snapshotI
       completedAt: nowIso(clock),
     };
     phase = 'restored';
-    try {
-      await destinationStore.clearRecoveryRequired({ runId });
-    } catch (_clearError) {
-      // The verified restore is still true, but the durable warning remains until it can be cleared.
-    }
     await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra: verifiedResult }));
-    return finalizeVerifiedResult({ destinationStore, runId, actor, operation, phase, result: verifiedResult });
+    return finalizeVerifiedResult({
+      destinationStore, runId, actor, operation, phase, result: verifiedResult, auditPersisted: true,
+      afterAuditPersisted: async () => {
+        try {
+          await destinationStore.clearRecoveryRequired({ runId });
+        } catch (_clearError) {
+          // The verified restore remains true, but the durable warning stays until a later verified restore.
+        }
+      },
+    });
   } catch (error) {
     if (verifiedResult) {
       return finalizeVerifiedResult({
         destinationStore, runId, actor, operation, phase: 'restored', result: verifiedResult,
         warning: 'success-recording-failed',
+        afterAuditPersisted: async () => {
+          try {
+            await destinationStore.clearRecoveryRequired({ runId });
+          } catch (_clearError) {
+            // The verified restore remains true, but the durable warning stays until a later verified restore.
+          }
+        },
       });
     }
     if (applyStarted) {
