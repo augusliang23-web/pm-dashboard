@@ -18,6 +18,34 @@ function violation(code, message, source = 'supplied sources') {
   return { code, message, source };
 }
 
+const LOCAL_SNAPSHOT_SYNC_PATTERN = /(?:sync-v2\.2t-local-data|local-sync|production-snapshot-import)/ig;
+
+function isApprovedLocalSnapshotInvocation(part, matchIndex) {
+  if (part.source !== 'scripts/start-v2.2t-emulator.ps1'
+    || !/\[switch\]\$SyncProductionSnapshot\b/.test(part.text)) return false;
+  const lineStart = part.text.lastIndexOf('\n', matchIndex) + 1;
+  const lineEnd = part.text.indexOf('\n', matchIndex);
+  const line = part.text.slice(lineStart, lineEnd < 0 ? part.text.length : lineEnd).trim();
+  if (!/^node \(Join-Path \$repoRoot 'scripts\\sync-v2\.2t-local-data\.mjs'\) --allow-production-snapshot-read$/.test(line)) {
+    return false;
+  }
+  const prefix = part.text.slice(0, lineStart);
+  const guards = [...prefix.matchAll(/if\s*\(\$SyncProductionSnapshot\)\s*\{\s*$/gm)];
+  const guard = guards.at(-1);
+  return Boolean(guard) && !/[{}]/.test(prefix.slice(guard.index + guard[0].length));
+}
+
+function disallowedLocalSnapshotSource(parts, allowConfirmedLocalHelper = false) {
+  for (const part of parts) {
+    for (const match of part.text.matchAll(LOCAL_SNAPSHOT_SYNC_PATTERN)) {
+      if (!allowConfirmedLocalHelper || !isApprovedLocalSnapshotInvocation(part, match.index)) {
+        return part.source;
+      }
+    }
+  }
+  return null;
+}
+
 function sourceParts(sources, key, aliases = []) {
   const candidates = [key, ...aliases];
   for (const candidate of candidates) {
@@ -289,8 +317,14 @@ export function verifyProductionSyncBoundary(sources) {
     violations.push(violation('production-write-capability', 'The Production boundary must expose reads only; no write operation may target its database.', 'runtime'));
   }
 
-  if (/(?:sync-v2\.2t-local-data|local-sync|production-snapshot-import)/i.test(executableText)) {
-    violations.push(violation('local-sync-runtime-import', 'The UAT callable runtime cannot import the old local snapshot-sync utility.', 'runtime'));
+  const unsafeLocalSnapshotSource = disallowedLocalSnapshotSource([...runtimeParts, ...importParts])
+    || disallowedLocalSnapshotSource(deploymentParts, true);
+  if (unsafeLocalSnapshotSource) {
+    violations.push(violation(
+      'local-sync-runtime-import',
+      'The UAT callable or deployment runtime cannot invoke the old local snapshot-sync utility.',
+      unsafeLocalSnapshotSource,
+    ));
   }
 
   const productionCollectionCalls = [...productionRead.matchAll(/\b[A-Za-z_$][\w$]*\s*\.\s*collection\s*\(([^)]*)\)/g)];

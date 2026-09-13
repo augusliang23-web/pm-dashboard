@@ -42,6 +42,64 @@ service cloud.firestore {
         && data.get('usageBuckets', {}).keys().size() <= 256;
     }
 
+    function hasValidGanttTemplateList(values) {
+      return values is list
+        && values.size() >= 1
+        && values.size() <= 20
+        && values.toSet().size() == values.size()
+        && values.removeAll(['']).size() == values.size()
+        && values.join('').size() >= values.size()
+        && (values.size() < 1 || values[0].size() <= 128)
+        && (values.size() < 2 || values[1].size() <= 128)
+        && (values.size() < 3 || values[2].size() <= 128)
+        && (values.size() < 4 || values[3].size() <= 128)
+        && (values.size() < 5 || values[4].size() <= 128)
+        && (values.size() < 6 || values[5].size() <= 128)
+        && (values.size() < 7 || values[6].size() <= 128)
+        && (values.size() < 8 || values[7].size() <= 128)
+        && (values.size() < 9 || values[8].size() <= 128)
+        && (values.size() < 10 || values[9].size() <= 128)
+        && (values.size() < 11 || values[10].size() <= 128)
+        && (values.size() < 12 || values[11].size() <= 128)
+        && (values.size() < 13 || values[12].size() <= 128)
+        && (values.size() < 14 || values[13].size() <= 128)
+        && (values.size() < 15 || values[14].size() <= 128)
+        && (values.size() < 16 || values[15].size() <= 128)
+        && (values.size() < 17 || values[16].size() <= 128)
+        && (values.size() < 18 || values[17].size() <= 128)
+        && (values.size() < 19 || values[18].size() <= 128)
+        && (values.size() < 20 || values[19].size() <= 128);
+    }
+
+    function hasValidGanttTemplateEnvelope(data) {
+      return data.keys().hasAll([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ])
+        && hasValidGanttTemplateList(data.get('system', []))
+        && hasValidGanttTemplateList(data.get('hardware-module', []))
+        && data.revision is int
+        && data.revision >= 0
+        && data.updatedBy == request.auth.token.email
+        && data.updatedAt == request.time;
+    }
+
+    function hasValidGanttTemplateCreate() {
+      return request.resource.data.keys().hasOnly([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ])
+        && hasValidGanttTemplateEnvelope(request.resource.data);
+    }
+
+    function hasValidGanttTemplateUpdate() {
+      return hasValidGanttTemplateEnvelope(request.resource.data)
+        && resource.data.revision is int
+        && resource.data.revision >= 0
+        && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ]);
+    }
+
     function hasValidAuditLogEnvelope() {
       return request.resource.data.keys().hasAll([
           'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
@@ -207,6 +265,13 @@ service cloud.firestore {
     match /presenceDailyRollups/{rollupId} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    match /dashboardSettings/team-2-portfolio {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && hasValidGanttTemplateCreate();
+      allow update: if isAdmin() && hasValidGanttTemplateUpdate();
+      allow delete: if false;
     }
   }
 }

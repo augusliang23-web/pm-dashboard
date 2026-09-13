@@ -300,6 +300,34 @@ test('README IAM prose is not executable scanner input', () => {
   assert.deepEqual(verifyProductionSyncBoundary(safeSources), []);
 });
 
+test('the boundary permits only the explicitly confirmed local PowerShell snapshot helper', () => {
+  const approvedLocalHelper = {
+    source: 'scripts/start-v2.2t-emulator.ps1',
+    text: [
+      'param(',
+      '  [switch]$SyncProductionSnapshot',
+      ')',
+      'if ($SyncProductionSnapshot) {',
+      "  node (Join-Path $repoRoot 'scripts\\sync-v2.2t-local-data.mjs') --allow-production-snapshot-read",
+      '}',
+    ].join('\n'),
+  };
+
+  assert.deepEqual(verifyProductionSyncBoundary({
+    ...safeSources,
+    deployment: [approvedLocalHelper],
+  }), []);
+
+  for (const deployment of [
+    { ...approvedLocalHelper, text: approvedLocalHelper.text.replace(' --allow-production-snapshot-read', '') },
+    { ...approvedLocalHelper, text: approvedLocalHelper.text.replace('if ($SyncProductionSnapshot) {\n', '') },
+    { ...approvedLocalHelper, source: 'scripts/deploy-sync.ps1' },
+  ]) {
+    const violations = verifyProductionSyncBoundary({ ...safeSources, deployment: [deployment] });
+    assert.ok(violations.some(item => item.code === 'local-sync-runtime-import'));
+  }
+});
+
 test('the actual checkout passes the executable boundary verifier despite README IAM prose', () => {
   const result = spawnSync(process.execPath, ['scripts/verify-production-sync-boundary.mjs'], {
     cwd: new URL('..', import.meta.url),

@@ -67,8 +67,10 @@ test('the starter seeds Auth and Firestore into the isolated emulator only', () 
   assert.match(starterScript, /\$env:FIRESTORE_EMULATOR_HOST\s*=\s*'127\.0\.0\.1:8080'/);
 });
 
-test('the local starter does not invoke the Production snapshot sync', () => {
-  assert.doesNotMatch(starterScript, /sync-v2\.2t-local-data\.mjs/);
+test('the local starter reads a Production snapshot only after an explicit opt-in', () => {
+  assert.match(starterScript, /param\([\s\S]*\[switch\]\$SyncProductionSnapshot[\s\S]*\)/);
+  assert.match(starterScript, /if \(\$SyncProductionSnapshot\) \{[\s\S]*sync-v2\.2t-local-data\.mjs[\s\S]*--allow-production-snapshot-read[\s\S]*\}/);
+  assert.match(localSync, /if \(!process\.argv\.includes\('--allow-production-snapshot-read'\)\) \{[\s\S]*throw new Error\([\s\S]*--allow-production-snapshot-read[\s\S]*\);[\s\S]*\}/);
   assert.match(starterScript, /--project', 'demo-pm-dashboard-v22t'/);
   assert.match(localSync, /project-manager-dashboar-a067f/);
   assert.match(localSync, /const LOCAL_PROJECT_ID = SOURCE_PROJECT_ID/);

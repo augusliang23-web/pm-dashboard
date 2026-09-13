@@ -51,6 +51,14 @@ async function seed() {
         weekLabel: 'W32 2026', isReleased: true,
         projects: [{ code: 'ALPHA', owner: 'Owner' }],
       }),
+      setDoc(doc(db, 'dashboardSettings/team-2-portfolio'), {
+        system: ['Discovery', 'Validation'],
+        'hardware-module': ['Design', 'Qualification'],
+        revision: 1,
+        updatedBy: 'admin@example.com',
+        updatedAt: new Date('2026-09-13T00:00:00.000Z'),
+        legacyLabel: 'preserve me',
+      }),
     ]);
   });
 }
@@ -99,6 +107,66 @@ test('every client role is denied direct week create, update, and delete', async
     await assertFails(updateDoc(doc(db, 'weeks/draft-week'), { weekLabel: 'Changed' }));
     await assertFails(deleteDoc(doc(db, 'weeks/draft-week')));
   }
+});
+
+test('legacy Gantt settings are signed-in readable but only Admin can change valid template fields', async () => {
+  const anonymous = environment.unauthenticatedContext().firestore();
+  const admin = auth('admin-uid', 'admin@example.com');
+  const owner = auth('owner-uid', 'owner@example.com');
+  const vip = auth('vip-uid', 'vip@example.com');
+  const settings = doc(admin, 'dashboardSettings/team-2-portfolio');
+
+  await assertFails(getDoc(doc(anonymous, 'dashboardSettings/team-2-portfolio')));
+  await assertSucceeds(getDoc(settings));
+  await assertSucceeds(getDoc(doc(owner, 'dashboardSettings/team-2-portfolio')));
+  await assertSucceeds(getDoc(doc(vip, 'dashboardSettings/team-2-portfolio')));
+  await assertFails(updateDoc(doc(owner, 'dashboardSettings/team-2-portfolio'), {
+    system: ['Forged'], revision: 2,
+  }));
+  await assertFails(updateDoc(doc(vip, 'dashboardSettings/team-2-portfolio'), {
+    system: ['Forged'], revision: 2,
+  }));
+  await assertSucceeds(updateDoc(settings, {
+    system: ['Discovery', 'Delivery'],
+    revision: 2,
+    updatedBy: 'admin@example.com',
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(updateDoc(settings, {
+    revision: 4,
+    updatedBy: 'admin@example.com',
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(updateDoc(settings, {
+    revision: 3,
+    updatedBy: 'other@example.com',
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(updateDoc(settings, { unexpectedField: true }));
+  await assertFails(deleteDoc(settings));
+});
+
+test('only Admin can create a well-formed legacy Gantt settings document', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await deleteDoc(doc(context.firestore(), 'dashboardSettings/team-2-portfolio'));
+  });
+  const admin = auth('admin-uid', 'admin@example.com');
+  const owner = auth('owner-uid', 'owner@example.com');
+  const valid = {
+    system: ['Discovery', 'Validation'],
+    'hardware-module': ['Design', 'Qualification'],
+    revision: 0,
+    updatedBy: 'admin@example.com',
+    updatedAt: serverTimestamp(),
+  };
+
+  await assertFails(setDoc(doc(owner, 'dashboardSettings/team-2-portfolio'), {
+    ...valid, updatedBy: 'owner@example.com',
+  }));
+  await assertFails(setDoc(doc(admin, 'dashboardSettings/team-2-portfolio'), {
+    ...valid, unexpectedField: true,
+  }));
+  await assertSucceeds(setDoc(doc(admin, 'dashboardSettings/team-2-portfolio'), valid));
 });
 
 test('logs accept only a bounded self-attributed append-only envelope', async () => {

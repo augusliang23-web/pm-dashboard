@@ -13,6 +13,9 @@ const LOCAL_PROJECT_ID = SOURCE_PROJECT_ID;
 const LOCAL_FIRESTORE_HOST = '127.0.0.1:8080';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cachePath = resolve(repoRoot, 'tmp', 'v2.2t-production-snapshot.json');
+if (!process.argv.includes('--allow-production-snapshot-read')) {
+  throw new Error('Refusing Production snapshot read without --allow-production-snapshot-read.');
+}
 const collectionNames = [
   'users',
   'weeks',

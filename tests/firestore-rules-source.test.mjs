@@ -57,13 +57,17 @@ test("firebase config includes Executive history query indexes", async () => {
 
 test("clients cannot change an existing Executive timeline or dashboard week directly", async () => {
   const rules = await readRules();
+  const weeksStart = rules.indexOf('match /weeks/{weekId}');
+  const weeksEnd = rules.indexOf('\n    match /', weeksStart + 1);
+  const weeksRules = rules.slice(weeksStart, weeksEnd);
 
   assert.match(rules, /function\s+executiveTimelineUnchanged\(\)/);
   assert.match(rules, /request\.resource\.data\.get\('strategyLayer'/);
   assert.match(rules, /resource\.data\.get\('strategyLayer'/);
-  assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow write:\s*if false/);
-  assert.match(rules, /allow delete:\s*if false/);
-  assert.doesNotMatch(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow create:\s*if isAdmin\(\)/);
+  assert.notEqual(weeksStart, -1);
+  assert.match(weeksRules, /allow write:\s*if false/);
+  assert.match(weeksRules, /allow delete:\s*if false/);
+  assert.doesNotMatch(weeksRules, /allow create:\s*if isAdmin\(\)/);
   assert.doesNotMatch(rules, /allow read, create:\s*if isSignedIn\(\)/);
 });
 
@@ -121,6 +125,17 @@ test('shared backend rules cannot restore direct client week writes', async () =
   assert.match(rules, /match\s+\/executiveMilestoneUpdates[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
+});
+
+test('both rulesets protect the legacy Gantt settings path without renaming it', async () => {
+  for (const rules of [await readRules(), await readSharedBackendRules()]) {
+    assert.match(rules, /match\s+\/dashboardSettings\/team-2-portfolio\s*\{/);
+    assert.match(rules, /allow read:\s*if isSignedIn\(\);/);
+    assert.match(rules, /allow create:\s*if isAdmin\(\)\s*&&\s*hasValidGanttTemplateCreate\(\);/);
+    assert.match(rules, /allow update:\s*if isAdmin\(\)\s*&&\s*hasValidGanttTemplateUpdate\(\);/);
+    assert.match(rules, /allow delete:\s*if false;/);
+    assert.doesNotMatch(rules, /match\s+\/dashboardSettings\/gantt-templates/);
+  }
 });
 
 test('root dashboard creates one complete presence document and preserves identity on later updates', async () => {

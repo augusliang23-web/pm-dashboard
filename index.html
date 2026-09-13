@@ -3069,9 +3069,25 @@ let ganttTemplateSubscriptionGeneration = 0;
 let ganttTemplateSubscriptionReady = false;
 let resolvePendingGanttTemplateSubscription = null;
 let ganttTemplateSessionConflicted = false;
+let ganttTemplateAvailabilityStatus = '';
+const GANTT_TEMPLATE_UNAVAILABLE_MESSAGE = 'Default Gantt templates are temporarily unavailable; saving is disabled.';
 
 function ganttTemplateSettingsRef() {
   return doc(db, 'dashboardSettings', 'team-2-portfolio');
+}
+
+function reportGanttTemplateAvailabilityFailure(error) {
+  ganttTemplateSubscriptionReady = false;
+  ganttTemplateAvailabilityStatus = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
+  if (ganttTemplateSession) {
+    ganttTemplateSessionConflicted = true;
+    document.getElementById('ganttTemplateError').textContent =
+      `${GANTT_TEMPLATE_UNAVAILABLE_MESSAGE} Your draft is preserved; close and reopen settings after access is restored.`;
+  }
+  setGanttTemplateControlsDisabled(true);
+  const bannerMeta = document.getElementById('bannerMeta');
+  if (bannerMeta) bannerMeta.textContent = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
+  console.warn('Default Gantt template configuration is unavailable.', error);
 }
 
 function applyGanttTemplateSnapshot(snapshot) {
@@ -3088,6 +3104,7 @@ function applyGanttTemplateSnapshot(snapshot) {
   );
   currentGanttTemplateConfig = nextConfig;
   currentGanttTemplateRevision = nextRevision;
+  ganttTemplateAvailabilityStatus = '';
   ganttTemplateSubscriptionReady = true;
   if (remoteConflict) {
     ganttTemplateSessionConflicted = true;
@@ -3103,6 +3120,7 @@ function stopGanttTemplateConfigSubscription() {
   if (resolvePendingGanttTemplateSubscription) resolvePendingGanttTemplateSubscription(false);
   resolvePendingGanttTemplateSubscription = null;
   ganttTemplateSubscriptionReady = false;
+  ganttTemplateAvailabilityStatus = '';
   currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
   currentGanttTemplateRevision = 0;
 }
@@ -3158,23 +3176,12 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
             settle(false);
             return;
           }
-          currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
-          currentGanttTemplateRevision = 0;
-          ganttTemplateSubscriptionReady = true;
-          if (ganttTemplateSession && !ganttTemplateSaveInFlight) {
-            ganttTemplateSessionConflicted = true;
-            document.getElementById('ganttTemplateError').textContent =
-              'Live defaults are unavailable. Your draft is preserved; close and reopen settings after access is restored.';
-          }
-          console.warn('Default Gantt template config is unavailable; using built-in defaults.', error);
+          reportGanttTemplateAvailabilityFailure(error);
           settle(true);
         },
       );
     } catch (error) {
-      currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
-      currentGanttTemplateRevision = 0;
-      ganttTemplateSubscriptionReady = true;
-      console.warn('Default Gantt template subscription could not start; using built-in defaults.', error);
+      reportGanttTemplateAvailabilityFailure(error);
       settle(true);
     }
   });
@@ -3215,7 +3222,10 @@ function invalidateGanttTemplateSession() {
 function setGanttTemplateControlsDisabled(disabled) {
   document.getElementById('ganttTemplateOverlay')
     ?.querySelectorAll('button, input')
-    .forEach(control => { control.disabled = disabled; });
+    .forEach(control => {
+      if (control.id === 'closeGanttTemplateXBtn' || control.id === 'cancelGanttTemplateBtn') return;
+      control.disabled = disabled;
+    });
 }
 
 function renderGanttTemplateRow(level, name = '') {
@@ -3300,7 +3310,12 @@ window.deleteGanttTemplateRow = button => {
 
 window.saveGanttTemplateSettings = async () => {
   const session = ganttTemplateSession;
-  if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session) || ganttTemplateSaveInFlight) return;
+  if (
+    currentRole !== 'admin'
+    || !isGanttTemplateSessionCurrent(session)
+    || ganttTemplateSaveInFlight
+    || !ganttTemplateSubscriptionReady
+  ) return;
   if (ganttTemplateSessionConflicted) {
     document.getElementById('ganttTemplateError').textContent =
       'The live defaults changed. Close and reopen settings before saving a new draft.';
@@ -3332,6 +3347,11 @@ window.saveGanttTemplateSettings = async () => {
       if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session)) {
         throw new Error('Authorization changed. Reopen settings as an Admin.');
       }
+      // This synchronous final gate ensures any availability failure observed before
+      // Firestore stages the write aborts this transaction without a write attempt.
+      if (!ganttTemplateSubscriptionReady || ganttTemplateSessionConflicted) {
+        throw new Error(GANTT_TEMPLATE_UNAVAILABLE_MESSAGE);
+      }
       transaction.set(settingsRef, {
         ...validation.config,
         revision: liveRevision + 1,
@@ -3341,19 +3361,19 @@ window.saveGanttTemplateSettings = async () => {
       return liveRevision + 1;
     }, { maxAttempts: 1 });
 
+    ganttTemplateSaveInFlight = false;
     if (!isGanttTemplateSessionCurrent(session)) return;
     currentGanttTemplateConfig = resolveWorkstreamTemplateConfig(validation.config);
     currentGanttTemplateRevision = savedRevision;
-    ganttTemplateSaveInFlight = false;
     ganttTemplateSession = null;
     closeModal('ganttTemplateOverlay', { force: true });
     showSaveToast('Default Gantt templates updated');
   } catch (error) {
+    ganttTemplateSaveInFlight = false;
     if (!isGanttTemplateSessionCurrent(session)) return;
     const message = error instanceof Error ? error.message : 'The default templates could not be saved.';
-    document.getElementById('ganttTemplateError').textContent = `${message} Your draft is still open.`;
-    ganttTemplateSaveInFlight = false;
-    setGanttTemplateControlsDisabled(false);
+    document.getElementById('ganttTemplateError').textContent = `${message} Your draft is preserved and still open.`;
+    setGanttTemplateControlsDisabled(Boolean(ganttTemplateAvailabilityStatus));
   }
 };
 // END GANTT TEMPLATE SETTINGS
@@ -8155,7 +8175,7 @@ window.render = () => {
   const week = allWeeks[currentIdx];
   if (!week) {
     document.getElementById('bannerTitle').textContent = "No Data";
-    document.getElementById('bannerMeta').textContent = "";
+    document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus;
     document.getElementById('bannerPills').innerHTML = "";
     document.getElementById('projGrid').innerHTML = "";
     document.getElementById('execView').innerHTML = "";
@@ -8168,7 +8188,8 @@ window.render = () => {
 
   document.getElementById('bannerTitle').textContent = week.weekLabel;
   const editorName = getUserDisplayName(week.lastModifiedBy);
-  document.getElementById('bannerMeta').textContent = week.weekDate + " · Last edited by " + editorName;
+  document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
+    || (week.weekDate + " · Last edited by " + editorName);
 
   const bannerPills = document.getElementById('bannerPills');
   if (isExecutivePerspective()) {
@@ -9571,7 +9592,7 @@ window.closeModal = (id, { force = false } = {}) => {
   const modal = document.getElementById(id);
   if (!modal) return false;
   if (id === 'projEditOverlay' && projectMutationInFlight) return false;
-  if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return false;
+  if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight && !ganttTemplateSessionConflicted) return false;
   if (!force && editorHasUnsavedChanges(modal)) {
     pendingDiscardEditorId = id;
     openAccessibleModal(document.getElementById('unsavedChangesOverlay'));
