@@ -394,29 +394,42 @@ async function finalizeVerifiedResult({
     finalWarning = finalWarning || 'snapshot-retention-cleanup-failed';
   }
   try {
-    await destinationStore.releaseLease({ runId });
-  } catch (_releaseError) {
-    finalWarning = finalWarning || 'lease-release-failed';
-  }
-  if (!auditPersisted || finalWarning) {
-    const extra = {
-      ...result,
-      ...(finalWarning === 'lease-release-failed'
-        ? { leaseReleaseWarning: finalWarning }
-        : finalWarning ? { cleanupWarning: finalWarning } : {}),
-    };
-    let finalAuditPersisted = auditPersisted && !finalWarning;
-    for (let attempt = 0; attempt < 2 && !finalAuditPersisted; attempt += 1) {
-      try {
-        await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra }));
-        auditPersisted = true;
-        finalAuditPersisted = true;
-      } catch (_auditRecordError) {
-        // Retry the complete verified result because a phase-only retry loses audit evidence.
+    if (!auditPersisted || finalWarning) {
+      const extra = {
+        ...result,
+        ...(finalWarning ? { cleanupWarning: finalWarning } : {}),
+      };
+      let finalAuditPersisted = auditPersisted && !finalWarning;
+      for (let attempt = 0; attempt < 2 && !finalAuditPersisted; attempt += 1) {
+        try {
+          await destinationStore.updateRun(runMetadata({ runId, actor, operation, phase, extra }));
+          auditPersisted = true;
+          finalAuditPersisted = true;
+        } catch (_auditRecordError) {
+          // Retry the complete verified result because a phase-only retry loses audit evidence.
+        }
+      }
+    }
+    if (auditPersisted && afterAuditPersisted) await afterAuditPersisted();
+  } finally {
+    try {
+      await destinationStore.releaseLease({ runId });
+    } catch (_releaseError) {
+      if (!finalWarning) {
+        const releaseWarning = 'lease-release-failed';
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            await destinationStore.updateRun(runMetadata({
+              runId, actor, operation, phase, extra: { ...result, leaseReleaseWarning: releaseWarning },
+            }));
+            break;
+          } catch (_auditRecordError) {
+            // The verified business result remains true even when the release warning cannot be recorded.
+          }
+        }
       }
     }
   }
-  if (auditPersisted && afterAuditPersisted) await afterAuditPersisted();
   return result;
 }
 

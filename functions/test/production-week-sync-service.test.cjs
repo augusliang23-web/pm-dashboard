@@ -673,6 +673,48 @@ test('restore leaves durable recovery in place when its verified terminal audit 
   assert.equal(destination.state.recovery.recoveryRequired, true);
 });
 
+test('verified restore clears recovery after its complete audit and before release, without erasing a newer rollback failure', async () => {
+  const restoredWeeks = [week('W34-2026', 'RESTORE')];
+  const destination = createMemoryDestination({
+    weeks: [week('W36-2026', 'CURRENT')],
+    snapshots: [{
+      snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',
+      digest: core.digestWeekEntries(restoredWeeks), weekCount: 1, weeks: restoredWeeks,
+    }],
+  });
+  destination.state.recovery = {
+    recoveryRequired: true, rollbackFailedRunId: 'older-failed', rollbackFailedAt: '2026-09-10T00:00:00.000Z',
+  };
+  const originalReleaseLease = destination.releaseLease;
+  destination.clearRecoveryRequired = async ({ runId }) => {
+    destination.order.push('clearRecoveryRequired');
+    if (destination.state.lease?.runId !== runId) return false;
+    destination.state.recovery = {
+      recoveryRequired: false, rollbackFailedRunId: null, rollbackFailedAt: null,
+    };
+    return true;
+  };
+  destination.releaseLease = async ({ runId }) => {
+    await originalReleaseLease({ runId });
+    destination.state.lease = { runId: 'newer-run', expiresAt: '2026-09-11T00:15:00.000Z' };
+    destination.state.recovery = {
+      recoveryRequired: true, rollbackFailedRunId: 'newer-failed', rollbackFailedAt: '2026-09-11T00:00:00.000Z',
+    };
+  };
+
+  const result = await createService({ destination, ids: ['restore-run'] })
+    .restore({ actor: admin(), snapshotId: 'before-sync' });
+
+  assert.equal(result.phase, 'restored');
+  const audit = destination.order.lastIndexOf('updateRun:restored');
+  const clear = destination.order.indexOf('clearRecoveryRequired');
+  const release = destination.order.indexOf('releaseLease');
+  assert.ok(audit < clear && clear < release, `expected audit -> clear -> release, got ${destination.order.join(' -> ')}`);
+  assert.deepEqual(destination.state.recovery, {
+    recoveryRequired: true, rollbackFailedRunId: 'newer-failed', rollbackFailedAt: '2026-09-11T00:00:00.000Z',
+  });
+});
+
 test('verified restore stays restored when its lease release fails', async () => {
   const retained = {
     snapshotId: 'before-sync', complete: true, createdAt: '2026-09-10T00:00:00.000Z',

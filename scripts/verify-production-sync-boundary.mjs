@@ -84,21 +84,6 @@ function parseFirebaseAliases(firebaseRc) {
   return new Map(Object.entries(value.projects));
 }
 
-function shellAssignments(text) {
-  const assignments = new Map();
-  const normalized = text.replace(/[\\`]\r?\n/g, ' ');
-  for (const match of normalized.matchAll(/(?:^|[;\n])\s*(?:export\s+)?([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/gm)) {
-    assignments.set(match[1], match[3]);
-  }
-  for (const match of normalized.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([^'"\r\n]*)\2/g)) {
-    assignments.set(match[1], match[3]);
-  }
-  for (const match of normalized.matchAll(/\$([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/g)) {
-    assignments.set(match[1], match[3]);
-  }
-  return assignments;
-}
-
 function resolveFirebaseProject(token, assignments, aliases) {
   const unquoted = String(token || '').trim().replace(/^['"]|['"]$/g, '');
   const variable = /^\$\{?([A-Za-z_]\w*)\}?$/.exec(unquoted)?.[1];
@@ -107,18 +92,44 @@ function resolveFirebaseProject(token, assignments, aliases) {
   return aliases.get(target) || target;
 }
 
+function deploymentEvents(text) {
+  const normalized = text.replace(/[\\`]\r?\n/g, ' ');
+  const events = [];
+  const addMatches = (pattern, type, toValue) => {
+    for (const match of normalized.matchAll(pattern)) {
+      events.push({ index: match.index, type, value: toValue(match) });
+    }
+  };
+  addMatches(/(?:^|[;\n])\s*(?:export\s+)?([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/gm,
+    'assignment', match => ({ name: match[1], value: match[3] }));
+  addMatches(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([^'"\r\n]*)\2/g,
+    'assignment', match => ({ name: match[1], value: match[3] }));
+  addMatches(/\$([A-Za-z_]\w*)\s*=\s*(['"])([^'"\r\n]*)\2/g,
+    'assignment', match => ({ name: match[1], value: match[3] }));
+  addMatches(/\bfirebase\s+use\s+([^\s;]+)/ig, 'use', match => match[1]);
+  addMatches(/\bfirebase\s+deploy\b([^\n;]*)/ig, 'deploy', match => match[1]);
+  return events.sort((left, right) => left.index - right.index);
+}
+
 function firebaseDeployViolation(deploymentParts, firebaseRcPart) {
   const aliases = parseFirebaseAliases(firebaseRcPart);
   if (aliases === null) {
     return violation('invalid-firebase-rc', 'The .firebaserc aliases must be valid structured project mappings.', firebaseRcPart.source);
   }
   for (const part of deploymentParts) {
-    const normalized = part.text.replace(/[\\`]\r?\n/g, ' ');
-    const assignments = shellAssignments(part.text);
-    const activeAlias = /\bfirebase\s+use\s+([^\s]+)/i.exec(normalized)?.[1];
-    for (const line of normalized.split(/\r?\n/)) {
-      if (!/\bfirebase\b.*\bdeploy\b/i.test(line)) continue;
-      const projectToken = /--project(?:\s*=\s*|\s+)([^\s]+)/i.exec(line)?.[1]
+    const assignments = new Map();
+    let activeAlias = '';
+    for (const event of deploymentEvents(part.text)) {
+      if (event.type === 'assignment') {
+        assignments.set(event.value.name, event.value.value);
+        continue;
+      }
+      if (event.type === 'use') {
+        activeAlias = event.value;
+        continue;
+      }
+      if (event.type !== 'deploy') continue;
+      const projectToken = /--project(?:\s*=\s*|\s+)([^\s]+)/i.exec(event.value)?.[1]
         || activeAlias || aliases.get('default') || '';
       const resolvedProject = resolveFirebaseProject(projectToken, assignments, aliases);
       if (resolvedProject !== UAT_PROJECT_ID) {

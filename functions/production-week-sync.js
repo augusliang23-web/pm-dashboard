@@ -217,10 +217,13 @@ function createUatSyncStore(uatDb, options = {}) {
         }, { merge: true });
       });
     },
-    async clearRecoveryRequired() {
+    async clearRecoveryRequired({ runId }) {
       return uatDb.runTransaction(async transaction => {
         const current = await transaction.get(controlRef());
-        if (!current.exists || current.data().recoveryRequired !== true) return false;
+        const control = current.exists ? current.data() : {};
+        const expiry = Date.parse(control.expiresAt || '');
+        if (!current.exists || control.activeRunId !== runId || !Number.isFinite(expiry) || expiry <= Date.now()
+          || control.recoveryRequired !== true) return false;
         transaction.set(controlRef(), {
           recoveryRequired: false,
           rollbackFailedRunId: null,

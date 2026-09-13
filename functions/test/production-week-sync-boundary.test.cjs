@@ -510,13 +510,46 @@ test('durable recovery status survives lease replacement and newer failed runs u
     latestRun: { runId: 'new-run', phase: 'restoring', result: 'failed', completedAt: '2026-09-12T06:10:00.000Z' },
   });
 
-  await store.clearRecoveryRequired({ runId: 'verified-restore' });
+  assert.equal(await store.clearRecoveryRequired({ runId: 'verified-restore' }), false);
+  assert.equal((await store.readStatus()).recoveryRequired, true);
+  await store.releaseLease({ runId: 'new-run' });
+  assert.deepEqual(await store.acquireLease({
+    runId: 'verified-restore', actor: {}, expiresAt: '2999-01-01T00:00:00.000Z',
+  }), { acquired: true });
+  assert.equal(await store.clearRecoveryRequired({ runId: 'verified-restore' }), true);
   assert.deepEqual(await store.readStatus(), {
     running: true,
-    phase: 'restoring',
     recoveryRequired: false,
     latestRun: { runId: 'new-run', phase: 'restoring', result: 'failed', completedAt: '2026-09-12T06:10:00.000Z' },
   });
+});
+
+test('adapter clears recovery only for its current valid restore lease', async () => {
+  for (const [name, lease, clears] of [
+    ['the owning valid restore', {
+      activeRunId: 'restore-run', expiresAt: '2999-01-01T00:00:00.000Z',
+    }, true],
+    ['a newer owner', {
+      activeRunId: 'newer-run', expiresAt: '2999-01-01T00:00:00.000Z',
+    }, false],
+    ['an expired restore lease', {
+      activeRunId: 'restore-run', expiresAt: '2000-01-01T00:00:00.000Z',
+    }, false],
+  ]) {
+    const db = createBatchDb();
+    db.lease = {
+      ...lease,
+      recoveryRequired: true,
+      rollbackFailedRunId: 'older-failed-run',
+      rollbackFailedAt: '2026-09-12T05:00:00.000Z',
+    };
+
+    const cleared = await sync.createUatSyncStore(db).clearRecoveryRequired({ runId: 'restore-run' });
+
+    assert.equal(cleared, clears, name);
+    assert.equal(db.lease.recoveryRequired, !clears, name);
+    assert.equal(db.lease.rollbackFailedRunId, clears ? null : 'older-failed-run', name);
+  }
 });
 
 test('complete snapshot listings expose metadata only so restore reads the payload separately', async () => {

@@ -205,6 +205,60 @@ for (const [name, deployment] of [
   });
 }
 
+test('the verifier evaluates Firebase project variables at each deploy command', () => {
+  const violations = verifyProductionSyncBoundary({
+    ...safeSources,
+    deployment: [
+      "SYNC_TARGET='project-manager-dashboar-a067f'",
+      'firebase deploy --project "$SYNC_TARGET" --only functions',
+      "SYNC_TARGET='pm-dashboard-uat-20260820-a7f3'",
+    ].join('\n'),
+  });
+
+  assert.ok(violations.some(item => item.code === 'production-deploy-target'));
+});
+
+test('the verifier evaluates firebase use aliases at each deploy command', () => {
+  const violations = verifyProductionSyncBoundary({
+    ...safeSources,
+    firebaseRc: JSON.stringify({
+      projects: {
+        default: 'pm-dashboard-uat-20260820-a7f3',
+        prod: 'project-manager-dashboar-a067f',
+        uat: 'pm-dashboard-uat-20260820-a7f3',
+      },
+    }),
+    deployment: [
+      'firebase use uat',
+      'firebase deploy --only functions',
+      'firebase use prod',
+      'firebase deploy --only functions',
+    ].join('\n'),
+  });
+
+  assert.ok(violations.some(item => item.code === 'production-deploy-target'));
+});
+
+test('the verifier accepts a UAT deploy before a later reassignment with no later deploy', () => {
+  assert.deepEqual(verifyProductionSyncBoundary({
+    ...safeSources,
+    firebaseRc: JSON.stringify({
+      projects: {
+        default: 'pm-dashboard-uat-20260820-a7f3',
+        prod: 'project-manager-dashboar-a067f',
+        uat: 'pm-dashboard-uat-20260820-a7f3',
+      },
+    }),
+    deployment: [
+      "SYNC_TARGET='pm-dashboard-uat-20260820-a7f3'",
+      'firebase use uat',
+      'firebase deploy --project "$SYNC_TARGET" --only functions',
+      "SYNC_TARGET='project-manager-dashboar-a067f'",
+      'firebase use prod',
+    ].join('\n'),
+  }), []);
+});
+
 test('the verifier resolves a .firebaserc Production alias used by Firebase deploy', () => {
   const violations = verifyProductionSyncBoundary({
     ...safeSources,
