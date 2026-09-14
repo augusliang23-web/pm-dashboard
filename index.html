@@ -101,9 +101,6 @@ body {
 .async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
 button[aria-busy="true"] { cursor:wait; }
 #unsavedChangesOverlay { z-index:10010; }
-#productionWeekSyncConfirmOverlay,
-#productionWeekRestoreConfirmOverlay { z-index:220; }
-
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .login-card { width: 380px; padding: 40px; background: var(--s1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
@@ -2724,6 +2721,22 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="productionWeekSyncButton" class="btn btn-primary" type="button">Sync from Production</button>
       <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" disabled>Restore Last Snapshot</button>
     </div>
+    <div id="productionWeekSyncInlineConfirm" hidden role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+      <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm Production Data Sync</strong>
+      <p id="productionWeekSyncConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="cancelProductionWeekSyncButton" class="btn btn-ghost" type="button">Cancel</button>
+        <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button">Confirm Sync</button>
+      </div>
+    </div>
+    <div id="productionWeekRestoreInlineConfirm" hidden role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+      <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm UAT Snapshot Restore</strong>
+      <p id="productionWeekRestoreConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="cancelProductionWeekRestoreButton" class="btn btn-ghost" type="button">Cancel</button>
+        <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button">Restore Snapshot</button>
+      </div>
+    </div>
   </section>
 
   <div style="background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;">
@@ -2748,34 +2761,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 
 </div>
-</div>
-
-<div class="overlay" id="productionWeekSyncConfirmOverlay" role="dialog" aria-modal="true" aria-labelledby="productionWeekSyncConfirmTitle" aria-describedby="productionWeekSyncConfirmMessage">
-  <div class="modal" style="width:620px">
-    <div class="modal-hdr">
-      <h3 id="productionWeekSyncConfirmTitle">Confirm Production Data Sync</h3>
-      <button class="modal-x" type="button" onclick="cancelProductionWeekSync()" aria-label="Close Production sync confirmation">×</button>
-    </div>
-    <p id="productionWeekSyncConfirmMessage" style="color:var(--text-light); line-height:1.6;"></p>
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
-      <button class="btn btn-ghost" type="button" onclick="cancelProductionWeekSync()">Cancel</button>
-      <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button" onclick="confirmProductionWeekSync()">Confirm Sync</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="productionWeekRestoreConfirmOverlay" role="dialog" aria-modal="true" aria-labelledby="productionWeekRestoreConfirmTitle" aria-describedby="productionWeekRestoreConfirmMessage">
-  <div class="modal" style="width:620px">
-    <div class="modal-hdr">
-      <h3 id="productionWeekRestoreConfirmTitle">Confirm UAT Snapshot Restore</h3>
-      <button class="modal-x" type="button" onclick="cancelProductionWeekRestore()" aria-label="Close UAT snapshot restore confirmation">×</button>
-    </div>
-    <p id="productionWeekRestoreConfirmMessage" style="color:var(--text-light); line-height:1.6;"></p>
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
-      <button class="btn btn-ghost" type="button" onclick="cancelProductionWeekRestore()">Cancel</button>
-      <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button" onclick="confirmProductionWeekRestore()">Restore Snapshot</button>
-    </div>
-  </div>
 </div>
 
 <div class="overlay" id="weeklySummaryCorrectionOverlay" role="dialog" aria-modal="true" aria-labelledby="weeklySummaryCorrectionTitle">
@@ -2908,7 +2893,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=native-confirm-1";
+import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=inline-confirm-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2961,34 +2946,47 @@ const uatProductionSyncController = createUatProductionSyncController({
       result.textContent = state.result || '';
       applyProductionSyncButtonState({ syncButton, restoreButton }, state);
     },
-    confirm({ message }) {
-      return window.confirm(message);
+    confirm({ kind, message }) {
+      const isSync = kind === 'sync';
+      showInlineProductionSyncConfirmation({
+        container: document.getElementById(isSync ? 'productionWeekSyncInlineConfirm' : 'productionWeekRestoreInlineConfirm'),
+        messageNode: document.getElementById(isSync ? 'productionWeekSyncConfirmMessage' : 'productionWeekRestoreConfirmMessage'),
+        message,
+      });
     },
   },
 });
 window.requestProductionWeekSync = () => uatProductionSyncController.requestSync();
 window.confirmProductionWeekSync = () => submitUatProductionSyncConfirmation({
   controller: uatProductionSyncController,
-  close: () => closeModal('productionWeekSyncConfirmOverlay', { force: true }),
+  close: () => hideInlineProductionSyncConfirmation(document.getElementById('productionWeekSyncInlineConfirm')),
 });
 window.cancelProductionWeekSync = () => {
   uatProductionSyncController.cancelConfirmation();
-  closeModal('productionWeekSyncConfirmOverlay', { force: true });
+  hideInlineProductionSyncConfirmation(document.getElementById('productionWeekSyncInlineConfirm'));
 };
 window.requestRestoreUatWeekSnapshot = () => uatProductionSyncController.requestRestore();
 window.confirmProductionWeekRestore = () => submitUatProductionRestoreConfirmation({
   controller: uatProductionSyncController,
-  close: () => closeModal('productionWeekRestoreConfirmOverlay', { force: true }),
+  close: () => hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm')),
 });
 window.cancelProductionWeekRestore = () => {
   uatProductionSyncController.cancelConfirmation();
-  closeModal('productionWeekRestoreConfirmOverlay', { force: true });
+  hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm'));
 };
 bindProductionSyncActions({
   syncButton: document.getElementById('productionWeekSyncButton'),
   restoreButton: document.getElementById('restoreUatWeekSnapshotButton'),
+  confirmSyncButton: document.getElementById('confirmProductionWeekSyncButton'),
+  cancelSyncButton: document.getElementById('cancelProductionWeekSyncButton'),
+  confirmRestoreButton: document.getElementById('confirmProductionWeekRestoreButton'),
+  cancelRestoreButton: document.getElementById('cancelProductionWeekRestoreButton'),
   requestSync: window.requestProductionWeekSync,
   requestRestore: window.requestRestoreUatWeekSnapshot,
+  confirmSync: window.confirmProductionWeekSync,
+  cancelSync: window.cancelProductionWeekSync,
+  confirmRestore: window.confirmProductionWeekRestore,
+  cancelRestore: window.cancelProductionWeekRestore,
 });
 window.refreshProductionWeekSyncStatus = () => uatProductionSyncController.refreshStatus();
 let executiveUpdateSession = null;
@@ -9614,9 +9612,6 @@ window.closeModal = (id, { force = false } = {}) => {
     clearProjectMutationError();
   }
   if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
-  if (id === 'productionWeekSyncConfirmOverlay' || id === 'productionWeekRestoreConfirmOverlay') {
-    uatProductionSyncController.cancelConfirmation();
-  }
   modal.classList.remove('open');
   delete modal.dataset.editorBaseline;
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();

@@ -7,16 +7,47 @@ export function canUseProductionWeekSync(role) {
   return String(role || '').trim().toLowerCase() === 'admin';
 }
 
-export function bindProductionSyncActions({ syncButton, restoreButton, requestSync, requestRestore }) {
-  if (!syncButton || !restoreButton
-    || typeof requestSync !== 'function' || typeof requestRestore !== 'function') return false;
-  syncButton.addEventListener('click', event => {
-    event.preventDefault();
-    requestSync();
-  });
-  restoreButton.addEventListener('click', event => {
-    event.preventDefault();
-    requestRestore();
+export function showInlineProductionSyncConfirmation({ container, messageNode, message }) {
+  if (!container || !messageNode) return false;
+  messageNode.textContent = String(message || '');
+  container.hidden = false;
+  return true;
+}
+
+export function hideInlineProductionSyncConfirmation(container) {
+  if (!container) return false;
+  container.hidden = true;
+  return true;
+}
+
+export function bindProductionSyncActions({
+  syncButton,
+  restoreButton,
+  confirmSyncButton,
+  cancelSyncButton,
+  confirmRestoreButton,
+  cancelRestoreButton,
+  requestSync,
+  requestRestore,
+  confirmSync,
+  cancelSync,
+  confirmRestore,
+  cancelRestore,
+}) {
+  const actions = [
+    [syncButton, requestSync],
+    [restoreButton, requestRestore],
+    [confirmSyncButton, confirmSync],
+    [cancelSyncButton, cancelSync],
+    [confirmRestoreButton, confirmRestore],
+    [cancelRestoreButton, cancelRestore],
+  ];
+  if (actions.some(([button, action]) => !button || typeof action !== 'function')) return false;
+  actions.forEach(([button, action]) => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      action();
+    });
   });
   return true;
 }

@@ -19,7 +19,7 @@ import {
 
 const SYNC_WARNING = 'This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.';
 
-test('production sync actions use direct event listeners instead of inline handlers', async () => {
+test('production sync actions use direct event listeners for request and inline confirmation controls', async () => {
   assert.equal(typeof productionSyncModule.bindProductionSyncActions, 'function');
 
   const listeners = new Map();
@@ -28,17 +28,35 @@ test('production sync actions use direct event listeners instead of inline handl
   });
   const syncButton = button();
   const restoreButton = button();
+  const confirmSyncButton = button();
+  const cancelSyncButton = button();
+  const confirmRestoreButton = button();
+  const cancelRestoreButton = button();
   const calls = [];
   productionSyncModule.bindProductionSyncActions({
     syncButton,
     restoreButton,
     requestSync: () => calls.push('sync'),
     requestRestore: () => calls.push('restore'),
+    confirmSyncButton,
+    cancelSyncButton,
+    confirmSync: () => calls.push('confirm-sync'),
+    cancelSync: () => calls.push('cancel-sync'),
+    confirmRestoreButton,
+    cancelRestoreButton,
+    confirmRestore: () => calls.push('confirm-restore'),
+    cancelRestore: () => calls.push('cancel-restore'),
   });
 
   listeners.get(syncButton).listener({ preventDefault() {} });
   listeners.get(restoreButton).listener({ preventDefault() {} });
-  assert.deepEqual(calls, ['sync', 'restore']);
+  for (const [element, registration] of listeners) {
+    if (element === syncButton || element === restoreButton) continue;
+    registration.listener({ preventDefault() {} });
+  }
+  assert.deepEqual(calls, [
+    'sync', 'restore', 'confirm-sync', 'cancel-sync', 'confirm-restore', 'cancel-restore',
+  ]);
 
   const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.doesNotMatch(dashboard, /id="productionWeekSyncButton"[^>]*onclick=/);
@@ -46,9 +64,22 @@ test('production sync actions use direct event listeners instead of inline handl
   assert.match(dashboard, /bindProductionSyncActions\(\{/);
 });
 
-test('production sync confirmation overlays are guaranteed to stack above Week Management', async () => {
-  const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(dashboard, /#productionWeekSyncConfirmOverlay,\s*#productionWeekRestoreConfirmOverlay\s*\{[^}]*z-index:\s*(?:20[1-9]|2[1-9]\d|[3-9]\d{2,})/);
+test('inline confirmation is shown and hidden without relying on a dialog', () => {
+  assert.equal(typeof productionSyncModule.showInlineProductionSyncConfirmation, 'function');
+  assert.equal(typeof productionSyncModule.hideInlineProductionSyncConfirmation, 'function');
+  const container = { hidden: true };
+  const messageNode = { textContent: '' };
+
+  productionSyncModule.showInlineProductionSyncConfirmation({
+    container,
+    messageNode,
+    message: SYNC_WARNING,
+  });
+  assert.equal(container.hidden, false);
+  assert.equal(messageNode.textContent, SYNC_WARNING);
+
+  productionSyncModule.hideInlineProductionSyncConfirmation(container);
+  assert.equal(container.hidden, true);
 });
 
 function deferred() {
