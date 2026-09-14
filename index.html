@@ -101,6 +101,8 @@ body {
 .async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
 button[aria-busy="true"] { cursor:wait; }
 #unsavedChangesOverlay { z-index:10010; }
+#productionWeekSyncConfirmOverlay,
+#productionWeekRestoreConfirmOverlay { z-index:220; }
 
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -2719,8 +2721,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div id="productionWeekSyncLastRun" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
     <div id="productionWeekSyncResult" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button id="productionWeekSyncButton" class="btn btn-primary" type="button" onclick="requestProductionWeekSync()">Sync from Production</button>
-      <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" onclick="requestRestoreUatWeekSnapshot()" disabled>Restore Last Snapshot</button>
+      <button id="productionWeekSyncButton" class="btn btn-primary" type="button">Sync from Production</button>
+      <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" disabled>Restore Last Snapshot</button>
     </div>
   </section>
 
@@ -2906,7 +2908,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs";
+import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=click-binding-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2992,6 +2994,12 @@ window.cancelProductionWeekRestore = () => {
   uatProductionSyncController.cancelConfirmation();
   closeModal('productionWeekRestoreConfirmOverlay', { force: true });
 };
+bindProductionSyncActions({
+  syncButton: document.getElementById('productionWeekSyncButton'),
+  restoreButton: document.getElementById('restoreUatWeekSnapshotButton'),
+  requestSync: window.requestProductionWeekSync,
+  requestRestore: window.requestRestoreUatWeekSnapshot,
+});
 window.refreshProductionWeekSyncStatus = () => uatProductionSyncController.refreshStatus();
 let executiveUpdateSession = null;
 let executiveUpdateHistoryUnsub = null;

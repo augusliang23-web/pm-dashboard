@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import * as productionSyncModule from '../js/uat-production-sync.mjs';
 import {
   canUseProductionWeekSync,
   createUatProductionSyncApi,
@@ -16,6 +18,38 @@ import {
 } from '../js/uat-production-sync.mjs';
 
 const SYNC_WARNING = 'This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.';
+
+test('production sync actions use direct event listeners instead of inline handlers', async () => {
+  assert.equal(typeof productionSyncModule.bindProductionSyncActions, 'function');
+
+  const listeners = new Map();
+  const button = () => ({
+    addEventListener(type, listener) { listeners.set(this, { type, listener }); },
+  });
+  const syncButton = button();
+  const restoreButton = button();
+  const calls = [];
+  productionSyncModule.bindProductionSyncActions({
+    syncButton,
+    restoreButton,
+    requestSync: () => calls.push('sync'),
+    requestRestore: () => calls.push('restore'),
+  });
+
+  listeners.get(syncButton).listener({ preventDefault() {} });
+  listeners.get(restoreButton).listener({ preventDefault() {} });
+  assert.deepEqual(calls, ['sync', 'restore']);
+
+  const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(dashboard, /id="productionWeekSyncButton"[^>]*onclick=/);
+  assert.doesNotMatch(dashboard, /id="restoreUatWeekSnapshotButton"[^>]*onclick=/);
+  assert.match(dashboard, /bindProductionSyncActions\(\{/);
+});
+
+test('production sync confirmation overlays are guaranteed to stack above Week Management', async () => {
+  const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(dashboard, /#productionWeekSyncConfirmOverlay,\s*#productionWeekRestoreConfirmOverlay\s*\{[^}]*z-index:\s*(?:20[1-9]|2[1-9]\d|[3-9]\d{2,})/);
+});
 
 function deferred() {
   let resolve;

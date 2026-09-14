@@ -7,6 +7,20 @@ export function canUseProductionWeekSync(role) {
   return String(role || '').trim().toLowerCase() === 'admin';
 }
 
+export function bindProductionSyncActions({ syncButton, restoreButton, requestSync, requestRestore }) {
+  if (!syncButton || !restoreButton
+    || typeof requestSync !== 'function' || typeof requestRestore !== 'function') return false;
+  syncButton.addEventListener('click', event => {
+    event.preventDefault();
+    requestSync();
+  });
+  restoreButton.addEventListener('click', event => {
+    event.preventDefault();
+    requestRestore();
+  });
+  return true;
+}
+
 export function createUatProductionSyncApi({ functions, httpsCallable }) {
   const call = name => httpsCallable(functions, name);
   return {
