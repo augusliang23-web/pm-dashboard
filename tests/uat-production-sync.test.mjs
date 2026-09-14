@@ -402,7 +402,7 @@ test('sync does not call a visible-week mutation callback', async () => {
   assert.equal(mutated, false);
 });
 
-test('confirmed sync immediately reports that Production sync is starting', async () => {
+test('confirmed sync immediately reports that Production data is syncing', async () => {
   const sync = deferred();
   const view = createView();
   const controller = createUatProductionSyncController({
@@ -418,9 +418,57 @@ test('confirmed sync immediately reports that Production sync is starting', asyn
   controller.requestSync();
   const operation = controller.confirmSync();
 
-  assert.equal(view.renders.at(-1).result, 'Starting Production sync…');
+  assert.equal(view.renders.at(-1).result, 'Syncing Production data…');
   sync.resolve({ phase: 'succeeded' });
   await operation;
+});
+
+test('sync animation state is active only while a confirmed sync is running', async () => {
+  const status = deferred();
+  const sync = deferred();
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: () => status.promise,
+      sync: () => sync.promise,
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  const opening = controller.open();
+  assert.equal(view.renders.at(-1).syncInProgress, false);
+  status.resolve({ running: false });
+  await opening;
+
+  controller.requestSync();
+  const operation = controller.confirmSync();
+  assert.equal(view.renders.at(-1).syncInProgress, true);
+
+  sync.resolve({ phase: 'succeeded' });
+  await operation;
+  assert.equal(view.renders.at(-1).syncInProgress, false);
+});
+
+test('sync result rendering shows and hides its progress animation', () => {
+  assert.equal(typeof productionSyncModule.applyProductionSyncResultState, 'function');
+  const resultNode = { textContent: '' };
+  const spinnerNode = { hidden: true };
+
+  productionSyncModule.applyProductionSyncResultState({ resultNode, spinnerNode }, {
+    result: 'Syncing Production data…',
+    syncInProgress: true,
+  });
+  assert.equal(resultNode.textContent, 'Syncing Production data…');
+  assert.equal(spinnerNode.hidden, false);
+
+  productionSyncModule.applyProductionSyncResultState({ resultNode, spinnerNode }, {
+    result: 'Production sync completed.',
+    syncInProgress: false,
+  });
+  assert.equal(resultNode.textContent, 'Production sync completed.');
+  assert.equal(spinnerNode.hidden, true);
 });
 
 test('sync blocks duplicate clicks, reports counts, and only asks the API boundary to refresh status', async () => {

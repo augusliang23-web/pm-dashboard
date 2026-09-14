@@ -74,6 +74,11 @@ export function applyProductionSyncButtonState({ syncButton, restoreButton }, st
   restoreButton.setAttribute('aria-busy', ariaBusy);
 }
 
+export function applyProductionSyncResultState({ resultNode, spinnerNode }, state) {
+  resultNode.textContent = state.result || '';
+  spinnerNode.hidden = state.syncInProgress !== true;
+}
+
 export function formatProductionSyncStatus(status = {}) {
   const latestRun = status.latestRun || status.latestCompletedRun;
   if (status.recoveryRequired === true) return ROLLBACK_FAILED_MESSAGE;
@@ -119,7 +124,7 @@ function errorMessage(error, kind) {
 }
 
 export function createUatProductionSyncController({ api, getRole, view }) {
-  const state = { busy: false, status: null, result: '', confirmation: null };
+  const state = { busy: false, syncInProgress: false, status: null, result: '', confirmation: null };
   const isAdmin = () => canUseProductionWeekSync(getRole());
   const operationBusy = () => state.busy || state.status?.running === true;
   const latestSnapshotId = () => state.status?.latestSnapshot?.snapshotId
@@ -203,7 +208,8 @@ export function createUatProductionSyncController({ api, getRole, view }) {
 
     state.confirmation = null;
     state.busy = true;
-    state.result = kind === 'sync' ? 'Starting Production sync…' : '';
+    state.syncInProgress = kind === 'sync';
+    state.result = kind === 'sync' ? 'Syncing Production data…' : '';
     publish();
     try {
       const result = kind === 'sync' ? await api.sync() : await api.restore(snapshotId);
@@ -213,6 +219,7 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     } finally {
       await refreshStatus({ keepBusy: true });
       state.busy = false;
+      state.syncInProgress = false;
       publish();
     }
     return true;

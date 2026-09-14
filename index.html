@@ -99,6 +99,8 @@ body {
 #saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
 .async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+#productionWeekSyncSpinner[hidden] { display:none; }
+@media (prefers-reduced-motion: reduce) { #productionWeekSyncSpinner { animation:none; } }
 button[aria-busy="true"] { cursor:wait; }
 #unsavedChangesOverlay { z-index:10010; }
 /* ── LOGIN ── */
@@ -2716,7 +2718,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <p style="font-size:12px; color:var(--text-light); margin-bottom:12px;">Admin-only controls for the protected Production-to-UAT reporting-week mirror.</p>
     <div id="productionWeekSyncStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:6px;">No Production sync has been recorded.</div>
     <div id="productionWeekSyncLastRun" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
-    <div id="productionWeekSyncResult" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
+    <div id="productionWeekSyncResult" role="status" aria-live="polite" style="display:flex; align-items:center; min-height:18px; font-size:12px; color:var(--text-light); margin-bottom:12px;">
+      <span id="productionWeekSyncSpinner" class="async-action-spinner" hidden aria-hidden="true"></span>
+      <span id="productionWeekSyncResultText"></span>
+    </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
       <details id="productionWeekSyncDetails" style="width:100%;">
         <summary id="productionWeekSyncButton" class="btn btn-primary" style="display:inline-flex; list-style:none;">Sync from Production</summary>
@@ -2895,7 +2900,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=details-confirm-2";
+import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2930,10 +2935,11 @@ const uatProductionSyncController = createUatProductionSyncController({
       const panel = document.getElementById('productionWeekSyncPanel');
       const status = document.getElementById('productionWeekSyncStatus');
       const lastRun = document.getElementById('productionWeekSyncLastRun');
-      const result = document.getElementById('productionWeekSyncResult');
+      const result = document.getElementById('productionWeekSyncResultText');
+      const spinner = document.getElementById('productionWeekSyncSpinner');
       const syncButton = document.getElementById('productionWeekSyncButton');
       const restoreButton = document.getElementById('restoreUatWeekSnapshotButton');
-      if (!panel || !status || !lastRun || !result || !syncButton || !restoreButton) return;
+      if (!panel || !status || !lastRun || !result || !spinner || !syncButton || !restoreButton) return;
       panel.style.display = state.isAdmin && !isAdminExecutivePreview ? '' : 'none';
       status.textContent = state.statusText || '';
       const completed = getLatestSuccessfulOperation(state.status);
@@ -2945,7 +2951,7 @@ const uatProductionSyncController = createUatProductionSyncController({
       } else {
         lastRun.textContent = '';
       }
-      result.textContent = state.result || '';
+      applyProductionSyncResultState({ resultNode: result, spinnerNode: spinner }, state);
       applyProductionSyncButtonState({ syncButton, restoreButton }, state);
     },
     confirm({ kind, message }) {
