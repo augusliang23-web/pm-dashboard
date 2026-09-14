@@ -132,7 +132,12 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     if (!isAdmin() || operationBusy() || state.confirmation) return false;
     state.confirmation = 'sync';
     publish();
-    view.confirm({ kind: 'sync', message: PRODUCTION_SYNC_CONFIRMATION });
+    const decision = view.confirm({ kind: 'sync', message: PRODUCTION_SYNC_CONFIRMATION });
+    if (decision === true) return confirm('sync');
+    if (decision === false) {
+      cancelConfirmation();
+      return false;
+    }
     return true;
   }
 
@@ -140,7 +145,12 @@ export function createUatProductionSyncController({ api, getRole, view }) {
     if (!isAdmin() || operationBusy() || state.confirmation || !latestSnapshotId()) return false;
     state.confirmation = 'restore';
     publish();
-    view.confirm({ kind: 'restore', message: RESTORE_CONFIRMATION });
+    const decision = view.confirm({ kind: 'restore', message: RESTORE_CONFIRMATION });
+    if (decision === true) return confirm('restore');
+    if (decision === false) {
+      cancelConfirmation();
+      return false;
+    }
     return true;
   }
 

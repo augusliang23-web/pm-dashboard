@@ -2908,7 +2908,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=click-binding-1";
+import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=native-confirm-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2961,18 +2961,8 @@ const uatProductionSyncController = createUatProductionSyncController({
       result.textContent = state.result || '';
       applyProductionSyncButtonState({ syncButton, restoreButton }, state);
     },
-    confirm({ kind, message }) {
-      const overlayId = kind === 'sync'
-        ? 'productionWeekSyncConfirmOverlay'
-        : 'productionWeekRestoreConfirmOverlay';
-      const messageId = kind === 'sync'
-        ? 'productionWeekSyncConfirmMessage'
-        : 'productionWeekRestoreConfirmMessage';
-      const messageNode = document.getElementById(messageId);
-      const overlay = document.getElementById(overlayId);
-      if (!messageNode || !overlay) return;
-      messageNode.textContent = message;
-      openAccessibleModal(overlay);
+    confirm({ message }) {
+      return window.confirm(message);
     },
   },
 });

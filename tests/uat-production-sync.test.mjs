@@ -253,6 +253,54 @@ test('sync requires the exact destructive-data warning and rechecks Admin at con
   assert.equal(view.renders.at(-1).isAdmin, false);
 });
 
+test('an accepted synchronous confirmation immediately submits Production sync', async () => {
+  const calls = [];
+  const view = createView();
+  view.confirm = details => {
+    view.confirmations.push(details);
+    return true;
+  };
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { calls.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  assert.equal(await controller.requestSync(), true);
+  assert.deepEqual(calls, ['sync']);
+  assert.equal(view.confirmations[0].message, SYNC_WARNING);
+});
+
+test('a rejected synchronous confirmation cancels without calling Production sync', async () => {
+  const calls = [];
+  let accepted = false;
+  const view = createView();
+  view.confirm = details => {
+    view.confirmations.push(details);
+    return accepted;
+  };
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { calls.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  assert.equal(await controller.requestSync(), false);
+  assert.deepEqual(calls, []);
+
+  accepted = true;
+  assert.equal(await controller.requestSync(), true);
+  assert.deepEqual(calls, ['sync']);
+});
+
 test('sync does not call a visible-week mutation callback', async () => {
   const view = createView();
   let mutated = false;
