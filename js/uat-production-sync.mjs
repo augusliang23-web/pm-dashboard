@@ -88,7 +88,7 @@ export function formatProductionSyncStatus(status = {}) {
 }
 
 export function getLatestSuccessfulOperation(status = {}) {
-  const completed = status.latestCompletedRun;
+  const completed = status?.latestCompletedRun;
   return ['succeeded', 'restored'].includes(completed?.phase) ? completed : null;
 }
 
@@ -203,7 +203,7 @@ export function createUatProductionSyncController({ api, getRole, view }) {
 
     state.confirmation = null;
     state.busy = true;
-    state.result = '';
+    state.result = kind === 'sync' ? 'Starting Production sync…' : '';
     publish();
     try {
       const result = kind === 'sync' ? await api.sync() : await api.restore(snapshotId);

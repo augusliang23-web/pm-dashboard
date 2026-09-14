@@ -190,6 +190,10 @@ test('Admin eligibility and server result labels are understandable', () => {
   }), { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' });
 });
 
+test('an unloaded Production sync status has no successful operation', () => {
+  assert.equal(getLatestSuccessfulOperation(null), null);
+});
+
 test('a valid active operation takes precedence over an earlier historical failure', () => {
   assert.equal(formatProductionSyncStatus({
     running: true,
@@ -396,6 +400,27 @@ test('sync does not call a visible-week mutation callback', async () => {
   controller.requestSync();
   await controller.confirmSync();
   assert.equal(mutated, false);
+});
+
+test('confirmed sync immediately reports that Production sync is starting', async () => {
+  const sync = deferred();
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: () => sync.promise,
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  controller.requestSync();
+  const operation = controller.confirmSync();
+
+  assert.equal(view.renders.at(-1).result, 'Starting Production sync…');
+  sync.resolve({ phase: 'succeeded' });
+  await operation;
 });
 
 test('sync blocks duplicate clicks, reports counts, and only asks the API boundary to refresh status', async () => {
