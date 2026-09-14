@@ -2717,24 +2717,26 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div id="productionWeekSyncStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:6px;">No Production sync has been recorded.</div>
     <div id="productionWeekSyncLastRun" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
     <div id="productionWeekSyncResult" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button id="productionWeekSyncButton" class="btn btn-primary" type="button">Sync from Production</button>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+      <details id="productionWeekSyncDetails" style="width:100%;">
+        <summary id="productionWeekSyncButton" class="btn btn-primary" style="display:inline-flex; list-style:none;">Sync from Production</summary>
+        <div role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+          <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm Production Data Sync</strong>
+          <p style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;">This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.</p>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button id="cancelProductionWeekSyncButton" class="btn btn-ghost" type="button">Cancel</button>
+            <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button">Confirm Sync</button>
+          </div>
+        </div>
+      </details>
       <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" disabled>Restore Last Snapshot</button>
-    </div>
-    <div id="productionWeekSyncInlineConfirm" hidden role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
-      <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm Production Data Sync</strong>
-      <p id="productionWeekSyncConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
-      <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button id="cancelProductionWeekSyncButton" class="btn btn-ghost" type="button">Cancel</button>
-        <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button">Confirm Sync</button>
-      </div>
-    </div>
-    <div id="productionWeekRestoreInlineConfirm" hidden role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
-      <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm UAT Snapshot Restore</strong>
-      <p id="productionWeekRestoreConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
-      <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button id="cancelProductionWeekRestoreButton" class="btn btn-ghost" type="button">Cancel</button>
-        <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button">Restore Snapshot</button>
+      <div id="productionWeekRestoreInlineConfirm" hidden role="alert" style="width:100%; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+        <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm UAT Snapshot Restore</strong>
+        <p id="productionWeekRestoreConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="cancelProductionWeekRestoreButton" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button">Restore Snapshot</button>
+        </div>
       </div>
     </div>
   </section>
@@ -2893,7 +2895,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
-import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=inline-confirm-1";
+import { applyProductionSyncButtonState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=details-confirm-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
@@ -2947,23 +2949,23 @@ const uatProductionSyncController = createUatProductionSyncController({
       applyProductionSyncButtonState({ syncButton, restoreButton }, state);
     },
     confirm({ kind, message }) {
-      const isSync = kind === 'sync';
+      if (kind === 'sync') return;
       showInlineProductionSyncConfirmation({
-        container: document.getElementById(isSync ? 'productionWeekSyncInlineConfirm' : 'productionWeekRestoreInlineConfirm'),
-        messageNode: document.getElementById(isSync ? 'productionWeekSyncConfirmMessage' : 'productionWeekRestoreConfirmMessage'),
+        container: document.getElementById('productionWeekRestoreInlineConfirm'),
+        messageNode: document.getElementById('productionWeekRestoreConfirmMessage'),
         message,
       });
     },
   },
 });
 window.requestProductionWeekSync = () => uatProductionSyncController.requestSync();
-window.confirmProductionWeekSync = () => submitUatProductionSyncConfirmation({
+window.confirmProductionWeekSync = () => submitInlineUatProductionSyncConfirmation({
   controller: uatProductionSyncController,
-  close: () => hideInlineProductionSyncConfirmation(document.getElementById('productionWeekSyncInlineConfirm')),
+  close: () => { document.getElementById('productionWeekSyncDetails').open = false; },
 });
 window.cancelProductionWeekSync = () => {
   uatProductionSyncController.cancelConfirmation();
-  hideInlineProductionSyncConfirmation(document.getElementById('productionWeekSyncInlineConfirm'));
+  document.getElementById('productionWeekSyncDetails').open = false;
 };
 window.requestRestoreUatWeekSnapshot = () => uatProductionSyncController.requestRestore();
 window.confirmProductionWeekRestore = () => submitUatProductionRestoreConfirmation({
@@ -2975,13 +2977,11 @@ window.cancelProductionWeekRestore = () => {
   hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm'));
 };
 bindProductionSyncActions({
-  syncButton: document.getElementById('productionWeekSyncButton'),
   restoreButton: document.getElementById('restoreUatWeekSnapshotButton'),
   confirmSyncButton: document.getElementById('confirmProductionWeekSyncButton'),
   cancelSyncButton: document.getElementById('cancelProductionWeekSyncButton'),
   confirmRestoreButton: document.getElementById('confirmProductionWeekRestoreButton'),
   cancelRestoreButton: document.getElementById('cancelProductionWeekRestoreButton'),
-  requestSync: window.requestProductionWeekSync,
   requestRestore: window.requestRestoreUatWeekSnapshot,
   confirmSync: window.confirmProductionWeekSync,
   cancelSync: window.cancelProductionWeekSync,

@@ -34,8 +34,9 @@ export function bindProductionSyncActions({
   confirmRestore,
   cancelRestore,
 }) {
+  if ((syncButton && typeof requestSync !== 'function') || (!syncButton && requestSync !== undefined)) return false;
   const actions = [
-    [syncButton, requestSync],
+    ...(syncButton ? [[syncButton, requestSync]] : []),
     [restoreButton, requestRestore],
     [confirmSyncButton, confirmSync],
     [cancelSyncButton, cancelSync],
@@ -235,6 +236,12 @@ export function submitUatProductionSyncConfirmation({ controller, close }) {
   const operation = controller.confirmSync();
   close();
   return operation;
+}
+
+export function submitInlineUatProductionSyncConfirmation({ controller, close }) {
+  const requested = controller.requestSync();
+  if (requested !== true) return requested;
+  return submitUatProductionSyncConfirmation({ controller, close });
 }
 
 export function submitUatProductionRestoreConfirmation({ controller, close }) {

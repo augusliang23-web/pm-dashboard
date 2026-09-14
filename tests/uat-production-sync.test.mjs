@@ -82,6 +82,53 @@ test('inline confirmation is shown and hidden without relying on a dialog', () =
   assert.equal(container.hidden, true);
 });
 
+test('native details may own the first sync click while confirmation controls stay directly bound', () => {
+  const listeners = new Map();
+  const button = () => ({
+    addEventListener(type, listener) { listeners.set(this, { type, listener }); },
+  });
+  const restoreButton = button();
+  const confirmSyncButton = button();
+  const cancelSyncButton = button();
+  const confirmRestoreButton = button();
+  const cancelRestoreButton = button();
+  const calls = [];
+
+  assert.equal(productionSyncModule.bindProductionSyncActions({
+    restoreButton,
+    confirmSyncButton,
+    cancelSyncButton,
+    confirmRestoreButton,
+    cancelRestoreButton,
+    requestRestore: () => calls.push('restore'),
+    confirmSync: () => calls.push('confirm-sync'),
+    cancelSync: () => calls.push('cancel-sync'),
+    confirmRestore: () => calls.push('confirm-restore'),
+    cancelRestore: () => calls.push('cancel-restore'),
+  }), true);
+
+  for (const registration of listeners.values()) registration.listener({ preventDefault() {} });
+  assert.deepEqual(calls, [
+    'restore', 'confirm-sync', 'cancel-sync', 'confirm-restore', 'cancel-restore',
+  ]);
+});
+
+test('inline Confirm Sync establishes confirmation state before submitting exactly once', async () => {
+  const events = [];
+  const controller = {
+    requestSync() { events.push('request'); return true; },
+    confirmSync() { events.push('confirm'); return Promise.resolve(true); },
+  };
+
+  const result = productionSyncModule.submitInlineUatProductionSyncConfirmation({
+    controller,
+    close: () => events.push('close'),
+  });
+
+  assert.equal(await result, true);
+  assert.deepEqual(events, ['request', 'confirm', 'close']);
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
