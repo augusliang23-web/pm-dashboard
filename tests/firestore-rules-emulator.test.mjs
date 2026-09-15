@@ -7,9 +7,11 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -95,6 +97,39 @@ test('all existing signed-in roles retain week reads while anonymous access stay
   ]) {
     await assertSucceeds(getDoc(doc(auth(uid, email), 'weeks/draft-week')));
   }
+});
+
+test('dashboard collection queries require membership in the internal user directory', async () => {
+  const admin = auth('admin-uid', 'admin@example.com');
+  const outsider = auth('outsider-uid', 'outsider@example.com');
+
+  for (const collectionName of ['users', 'weeks', 'presence']) {
+    await assertSucceeds(getDocs(collection(admin, collectionName)));
+    await assertFails(getDocs(collection(outsider, collectionName)));
+  }
+});
+
+test('an authenticated account outside the dashboard user directory has no data access', async () => {
+  const outsider = auth('outsider-uid', 'outsider@example.com');
+
+  await assertFails(getDoc(doc(outsider, 'users/admin@example.com')));
+  await assertFails(getDoc(doc(outsider, 'weeks/released-week')));
+  await assertFails(getDoc(doc(outsider, 'dashboardSettings/team-2-portfolio')));
+  await assertFails(setDoc(doc(outsider, 'logs/outsider-attempt'), {
+    eventType: 'project-save',
+    actorUid: 'outsider-uid',
+    actorEmail: 'outsider@example.com',
+    createdAt: serverTimestamp(),
+    weekId: 'released-week',
+    projectCode: 'ALPHA',
+    message: 'Unauthorized dashboard access attempt',
+    context: { source: 'ui' },
+  }));
+  await assertFails(setDoc(doc(outsider, 'presence/outsider@example.com'), {
+    name: 'Outsider', role: 'pm', status: 'active',
+    lastActive: 1776556800000, lastSeenAt: 1776556800000,
+    usageBuckets: {}, ownerUid: 'outsider-uid', userKey: 'outsider@example.com',
+  }));
 });
 
 test('every browser role is denied direct week create, update, and delete', async () => {
