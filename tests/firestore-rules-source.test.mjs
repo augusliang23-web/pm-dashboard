@@ -71,10 +71,10 @@ test("clients cannot change an existing Executive timeline or dashboard week dir
   assert.doesNotMatch(rules, /allow read, create:\s*if isSignedIn\(\)/);
 });
 
-test("live Executive milestone state is signed-in readable and client write protected", async () => {
+test("live Executive milestone state is dashboard-user readable and client write protected", async () => {
   const rules = await readRules();
 
-  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if hasDashboardAccess\(\);[\s\S]*?allow write:\s*if false/);
 });
 
 test("Executive append-only collections are role-readable and client read-only", async () => {
@@ -95,19 +95,19 @@ test("Executive append-only collections are role-readable and client read-only",
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
 });
 
-test("Executive configuration is client-readable but callable-write-only", async () => {
+test("Executive configuration is dashboard-user-readable but callable-write-only", async () => {
   const rules = await readRules();
 
   assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}/);
-  assert.match(rules, /allow read:\s*if isSignedIn\(\);\s*allow write:\s*if false;/);
+  assert.match(rules, /allow read:\s*if hasDashboardAccess\(\);\s*allow write:\s*if false;/);
   assert.doesNotMatch(rules, /sectionId == 'ioe-product-portfolio'/);
 });
 
-test('Firestore draft week reads are limited to PM and Admin while released reads remain available', async () => {
+test('Firestore draft week reads are limited to PM and Admin while released reads remain available to dashboard users', async () => {
   const rules = await readRules();
   assert.match(rules, /function canReadDraftWeeks\(\)/);
   assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
-  assert.match(rules, /allow read:\s*if isSignedIn\(\)\s*&& \(canReadDraftWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
+  assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
   assert.match(rules, /allow write: if false;/);
 });
 
@@ -120,8 +120,8 @@ test('shared backend rules cannot restore direct client week writes', async () =
   assert.equal(config.firestore?.rules, "firestore.shared-backend.rules");
   assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow write:\s*if false/);
   assert.doesNotMatch(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow read, write:\s*if isSignedIn\(\)/);
-  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
-  assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if hasDashboardAccess\(\);[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}[\s\S]*?allow read:\s*if hasDashboardAccess\(\);[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneUpdates[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
@@ -130,7 +130,7 @@ test('shared backend rules cannot restore direct client week writes', async () =
 test('both rulesets protect the legacy Gantt settings path without renaming it', async () => {
   for (const rules of [await readRules(), await readSharedBackendRules()]) {
     assert.match(rules, /match\s+\/dashboardSettings\/team-2-portfolio\s*\{/);
-    assert.match(rules, /allow read:\s*if isSignedIn\(\);/);
+    assert.match(rules, /allow read:\s*if hasDashboardAccess\(\);/);
     assert.match(rules, /allow create:\s*if isAdmin\(\)\s*&&\s*hasValidGanttTemplateCreate\(\);/);
     assert.match(rules, /allow update:\s*if isAdmin\(\)\s*&&\s*hasValidGanttTemplateUpdate\(\);/);
     assert.match(rules, /allow delete:\s*if false;/);
