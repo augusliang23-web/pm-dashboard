@@ -5,9 +5,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function dashboardRole() {
+    function hasDashboardAccess() {
       return isSignedIn()
         && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+
+    function dashboardRole() {
+      return hasDashboardAccess()
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
         : '';
     }
@@ -150,8 +155,7 @@ service cloud.firestore {
     }
 
     function hasMatchingPresenceIdentity(document) {
-      return isSignedIn()
-        && request.auth.token.email != null
+      return hasDashboardAccess()
         && document == request.auth.token.email
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.userKey == request.auth.token.email;
@@ -167,7 +171,7 @@ service cloud.firestore {
     }
 
     function canViewExecutiveSection(sectionId) {
-      return isSignedIn()
+      return hasDashboardAccess()
         && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
         && dashboardRole() in get(/databases/$(database)/documents/executiveMilestoneConfig/timeline).data.sectionPolicies[sectionId].viewRoles;
     }
@@ -178,12 +182,12 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
     }
 
     match /weeks/{weekId} {
-      allow read: if isSignedIn()
+      allow read: if hasDashboardAccess()
         && (canReadDraftWeeks() || resource.data.isReleased == true);
       allow write: if false;
       allow delete: if false;
@@ -198,17 +202,17 @@ service cloud.firestore {
     }
 
     match /executiveMilestoneConfig/{configId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
     }
 
     match /executiveMilestoneState/{stateId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
     }
 
     match /executiveMilestoneUpdates/{updateId} {
-      allow read: if isSignedIn()
+      allow read: if hasDashboardAccess()
         && canViewExecutiveSection(resource.data.sectionId);
       allow write: if false;
     }
@@ -216,7 +220,7 @@ service cloud.firestore {
     match /executiveMilestoneChangeRequests/{requestId} {
       allow read: if isAdmin()
         || isExecutive()
-        || (isSignedIn() && resource.data.requesterEmail == request.auth.token.email);
+        || (hasDashboardAccess() && resource.data.requesterEmail == request.auth.token.email);
       allow write: if false;
     }
 
@@ -226,8 +230,8 @@ service cloud.firestore {
     }
 
     match /logs/{logId} {
-      allow create: if isSignedIn() && hasValidAuditLogEnvelope();
-      allow read: if isSignedIn();
+      allow create: if hasDashboardAccess() && hasValidAuditLogEnvelope();
+      allow read: if hasDashboardAccess();
       allow update, delete: if false;
     }
 
@@ -238,17 +242,17 @@ service cloud.firestore {
         && hasOnlyPresenceFields(request.resource.data)
         && hasValidPresenceFieldTypes(request.resource.data)
         && keepsOrEstablishesPresenceIdentity();
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow delete: if false;
     }
 
     match /presenceSessions/{sessionId} {
-      allow create: if isSignedIn()
+      allow create: if hasDashboardAccess()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.userKey == request.auth.token.email
         && request.resource.data.sessionId == sessionId;
 
-      allow update: if isSignedIn()
+      allow update: if hasDashboardAccess()
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.userKey == resource.data.userKey
@@ -273,7 +277,7 @@ service cloud.firestore {
     }
 
     match /dashboardSettings/team-2-portfolio {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow create: if isAdmin() && hasValidGanttTemplateCreate();
       allow update: if isAdmin() && hasValidGanttTemplateUpdate();
       allow delete: if false;
