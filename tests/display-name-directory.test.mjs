@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createDisplayNameDirectory } from '../js/display-name-directory.mjs';
+import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from '../js/display-name-directory.mjs';
 
 test('stored display name wins for the matching email regardless of case', () => {
   const directory = createDisplayNameDirectory();
@@ -39,4 +39,17 @@ test('replacing or clearing a directory removes previous session names', () => {
 
   directory.clear();
   assert.equal(directory.resolve('kai.lin@example.test'), 'Kai');
+});
+
+test('fresh directory query wins over an older own-user read, with own-user fallback only on failure', () => {
+  const directory = createDisplayNameDirectory();
+  applyDisplayNameDirectoryLoad(directory, {
+    accounts: [{ id: 'robin.lee@example.test', displayName: 'Updated Name' }],
+    available: true,
+  }, 'robin.lee@example.test', { displayName: 'Older Name' });
+  assert.equal(directory.resolve('robin.lee@example.test'), 'Updated Name');
+
+  applyDisplayNameDirectoryLoad(directory, { accounts: [], available: false },
+    'robin.lee@example.test', { displayName: 'Older Name' });
+  assert.equal(directory.resolve('robin.lee@example.test'), 'Older Name');
 });

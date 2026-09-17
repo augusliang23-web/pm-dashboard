@@ -2658,7 +2658,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { createDisplayNameDirectory } from "./js/display-name-directory.mjs";
+import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -4196,8 +4196,7 @@ onAuthStateChanged(auth, async user => {
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
       const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
-      displayNameDirectory.replace(nextDirectory.accounts);
-      displayNameDirectory.set(authEmail, userDoc.data());
+      applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data());
       PM_LIST = [...new Set(nextDirectory.accounts
         .filter(account => normalizeRole(account.role) !== 'vip')
         .map(account => getUserDisplayName(account.id)))].sort();

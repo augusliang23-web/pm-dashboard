@@ -45,3 +45,8 @@ export function createDisplayNameDirectory() {
     },
   };
 }
+
+export function applyDisplayNameDirectoryLoad(directory, result, ownEmail, ownAccount) {
+  directory.replace(result.accounts);
+  if (!result.available) directory.set(ownEmail, ownAccount);
+}

@@ -65,7 +65,7 @@ test('dashboard gates every awaited auth initialization stage with generation an
   const templateGuard = source.indexOf('isCurrentAuthInitialization()', templateAwait);
   const pmAwait = source.indexOf('await fetchDynamicPMList()', templateGuard);
   const pmGuard = source.indexOf('isCurrentAuthInitialization()', pmAwait);
-  const directoryCommit = source.indexOf('displayNameDirectory.replace(nextDirectory.accounts)', pmGuard);
+  const directoryCommit = source.indexOf('applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data())', pmGuard);
   const setupCommit = source.indexOf('PM_LIST = [...new Set(nextDirectory.accounts', directoryCommit);
   const setupUI = source.indexOf('setupUI()', setupCommit);
 
