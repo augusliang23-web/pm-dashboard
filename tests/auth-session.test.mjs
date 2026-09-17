@@ -65,13 +65,14 @@ test('dashboard gates every awaited auth initialization stage with generation an
   const templateGuard = source.indexOf('isCurrentAuthInitialization()', templateAwait);
   const pmAwait = source.indexOf('await fetchDynamicPMList()', templateGuard);
   const pmGuard = source.indexOf('isCurrentAuthInitialization()', pmAwait);
-  const setupCommit = source.indexOf('PM_LIST = nextPMList', pmGuard);
+  const directoryCommit = source.indexOf('displayNameDirectory.replace(nextDirectory.accounts)', pmGuard);
+  const setupCommit = source.indexOf('PM_LIST = [...new Set(nextDirectory.accounts', directoryCommit);
   const setupUI = source.indexOf('setupUI()', setupCommit);
 
   assert.ok(roleAwait >= 0 && roleGuard > roleAwait && roleGuard < roleCommit);
   assert.ok(templateAwait > roleCommit && templateGuard > templateAwait);
   assert.ok(pmAwait > templateGuard && pmGuard > pmAwait);
-  assert.ok(setupCommit > pmGuard && setupUI > setupCommit);
+  assert.ok(directoryCommit > pmGuard && setupCommit > directoryCommit && setupUI > setupCommit);
 });
 
 test('template listener setup and callbacks share the current auth generation guard', () => {

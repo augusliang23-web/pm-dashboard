@@ -2658,6 +2658,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
+import { createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -2696,6 +2697,7 @@ let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
 let authSessionGeneration = 0;
+const displayNameDirectory = createDisplayNameDirectory();
 let isAdminVipPreview = false;
 let currentPMFilter = 'all';
 const PORTFOLIO_SCOPE_KEY = 'team2.portfolioScope';
@@ -4015,7 +4017,7 @@ function renderOnlineUsers(users) {
   } else {
     pulseDot.classList.remove('idle');
     container.innerHTML = finalUsers.map(u => 
-      `<div class="online-badge ${u.idle ? 'idle' : ''}">${u.name}</div>`
+      `<div class="online-badge ${u.idle ? 'idle' : ''}">${escHtml(u.name)}</div>`
     ).join('');
   }
 }
@@ -4059,6 +4061,7 @@ function setDashboardAccessPending() {
 
 function quiesceDashboardForAuthTransition() {
   stopPresenceSystem();
+  displayNameDirectory.clear();
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4144,6 +4147,7 @@ window.saveNewPassword = async () => {
 
 window.handleLogout = async () => {
   const logoutGeneration = ++authSessionGeneration;
+  displayNameDirectory.clear();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   stopGanttTemplateConfigSubscription();
@@ -4190,10 +4194,15 @@ onAuthStateChanged(auth, async user => {
 
       const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
-      const nextPMList = await fetchDynamicPMList();
+      const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
-      PM_LIST = nextPMList;
+      displayNameDirectory.replace(nextDirectory.accounts);
+      displayNameDirectory.set(authEmail, userDoc.data());
+      PM_LIST = [...new Set(nextDirectory.accounts
+        .filter(account => normalizeRole(account.role) !== 'vip')
+        .map(account => getUserDisplayName(account.id)))].sort();
       setupUI();
+      if (!nextDirectory.available) showSaveToast('PM list unavailable. Refresh to retry.');
       initData(authGeneration, user);
       startPresenceSystem(authGeneration, user);
       dot.classList.add('ok');
@@ -4225,20 +4234,7 @@ onAuthStateChanged(auth, async user => {
 });
 
 function getUserDisplayName(emailStr) {
-  if(!emailStr || emailStr === 'System') return 'System';
-  let prefix = emailStr.split('@')[0].toLowerCase();
-  
-  // Add new PM aliases here. Replace these placeholders with real email prefixes and names.
-  const map = { 
-    "augus.liang": "Augus", 
-    "josiah.winkler": "Josiah", 
-    "qianyun.zhu": "Bonnie",
-    "huichong.kong": "Huichong"  // Update here
-  };
-  
-  if (map[prefix]) return map[prefix];
-  let n = prefix.split('.')[0];
-  return n.charAt(0).toUpperCase() + n.slice(1);
+  return displayNameDirectory.resolve(emailStr);
 }
 
 function sectionUpdateLabel(project, section) {
@@ -4254,18 +4250,13 @@ function sectionUpdateLabel(project, section) {
 async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
-    const pmSet = new Set();
-    snap.forEach(d => { 
-      // Only non-VIP roles are included in the PM list.
-      if (normalizeRole(d.data().role) !== 'vip') {
-        pmSet.add(getUserDisplayName(d.id)); 
-      }
-    });
-    return Array.from(pmSet).sort();
+    return {
+      accounts: snap.docs.map(entry => ({ id: entry.id, ...entry.data() })),
+      available: true,
+    };
   } catch(e) {
-    console.warn("Could not load users list, falling back.", e);
-    // Fallback list for network issues. Replace with real PM names.
-    return ["Augus", "Bonnie", "Josiah", "Huichong"];
+    console.warn('Could not load users list.', e);
+    return { accounts: [], available: false };
   }
 }
 
@@ -4315,7 +4306,7 @@ function setupUI() {
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
-    PM_LIST.map(pm => `<option value="${pm}">${pm}</option>`).join('');
+    PM_LIST.map(pm => `<option value="${escHtml(pm)}">${escHtml(pm)}</option>`).join('');
   updateMasterDataLists();
   refreshFxRates();
 }
