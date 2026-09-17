@@ -46,3 +46,39 @@ test('authorized user snapshot supplies PM labels and email lookup without a pub
   assert.deepEqual(Array.from(context.PM_LIST), ['Delivery Lead', 'Project Lead']);
   assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Project Lead');
 });
+
+test('a later user-directory read error drops cached names and PM options', async () => {
+  const directory = createDisplayNameDirectory();
+  let snapshotCallback;
+  let errorCallback;
+  const context = vm.createContext({
+    displayNameDirectory: directory,
+    PM_LIST: [],
+    allWeeks: [],
+    db: {},
+    collection: () => ({}),
+    onSnapshot: (_ref, onNext, onError) => {
+      snapshotCallback = onNext;
+      errorCallback = onError;
+      return () => {};
+    },
+    buildProjectManagerList,
+    stopProjectManagerSubscription: () => {},
+    syncProjectManagerFilterOptions: () => {},
+    render: () => {},
+    console: { warn: () => {} },
+  });
+  vm.runInContext(functionSource('getUserDisplayName', 'sectionUpdateLabel'), context);
+  vm.runInContext(functionSource('startProjectManagerSubscription', 'setupUI'), context);
+
+  const pending = context.startProjectManagerSubscription(() => true);
+  snapshotCallback({ docs: [
+    { id: 'robin.lee@example.test', data: () => ({ role: 'pm', displayName: 'Project Lead' }) },
+  ] });
+  await pending;
+  assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Project Lead');
+
+  errorCallback(new Error('permission revoked'));
+  assert.deepEqual(Array.from(context.PM_LIST), []);
+  assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Robin');
+});

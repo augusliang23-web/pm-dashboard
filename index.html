@@ -4646,6 +4646,11 @@ function startProjectManagerSubscription(isCurrentSession) {
         resolve(PM_LIST);
       }
     }, error => {
+      if (!isCurrentSession()) return;
+      displayNameDirectory.clear();
+      PM_LIST = [];
+      syncProjectManagerFilterOptions();
+      if (allWeeks.length) render();
       if (initial) reject(error);
       else console.warn('PM membership subscription failed.', error);
     });
