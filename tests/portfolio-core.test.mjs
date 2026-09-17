@@ -865,6 +865,7 @@ test('normalizeWorkstream supplies safe defaults and preserves a stable identity
     status: 'at-risk',
     progress: '42',
     milestoneId: ' ms-1 ',
+    summaryGroupId: ' Design Phase ',
     sortOrder: 8,
   };
 
@@ -876,10 +877,12 @@ test('normalizeWorkstream supplies safe defaults and preserves a stable identity
     status: 'at-risk',
     progress: 42,
     milestoneId: 'ms-1',
+    summaryGroupId: 'Design Phase',
     sortOrder: 8,
   });
   assert.equal(normalizeWorkstream({}, 2).id, 'workstream-3');
   assert.equal(normalizeWorkstream({}, 2).id, normalizeWorkstream({}, 2).id);
+  assert.equal(normalizeWorkstream({}, 2).summaryGroupId, '');
   assert.equal(normalizeWorkstream({ status: 'unknown', progress: 'bad' }, 0).status, 'not-started');
   assert.equal(normalizeWorkstream({ status: 'unknown', progress: 'bad' }, 0).progress, 0);
 });

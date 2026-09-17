@@ -1,3 +1,5 @@
+import { buildSummaryLanes } from './workstream-summary.js';
+
 const VALID_STATUSES = new Set(['green', 'yellow', 'red']);
 const VALID_ATTENTION = new Set(['action', 'monitor', 'strategy', 'watch']);
 
@@ -116,13 +118,29 @@ export function normalizeProjectForReport(source = {}) {
       status: String(row?.status || 'not-started'),
       progress: clampPercent(row?.progress),
       milestoneId: String(row?.milestoneId || ''),
+      summaryGroupId: String(row?.summaryGroupId || ''),
       sortOrder: Number.isFinite(Number(row?.sortOrder)) ? Number(row.sortOrder) : index
     })).sort((a, b) => a.sortOrder - b.sortOrder),
+    pdfSummaryLanes: Array.isArray(project.pdfSummaryLanes) ? project.pdfSummaryLanes.map((lane, index) => ({
+      id: String(lane?.id || ''),
+      label: String(lane?.label || '').trim(),
+      progress: lane?.progress !== null && lane?.progress !== undefined && lane?.progress !== ''
+        && Number.isFinite(Number(lane.progress)) ? clampPercent(lane.progress) : null,
+      sortOrder: Number.isFinite(Number(lane?.sortOrder)) ? Number(lane.sortOrder) : index
+    })).filter(lane => lane.id) : [],
     teamMembers: Array.isArray(project.teamMembers) ? project.teamMembers.map(member => ({ ...member })) : [],
     resources: project.resources && typeof project.resources === 'object' ? { ...project.resources } : {},
     budgetSource: project.budget && typeof project.budget === 'object' ? { ...project.budget } : {}
   };
   model.attention = attentionFor(model);
+  const { lanes, lowConfidence, ungroupedCount } = buildSummaryLanes({
+    workstreams: model.workstreams,
+    milestones: model.milestones,
+    pdfSummaryLanes: model.pdfSummaryLanes
+  });
+  model.summaryLanes = lanes;
+  model.summaryLanesLowConfidence = lowConfidence;
+  model.summaryLanesUngroupedCount = ungroupedCount;
   return model;
 }
 

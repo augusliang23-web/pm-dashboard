@@ -47,6 +47,68 @@ test('normalizes project values used by every selected project section', () => {
   assert.equal(model.budget.usedPct, 45);
 });
 
+test('computes PDF summary lanes from workstreams, milestones and PM overrides', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      milestones: [{ id: 'ms-1', name: 'Pilot Build' }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 40, milestoneId: 'ms-1' },
+        { id: 'b', name: 'Enclosure tooling', startDate: '2026-07-05', endDate: '2026-07-20', progress: 60, milestoneId: 'ms-1' },
+        { id: 'c', name: 'Field validation', startDate: '2026-08-01', endDate: '2026-08-15', progress: 0, status: 'at-risk' }
+      ]
+    }
+  });
+
+  assert.ok(Array.isArray(model.summaryLanes));
+  const pilotLane = model.summaryLanes.find(lane => lane.label === 'Pilot Build');
+  assert.ok(pilotLane);
+  assert.deepEqual(pilotLane.workstreamIds.sort(), ['a', 'b']);
+  const riskyLane = model.summaryLanes.find(lane => lane.workstreamIds.includes('c'));
+  assert.equal(riskyLane.hasRisk, true);
+  assert.equal(model.summaryLanesLowConfidence, false);
+});
+
+test('a manually assigned summaryGroupId and pdfSummaryLanes override survive normalization', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      pdfSummaryLanes: [{ id: 'lane-custom', label: 'Custom Phase', progress: 90, sortOrder: 0 }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 40, summaryGroupId: 'lane-custom' }
+      ]
+    }
+  });
+
+  assert.equal(model.workstreams[0].summaryGroupId, 'lane-custom');
+  assert.deepEqual(model.pdfSummaryLanes, [{ id: 'lane-custom', label: 'Custom Phase', progress: 90, sortOrder: 0 }]);
+  const lane = model.summaryLanes.find(item => item.label === 'Custom Phase');
+  assert.ok(lane);
+  assert.equal(lane.progress, 90);
+});
+
+test('a pdfSummaryLanes entry with no manual progress falls back to the calculated average instead of 0%', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      pdfSummaryLanes: [{ id: 'lane-custom', label: 'Custom Phase', progress: null, sortOrder: 0 }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 80, summaryGroupId: 'lane-custom' }
+      ]
+    }
+  });
+
+  assert.equal(model.pdfSummaryLanes[0].progress, null);
+  const lane = model.summaryLanes.find(item => item.label === 'Custom Phase');
+  assert.equal(lane.progress, 80, 'a null override must fall back to the weighted-average suggestion, not 0%');
+});
+
 test('resource and budget helpers preserve unknown actuals and zero-valued budgets', () => {
   const project = normalizeProjectForReport({
     teamMembers: [{ name: 'A', roleName: 'PMO', effortPct: 25 }],

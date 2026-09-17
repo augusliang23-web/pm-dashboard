@@ -141,3 +141,21 @@ test('marks every variable project section for measured continuation pages', () 
   assert.match(html, /Member 10/);
   assert.match(html, /Role 10/);
 });
+
+test('the default multi-page layout is unaffected when a one-page layout is not requested', () => {
+  const html = renderProjectReportHtml(completeProjectReportFixture());
+
+  assert.doesNotMatch(html, /class="one-pager"/);
+  assert.match(html, /data-report-section="project-summary"/);
+});
+
+test('layout "one-page" renders the compact quadrant summary instead of the multi-page report', () => {
+  const fixture = completeProjectReportFixture();
+  const html = renderProjectReportHtml({ ...fixture, layout: 'one-page' });
+
+  assert.equal((html.match(/class="one-pager"/g) || []).length, 1);
+  assert.doesNotMatch(html, /data-report-section="project-summary"/);
+  assert.doesNotMatch(html, /data-report-section="milestone"/);
+  assert.match(html, /Platform Modernization/);
+  assert.match(html, /report-document project-one-page/);
+});

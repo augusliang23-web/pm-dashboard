@@ -9,6 +9,7 @@ import {
 } from './report-components.js';
 import { buildProjectReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
+import { renderProjectOnePagerHtml } from './project-one-pager.js';
 
 function statusPresentation(status) {
   const normalized = String(status || '').toLowerCase();
@@ -204,8 +205,18 @@ function renderBudget(model) {
   return `<section class="budget-flow" data-section-unit="budget"><div data-pdf-flow-items>${projectFlowItem(model, { kind: 'budget-metrics', kicker: 'Project report · Budget snapshot', section: 'budget', body: metrics })}${projectFlowItem(model, { kind: 'budget-comparison', kicker: 'Project report · Budget snapshot', section: 'budget', body: comparison })}</div></section>`;
 }
 
-export function renderProjectReportHtml({ week, project, sections }) {
+export function renderProjectReportHtml({ week, project, sections, layout = 'multi-page' }) {
   const model = buildProjectReportModel({ week, project, sections });
+
+  if (layout === 'one-page') {
+    return reportDocument({
+      title: model.name || model.code || 'Project report',
+      period: model.period,
+      reportKind: 'project-one-page',
+      body: renderProjectOnePagerHtml(model, model.period)
+    });
+  }
+
   const selected = new Set(model.sections);
   const pages = [];
   const summary = renderProjectSummary(model, selected);

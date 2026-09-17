@@ -483,3 +483,86 @@ test('full Overview and Project PDFs preserve explicit page parity and period me
     await browser.close();
   }
 });
+
+function heavyOnePagerProject(overrides = {}) {
+  const milestones = Array.from({ length: 8 }, (_, index) => ({ id: `ms-${index + 1}`, name: `Milestone ${index + 1}` }));
+  const monthStart = index => `2026-${String((index % 12) + 1).padStart(2, '0')}-01`;
+  const monthEnd = index => `2026-${String((index % 12) + 1).padStart(2, '0')}-25`;
+  const ganttWorkstreams = [
+    ...Array.from({ length: 8 }, (_, index) => ({
+      id: `ws-${index + 1}`, name: `Workstream ${index + 1}`,
+      startDate: monthStart(index), endDate: monthEnd(index + 1),
+      status: index === 3 ? 'at-risk' : 'on-track', progress: 40, milestoneId: `ms-${index + 1}`
+    })),
+    { id: 'ws-9', name: 'Workstream 9', startDate: '2026-02-05', endDate: '2026-02-20', status: 'on-track', progress: 60, milestoneId: 'ms-2' },
+    { id: 'ws-10', name: 'Workstream 10', startDate: '2026-06-05', endDate: '2026-06-20', status: 'delayed', progress: 10, milestoneId: 'ms-6' }
+  ];
+  return {
+    week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
+    sections: [],
+    project: {
+      name: 'Heavy Load Project', code: 'HLP-001', status: 'red', progress: 55, owner: 'Augus',
+      highlight: 'Prototype approved\nPilot environment ready\nSupplier recovery plan agreed\nFirmware regression suite passed\nCustomer demo completed',
+      weeklyActions: 'Confirm alternate supplier\nComplete integration test\nClose out validation report\nSchedule executive review\nUpdate risk register',
+      risk: 'Vendor lead time for the primary enclosure supplier remains unconfirmed and may slip the pilot readiness milestone by up to three weeks.',
+      milestones,
+      ganttWorkstreams,
+      ...overrides
+    }
+  };
+}
+
+test('a heavy one-page project summary (8 summary lanes, 5 highlights, 5 actions) renders on exactly one physical page without clipping', { timeout: 60000 }, async () => {
+  const fixture = heavyOnePagerProject();
+  const pdf = await renderPdfBuffer(renderProjectReportHtml({ ...fixture, layout: 'one-page' }));
+
+  assert.equal(physicalPageCount(pdf), 1);
+});
+
+test('a heavy one-page project summary does not clip its Gantt, highlights or action quadrants', { timeout: 60000 }, async () => {
+  const fixture = heavyOnePagerProject();
+  const html = renderProjectReportHtml({ ...fixture, layout: 'one-page' });
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const measurements = await page.evaluate(() => {
+      const pageRect = document.querySelector('.one-pager').getBoundingClientRect();
+      const overflow = selector => {
+        const node = document.querySelector(selector);
+        if (!node) return null;
+        return { scrollHeight: node.scrollHeight, clientHeight: node.clientHeight };
+      };
+      return {
+        pageHeight: pageRect.height,
+        ganttRowCount: document.querySelectorAll('.one-pager-gantt-row').length,
+        schedule: overflow('.one-pager-quadrant.schedule'),
+        highlights: overflow('.one-pager-quadrant.green'),
+        actions: overflow('.one-pager-quadrant.blue'),
+        risk: overflow('.one-pager-quadrant.risk')
+      };
+    });
+
+    assert.ok(Math.abs(measurements.pageHeight - 793.7) < 1, 'the one-pager must be exactly one A4 landscape page tall');
+    assert.equal(measurements.ganttRowCount, 8, 'ten raw workstreams must collapse to the 8-lane cap');
+    for (const quadrant of ['schedule', 'highlights', 'actions', 'risk']) {
+      const box = measurements[quadrant];
+      assert.ok(box.scrollHeight <= box.clientHeight + 1, `${quadrant} quadrant must not clip its content (scrollHeight ${box.scrollHeight} vs clientHeight ${box.clientHeight})`);
+    }
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
+test('projectPortfolioLayout "one-page" renders one physical page per project in the weekly Overview PDF', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  const heavy = heavyOnePagerProject().project;
+  fixture.week.projects = [fixture.week.projects[0], { ...heavy, code: 'HLP-001' }];
+
+  const pdf = await renderPdfBuffer(renderOverviewReportHtml({ ...fixture, projectPortfolioLayout: 'one-page' }));
+
+  assert.equal(physicalPageCount(pdf), 2);
+});

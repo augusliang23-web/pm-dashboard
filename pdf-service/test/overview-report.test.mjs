@@ -132,6 +132,19 @@ test('uses one measured source flow per project portfolio', () => {
   assert.doesNotMatch(html, /Project Portfolio · Continued/);
 });
 
+test('projectPortfolioLayout "one-page" renders one compact quadrant summary per project', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+
+  const html = renderOverviewReportHtml({ ...fixture, projectPortfolioLayout: 'one-page' });
+
+  assert.equal((html.match(/class="one-pager"/g) || []).length, 2);
+  assert.doesNotMatch(html, /data-report-section="project-portfolio"/);
+  assert.doesNotMatch(html, /data-measured-flow="project-portfolio-/);
+  assert.match(html, /Platform Modernization/);
+  assert.match(html, /Module Refresh/);
+});
+
 test('places project portfolio update records with their matching sections', () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['project-portfolio'];

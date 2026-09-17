@@ -187,6 +187,29 @@ test('section update metadata changes only the saved project sections', () => {
   });
 });
 
+test('a PDF summary lane change alone stamps the schedule section as updated', () => {
+  const before = { ganttWorkstreams: [], pdfSummaryLanes: [] };
+  const metadata = updateProjectSectionMetadata(before, {
+    ...before, pdfSummaryLanes: [{ id: 'Design', label: 'Design', progress: 70, sortOrder: 0 }]
+  }, { editorName: 'AUGUS.LIANG', savedAt: '2026-08-01T08:00:00.000Z' });
+
+  assert.deepEqual(metadata, { schedule: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' } });
+});
+
+test('saving a project with a PDF summary lanes array is accepted and reaches the committed project', () => {
+  const week = { projects: [project], version: 1, isReleased: false };
+  const pdfSummaryLanes = [{ id: 'Design', label: 'Design', progress: 65, sortOrder: 0 }];
+  const request = {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...project, ganttWorkstreams: [{ id: 'a', name: 'Design work', summaryGroupId: 'Design' }], pdfSummaryLanes },
+    expectedRevision: projectRevisionFingerprint(project),
+  };
+
+  const result = buildProjectPatch(week, request, actor, '2026-08-18T00:00:00.000Z');
+  assert.deepEqual(result.committedProject.pdfSummaryLanes, pdfSummaryLanes);
+  assert.equal(result.committedProject.ganttWorkstreams[0].summaryGroupId, 'Design');
+});
+
 test('closed request and project schemas reject forged or unknown fields', () => {
   assert.doesNotThrow(() => assertAllowedKeys({ weekId: 'W1' }, ['weekId'], 'request'));
   assert.equal(reasonFrom(() => assertAllowedKeys({ weekId: 'W1', role: 'admin' }, ['weekId'], 'request')), 'invalid-payload');

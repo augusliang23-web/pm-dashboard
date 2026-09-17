@@ -295,6 +295,7 @@ export function normalizeWorkstream(source = {}, index = 0) {
     status: WORKSTREAM_STATUSES.has(row.status) ? row.status : 'not-started',
     progress: Number.isFinite(numericProgress) ? numericProgress : 0,
     milestoneId: stringValue(row.milestoneId),
+    summaryGroupId: stringValue(row.summaryGroupId),
     sortOrder: Number.isFinite(numericSortOrder) ? numericSortOrder : index,
   };
 }

@@ -70,3 +70,33 @@ test('editor preview explains omitted invalid date rows', () => {
     /Complete valid start and end dates to preview[\s\S]*workstream/
   );
 });
+
+test('workstream row exposes a PDF summary group field independent of the interactive Gantt renderer', () => {
+  assert.match(dashboard, /class="fi ws-summary-group"/);
+  assert.match(dashboard, /aria-label="PDF summary group"/);
+  assert.match(dashboard, />PDF summary group</);
+  const collectSource = dashboard.slice(
+    dashboard.indexOf('function collectWorkstreams()'),
+    dashboard.indexOf('function collectSummaryLaneProgressOverrides()')
+  );
+  assert.match(collectSource, /summaryGroupId:\s*div\.querySelector\('\.ws-summary-group'\)\.value/);
+});
+
+test('the PDF summary lane progress panel is driven by distinct group labels and updates with the preview', () => {
+  assert.match(dashboard, /function renderSummaryLaneProgressEditor\(\)/);
+  assert.match(dashboard, /function collectSummaryLanes\(\)/);
+  assert.match(dashboard, /id="summaryLaneProgressContainer"/);
+  const previewSource = dashboard.slice(
+    dashboard.indexOf('function renderWorkstreamEditorPreview()'),
+    dashboard.indexOf('function clearWorkstreamErrors()')
+  );
+  assert.match(previewSource, /renderSummaryLaneProgressEditor\(\)/);
+});
+
+test('saving a project includes collected PDF summary lanes alongside the workstreams', () => {
+  const saveSource = dashboard.slice(
+    dashboard.indexOf('window.saveProjEdit = async'),
+    dashboard.indexOf('let transactionResult = null;')
+  );
+  assert.match(saveSource, /ganttWorkstreams,\s*\n\s*pdfSummaryLanes:\s*collectSummaryLanes\(\)/);
+});

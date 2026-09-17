@@ -8,7 +8,7 @@ const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
 ]);
 const PROJECT_INPUT_KEYS = [
-  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'resources', 'name', 'code', 'owner', 'deputy',
+  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'pdfSummaryLanes', 'resources', 'name', 'code', 'owner', 'deputy',
   'customer', 'location', 'visibility', 'milestones', 'quarterlyMilestones', 'status', 'progress',
   'attention', 'attentionManual', 'highlight', 'weeklyActions', 'riskActions', 'riskPairs', 'risk',
   'next', 'riskList', 'riskManual', 'teamMembers', 'budget', 'dataStatus',
@@ -253,7 +253,7 @@ const SECTION_METADATA_PATHS = {
   status: ['projectLevel', 'lifecycle', 'status', 'progress', 'attention', 'attentionManual'],
   highlights: ['highlight'], weeklyActions: ['weeklyActions'],
   riskActions: ['riskActions', 'risk', 'next', 'riskList', 'riskManual'],
-  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams'],
+  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams', 'pdfSummaryLanes'],
   teamAllocation: ['teamMembers', 'dataStatus.team'],
   budgetPlan: ['budget.mode', 'budget.currency', 'budget.totalEstimated', 'budget.monthlyPlans', 'dataStatus.budgetPlan'],
   actualSpend: ['budget.actuals', 'dataStatus.budgetActual'], disciplineHours: ['resources'],

@@ -10,6 +10,7 @@ import {
 import { parseExecutiveSummaryBrief } from './executive-summary-brief.js';
 import { budgetTotals, buildOverviewReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
+import { renderProjectOnePagerHtml } from './project-one-pager.js';
 
 function statusPresentation(status) {
   const values = {
@@ -309,7 +310,8 @@ export function renderOverviewReportHtml({
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
-  projectSelectionIsPartial = false
+  projectSelectionIsPartial = false,
+  projectPortfolioLayout = 'flow'
 }) {
   const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial });
   const selected = new Set(model.sections);
@@ -369,13 +371,17 @@ export function renderOverviewReportHtml({
   }
 
   if (selected.has('project-portfolio')) {
-    model.projects.forEach(project => pages.push(reportPage({
-      section: 'project-portfolio', title: 'Project Portfolio', kicker: 'Overview report · Project portfolio',
-      context: project.name,
-      period: model.period,
-      measuredFlow: `project-portfolio-${project.code.replace(/[^A-Za-z0-9_-]/g, '-') || 'project'}`,
-      body: renderProjectPortfolioFlow(project)
-    })));
+    if (projectPortfolioLayout === 'one-page') {
+      model.projects.forEach(project => pages.push(renderProjectOnePagerHtml(project, model.period)));
+    } else {
+      model.projects.forEach(project => pages.push(reportPage({
+        section: 'project-portfolio', title: 'Project Portfolio', kicker: 'Overview report · Project portfolio',
+        context: project.name,
+        period: model.period,
+        measuredFlow: `project-portfolio-${project.code.replace(/[^A-Za-z0-9_-]/g, '-') || 'project'}`,
+        body: renderProjectPortfolioFlow(project)
+      })));
+    }
   }
 
   if (selected.has('resource-analytics')) {

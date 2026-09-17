@@ -1,0 +1,104 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { renderProjectOnePagerHtml } from '../src/project-one-pager.js';
+import { buildProjectReportModel } from '../src/report-model.js';
+import { completeProjectReportFixture } from './report-fixtures.mjs';
+
+function buildModel(overrides = {}) {
+  const fixture = completeProjectReportFixture();
+  return buildProjectReportModel({
+    week: fixture.week,
+    sections: fixture.sections,
+    project: { ...fixture.project, ...overrides }
+  });
+}
+
+test('renders exactly one one-pager section with the project name, status and progress', () => {
+  const model = buildModel();
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.equal((html.match(/class="one-pager"/g) || []).length, 1);
+  assert.match(html, /Platform Modernization/);
+  assert.match(html, /62%/);
+  assert.match(html, /Critical/);
+});
+
+test('renders highlights, action items and the primary risk / required action', () => {
+  const model = buildModel();
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /Prototype approved/);
+  assert.match(html, /Pilot environment ready/);
+  assert.match(html, /Confirm alternate supplier/);
+  assert.match(html, /Vendor lead time/);
+});
+
+test('lists every risk and its required action, not just the primary one', () => {
+  const model = buildModel({
+    riskActions: [
+      { risk: 'Vendor lead time', action: 'Confirm alternate supplier', primary: true },
+      { risk: 'Lab capacity is constrained', action: 'Reserve backup validation slot' },
+      { risk: 'Firmware regression uncovered', action: 'Assign owner and target date' }
+    ]
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.equal((html.match(/one-pager-risk-pair/g) || []).length, 3);
+  assert.match(html, /Vendor lead time/);
+  assert.match(html, /Lab capacity is constrained/);
+  assert.match(html, /Firmware regression uncovered/);
+  assert.match(html, /Reserve backup validation slot/);
+  assert.match(html, /Assign owner and target date/);
+  assert.match(html, /Primary risk/);
+});
+
+test('shows an empty-state message for highlights and actions instead of a blank quadrant', () => {
+  const model = buildModel({ highlight: '', weeklyActions: '' });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /No highlight reported\./);
+  assert.match(html, /No action reported\./);
+});
+
+test('renders one Gantt row per summary lane, not per raw workstream', () => {
+  const model = buildModel({
+    ganttWorkstreams: [
+      { id: 'a', name: 'Design - Mechanical', startDate: '2026-01-01', endDate: '2026-01-20', progress: 100, status: 'completed' },
+      { id: 'b', name: 'Design - Electrical', startDate: '2026-01-05', endDate: '2026-01-25', progress: 80, status: 'on-track' },
+      { id: 'c', name: 'Integration', startDate: '2026-02-01', endDate: '2026-03-01', progress: 20, status: 'at-risk' }
+    ]
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.equal((html.match(/one-pager-gantt-row/g) || []).length, model.summaryLanes.length);
+  assert.equal(model.summaryLanes.length, 2);
+  assert.match(html, /Design/);
+  assert.match(html, /Integration/);
+});
+
+test('surfaces a low-confidence note when most workstreams could not be auto-grouped', () => {
+  const model = buildModel({
+    ganttWorkstreams: Array.from({ length: 6 }, (_, index) => ({
+      id: `ws-${index}`, name: `Totally Unrelated Task ${index}`,
+      startDate: '2026-01-01', endDate: '2026-01-10', progress: 10
+    }))
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /could not be confidently auto-grouped/);
+});
+
+test('does not surface a low-confidence note when grouping is confident', () => {
+  const model = buildModel();
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.doesNotMatch(html, /could not be confidently auto-grouped/);
+});
+
+test('escapes project content to avoid HTML injection from stored fields', () => {
+  const model = buildModel({ name: '<img src=x onerror=alert(1)>' });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /&lt;img src=x/);
+});
