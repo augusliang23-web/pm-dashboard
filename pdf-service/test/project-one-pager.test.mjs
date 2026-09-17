@@ -33,6 +33,29 @@ test('renders highlights, action items and the primary risk / required action', 
   assert.match(html, /Vendor lead time/);
 });
 
+test('preserves a leading "-" or "N." in highlight/action text instead of stripping it as a bullet marker', () => {
+  const model = buildModel({
+    highlight: '- 5% under target\nSecond point',
+    weeklyActions: '3.1 spec review\nBeta'
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /<li>- 5% under target<\/li>/);
+  assert.match(html, /<li>3\.1 spec review<\/li>/);
+  assert.doesNotMatch(html, /<li>5% under target<\/li>/);
+  assert.doesNotMatch(html, /<li>spec review<\/li>/);
+});
+
+test('lists every risk and its required action with raw (unstripped) text', () => {
+  const model = buildModel({
+    riskActions: [{ risk: '- Vendor lead time', action: '3.1 confirm supplier', primary: true }]
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /<p>- Vendor lead time<\/p>/);
+  assert.match(html, /<p>3\.1 confirm supplier<\/p>/);
+});
+
 test('lists every risk and its required action, not just the primary one', () => {
   const model = buildModel({
     riskActions: [

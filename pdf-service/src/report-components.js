@@ -33,6 +33,24 @@ export function emptyState(message) {
   return `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
+function rawTextLines(value) {
+  const source = Array.isArray(value)
+    ? value.map(item => String(item ?? '')).join('\n')
+    : String(value ?? '');
+  return source.replace(/\r\n?/g, '\n').split('\n');
+}
+
+export function rawTextBlock(value, emptyMessage = '') {
+  const source = Array.isArray(value)
+    ? value.map(item => String(item ?? '')).join('\n')
+    : String(value ?? '');
+  if (!source && !source.includes('\n')) return emptyMessage ? emptyState(emptyMessage) : '';
+  return `<div class="pdf-raw-text">${rawTextLines(source).map(line => line
+    ? `<div class="pdf-raw-text-line" data-pdf-split-unit>${escapeHtml(line)}</div>`
+    : '<div class="pdf-raw-text-line pdf-raw-text-blank" data-pdf-split-unit><span aria-hidden="true">&nbsp;</span></div>'
+  ).join('')}</div>`;
+}
+
 export function dataTable({ headings = [], rows = [], className = '' } = {}) {
   const safeClass = String(className || '').split(/\s+/).filter(Boolean).map(value => value.replace(/[^A-Za-z0-9_-]/g, '')).join(' ');
   return `<table${safeClass ? ` class="${safeClass}"` : ''}><thead><tr>${headings.map(heading => `<th>${escapeHtml(heading)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;

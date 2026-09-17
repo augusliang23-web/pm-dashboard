@@ -63,6 +63,38 @@ test('escapes project content and omits pages that were not selected', () => {
   assert.doesNotMatch(html, /<script>/);
 });
 
+test('renders project free text with literal markers, blank lines, and escaped HTML', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-update'];
+  fixture.project.highlight = 'Alpha\n- Existing marker\n\n<script>alert(1)</script>';
+  fixture.project.weeklyActions = 'Beta\n  3.1 indented';
+  fixture.project.risk = 'Risk\n· Internal marker';
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.doesNotMatch(html, /<ul class="report-list"/);
+  assert.match(html, /Alpha/);
+  assert.match(html, /- Existing marker/);
+  assert.match(html, /3\.1 indented/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /pdf-raw-text-blank/);
+});
+
+test('renders marker-only raw risks even when normalized risks are empty', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-update'];
+  fixture.project.risk = '- \n• ';
+
+  const html = renderProjectReportHtml(fixture);
+  assert.match(html, /Risk \/ Blocker/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>-\s*<\/div>/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>•\s*<\/div>/);
+  assert.doesNotMatch(html, /<ul class="report-list"/);
+
+  fixture.project.risk = ' \n\t';
+  assert.doesNotMatch(renderProjectReportHtml(fixture), /Risk \/ Blocker/);
+});
+
 test('keeps weekly key actions while omitting an empty risk block', () => {
   const fixture = completeProjectReportFixture();
   fixture.sections = ['project-update'];

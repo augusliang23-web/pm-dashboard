@@ -223,6 +223,46 @@ test('dense project portfolio keeps project context and footer clearance on cont
   }
 });
 
+test('paginates a long project identity one raw highlight line at a time', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  const project = fixture.week.projects[0];
+  project.name = 'Long Identity Project';
+  project.code = 'LONG-1';
+  project.highlight = Array.from({ length: 18 }, (_, index) => `Identity source line ${index + 1}`).join('\n');
+  fixture.week.projects = [project];
+  fixture.sections = ['project-portfolio'];
+
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(renderOverviewReportHtml(fixture), { waitUntil: 'networkidle0' });
+    await page.evaluate(paginateMeasuredFlows);
+    const result = await page.evaluate(() => {
+      const pages = [...document.querySelectorAll('[data-measured-page="project-portfolio-LONG-1"]')];
+      const text = pages.flatMap(node => [...node.querySelectorAll('.pdf-raw-text-line')]
+        .map(line => line.textContent)
+        .filter(line => line.startsWith('Identity source line')));
+      return {
+        pages: pages.length,
+        text,
+        footerGaps: pages.map(node => {
+          const flow = node.querySelector('[data-pdf-flow-items]').getBoundingClientRect();
+          const footer = node.querySelector('.report-footer').getBoundingClientRect();
+          return footer.top - flow.bottom;
+        })
+      };
+    });
+    assert.ok(result.pages > 1);
+    assert.deepEqual(result.text, Array.from({ length: 18 }, (_, index) => `Identity source line ${index + 1}`));
+    assert.ok(result.footerGaps.every(gap => gap >= 8 * 96 / 25.4 - 1));
+    const pdf = await renderPdfBuffer(renderOverviewReportHtml(fixture));
+    assert.ok(pdf.length > 1000);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
 test('keeps consecutive Project Portfolio Gantt rows visually joined', { timeout: 60000 }, async () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['project-portfolio'];

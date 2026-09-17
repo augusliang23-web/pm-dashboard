@@ -217,6 +217,44 @@ test('renders complete project highlights, risk actions, and Gantt workstreams',
   assert.doesNotMatch(html, /Primary risk and action pair/);
 });
 
+test('renders project free text without list semantics and preserves source markers', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [{
+    ...fixture.week.projects[0],
+    highlight: 'Alpha\nBeta\n- Existing marker\n\n  3.1 indented',
+    weeklyActions: 'Beta\n• Existing symbol'
+  }];
+
+  const html = renderOverviewReportHtml(fixture);
+  assert.match(html, /class="pdf-raw-text"/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>Alpha<\/div>/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>Beta<\/div>/);
+  assert.match(html, /- Existing marker/);
+  assert.match(html, /3\.1 indented/);
+  assert.match(html, /pdf-raw-text-blank/);
+  assert.doesNotMatch(html, /<ul class="report-list"[\s\S]*?Alpha/);
+  assert.equal((html.match(/Alpha/g) || []).length, 1);
+});
+
+test('renders marker-only raw weekly actions even when normalized actions are empty', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [{
+    ...fixture.week.projects[0],
+    weeklyActions: '- \n• '
+  }];
+
+  const html = renderOverviewReportHtml(fixture);
+  assert.match(html, /data-flow-kind="project-weekly-actions"/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>-\s*<\/div>/);
+  assert.match(html, /class="pdf-raw-text-line"[^>]*>•\s*<\/div>/);
+  assert.doesNotMatch(html, /<ul class="report-list"/);
+
+  fixture.week.projects[0].weeklyActions = ' \n\t';
+  assert.doesNotMatch(renderOverviewReportHtml(fixture), /data-flow-kind="project-weekly-actions"/);
+});
+
 test('omits Overview sections with no reportable data', () => {
   const html = renderOverviewReportHtml({
     week: { weekLabel: 'W28 2026', projects: [] },

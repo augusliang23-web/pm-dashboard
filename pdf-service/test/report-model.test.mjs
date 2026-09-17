@@ -122,16 +122,36 @@ test('resource and budget helpers preserve unknown actuals and zero-valued budge
   });
 });
 
-test('removes stored list markers before building PDF list items', () => {
+test('keeps normalized analytics arrays while preserving raw report text', () => {
   const project = normalizeProjectForReport({
-    highlight: '• Parent\n  1. Child',
-    weeklyActions: '1. First\n2. Second',
-    riskActions: [{ risk: '• Risk', action: '  • Action', primary: true }],
+    highlight: '• Parent\n  1. Child\n\n  · 3.1 detail',
+    weeklyActions: '1. First\n  2. Second',
+    riskActions: [{ risk: '• Risk\n  - detail\n', action: '  • Action\n\n  3.1 follow-up', primary: true }],
   });
 
-  assert.deepEqual(project.highlights, ['Parent', 'Child']);
+  assert.deepEqual(project.highlights, ['Parent', 'Child', '· 3.1 detail']);
   assert.deepEqual(project.actions, ['First', 'Second']);
-  assert.deepEqual(project.riskActions, [{ risk: 'Risk', action: 'Action', primary: true }]);
+  assert.deepEqual(project.riskActions, [{ risk: 'Risk\ndetail', action: 'Action\n3.1 follow-up', primary: true }]);
+  assert.deepEqual(project.rawHighlightLines, ['• Parent', '  1. Child', '', '  · 3.1 detail']);
+  assert.deepEqual(project.rawActionLines, ['1. First', '  2. Second']);
+  assert.deepEqual(project.rawRiskActionPairs, [{
+    risk: '• Risk\n  - detail\n',
+    action: '  • Action\n\n  3.1 follow-up',
+    primary: true
+  }]);
+});
+
+test('preserves CRLF and array text lines while normalized whitespace stays empty', () => {
+  const project = normalizeProjectForReport({
+    highlight: ['Alpha\r\nBeta', '• '],
+    weeklyActions: '  \r\n\t'
+  });
+
+  assert.deepEqual(project.rawHighlightLines, ['Alpha', 'Beta', '• ']);
+  assert.equal(project.rawHighlightText, 'Alpha\r\nBeta\n• ');
+  assert.deepEqual(project.highlights, ['Alpha', 'Beta']);
+  assert.deepEqual(project.rawActionLines, ['  ', '\t']);
+  assert.deepEqual(project.actions, []);
 });
 
 test('keeps weekly actions out of risk action pairs without an explicit risk', () => {

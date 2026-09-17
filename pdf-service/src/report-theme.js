@@ -135,6 +135,9 @@ export const REPORT_CSS = `
   .project-update-card.risk { border-color:#e5b5b5; background:linear-gradient(180deg,var(--red-soft),var(--white) 38%); }
   .report-list { margin:0; padding-left:5mm; }
   .report-list li { margin-bottom:2.2mm; line-height:1.35; }
+  .pdf-raw-text { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+  .pdf-raw-text-line { min-height:1.35em; line-height:1.35; }
+  .pdf-raw-text-blank { min-height:1.35em; }
   .section-update-note { margin:0 0 2mm; color:var(--muted); font-size:7.5pt; line-height:1.3; text-align:right; }
   .milestone-timeline { position:relative; display:grid; grid-template-columns:repeat(var(--count),minmax(0,1fr)); gap:7mm; padding:17mm 4mm 0; }
   .milestone-timeline::before { content:""; position:absolute; top:10mm; left:7%; right:7%; height:1px; background:var(--line); }
@@ -299,13 +302,13 @@ export const REPORT_CSS = `
   .portfolio-project-status .section-update-note { width:100%; margin:0; }
   .portfolio-progress { margin:4mm 0; }
   .portfolio-highlights { padding:3mm; background:var(--surface); }
-  .portfolio-highlights .report-list { margin-top:2mm; }
+  .portfolio-highlights .pdf-raw-text { margin-top:2mm; }
   .portfolio-section-heading { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:1mm 4mm; }
   .portfolio-section-heading .portfolio-section-title,.portfolio-section-heading .section-update-note { margin:0; }
   .portfolio-section-title { margin:0 0 2mm; font-size:13pt; }
   .portfolio-risk-row { display:grid; grid-template-columns:1fr 1fr; gap:4mm; padding:3mm 4mm; border-left:1.2mm solid var(--red); }
   .portfolio-risk-row span { color:var(--muted); font-size:7.5pt; font-weight:700; text-transform:uppercase; }
-  .portfolio-risk-row p { margin:1mm 0 0; font-size:9pt; line-height:1.35; overflow-wrap:anywhere; }
+  .portfolio-risk-row .pdf-raw-text { margin:1mm 0 0; font-size:9pt; }
   .portfolio-signal-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:3mm; }
   .portfolio-signal-grid .risk { background:var(--red-soft); }
   .portfolio-signal-grid p { margin:2mm 0 0; line-height:1.35; }

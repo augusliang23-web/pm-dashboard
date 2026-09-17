@@ -36,6 +36,16 @@ function lines(value) {
   return source.map(listItemText).filter(Boolean);
 }
 
+function rawText(value) {
+  return Array.isArray(value)
+    ? value.map(item => String(item ?? '')).join('\n')
+    : String(value ?? '');
+}
+
+function rawLines(value) {
+  return rawText(value).replace(/\r\n?/g, '\n').split('\n');
+}
+
 function cleanPeriodPart(value) {
   return String(value || '').trim().replace(/\s*(?:-|\u2013|\u2014)\s*/g, '\u2013');
 }
@@ -89,12 +99,29 @@ function riskActionPairs(source, risks, actions) {
   return risks.map((risk, index) => ({ risk, action: '', primary: index === 0 }));
 }
 
+function rawRiskActionPairs(source) {
+  const stored = Array.isArray(source.riskActions)
+    ? source.riskActions
+    : Array.isArray(source.riskPairs) ? source.riskPairs : [];
+  const pairs = stored.map((item, index) => ({
+    risk: rawText(item?.risk || item?.description),
+    action: rawText(item?.action || item?.actions || item?.mitigation || item?.requiredAction),
+    primary: item?.primary === true || item?.isPrimary === true || index === 0
+  })).filter(item => item.risk.trim());
+  if (pairs.length) return pairs;
+  const risk = rawText(source.risk);
+  return risk.trim() ? [{ risk, action: '', primary: true }] : [];
+}
+
 export function normalizeProjectForReport(source = {}) {
   const project = source && typeof source === 'object' ? source : {};
   const normalizedStatus = String(project.status || '').toLowerCase();
   const status = VALID_STATUSES.has(normalizedStatus) ? normalizedStatus : 'green';
-  const risks = lines(project.risk);
-  const actions = lines(project.weeklyActions || project.weeklyAction || project.futureActivities || project.next);
+  const rawHighlightText = rawText(project.highlight || project.accomplishments);
+  const rawRiskText = rawText(project.risk);
+  const rawActionText = rawText(project.weeklyActions || project.weeklyAction || project.futureActivities || project.next);
+  const risks = lines(rawRiskText);
+  const actions = lines(rawActionText);
   const model = {
     ...project,
     code: String(project.code || '').trim(),
@@ -103,10 +130,17 @@ export function normalizeProjectForReport(source = {}) {
     status,
     progress: clampPercent(project.progress),
     attention: '',
-    highlights: lines(project.highlight || project.accomplishments),
+    highlights: lines(rawHighlightText),
     risks,
     actions,
     riskActions: riskActionPairs(project, risks, actions),
+    rawHighlightText,
+    rawHighlightLines: rawLines(rawHighlightText),
+    rawRiskText,
+    rawRiskLines: rawLines(rawRiskText),
+    rawActionText,
+    rawActionLines: rawLines(rawActionText),
+    rawRiskActionPairs: rawRiskActionPairs(project),
     milestones: Array.isArray(project.milestones) ? project.milestones.map(item => ({ ...item })) : [],
     quarterlyMilestones: Array.isArray(project.quarterlyMilestones)
       ? project.quarterlyMilestones.map(item => ({ ...item })) : [],

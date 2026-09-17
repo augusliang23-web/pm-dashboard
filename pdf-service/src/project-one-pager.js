@@ -31,17 +31,22 @@ function formatShortDate(date) {
   return date ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }) : '';
 }
 
-function bulletList(items, { tone = '', emptyMessage } = {}) {
+/**
+ * Renders raw (unstripped) source lines as a bullet list: blank lines are
+ * dropped (a bulleted list has no use for an empty bullet), but each
+ * remaining line is shown verbatim - a PM-typed leading "-" or "3." is never
+ * silently eaten the way lines()/listItemText() would eat it.
+ */
+function rawBulletList(rawLines, { tone = '', emptyMessage } = {}) {
+  const items = rawLines.map(line => line.trim()).filter(Boolean);
   if (!items.length) return `<p class="one-pager-empty">${escapeHtml(emptyMessage)}</p>`;
   return `<ul class="one-pager-list ${tone}">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 }
 
 function renderRiskActions(model) {
-  const pairs = model.riskActions.length
-    ? model.riskActions
-    : model.risks.length ? model.risks.map((risk, index) => ({ risk, action: model.actions[index] || '', primary: index === 0 })) : [];
+  const pairs = model.rawRiskActionPairs.length ? model.rawRiskActionPairs : model.riskActions;
   if (!pairs.length) return '<p class="one-pager-empty">No material risk reported.</p>';
-  return pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Required</strong><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></div>`).join('');
+  return pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk.trim() || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Required</strong><p>${escapeHtml(pair.action.trim() || 'No required action reported.')}</p></div></div>`).join('');
 }
 
 function laneRange(lanes) {
@@ -88,8 +93,8 @@ export function renderProjectOnePagerHtml(model, period = model.period || '') {
 
   return `<section class="one-pager" data-report-section="one-page-summary"><header class="one-pager-header"><div><div class="one-pager-eyebrow">Single project weekly brief</div><h1>${escapeHtml(model.name)}</h1><div class="one-pager-meta">${escapeHtml(model.code || 'No code')} &nbsp;·&nbsp; ${escapeHtml(period)} &nbsp;·&nbsp; Owner: ${escapeHtml(model.owner || 'Unassigned')}</div></div><div class="one-pager-status"><span class="status-badge ${statusTone}">${escapeHtml(statusLabel)}</span><div class="one-pager-progress">${escapeHtml(model.progress)}%<small>Delivery progress</small></div></div></header>
     <section class="one-pager-grid">
-      <article class="one-pager-quadrant green"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Progress made</div><h2>Highlights</h2></div><span class="one-pager-chip">Last week</span></div>${bulletList(model.highlights, { emptyMessage: 'No highlight reported.' })}</article>
-      <article class="one-pager-quadrant blue"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Delivery focus</div><h2>Action Items</h2></div><span class="one-pager-chip">Next week</span></div>${bulletList(model.actions, { tone: 'blue', emptyMessage: 'No action reported.' })}</article>
+      <article class="one-pager-quadrant green"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Progress made</div><h2>Highlights</h2></div><span class="one-pager-chip">Last week</span></div>${rawBulletList(model.rawHighlightLines, { emptyMessage: 'No highlight reported.' })}</article>
+      <article class="one-pager-quadrant blue"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Delivery focus</div><h2>Action Items</h2></div><span class="one-pager-chip">Next week</span></div>${rawBulletList(model.rawActionLines, { tone: 'blue', emptyMessage: 'No action reported.' })}</article>
       <article class="one-pager-quadrant schedule"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Plan and progress</div><h2>Schedule Summary</h2></div></div>${renderSummaryGantt(model.summaryLanes)}${lowConfidenceNote}</article>
       <article class="one-pager-quadrant risk"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Management attention</div><h2>Risk &amp; Required Action</h2></div><span class="one-pager-chip">Action needed</span></div><div class="one-pager-risk-stack">${renderRiskActions(model)}</div></article>
     </section>

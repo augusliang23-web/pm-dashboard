@@ -1,9 +1,9 @@
 import { escapeHtml, reportDocument } from './report-html.js';
 import {
   dataTable,
-  emptyState,
   metricCard,
   progressBar,
+  rawTextBlock,
   reportPage,
   statusBadge
 } from './report-components.js';
@@ -31,9 +31,8 @@ function statusPresentation(status) {
   return values[normalized] || ['neutral', normalized.replace(/-/g, ' ') || 'Not set'];
 }
 
-function reportList(items, emptyMessage) {
-  if (!items.length) return emptyState(emptyMessage);
-  return `<ul class="report-list">${items.map(item => `<li data-pdf-split-unit>${escapeHtml(item)}</li>`).join('')}</ul>`;
+function reportText(value, emptyMessage) {
+  return rawTextBlock(value, emptyMessage);
 }
 
 function sectionUpdateNote(model, section) {
@@ -51,16 +50,16 @@ function renderProjectBrief(model) {
 
 function renderProjectUpdate(model) {
   const cards = [
-    ['Highlight', 'highlights', model.highlights, 'No highlight reported.', ''],
-    ['Weekly actions', 'weeklyActions', model.actions, 'No weekly action reported.', '']
+    ['Highlight', 'highlights', model.rawHighlightText, 'No highlight reported.', ''],
+    ['Weekly actions', 'weeklyActions', model.rawActionText, 'No weekly action reported.', '']
   ];
-  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', 'riskActions', model.risks, 'No risk or blocker reported.', 'risk']);
+  if (model.rawRiskText.trim()) cards.splice(1, 0, ['Risk / Blocker', 'riskActions', model.rawRiskText, 'No risk or blocker reported.', 'risk']);
   return cards.map(([title, section, items, emptyMessage, tone]) => projectFlowItem(model, {
     kind: 'project-update-card',
     kicker: 'Project report · Executive summary',
     section: 'project-summary',
     splittable: true,
-    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${sectionUpdateNote(model, section)}${reportList(items, emptyMessage)}</article>`
+    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${sectionUpdateNote(model, section)}${reportText(items, emptyMessage)}</article>`
   })).join('');
 }
 
