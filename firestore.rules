@@ -5,9 +5,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function dashboardRole() {
+    function hasDashboardAccess() {
       return isSignedIn()
         && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+
+    function dashboardRole() {
+      return hasDashboardAccess()
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
         : '';
     }
@@ -84,8 +89,7 @@ service cloud.firestore {
     }
 
     function hasMatchingPresenceIdentity(document) {
-      return isSignedIn()
-        && request.auth.token.email != null
+      return hasDashboardAccess()
         && document == request.auth.token.email
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.userKey == request.auth.token.email;
@@ -178,24 +182,24 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
     }
 
     match /weeks/{weekId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
       allow delete: if false;
     }
 
     match /dashboardSettings/{settingId} {
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow write: if false;
     }
 
     match /logs/{logId} {
-      allow create: if isSignedIn() && hasValidAuditLogEnvelope();
-      allow read: if isSignedIn();
+      allow create: if hasDashboardAccess() && hasValidAuditLogEnvelope();
+      allow read: if hasDashboardAccess();
       allow update, delete: if false;
     }
 
@@ -206,16 +210,16 @@ service cloud.firestore {
         && hasOnlyPresenceFields(request.resource.data)
         && hasValidPresenceFieldTypes(request.resource.data)
         && keepsOrEstablishesPresenceIdentity();
-      allow read: if isSignedIn();
+      allow read: if hasDashboardAccess();
       allow delete: if false;
     }
 
     match /presenceSessions/{sessionId} {
-      allow create: if isSignedIn()
+      allow create: if hasDashboardAccess()
         && request.auth.token.email != null
         && hasValidNewPresenceSession(sessionId);
 
-      allow update: if isSignedIn()
+      allow update: if hasDashboardAccess()
         && request.auth.token.email != null
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
