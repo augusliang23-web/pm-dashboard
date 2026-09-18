@@ -23,7 +23,7 @@ test('returns an attachment PDF without persistence when authorized', async () =
   let rendered = '';
   const handle = createReportHandler({ adapters, renderPdf: async html => { rendered = html; return Buffer.from('%PDF'); } });
   const res = response();
-  await handle({ headers: { authorization: 'Bearer token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['project-brief'] } }, res);
+  await handle({ headers: { authorization: 'Bearer token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: [] } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers.get('Content-Disposition'), 'attachment; filename="PMS-001-W28.pdf"');
   assert.match(rendered, /PMS/);

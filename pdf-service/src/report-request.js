@@ -1,6 +1,4 @@
 const PROJECT_SECTIONS = new Set([
-  'project-brief',
-  'project-update',
   'milestone',
   'gantt',
   'team-allocation',
@@ -64,7 +62,10 @@ export function parseReportRequest(input) {
 
   const weekId = requiredText(input.weekId, 'weekId');
   const projectCode = mode === 'project' ? requiredText(input.projectCode, 'projectCode') : undefined;
-  if (!Array.isArray(input.sections) || input.sections.length === 0) {
+  if (!Array.isArray(input.sections)) {
+    throw new ReportRequestError('Report sections must be an array.');
+  }
+  if (mode === 'overview' && input.sections.length === 0) {
     throw new ReportRequestError('At least one report section is required.');
   }
 

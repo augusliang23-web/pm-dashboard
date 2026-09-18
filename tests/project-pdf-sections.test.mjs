@@ -4,16 +4,16 @@ import { readFile } from 'node:fs/promises';
 
 const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-test('project PDF picker exposes selectable project background and delivery sections', () => {
+test('project PDF picker always includes the one-page summary and exposes selectable detail sections', () => {
   assert.match(dashboard, /id="projectPdfSectionPicker"/);
-  assert.match(dashboard, /data-pdf-section="project-brief"/);
-  assert.match(dashboard, /data-pdf-section="project-update"/);
+  assert.match(dashboard, /one-page summary[\s\S]*always included as the first page/);
+  assert.doesNotMatch(dashboard, /data-pdf-section="project-brief"/);
+  assert.doesNotMatch(dashboard, /data-pdf-section="project-update"/);
   assert.match(dashboard, /data-pdf-section="milestone"/);
   assert.match(dashboard, /data-pdf-section="gantt"/);
   assert.match(dashboard, /data-pdf-section="team-allocation"/);
   assert.match(dashboard, /data-pdf-section="budget"/);
   assert.match(dashboard, /data-pdf-section="resources"/);
-  assert.match(dashboard, /Project brief/);
   assert.match(dashboard, /Milestone/);
   assert.match(dashboard, /Gantt Chart/);
   assert.match(dashboard, /Team allocation/);
@@ -21,8 +21,7 @@ test('project PDF picker exposes selectable project background and delivery sect
   assert.match(dashboard, /Discipline hours/);
 });
 
-test('project PDF includes a selectable executive project update section', () => {
-  assert.match(dashboard, /data-pdf-section="project-update"/);
+test('the legacy (unreachable) project print report still defines a project update section', () => {
   assert.match(dashboard, /function renderProjectUpdateReport\(/);
   assert.match(dashboard, /project-print-update-card/);
   assert.match(dashboard, /Highlight/);

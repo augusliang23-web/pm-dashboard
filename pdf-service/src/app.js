@@ -23,7 +23,9 @@ export function createReportHandler({ adapters, renderPdf }) {
       }
       const request = parseReportRequest(body);
       const report = await loadAuthorizedReport({ request, idToken: authorization.slice(7).trim(), adapters });
-      const html = request.mode === 'project' ? renderProjectReportHtml(report) : renderOverviewReportHtml(report);
+      const html = request.mode === 'project'
+        ? renderProjectReportHtml(report)
+        : renderOverviewReportHtml({ ...report, projectPortfolioLayout: 'one-page' });
       const pdf = await renderPdf(html);
       const name = request.mode === 'project' ? `${report.project.code}-${request.weekId}.pdf` : `overview-${request.weekId}.pdf`;
       sendPdfDownload(response, pdf, name.replace(/[^A-Za-z0-9._-]/g, '-'));
