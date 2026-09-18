@@ -2878,6 +2878,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
+import { createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
@@ -3010,6 +3011,7 @@ let executiveLiveTimelineState = null;
 let executiveLiveTimelineUnsub = null;
 let executiveTimelineViewMode = 'period';
 let authSessionGeneration = 0;
+const displayNameDirectory = createDisplayNameDirectory();
 let isAdminExecutivePreview = false;
 let currentPMFilter = 'all';
 const PORTFOLIO_SCOPE_KEY = 'team2.portfolioScope';
@@ -4418,6 +4420,7 @@ function setDashboardAccessPending() {
 function quiesceDashboardForAuthTransition() {
   stopPresenceSystem();
   stopProjectManagerSubscription();
+  displayNameDirectory.clear();
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4519,6 +4522,7 @@ window.saveNewPassword = async () => {
 
 window.handleLogout = async () => {
   const logoutGeneration = ++authSessionGeneration;
+  displayNameDirectory.clear();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   stopGanttTemplateConfigSubscription();
@@ -4600,20 +4604,7 @@ onAuthStateChanged(auth, async user => {
 });
 
 function getUserDisplayName(emailStr) {
-  if(!emailStr || emailStr === 'System') return 'System';
-  let prefix = emailStr.split('@')[0].toLowerCase();
-  
-  // Add new PM aliases here. Replace these placeholders with real email prefixes and names.
-  const map = { 
-    "augus.liang": "Augus", 
-    "josiah.winkler": "Josiah", 
-    "qianyun.zhu": "Bonnie",
-    "huichong.kong": "Huichong"  // Update here
-  };
-  
-  if (map[prefix]) return map[prefix];
-  let n = prefix.split('.')[0];
-  return n.charAt(0).toUpperCase() + n.slice(1);
+  return displayNameDirectory.resolve(emailStr);
 }
 
 function sectionUpdateLabel(project, section) {
@@ -4645,7 +4636,9 @@ function startProjectManagerSubscription(isCurrentSession) {
     let initial = true;
     projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
       if (!isCurrentSession()) return;
-      PM_LIST = buildProjectManagerList(snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() })), getUserDisplayName);
+      const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
+      displayNameDirectory.replace(accounts);
+      PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);
       syncProjectManagerFilterOptions();
       if (allWeeks.length) render();
       if (initial) {
@@ -4653,6 +4646,11 @@ function startProjectManagerSubscription(isCurrentSession) {
         resolve(PM_LIST);
       }
     }, error => {
+      if (!isCurrentSession()) return;
+      displayNameDirectory.clear();
+      PM_LIST = [];
+      syncProjectManagerFilterOptions();
+      if (allWeeks.length) render();
       if (initial) reject(error);
       else console.warn('PM membership subscription failed.', error);
     });
