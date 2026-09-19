@@ -44,7 +44,7 @@ export function rawTextBlock(value, emptyMessage = '') {
   const source = Array.isArray(value)
     ? value.map(item => String(item ?? '')).join('\n')
     : String(value ?? '');
-  if (!source && !source.includes('\n')) return emptyMessage ? emptyState(emptyMessage) : '';
+  if (!source) return emptyMessage ? emptyState(emptyMessage) : '';
   return `<div class="pdf-raw-text">${rawTextLines(source).map(line => line
     ? `<div class="pdf-raw-text-line" data-pdf-split-unit>${escapeHtml(line)}</div>`
     : '<div class="pdf-raw-text-line pdf-raw-text-blank" data-pdf-split-unit><span aria-hidden="true">&nbsp;</span></div>'

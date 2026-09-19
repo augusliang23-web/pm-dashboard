@@ -1,23 +1,47 @@
+import { parseIsoDate } from './date-utils.js';
+
 const DEFAULT_WINDOW_MONTHS = 6;
 const BACKWARD_BUFFER_MONTHS = 1;
 const MIN_WINDOW_MONTHS = 1;
 const MAX_WINDOW_MONTHS = 36;
 const PROTECTED_STATUSES = new Set(['at-risk', 'delayed', 'risk']);
 
-function parseIsoDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return null;
-  const date = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
+/**
+ * Adds calendar months, clamping the day to the target month's last day
+ * instead of overflowing (plain setUTCMonth on a 29th-31st anchor would
+ * otherwise roll into the following month, e.g. Jan 31 + 1 month landing on
+ * Mar 3 rather than Feb 28).
+ */
 function addMonthsUtc(date, months) {
+  const day = date.getUTCDate();
   const result = new Date(date.getTime());
+  result.setUTCDate(1);
   result.setUTCMonth(result.getUTCMonth() + months);
+  const daysInTargetMonth = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(day, daysInTargetMonth));
   return result;
 }
 
 function isValidWindowMonths(value) {
   return Number.isInteger(value) && value >= MIN_WINDOW_MONTHS && value <= MAX_WINDOW_MONTHS;
+}
+
+/**
+ * Shared by resolveGanttWindowSettings and sanitizeDraftGanttWindowSettings:
+ * both take a { defaultMonths, overrides } shaped input (raw Firestore doc
+ * field names vs. an already-clean draft respectively) and sanitize the
+ * overrides map the same way - drop anything with a blank code or an
+ * out-of-range month value.
+ */
+function sanitizeGanttWindowOverridesMap(overridesSource) {
+  const source = overridesSource && typeof overridesSource === 'object' ? overridesSource : {};
+  const overrides = {};
+  for (const [code, months] of Object.entries(source)) {
+    const numeric = Number(months);
+    const trimmedCode = String(code || '').trim();
+    if (trimmedCode && isValidWindowMonths(numeric)) overrides[trimmedCode] = numeric;
+  }
+  return overrides;
 }
 
 /**
@@ -45,18 +69,9 @@ export function resolveReportAnchorDate(week = {}) {
 export function resolveGanttWindowSettings(source) {
   const doc = source && typeof source === 'object' ? source : {};
   const defaultMonths = Number(doc.ganttWindowDefaultMonths);
-  const overridesSource = doc.ganttWindowOverrides && typeof doc.ganttWindowOverrides === 'object'
-    ? doc.ganttWindowOverrides
-    : {};
-  const overrides = {};
-  for (const [code, months] of Object.entries(overridesSource)) {
-    const numeric = Number(months);
-    const trimmedCode = String(code || '').trim();
-    if (trimmedCode && isValidWindowMonths(numeric)) overrides[trimmedCode] = numeric;
-  }
   return {
     defaultMonths: isValidWindowMonths(defaultMonths) ? defaultMonths : DEFAULT_WINDOW_MONTHS,
-    overrides
+    overrides: sanitizeGanttWindowOverridesMap(doc.ganttWindowOverrides)
   };
 }
 
@@ -72,16 +87,9 @@ export function resolveGanttWindowSettings(source) {
 export function sanitizeDraftGanttWindowSettings(source) {
   const draft = source && typeof source === 'object' ? source : {};
   const defaultMonths = Number(draft.defaultMonths);
-  const overridesSource = draft.overrides && typeof draft.overrides === 'object' ? draft.overrides : {};
-  const overrides = {};
-  for (const [code, months] of Object.entries(overridesSource)) {
-    const numeric = Number(months);
-    const trimmedCode = String(code || '').trim();
-    if (trimmedCode && isValidWindowMonths(numeric)) overrides[trimmedCode] = numeric;
-  }
   return {
     defaultMonths: isValidWindowMonths(defaultMonths) ? defaultMonths : DEFAULT_WINDOW_MONTHS,
-    overrides
+    overrides: sanitizeGanttWindowOverridesMap(draft.overrides)
   };
 }
 

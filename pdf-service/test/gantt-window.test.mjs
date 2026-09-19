@@ -109,3 +109,33 @@ test('never hides an unscheduled workstream that has no parseable dates', () => 
   assert.deepEqual(workstreams.map(item => item.id), ['unscheduled']);
   assert.equal(filteredOutCount, 0);
 });
+
+test('clamps into a shorter target month instead of overflowing when the anchor falls on the 29th-31st', () => {
+  // A naive setUTCMonth(getUTCMonth() + 1) on Jan 31 rolls into March (Feb has
+  // no 31st), which would silently widen a 1-month window by several days.
+  const anchor = new Date('2026-01-31T00:00:00Z');
+  const { workstreams, filteredOutCount } = filterWorkstreamsByWindow({
+    workstreams: [
+      { id: 'just-inside', startDate: '2026-02-28', endDate: '2026-02-28', status: 'not-started' },
+      { id: 'overflow-only', startDate: '2026-03-02', endDate: '2026-03-02', status: 'not-started' }
+    ],
+    anchorDate: anchor,
+    windowMonths: 1
+  });
+  assert.deepEqual(workstreams.map(item => item.id), ['just-inside']);
+  assert.equal(filteredOutCount, 1);
+});
+
+test('clamps the backward buffer the same way when the anchor falls on the 31st', () => {
+  const anchor = new Date('2026-03-31T00:00:00Z');
+  const { workstreams, filteredOutCount } = filterWorkstreamsByWindow({
+    workstreams: [
+      { id: 'late-february', startDate: '2026-02-28', endDate: '2026-02-28', status: 'completed' },
+      { id: 'early-february', startDate: '2026-02-10', endDate: '2026-02-10', status: 'completed' }
+    ],
+    anchorDate: anchor,
+    windowMonths: 6
+  });
+  assert.deepEqual(workstreams.map(item => item.id), ['late-february']);
+  assert.equal(filteredOutCount, 1);
+});

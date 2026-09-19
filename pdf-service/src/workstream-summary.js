@@ -1,3 +1,5 @@
+import { parseIsoDate } from './date-utils.js';
+
 const MAX_LANES = 8;
 const LOW_CONFIDENCE_MIN_WORKSTREAMS = 4;
 const RISK_STATUSES = new Set(['at-risk', 'delayed', 'risk']);
@@ -8,12 +10,6 @@ const STATUS_SEVERITY = {
   completed: 0, done: 0
 };
 const DAY_MS = 86400000;
-
-function parseIsoDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return null;
-  const date = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 function slug(value) {
   return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

@@ -57,6 +57,16 @@ test('validation rejects an out-of-range default or override before saving', () 
   assert.ok(source.includes('if (!validation.valid)'));
 });
 
+test('preview refuses an invalid draft instead of silently substituting fallback values', () => {
+  const start = dashboard.indexOf('window.previewGanttWindowSettings');
+  const end = dashboard.indexOf('// END GANTT WINDOW SETTINGS', start);
+  const source = dashboard.slice(start, end);
+  const fetchIndex = source.indexOf('fetchOnePagerPreviewHtml(');
+  const validationIndex = source.indexOf('if (!validation.valid)');
+  assert.ok(validationIndex >= 0, 'previewGanttWindowSettings must check validation.valid');
+  assert.ok(validationIndex < fetchIndex, 'the validity check must run before fetching the preview');
+});
+
 test('failed window settings saves keep the draft modal open and surface an error', () => {
   const start = dashboard.indexOf('window.saveGanttWindowSettings');
   const end = dashboard.indexOf('// END GANTT WINDOW SETTINGS', start);
