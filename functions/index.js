@@ -135,3 +135,4 @@ exports.setDashboardWeekRelease = projectDashboardWrites.setDashboardWeekRelease
 exports.saveDashboardWeekFields = projectDashboardWrites.saveDashboardWeekFields;
 exports.createDashboardWeek = projectDashboardWrites.createDashboardWeek;
 exports.saveDashboardGanttTemplateSettings = projectDashboardWrites.saveDashboardGanttTemplateSettings;
+exports.saveDashboardGanttWindowSettings = projectDashboardWrites.saveDashboardGanttWindowSettings;

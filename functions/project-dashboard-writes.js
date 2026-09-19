@@ -8,7 +8,7 @@ const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
 ]);
 const PROJECT_INPUT_KEYS = [
-  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'resources', 'name', 'code', 'owner', 'deputy',
+  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'pdfSummaryLanes', 'resources', 'name', 'code', 'owner', 'deputy',
   'customer', 'location', 'visibility', 'milestones', 'quarterlyMilestones', 'status', 'progress',
   'attention', 'attentionManual', 'highlight', 'weeklyActions', 'riskActions', 'riskPairs', 'risk',
   'next', 'riskList', 'riskManual', 'teamMembers', 'budget', 'dataStatus',
@@ -243,7 +243,7 @@ const SECTION_METADATA_PATHS = {
   status: ['projectLevel', 'lifecycle', 'status', 'progress', 'attention', 'attentionManual'],
   highlights: ['highlight'], weeklyActions: ['weeklyActions'],
   riskActions: ['riskActions', 'risk', 'next', 'riskList', 'riskManual'],
-  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams'],
+  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams', 'pdfSummaryLanes'],
   teamAllocation: ['teamMembers', 'dataStatus.team'],
   budgetPlan: ['budget.mode', 'budget.currency', 'budget.totalEstimated', 'budget.monthlyPlans', 'dataStatus.budgetPlan'],
   actualSpend: ['budget.actuals', 'dataStatus.budgetActual'], disciplineHours: ['resources'],
@@ -412,6 +412,59 @@ function buildGanttTemplateSettingsPatch(liveSettings, data, actor) {
   };
 }
 
+const GANTT_WINDOW_MIN_MONTHS = 1;
+const GANTT_WINDOW_MAX_MONTHS = 36;
+const GANTT_WINDOW_MAX_OVERRIDES = 200;
+
+function normalizeGanttWindowMonths(value, label) {
+  const months = Number(value);
+  if (!Number.isInteger(months) || months < GANTT_WINDOW_MIN_MONTHS || months > GANTT_WINDOW_MAX_MONTHS) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} must be a whole number of months between ${GANTT_WINDOW_MIN_MONTHS} and ${GANTT_WINDOW_MAX_MONTHS}.`);
+  }
+  return months;
+}
+
+function normalizeGanttWindowOverrides(value) {
+  if (value === null || value === undefined) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw securityError('invalid-argument', 'invalid-payload', 'Project overrides must be an object keyed by project code.');
+  }
+  const entries = Object.entries(value);
+  if (entries.length > GANTT_WINDOW_MAX_OVERRIDES) {
+    throw securityError('invalid-argument', 'invalid-payload', `No more than ${GANTT_WINDOW_MAX_OVERRIDES} project overrides are allowed.`);
+  }
+  const overrides = {};
+  for (const [code, months] of entries) {
+    const trimmedCode = String(code || '').trim();
+    if (!trimmedCode || trimmedCode.length > 40 || DANGEROUS_KEYS.has(trimmedCode)) {
+      throw securityError('invalid-argument', 'invalid-payload', 'A project override contains an invalid project code.');
+    }
+    overrides[trimmedCode] = normalizeGanttWindowMonths(months, `Override for ${trimmedCode}`);
+  }
+  return overrides;
+}
+
+function buildGanttWindowSettingsPatch(liveSettings, data, actor) {
+  assertActor(actor);
+  if (normalized(actor.role) !== 'admin') {
+    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update the Gantt display window settings.');
+  }
+  assertBoundedJson(data);
+  assertAllowedKeys(data, ['expectedRevision', 'defaultMonths', 'overrides'], 'Gantt window request');
+  const liveRevision = Number.isSafeInteger(liveSettings?.ganttWindowRevision) && liveSettings.ganttWindowRevision >= 0
+    ? liveSettings.ganttWindowRevision
+    : 0;
+  if (!Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 || data.expectedRevision !== liveRevision) {
+    throw securityError('failed-precondition', 'conflict', 'These settings changed in another Admin session. Reload the dashboard to review the latest version.');
+  }
+  return {
+    ganttWindowDefaultMonths: normalizeGanttWindowMonths(data.defaultMonths, 'Default display window'),
+    ganttWindowOverrides: normalizeGanttWindowOverrides(data.overrides),
+    ganttWindowRevision: liveRevision + 1,
+    ganttWindowUpdatedBy: actor.email,
+  };
+}
+
 async function authenticatedActor(transaction, request) {
   const uid = String(request.auth?.uid || '').trim();
   const email = normalized(request.auth?.token?.email);
@@ -566,12 +619,26 @@ const saveDashboardGanttTemplateSettings = onCall(async request => database().ru
   return { config: { system: patch.system, 'hardware-module': patch['hardware-module'] }, revision: patch.revision };
 }));
 
+const saveDashboardGanttWindowSettings = onCall(async request => database().runTransaction(async transaction => {
+  const actor = await authenticatedActor(transaction, request);
+  const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
+  const snapshot = await transaction.get(settingsRef);
+  const patch = buildGanttWindowSettingsPatch(snapshot.exists ? snapshot.data() : {}, request.data, actor);
+  transaction.set(settingsRef, { ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return {
+    defaultMonths: patch.ganttWindowDefaultMonths,
+    overrides: patch.ganttWindowOverrides,
+    revision: patch.ganttWindowRevision,
+  };
+}));
+
 module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
   buildAuthenticatedActor,
-  buildGanttTemplateSettingsPatch, buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
+  buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch, buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
   canManageWeekFields, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,
+  saveDashboardGanttWindowSettings,
 };

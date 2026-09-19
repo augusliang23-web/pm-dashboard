@@ -2,8 +2,7 @@ export function completeProjectReportFixture() {
   return {
     week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
     sections: [
-      'project-brief', 'project-update', 'milestone', 'gantt',
-      'team-allocation', 'resources', 'budget'
+      'milestone', 'gantt', 'team-allocation', 'resources', 'budget'
     ],
     project: {
       name: 'Platform Modernization', code: 'PMS-001', projectLevel: 'system',

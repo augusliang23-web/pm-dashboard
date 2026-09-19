@@ -1,14 +1,12 @@
 import { escapeHtml, reportDocument } from './report-html.js';
 import {
-  dataTable,
-  emptyState,
   metricCard,
-  progressBar,
   reportPage,
   statusBadge
 } from './report-components.js';
-import { buildProjectReportModel, formatSectionUpdate } from './report-model.js';
+import { buildProjectReportModel } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
+import { renderProjectOnePagerHtml } from './project-one-pager.js';
 
 function statusPresentation(status) {
   const normalized = String(status || '').toLowerCase();
@@ -30,51 +28,8 @@ function statusPresentation(status) {
   return values[normalized] || ['neutral', normalized.replace(/-/g, ' ') || 'Not set'];
 }
 
-function reportList(items, emptyMessage) {
-  if (!items.length) return emptyState(emptyMessage);
-  return `<ul class="report-list">${items.map(item => `<li data-pdf-split-unit>${escapeHtml(item)}</li>`).join('')}</ul>`;
-}
-
-function sectionUpdateNote(model, section) {
-  return `<div class="section-update-note">${escapeHtml(formatSectionUpdate(model, section))}</div>`;
-}
-
 function projectFlowItem(model, { kind, kicker, section, body, splittable = false }) {
   return `<div data-pdf-flow-item data-flow-kind="${escapeHtml(kind)}" data-page-title="${escapeHtml(model.name)}" data-page-kicker="${escapeHtml(kicker)}" data-page-section="${escapeHtml(section)}"${splittable ? ' data-pdf-splittable' : ''}>${body}</div>`;
-}
-
-function renderProjectBrief(model) {
-  const [tone, label] = statusPresentation(model.status);
-  return `<section class="project-brief-grid" data-section-unit="project-brief"><article class="card project-identity-card"><div class="report-kicker">Project brief</div><h2>${escapeHtml(model.name)}</h2><div class="project-code">${escapeHtml(model.projectLevel)} · ${escapeHtml(model.code || 'No project code')}</div>${statusBadge(tone, label)}${sectionUpdateNote(model, 'status')}</article><article class="card project-progress-card"><div class="metric-card-label">Delivery progress</div><div class="project-progress-value">${escapeHtml(model.progress)}%</div>${progressBar(model.progress, tone)}</article><dl class="card project-context-card"><div><dt>Owner</dt><dd>${escapeHtml(model.owner || 'Unassigned')}</dd></div><div><dt>Deputy</dt><dd>${escapeHtml(model.deputy || 'Unassigned')}</dd></div><div><dt>Customer</dt><dd>${escapeHtml(model.customer || 'Not specified')}</dd></div><div><dt>Location</dt><dd>${escapeHtml(model.location || 'Not specified')}</dd></div></dl></section>`;
-}
-
-function renderProjectUpdate(model) {
-  const cards = [
-    ['Highlight', 'highlights', model.highlights, 'No highlight reported.', ''],
-    ['Weekly actions', 'weeklyActions', model.actions, 'No weekly action reported.', '']
-  ];
-  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', 'riskActions', model.risks, 'No risk or blocker reported.', 'risk']);
-  return cards.map(([title, section, items, emptyMessage, tone]) => projectFlowItem(model, {
-    kind: 'project-update-card',
-    kicker: 'Project report · Executive summary',
-    section: 'project-summary',
-    splittable: true,
-    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${sectionUpdateNote(model, section)}${reportList(items, emptyMessage)}</article>`
-  })).join('');
-}
-
-function renderProjectSummary(model, selected) {
-  const items = [];
-  if (selected.has('project-brief')) items.push(projectFlowItem(model, {
-    kind: 'project-brief',
-    kicker: 'Project report · Executive summary',
-    section: 'project-summary',
-    body: renderProjectBrief(model)
-  }));
-  if (selected.has('project-update')) items.push(renderProjectUpdate(model));
-  return items.length
-    ? `<section class="project-summary-flow"><div data-pdf-flow-items>${items.join('')}</div></section>`
-    : '';
 }
 
 function sortedMilestones(model) {
@@ -120,12 +75,6 @@ function renderMilestoneFlow(model) {
       });
     });
   return `<section class="milestone-flow" data-section-unit="milestone"><div data-pdf-flow-items>${items.join('')}</div></section>`;
-}
-
-function renderGantt(model) {
-  if (!model.workstreams.length) return '';
-  const range = buildGanttRange(model.workstreams);
-  return `<section class="gantt-grid" data-section-unit="gantt">${renderGanttAxis(range)}${range.rows.map(item => renderGanttRow(item, range)).join('')}</section>`;
 }
 
 function renderGanttFlow(model) {
@@ -204,15 +153,17 @@ function renderBudget(model) {
   return `<section class="budget-flow" data-section-unit="budget"><div data-pdf-flow-items>${projectFlowItem(model, { kind: 'budget-metrics', kicker: 'Project report · Budget snapshot', section: 'budget', body: metrics })}${projectFlowItem(model, { kind: 'budget-comparison', kicker: 'Project report · Budget snapshot', section: 'budget', body: comparison })}</div></section>`;
 }
 
-export function renderProjectReportHtml({ week, project, sections }) {
-  const model = buildProjectReportModel({ week, project, sections });
+/**
+ * The one-page quadrant summary (Highlights / Action Items / Schedule Summary /
+ * Risk & Required Action) is always the first page - it replaces the old
+ * "project brief" and "project update" pages. Milestone timeline, Gantt Chart,
+ * Team allocation, Discipline hours and Budget remain optional detail pages
+ * appended after it, selected the same way they always were.
+ */
+export function renderProjectReportHtml({ week, project, sections, ganttWindowSettings }) {
+  const model = buildProjectReportModel({ week, project, sections, ganttWindowSettings });
   const selected = new Set(model.sections);
-  const pages = [];
-  const summary = renderProjectSummary(model, selected);
-  if (summary) pages.push(reportPage({
-    section: 'project-summary', title: model.name, kicker: 'Project report · Executive summary',
-    period: model.period, measuredFlow: 'project-summary', body: summary
-  }));
+  const pages = [renderProjectOnePagerHtml(model, model.period)];
   const milestone = selected.has('milestone') ? renderMilestoneFlow(model) : '';
   if (milestone) pages.push(reportPage({
     section: 'milestone', title: model.name, kicker: 'Project report · Milestone timeline',

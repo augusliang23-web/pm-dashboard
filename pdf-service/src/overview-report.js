@@ -4,12 +4,14 @@ import {
   emptyState,
   metricCard,
   progressBar,
+  rawTextBlock,
   reportPage,
   statusBadge
 } from './report-components.js';
 import { parseExecutiveSummaryBrief } from './executive-summary-brief.js';
 import { budgetTotals, buildOverviewReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
+import { renderProjectOnePagerHtml } from './project-one-pager.js';
 
 function statusPresentation(status) {
   const values = {
@@ -249,16 +251,17 @@ function renderProjectPortfolioFlow(project) {
     .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))[0];
   const updateNote = (section, label = '') => `<div class="section-update-note">${label ? `${escapeHtml(label)} · ` : ''}${escapeHtml(formatSectionUpdate(project, section))}</div>`;
   const sectionHeading = (title, section) => `<div class="portfolio-section-heading"><h2 class="portfolio-section-title">${escapeHtml(title)}</h2>${updateNote(section)}</div>`;
-  const highlights = project.highlights.length
-    ? `<ul class="report-list">${project.highlights.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
-    : '<p>No highlight reported.</p>';
+  const highlights = rawTextBlock(project.rawHighlightText, 'No highlight reported.');
   const blocks = [portfolioFlowItem(project, 'project-identity', `<article class="portfolio-project-card" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong>${updateNote('status')}</div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><section class="portfolio-highlights card"><div class="portfolio-section-heading"><div class="metric-card-label">Highlights</div>${updateNote('highlights')}</div>${highlights}</section></article>`)];
 
-  if (project.actions.length) {
-    blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card" data-pdf-split-unit>${sectionHeading('Weekly Key Actions', 'weeklyActions')}<ul class="report-list">${project.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul></section>`));
+  if (project.rawActionText.trim()) {
+    blocks.push(portfolioFlowItem(project, 'project-weekly-actions', `<section class="portfolio-weekly-actions card">${sectionHeading('Weekly Key Actions', 'weeklyActions')}${rawTextBlock(project.rawActionText, 'No weekly action reported.')}</section>`));
   }
 
-  project.riskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : sectionHeading('Risks & required actions', 'riskActions')}<article class="portfolio-risk-row card" data-pdf-split-unit><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span><p>${escapeHtml(pair.risk)}</p></div><div><span>Required action</span><p>${escapeHtml(pair.action || 'No required action reported.')}</p></div></article>`)));
+  const rawRiskActions = project.rawRiskActionPairs.length
+    ? project.rawRiskActionPairs
+    : project.riskActions;
+  rawRiskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : sectionHeading('Risks & required actions', 'riskActions')}<article class="portfolio-risk-row card"><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span>${rawTextBlock(pair.risk)}</div><div><span>Required action</span>${rawTextBlock(pair.action, 'No required action reported.')}</div></article>`)));
 
   blocks.push(portfolioFlowItem(project, 'project-snapshot', `<div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span>${updateNote('milestones')}<strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span>${updateNote('teamAllocation', 'Team allocation')}${updateNote('disciplineHours', 'Discipline hours')}<strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span>${updateNote('budgetPlan', 'Budget plan')}${updateNote('actualSpend', 'Actual spend')}<strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div>`));
 
@@ -309,9 +312,11 @@ export function renderOverviewReportHtml({
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
-  projectSelectionIsPartial = false
+  projectSelectionIsPartial = false,
+  projectPortfolioLayout = 'flow',
+  ganttWindowSettings
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings });
   const selected = new Set(model.sections);
   const pages = [];
 
@@ -369,13 +374,17 @@ export function renderOverviewReportHtml({
   }
 
   if (selected.has('project-portfolio')) {
-    model.projects.forEach(project => pages.push(reportPage({
-      section: 'project-portfolio', title: 'Project Portfolio', kicker: 'Overview report · Project portfolio',
-      context: project.name,
-      period: model.period,
-      measuredFlow: `project-portfolio-${project.code.replace(/[^A-Za-z0-9_-]/g, '-') || 'project'}`,
-      body: renderProjectPortfolioFlow(project)
-    })));
+    if (projectPortfolioLayout === 'one-page') {
+      model.projects.forEach(project => pages.push(renderProjectOnePagerHtml(project, model.period)));
+    } else {
+      model.projects.forEach(project => pages.push(reportPage({
+        section: 'project-portfolio', title: 'Project Portfolio', kicker: 'Overview report · Project portfolio',
+        context: project.name,
+        period: model.period,
+        measuredFlow: `project-portfolio-${project.code.replace(/[^A-Za-z0-9_-]/g, '-') || 'project'}`,
+        body: renderProjectPortfolioFlow(project)
+      })));
+    }
   }
 
   if (selected.has('resource-analytics')) {

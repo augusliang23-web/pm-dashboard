@@ -186,6 +186,22 @@ button[aria-busy="true"] { cursor:wait; }
 .gantt-template-row button { min-height:32px; border:1px solid var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; }
 .gantt-template-row button:hover { background:var(--s3); color:var(--text); }
 @media (max-width: 720px) { .gantt-template-grid { grid-template-columns:1fr; } }
+.gantt-window-default-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.gantt-window-default-row label { font-size:12px; font-weight:700; color:var(--text); }
+.gantt-window-default-row input { width:80px; }
+.gantt-window-add-row { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.gantt-window-add-row select { flex:1; min-width:0; }
+.gantt-window-list { display:flex; flex-direction:column; gap:7px; margin-bottom:4px; }
+.gantt-window-row { display:grid; grid-template-columns:minmax(0,1fr) 70px 34px; gap:6px; align-items:center; }
+.gantt-window-row .gantt-window-project-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--text); }
+.gantt-window-row input { min-width:0; }
+.gantt-window-row button { min-height:32px; border:1px solid var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; }
+.gantt-window-row button:hover { background:var(--s3); color:var(--text); }
+.gantt-window-preview-section { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.gantt-window-preview-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.gantt-window-preview-row select { flex:1; min-width:0; }
+.gantt-window-preview-frame-wrap { width:100%; max-width:808px; aspect-ratio:1122/794; overflow:auto; border:1px solid var(--border2); border-radius:8px; background:#fff; }
+.gantt-window-preview-frame-wrap iframe { width:1122px; height:794px; border:0; transform:scale(.72); transform-origin:top left; }
 
 /* Compact Icons */
 .btn-icon {
@@ -978,11 +994,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .proto-editor-section { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--s2); }
 .schedule-editor-scroll { margin-top:10px; padding-bottom:18px; overflow-x:auto; }
 .schedule-editor-list { display:grid; gap:8px; }
-.schedule-edit-row { display:grid; grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 30px 30px 34px; gap:7px; align-items:start; min-width:920px; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.schedule-edit-row { display:grid; grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) minmax(110px,1fr) 30px 30px 34px; gap:7px; align-items:start; min-width:1030px; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
 .schedule-edit-row .drag-handle { cursor:grab; color:var(--muted); min-height:32px; border:1px solid var(--border); border-radius:5px; background:#fff; }
 .editor-row-head { display:grid; gap:7px; margin:0 8px 5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
-.schedule-row-head { grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 30px 30px 34px; min-width:920px; }
-.schedule-row-head .row-actions-label { grid-column:8 / 11; text-align:center; }
+.schedule-row-head { grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) minmax(110px,1fr) 30px 30px 34px; min-width:1030px; }
+.schedule-row-head .row-actions-label { grid-column:9 / 12; text-align:center; }
+.summary-lane-progress-panel { margin-top:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:8px; background:var(--s2); }
+.summary-lane-progress-panel[hidden] { display:none; }
+.summary-lane-progress-head { margin-bottom:8px; color:var(--muted); font-size:11px; line-height:1.45; }
+.summary-lane-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 0; }
+.summary-lane-row + .summary-lane-row { border-top:1px solid var(--border); }
+.summary-lane-row span { font-size:12px; font-weight:600; }
+.summary-lane-row input { width:80px; }
 .team-row-head { grid-template-columns:1.2fr 1fr .55fr 32px; margin:4px 0 6px; }
 .qms-editor-scroll { overflow-x:auto; padding-bottom:4px; }
 .qms-row-head { grid-template-columns:.65fr 1.55fr .7fr .65fr .7fr .75fr 1fr 34px; min-width:1050px; margin:8px 4px 5px; }
@@ -2113,6 +2136,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="ganttTemplateSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttTemplateSettings()" title="Default Gantt Templates" aria-label="Manage default Gantt templates">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
       </button>
+      <button id="ganttWindowSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttWindowSettings()" title="PDF Gantt Display Window" aria-label="Manage PDF Gantt display window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="14" y2="14"/></svg>
+      </button>
     </div>
     
     <div class="user-block">
@@ -2274,10 +2300,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="overlay no-print" id="projectPdfSectionPicker" role="dialog" aria-modal="true" aria-labelledby="projectPdfSectionPickerTitle">
   <div class="modal project-pdf-picker-modal">
     <div class="modal-hdr"><h3 id="projectPdfSectionPickerTitle">Export project PDF</h3><button class="modal-x" type="button" aria-label="Close PDF section picker" onclick="closeModal('projectPdfSectionPicker')">×</button></div>
-    <p class="project-pdf-picker-note">Choose the report sections to include. Each selected section is placed on a clean A4 landscape page; long tables continue only between complete rows.</p>
+    <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, risk &amp; required action) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
     <div class="project-pdf-picker-list">
-      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="project-brief" checked><span>Project brief</span></label>
-      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="project-update" checked><span>Project update</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="milestone" checked><span>Milestone timeline</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="gantt" checked><span>Gantt Chart</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="team-allocation" checked><span>Team allocation</span></label>
@@ -2378,12 +2402,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         </div>
         <div class="schedule-editor-scroll">
           <div class="editor-row-head schedule-row-head" aria-hidden="true">
-            <span></span><span>Workstream</span><span>Start date</span><span>End date</span><span>Status</span><span>Progress %</span><span>Linked milestone</span><span class="row-actions-label">Actions</span>
+            <span></span><span>Workstream</span><span>Start date</span><span>End date</span><span>Status</span><span>Progress %</span><span>Linked milestone</span><span>PDF summary group</span><span class="row-actions-label">Actions</span>
           </div>
           <div id="workstreamListContainer" class="schedule-editor-list" aria-label="Workstreams; drop below the final row to move an item to the end"></div>
         </div>
         <div id="workstreamAnnouncements" class="sr-only" aria-live="polite"></div>
         <div id="workstreamErrors" class="schedule-error-summary" role="alert"></div>
+        <div id="summaryLaneProgressContainer" class="summary-lane-progress-panel" hidden></div>
         <div class="schedule-preview">
           <div class="schedule-preview-head">
             <div>
@@ -2655,13 +2680,50 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
+<div class="overlay" id="ganttWindowOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="ganttWindowTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:900px">
+    <div class="modal-hdr">
+      <h3 id="ganttWindowTitle">PDF Gantt Display Window</h3>
+      <button id="closeGanttWindowXBtn" class="modal-x" onclick="closeModal('ganttWindowOverlay')" aria-label="Close PDF Gantt display window settings">×</button>
+    </div>
+    <p class="gantt-template-note">Bounds how many months ahead the one-page PDF's Schedule Summary shows. At-risk and delayed tasks are always shown regardless of this window. The full schedule is always available on the Gantt Chart detail page.</p>
+    <div class="gantt-window-default-row">
+      <label for="ganttWindowDefaultMonths">Default months to display</label>
+      <input id="ganttWindowDefaultMonths" class="fi" type="number" min="1" max="36" step="1" value="6">
+      <span class="gantt-template-note" style="margin:0;">Applies to any project without its own override below.</span>
+    </div>
+    <p class="gantt-template-note">Per-project overrides (from this week's active projects):</p>
+    <div id="ganttWindowOverrideList" class="gantt-window-list"></div>
+    <div class="gantt-window-add-row">
+      <select id="ganttWindowAddProjectSelect" class="fi" aria-label="Project to add an override for"></select>
+      <button id="addGanttWindowOverrideBtn" class="btn btn-ghost" type="button" onclick="addGanttWindowOverrideRow()">+ Add project override</button>
+    </div>
+    <div id="ganttWindowError" class="import-error" role="alert" aria-live="assertive"></div>
+    <div class="gantt-window-preview-section">
+      <p class="gantt-template-note">Preview the one-page PDF with the settings above (not yet saved):</p>
+      <div class="gantt-window-preview-row">
+        <select id="ganttWindowPreviewProjectSelect" class="fi" aria-label="Project to preview"></select>
+        <button id="previewGanttWindowBtn" class="btn btn-ghost" type="button" onclick="previewGanttWindowSettings()">👁 Preview</button>
+      </div>
+      <div id="ganttWindowPreviewStatus" class="gantt-template-note" role="status" aria-live="polite"></div>
+      <div id="ganttWindowPreviewFrameWrap" class="gantt-window-preview-frame-wrap" hidden>
+        <iframe id="ganttWindowPreviewFrame" title="One-page PDF preview" sandbox=""></iframe>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+      <button id="cancelGanttWindowBtn" class="btn btn-ghost" type="button" onclick="closeModal('ganttWindowOverlay')">Cancel</button>
+      <button id="saveGanttWindowBtn" class="btn btn-primary" type="button" onclick="saveGanttWindowSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
-import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { DEFAULT_GANTT_WINDOW_MONTHS, GANTT_WINDOW_MONTHS_RANGE, RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveGanttWindowConfig, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateGanttWindowConfig, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
@@ -2673,7 +2735,7 @@ import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordR
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
-import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
+import { downloadProfessionalPdf, fetchOnePagerPreviewHtml } from "./professional-pdf-client.mjs?v=one-pager-preview-1";
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 
@@ -2724,11 +2786,18 @@ let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
+let projectEditorPdfSummaryLaneSeed = [];
 let currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
 let currentGanttTemplateRevision = 0;
 let ganttTemplateSession = null;
 let ganttTemplateSessionSequence = 0;
 let ganttTemplateSaveInFlight = false;
+let currentGanttWindowConfig = resolveGanttWindowConfig();
+let currentGanttWindowRevision = 0;
+let ganttWindowSession = null;
+let ganttWindowSessionSequence = 0;
+let ganttWindowSaveInFlight = false;
+let ganttWindowPreviewInFlight = false;
 let modalReturnFocus = null;
 let ganttScale = 'month';
 let workstreamPreviewFrame = 0;
@@ -2758,6 +2827,7 @@ let ganttTemplateSubscriptionGeneration = 0;
 let ganttTemplateSubscriptionReady = false;
 let resolvePendingGanttTemplateSubscription = null;
 let ganttTemplateSessionConflicted = false;
+let ganttWindowSessionConflicted = false;
 
 function ganttTemplateSettingsRef() {
   return doc(db, 'dashboardSettings', 'team-2-portfolio');
@@ -2783,6 +2853,24 @@ function applyGanttTemplateSnapshot(snapshot) {
     document.getElementById('ganttTemplateError').textContent =
       'The defaults changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
   }
+
+  const nextWindowRevision = Number.isSafeInteger(data.ganttWindowRevision) && data.ganttWindowRevision >= 0
+    ? data.ganttWindowRevision
+    : 0;
+  const nextWindowConfig = resolveGanttWindowConfig(data);
+  const windowRemoteConflict = Boolean(
+    ganttWindowSession
+    && ganttWindowSession.revision !== nextWindowRevision
+    && !ganttWindowSaveInFlight
+    && document.getElementById('ganttWindowOverlay').classList.contains('open')
+  );
+  currentGanttWindowConfig = nextWindowConfig;
+  currentGanttWindowRevision = nextWindowRevision;
+  if (windowRemoteConflict) {
+    ganttWindowSessionConflicted = true;
+    document.getElementById('ganttWindowError').textContent =
+      'The settings changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
+  }
 }
 
 function stopGanttTemplateConfigSubscription() {
@@ -2794,6 +2882,8 @@ function stopGanttTemplateConfigSubscription() {
   ganttTemplateSubscriptionReady = false;
   currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
   currentGanttTemplateRevision = 0;
+  currentGanttWindowConfig = resolveGanttWindowConfig();
+  currentGanttWindowRevision = 0;
 }
 
 async function loadGanttTemplateConfig(authGeneration, authUser) {
@@ -2848,11 +2938,18 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
           }
           currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
           currentGanttTemplateRevision = 0;
+          currentGanttWindowConfig = resolveGanttWindowConfig();
+          currentGanttWindowRevision = 0;
           ganttTemplateSubscriptionReady = true;
           if (ganttTemplateSession && !ganttTemplateSaveInFlight) {
             ganttTemplateSessionConflicted = true;
             document.getElementById('ganttTemplateError').textContent =
               'Live defaults are unavailable. Your draft is preserved; close and reopen settings after access is restored.';
+          }
+          if (ganttWindowSession && !ganttWindowSaveInFlight) {
+            ganttWindowSessionConflicted = true;
+            document.getElementById('ganttWindowError').textContent =
+              'Live settings are unavailable. Your draft is preserved; close and reopen settings after access is restored.';
           }
           console.warn('Default Gantt template config is unavailable; using built-in defaults.', error);
           settle(true);
@@ -2861,6 +2958,8 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
     } catch (error) {
       currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
       currentGanttTemplateRevision = 0;
+      currentGanttWindowConfig = resolveGanttWindowConfig();
+      currentGanttWindowRevision = 0;
       ganttTemplateSubscriptionReady = true;
       console.warn('Default Gantt template subscription could not start; using built-in defaults.', error);
       settle(true);
@@ -3029,6 +3128,267 @@ window.saveGanttTemplateSettings = async () => {
   }
 };
 // END GANTT TEMPLATE SETTINGS
+
+// GANTT WINDOW SETTINGS
+function ganttWindowOverridableProjects() {
+  const week = allWeeks[currentIdx];
+  return (week?.projects || [])
+    .filter(p => !p.visibility || p.visibility === 'active')
+    .map(p => ({ code: String(p.code || '').trim(), name: String(p.name || '').trim() }))
+    .filter(p => p.code);
+}
+
+function ganttWindowUsedCodes() {
+  return new Set(Array.from(
+    document.getElementById('ganttWindowOverrideList')?.querySelectorAll('.gantt-window-row') || [],
+    row => row.dataset.overrideCode,
+  ));
+}
+
+function renderGanttWindowAddOptions() {
+  const select = document.getElementById('ganttWindowAddProjectSelect');
+  const addBtn = document.getElementById('addGanttWindowOverrideBtn');
+  if (!select) return;
+  const used = ganttWindowUsedCodes();
+  const available = ganttWindowOverridableProjects().filter(p => !used.has(p.code));
+  select.innerHTML = available.length
+    ? available.map(p => `<option value="${escHtml(p.code)}">${escHtml(p.name || p.code)} (${escHtml(p.code)})</option>`).join('')
+    : '<option value="">No more projects available this week</option>';
+  select.disabled = !available.length;
+  if (addBtn) addBtn.disabled = !available.length;
+}
+
+function ganttWindowProjectLabel(code) {
+  const project = ganttWindowOverridableProjects().find(p => p.code === code);
+  return project ? `${project.name || project.code} (${project.code})` : code;
+}
+
+function renderGanttWindowRow(code, months) {
+  const container = document.getElementById('ganttWindowOverrideList');
+  if (!container) return;
+  const label = ganttWindowProjectLabel(code);
+  const row = document.createElement('div');
+  row.className = 'gantt-window-row';
+  row.dataset.overrideCode = code;
+  row.innerHTML = `
+    <span class="gantt-window-project-label">${escHtml(label)}</span>
+    <input class="fi gantt-window-months" type="number" min="${GANTT_WINDOW_MONTHS_RANGE.min}" max="${GANTT_WINDOW_MONTHS_RANGE.max}" step="1" value="${escHtml(months)}" aria-label="Months to display for ${escHtml(label)}">
+    <button type="button" aria-label="Remove override for ${escHtml(label)}" title="Remove" onclick="removeGanttWindowOverrideRow(this)">×</button>`;
+  row.querySelector('input').addEventListener('input', () => {
+    document.getElementById('ganttWindowError').textContent = '';
+  });
+  container.appendChild(row);
+}
+
+function collectGanttWindowDraft() {
+  const defaultMonths = Number(document.getElementById('ganttWindowDefaultMonths').value);
+  const overrides = {};
+  document.getElementById('ganttWindowOverrideList').querySelectorAll('.gantt-window-row').forEach(row => {
+    overrides[row.dataset.overrideCode] = Number(row.querySelector('.gantt-window-months').value);
+  });
+  return { defaultMonths, overrides };
+}
+
+function renderGanttWindowPreviewProjectOptions() {
+  const select = document.getElementById('ganttWindowPreviewProjectSelect');
+  if (!select) return;
+  const projects = ganttWindowOverridableProjects();
+  select.innerHTML = projects.length
+    ? projects.map(p => `<option value="${escHtml(p.code)}">${escHtml(p.name || p.code)} (${escHtml(p.code)})</option>`).join('')
+    : '<option value="">No active projects this week</option>';
+  select.disabled = !projects.length;
+  const previewBtn = document.getElementById('previewGanttWindowBtn');
+  if (previewBtn) previewBtn.disabled = !projects.length;
+}
+
+function resetGanttWindowPreview() {
+  ganttWindowPreviewInFlight = false;
+  const status = document.getElementById('ganttWindowPreviewStatus');
+  if (status) status.textContent = '';
+  const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
+  if (frameWrap) frameWrap.hidden = true;
+  const frame = document.getElementById('ganttWindowPreviewFrame');
+  if (frame) frame.srcdoc = '';
+}
+
+function renderGanttWindowDraft(config) {
+  document.getElementById('ganttWindowDefaultMonths').value = config.defaultMonths;
+  document.getElementById('ganttWindowOverrideList').replaceChildren();
+  Object.entries(config.overrides).forEach(([code, months]) => renderGanttWindowRow(code, months));
+  renderGanttWindowAddOptions();
+  renderGanttWindowPreviewProjectOptions();
+  resetGanttWindowPreview();
+}
+
+function isGanttWindowSessionCurrent(session) {
+  return Boolean(
+    session
+    && ganttWindowSession === session
+    && session.token === ganttWindowSession.token
+    && session.authUid === (currentUser?.uid || '')
+    && session.authEmail === getEmailKey(currentUser)
+    && session.role === currentRole
+    && currentRole === 'admin'
+    && !isAdminVipPreview
+    && document.getElementById('ganttWindowOverlay').classList.contains('open')
+  );
+}
+
+function invalidateGanttWindowSession() {
+  ganttWindowSession = null;
+  ganttWindowSessionConflicted = false;
+  ganttWindowSaveInFlight = false;
+  const overlay = document.getElementById('ganttWindowOverlay');
+  if (overlay?.classList.contains('open')) modalReturnFocus = null;
+  overlay?.classList.remove('open');
+  document.getElementById('ganttWindowOverrideList')?.replaceChildren();
+  const error = document.getElementById('ganttWindowError');
+  if (error) error.textContent = '';
+  resetGanttWindowPreview();
+  setGanttWindowControlsDisabled(false);
+}
+
+function setGanttWindowControlsDisabled(disabled) {
+  document.getElementById('ganttWindowOverlay')
+    ?.querySelectorAll('button, input, select')
+    .forEach(control => { control.disabled = disabled; });
+}
+
+window.openGanttWindowSettings = () => {
+  if (currentRole !== 'admin' || isAdminVipPreview || ganttWindowSaveInFlight || !ganttTemplateSubscriptionReady) return;
+  ganttWindowSession = Object.freeze({
+    token: `gantt-window-${++ganttWindowSessionSequence}`,
+    authUid: currentUser?.uid || '',
+    authEmail: getEmailKey(currentUser),
+    role: currentRole,
+    revision: currentGanttWindowRevision,
+  });
+  ganttWindowSessionConflicted = false;
+  renderGanttWindowDraft(currentGanttWindowConfig);
+  document.getElementById('ganttWindowError').textContent = '';
+  openAccessibleModal(document.getElementById('ganttWindowOverlay'));
+};
+
+window.addGanttWindowOverrideRow = () => {
+  const session = ganttWindowSession;
+  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session)) return;
+  const select = document.getElementById('ganttWindowAddProjectSelect');
+  const code = select?.value;
+  if (!code) return;
+  const container = document.getElementById('ganttWindowOverrideList');
+  if (container && container.children.length >= 200) {
+    document.getElementById('ganttWindowError').textContent = 'No more than 200 project overrides are allowed.';
+    return;
+  }
+  const defaultMonths = Number(document.getElementById('ganttWindowDefaultMonths').value) || DEFAULT_GANTT_WINDOW_MONTHS;
+  renderGanttWindowRow(code, defaultMonths);
+  renderGanttWindowAddOptions();
+  container.lastElementChild?.querySelector('input')?.focus();
+};
+
+window.removeGanttWindowOverrideRow = button => {
+  const session = ganttWindowSession;
+  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session)) return;
+  button.closest('.gantt-window-row')?.remove();
+  renderGanttWindowAddOptions();
+};
+
+window.saveGanttWindowSettings = async () => {
+  const session = ganttWindowSession;
+  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session) || ganttWindowSaveInFlight) return;
+  if (ganttWindowSessionConflicted) {
+    document.getElementById('ganttWindowError').textContent =
+      'The live settings changed. Close and reopen settings before saving a new draft.';
+    return;
+  }
+  const validation = validateGanttWindowConfig(collectGanttWindowDraft());
+  if (!validation.valid) {
+    document.getElementById('ganttWindowError').textContent = Object.values(validation.errors).flat().join(' ');
+    return;
+  }
+
+  ganttWindowSaveInFlight = true;
+  setGanttWindowControlsDisabled(true);
+  document.getElementById('ganttWindowError').textContent = '';
+  try {
+    const response = await projectDashboardApi.saveGanttWindowSettings({
+      expectedRevision: session.revision,
+      defaultMonths: validation.config.defaultMonths,
+      overrides: validation.config.overrides,
+    });
+
+    if (!isGanttWindowSessionCurrent(session)) return;
+    currentGanttWindowConfig = { defaultMonths: response.defaultMonths, overrides: response.overrides };
+    currentGanttWindowRevision = response.revision;
+    ganttWindowSaveInFlight = false;
+    ganttWindowSession = null;
+    closeModal('ganttWindowOverlay', { force: true });
+    showSaveToast('PDF Gantt display window settings updated');
+  } catch (error) {
+    if (!isGanttWindowSessionCurrent(session)) return;
+    const message = error instanceof Error ? error.message : 'The display window settings could not be saved.';
+    document.getElementById('ganttWindowError').textContent = `${message} Your draft is still open.`;
+    ganttWindowSaveInFlight = false;
+    setGanttWindowControlsDisabled(false);
+  }
+};
+
+window.previewGanttWindowSettings = async () => {
+  const session = ganttWindowSession;
+  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session) || ganttWindowPreviewInFlight) return;
+  const projectCode = document.getElementById('ganttWindowPreviewProjectSelect')?.value;
+  const status = document.getElementById('ganttWindowPreviewStatus');
+  const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
+  if (!projectCode) {
+    if (status) status.textContent = 'Select a project to preview.';
+    return;
+  }
+  const selectedWeek = allWeeks[currentIdx];
+  const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
+  if (!weekId) {
+    if (status) status.textContent = 'The selected reporting week is unavailable.';
+    return;
+  }
+  const validation = validateGanttWindowConfig(collectGanttWindowDraft());
+  if (!validation.valid) {
+    if (status) status.textContent = Object.values(validation.errors).flat().join(' ');
+    return;
+  }
+
+  const previewBtn = document.getElementById('previewGanttWindowBtn');
+  ganttWindowPreviewInFlight = true;
+  if (previewBtn) previewBtn.disabled = true;
+  if (frameWrap) frameWrap.hidden = true;
+  if (status) status.textContent = 'Loading preview…';
+  try {
+    const { config } = validation;
+    const html = await fetchOnePagerPreviewHtml({
+      endpoint: PROFESSIONAL_PDF_SERVICE_URL,
+      user: currentUser,
+      weekId,
+      projectCode,
+      ganttWindowSettings: config,
+    });
+    if (!isGanttWindowSessionCurrent(session)) return;
+    const frame = document.getElementById('ganttWindowPreviewFrame');
+    if (frame) {
+      // Clearing before reassigning forces the iframe to fully re-navigate its
+      // srcdoc document; some browsers can otherwise skip repainting a sandboxed
+      // iframe when its srcdoc is overwritten directly with new content.
+      frame.srcdoc = '';
+      requestAnimationFrame(() => { frame.srcdoc = html; });
+    }
+    if (frameWrap) frameWrap.hidden = false;
+    if (status) status.textContent = '';
+  } catch (error) {
+    if (!isGanttWindowSessionCurrent(session)) return;
+    if (status) status.textContent = error instanceof Error ? error.message : 'Unable to generate the preview.';
+  } finally {
+    ganttWindowPreviewInFlight = false;
+    if (previewBtn) previewBtn.disabled = false;
+  }
+};
+// END GANTT WINDOW SETTINGS
 
 function getPortfolioFilters() {
   return {
@@ -4069,6 +4429,7 @@ function quiesceDashboardForAuthTransition() {
   stopGanttTemplateConfigSubscription();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
   currentRole = 'pending';
   isAdminVipPreview = false;
   allWeeks = [];
@@ -4150,6 +4511,7 @@ window.handleLogout = async () => {
   displayNameDirectory.clear();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
   stopGanttTemplateConfigSubscription();
   showLoader("Logging out...");
   stopPresenceSystem();
@@ -4222,6 +4584,8 @@ onAuthStateChanged(auth, async user => {
     currentRole = 'pm';
     currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
     currentGanttTemplateRevision = 0;
+    currentGanttWindowConfig = resolveGanttWindowConfig();
+    currentGanttWindowRevision = 0;
     overviewScope = 'system';
     stopPresenceUsageFlushTimer();
     document.getElementById('projGrid').innerHTML = '';
@@ -4262,6 +4626,7 @@ async function fetchDynamicPMList() {
 function setupUI() {
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
   loadOverviewScopeForCurrentUser();
   isAdminVipPreview = false;
   document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
@@ -4290,7 +4655,8 @@ function setupUI() {
     document.getElementById('vipPreviewBtn').style.display = 'inline-flex';
     document.getElementById('addProjectBtn').style.display = 'inline-flex';
     document.getElementById('ganttTemplateSettingsBtn').style.display = 'inline-flex';
-  } 
+    document.getElementById('ganttWindowSettingsBtn').style.display = 'inline-flex';
+  }
   else if (currentRole === 'pm') {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
   }
@@ -6980,10 +7346,6 @@ async function confirmProjectPdfExport() {
   const picker = document.getElementById('projectPdfSectionPicker');
   const selectedSections = [...picker.querySelectorAll('input[data-pdf-section]:checked')].map(input => input.dataset.pdfSection);
   const error = document.getElementById('projectPdfSectionPickerError');
-  if (!selectedSections.length) {
-    error.textContent = 'Select at least one section to export.';
-    return;
-  }
   const code = picker.dataset.projectCode;
   const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
   if (!rawProject) return;
@@ -8336,6 +8698,7 @@ window.toggleVipPreview = () => {
   isAdminVipPreview = !isAdminVipPreview;
   isOverview = isAdminVipPreview;
   if (isAdminVipPreview) invalidateGanttTemplateSession();
+  if (isAdminVipPreview) invalidateGanttWindowSession();
 
   document.querySelectorAll('.vip-hidden').forEach(el => {
     el.style.display = isAdminVipPreview ? 'none' : '';
@@ -8344,6 +8707,7 @@ window.toggleVipPreview = () => {
   document.getElementById('visSelect').style.display = isAdminVipPreview ? 'none' : 'inline-block';
   document.getElementById('presenceUsageBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
   document.getElementById('ganttTemplateSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+  document.getElementById('ganttWindowSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
 
   const button = document.getElementById('vipPreviewBtn');
   button.classList.toggle('active', isAdminVipPreview);
@@ -8449,6 +8813,7 @@ window.closeModal = (id, { force = false } = {}) => {
   if (!modal) return false;
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
+  if (id === 'ganttWindowOverlay' && ganttWindowSaveInFlight) return;
   if (!force && editorHasUnsavedChanges(modal)) {
     pendingDiscardEditorId = id;
     openAccessibleModal(document.getElementById('unsavedChangesOverlay'));
@@ -8461,6 +8826,7 @@ window.closeModal = (id, { force = false } = {}) => {
     clearProjectMutationError();
   }
   if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
+  if (id === 'ganttWindowOverlay') ganttWindowSession = null;
   modal.classList.remove('open');
   delete modal.dataset.editorBaseline;
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();
@@ -8925,6 +9291,7 @@ window.addWorkstreamRow = (source = {}, untouched = false) => {
     </select>
     <input class="fi ws-progress" type="number" min="0" max="100" value="${row.progress}" aria-label="Progress percent" title="Workstream completion from 0% to 100%">
     <select class="fs ws-milestone" aria-label="Linked milestone" title="Optional milestone associated with this workstream">${editorMilestoneOptions(row.milestoneId)}</select>
+    <input class="fi ws-summary-group" value="${escHtml(row.summaryGroupId)}" placeholder="Auto" aria-label="PDF summary group" title="Leave blank to auto-group for the PDF. Type the same label on other workstreams to group them together on the one-page PDF.">
     <button type="button" class="row-move" title="Move up" aria-label="Move workstream up" onclick="moveWorkstreamRow(this, -1)">↑</button>
     <button type="button" class="row-move" title="Move down" aria-label="Move workstream down" onclick="moveWorkstreamRow(this, 1)">↓</button>
     <button type="button" class="row-delete" title="Remove workstream" aria-label="Remove workstream" onclick="removeWorkstreamRow(this)">🗑️</button>`;
@@ -9000,8 +9367,59 @@ function collectWorkstreams() {
     status: div.querySelector('.ws-status').value,
     progress: div.querySelector('.ws-progress').value,
     milestoneId: div.querySelector('.ws-milestone').value,
+    summaryGroupId: div.querySelector('.ws-summary-group').value,
     sortOrder: index
   }, index));
+}
+
+function collectSummaryLaneProgressOverrides() {
+  const overrides = new Map();
+  document.querySelectorAll('#summaryLaneProgressContainer .summary-lane-row').forEach(row => {
+    const label = row.dataset.label || '';
+    const value = row.querySelector('.summary-lane-progress')?.value;
+    if (label && value !== '' && value !== undefined) overrides.set(label, Number(value));
+  });
+  return overrides;
+}
+
+function distinctSummaryGroupLabels() {
+  const seen = new Set();
+  const labels = [];
+  document.querySelectorAll('.ws-summary-group').forEach(input => {
+    const label = input.value.trim();
+    if (label && !seen.has(label)) { seen.add(label); labels.push(label); }
+  });
+  return labels;
+}
+
+function renderSummaryLaneProgressEditor() {
+  const container = document.getElementById('summaryLaneProgressContainer');
+  if (!container) return;
+  const existing = collectSummaryLaneProgressOverrides();
+  const seedByLabel = new Map(projectEditorPdfSummaryLaneSeed
+    .filter(lane => lane?.label && lane.progress !== null && lane.progress !== undefined)
+    .map(lane => [String(lane.label), lane.progress]));
+  const labels = distinctSummaryGroupLabels();
+  if (!labels.length) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+  container.hidden = false;
+  container.innerHTML = `<div class="summary-lane-progress-head">PDF summary group progress (optional – leave blank to use the calculated average)</div>${labels.map(label => {
+    const value = existing.has(label) ? existing.get(label) : seedByLabel.get(label);
+    return `<div class="summary-lane-row" data-label="${escHtml(label)}"><span>${escHtml(label)}</span><input type="number" class="fi summary-lane-progress" min="0" max="100" placeholder="Auto" value="${value === undefined || value === null ? '' : value}" aria-label="${escHtml(label)} PDF progress override"></div>`;
+  }).join('')}`;
+}
+
+function collectSummaryLanes() {
+  const overrides = collectSummaryLaneProgressOverrides();
+  return distinctSummaryGroupLabels().map((label, index) => ({
+    id: label,
+    label,
+    progress: overrides.has(label) ? overrides.get(label) : null,
+    sortOrder: index
+  }));
 }
 
 function collectEditorMilestonesForPreview() {
@@ -9041,6 +9459,7 @@ function renderWorkstreamEditorPreview() {
     ganttWorkstreams,
     milestones: collectEditorMilestonesForPreview()
   }, 'workstreamGanttPreview');
+  renderSummaryLaneProgressEditor();
 }
 
 function clearWorkstreamErrors() {
@@ -9195,10 +9614,12 @@ window.openProjEdit = (code, isNew = false) => {
   (p.milestones || []).forEach((m, index) => addMilestoneRow(m.name, m.status, m.date, normalizeMilestonePlan(m, index)));
   const workstreamCont = document.getElementById('workstreamListContainer');
   workstreamCont.innerHTML = '';
+  projectEditorPdfSummaryLaneSeed = Array.isArray(p.pdfSummaryLanes) ? p.pdfSummaryLanes : [];
   if (isNew) replaceWorkstreamTemplate(p.projectLevel);
   else p.ganttWorkstreams.forEach(row => addWorkstreamRow(row, true));
   newProjectScheduleUntouched = isNew;
   clearWorkstreamErrors();
+  renderSummaryLaneProgressEditor();
   document.getElementById('pe_project_level').onchange = event => {
     if (!isCreatingNew) return;
     if (newProjectScheduleUntouched || confirm('Replace the current schedule with the template for this project level?')) {
@@ -9348,6 +9769,7 @@ window.saveProjEdit = async () => {
     projectLevel: getEditorPortfolioValue('pe_project_level', previousProject?.projectLevel ?? 'system'),
     lifecycle: getEditorPortfolioValue('pe_lifecycle', previousProject?.lifecycle ?? 'active'),
     ganttWorkstreams,
+    pdfSummaryLanes: collectSummaryLanes(),
     resources: editorResources,
     name: document.getElementById('pe_name').value,
     code: document.getElementById('pe_code').value.trim(),

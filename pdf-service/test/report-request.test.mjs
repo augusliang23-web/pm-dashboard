@@ -7,15 +7,38 @@ test('accepts an allow-listed project report request without report content', ()
     mode: 'project',
     weekId: 'W28-2026',
     projectCode: 'PMS-001',
-    sections: ['project-brief', 'milestone']
+    sections: ['budget', 'milestone']
   });
 
   assert.deepEqual(request, {
     mode: 'project',
     weekId: 'W28-2026',
     projectCode: 'PMS-001',
-    sections: ['project-brief', 'milestone']
+    sections: ['budget', 'milestone']
   });
+});
+
+test('accepts an empty sections array for a project report, since the one-page summary always renders', () => {
+  const request = parseReportRequest({
+    mode: 'project',
+    weekId: 'W28-2026',
+    projectCode: 'PMS-001',
+    sections: []
+  });
+
+  assert.deepEqual(request, {
+    mode: 'project',
+    weekId: 'W28-2026',
+    projectCode: 'PMS-001',
+    sections: []
+  });
+});
+
+test('still requires at least one section for an overview report', () => {
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28-2026', sections: [] }),
+    ReportRequestError
+  );
 });
 
 test('rejects unknown report modes and sections', () => {

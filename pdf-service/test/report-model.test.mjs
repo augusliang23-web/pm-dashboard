@@ -47,6 +47,126 @@ test('normalizes project values used by every selected project section', () => {
   assert.equal(model.budget.usedPct, 45);
 });
 
+test('computes PDF summary lanes from workstreams, milestones and PM overrides', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      milestones: [{ id: 'ms-1', name: 'Pilot Build' }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 40, milestoneId: 'ms-1' },
+        { id: 'b', name: 'Enclosure tooling', startDate: '2026-07-05', endDate: '2026-07-20', progress: 60, milestoneId: 'ms-1' },
+        { id: 'c', name: 'Field validation', startDate: '2026-08-01', endDate: '2026-08-15', progress: 0, status: 'at-risk' }
+      ]
+    }
+  });
+
+  assert.ok(Array.isArray(model.summaryLanes));
+  const pilotLane = model.summaryLanes.find(lane => lane.label === 'Pilot Build');
+  assert.ok(pilotLane);
+  assert.deepEqual(pilotLane.workstreamIds.sort(), ['a', 'b']);
+  const riskyLane = model.summaryLanes.find(lane => lane.workstreamIds.includes('c'));
+  assert.equal(riskyLane.hasRisk, true);
+  assert.equal(model.summaryLanesLowConfidence, false);
+});
+
+test('a manually assigned summaryGroupId and pdfSummaryLanes override survive normalization', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      pdfSummaryLanes: [{ id: 'lane-custom', label: 'Custom Phase', progress: 90, sortOrder: 0 }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 40, summaryGroupId: 'lane-custom' }
+      ]
+    }
+  });
+
+  assert.equal(model.workstreams[0].summaryGroupId, 'lane-custom');
+  assert.deepEqual(model.pdfSummaryLanes, [{ id: 'lane-custom', label: 'Custom Phase', progress: 90, sortOrder: 0 }]);
+  const lane = model.summaryLanes.find(item => item.label === 'Custom Phase');
+  assert.ok(lane);
+  assert.equal(lane.progress, 90);
+});
+
+test('a pdfSummaryLanes entry with no manual progress falls back to the calculated average instead of 0%', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      pdfSummaryLanes: [{ id: 'lane-custom', label: 'Custom Phase', progress: null, sortOrder: 0 }],
+      ganttWorkstreams: [
+        { id: 'a', name: 'Firmware bring-up', startDate: '2026-07-01', endDate: '2026-07-10', progress: 80, summaryGroupId: 'lane-custom' }
+      ]
+    }
+  });
+
+  assert.equal(model.pdfSummaryLanes[0].progress, null);
+  const lane = model.summaryLanes.find(item => item.label === 'Custom Phase');
+  assert.equal(lane.progress, 80, 'a null override must fall back to the weighted-average suggestion, not 0%');
+});
+
+test('does not window-filter Gantt data when no ganttWindowSettings is provided', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      ganttWorkstreams: [
+        { id: 'a', name: 'Far future work', startDate: '2028-01-01', endDate: '2028-01-10', progress: 0 }
+      ]
+    }
+  });
+
+  assert.equal(model.ganttWindowMonths, null);
+  assert.equal(model.ganttWindowFilteredCount, 0);
+  assert.equal(model.summaryLanes.length, 1);
+});
+
+test('bounds the schedule summary to the configured window and counts what it hid', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
+    sections: ['gantt'],
+    ganttWindowSettings: { defaultMonths: 3, overrides: {} },
+    project: {
+      code: 'PMS-001',
+      ganttWorkstreams: [
+        { id: 'a', name: 'In window', startDate: '2026-07-15', endDate: '2026-08-01', progress: 40 },
+        { id: 'b', name: 'Beyond window', startDate: '2027-01-01', endDate: '2027-01-10', progress: 0 },
+        { id: 'c', name: 'Beyond window but at-risk', startDate: '2027-06-01', endDate: '2027-06-10', progress: 0, status: 'at-risk' }
+      ]
+    }
+  });
+
+  assert.equal(model.ganttWindowMonths, 3);
+  assert.equal(model.ganttWindowFilteredCount, 1);
+  const ids = model.summaryLanes.flatMap(lane => lane.workstreamIds);
+  assert.deepEqual(ids.sort(), ['a', 'c']);
+});
+
+test('applies a project-code override ahead of the portfolio default window in both report models', () => {
+  const week = { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' };
+  const ganttWindowSettings = { defaultMonths: 1, overrides: { 'PMS-001': 12 } };
+  const farWorkstream = { id: 'a', name: 'Far but overridden', startDate: '2027-01-01', endDate: '2027-01-10', progress: 0 };
+
+  const projectModel = buildProjectReportModel({
+    week, ganttWindowSettings, sections: ['gantt'],
+    project: { code: 'PMS-001', ganttWorkstreams: [farWorkstream] }
+  });
+  assert.equal(projectModel.ganttWindowMonths, 12);
+  assert.equal(projectModel.ganttWindowFilteredCount, 0);
+
+  const overviewModel = buildOverviewReportModel({
+    week: { ...week, projects: [{ code: 'PMS-001', ganttWorkstreams: [farWorkstream] }] },
+    sections: ['project-portfolio'], ganttWindowSettings
+  });
+  assert.equal(overviewModel.projects[0].ganttWindowMonths, 12);
+  assert.equal(overviewModel.projects[0].ganttWindowFilteredCount, 0);
+});
+
 test('resource and budget helpers preserve unknown actuals and zero-valued budgets', () => {
   const project = normalizeProjectForReport({
     teamMembers: [{ name: 'A', roleName: 'PMO', effortPct: 25 }],
@@ -60,16 +180,36 @@ test('resource and budget helpers preserve unknown actuals and zero-valued budge
   });
 });
 
-test('removes stored list markers before building PDF list items', () => {
+test('keeps normalized analytics arrays while preserving raw report text', () => {
   const project = normalizeProjectForReport({
-    highlight: '• Parent\n  1. Child',
-    weeklyActions: '1. First\n2. Second',
-    riskActions: [{ risk: '• Risk', action: '  • Action', primary: true }],
+    highlight: '• Parent\n  1. Child\n\n  · 3.1 detail',
+    weeklyActions: '1. First\n  2. Second',
+    riskActions: [{ risk: '• Risk\n  - detail\n', action: '  • Action\n\n  3.1 follow-up', primary: true }],
   });
 
-  assert.deepEqual(project.highlights, ['Parent', 'Child']);
+  assert.deepEqual(project.highlights, ['Parent', 'Child', '· 3.1 detail']);
   assert.deepEqual(project.actions, ['First', 'Second']);
-  assert.deepEqual(project.riskActions, [{ risk: 'Risk', action: 'Action', primary: true }]);
+  assert.deepEqual(project.riskActions, [{ risk: 'Risk\ndetail', action: 'Action\n3.1 follow-up', primary: true }]);
+  assert.deepEqual(project.rawHighlightLines, ['• Parent', '  1. Child', '', '  · 3.1 detail']);
+  assert.deepEqual(project.rawActionLines, ['1. First', '  2. Second']);
+  assert.deepEqual(project.rawRiskActionPairs, [{
+    risk: '• Risk\n  - detail\n',
+    action: '  • Action\n\n  3.1 follow-up',
+    primary: true
+  }]);
+});
+
+test('preserves CRLF and array text lines while normalized whitespace stays empty', () => {
+  const project = normalizeProjectForReport({
+    highlight: ['Alpha\r\nBeta', '• '],
+    weeklyActions: '  \r\n\t'
+  });
+
+  assert.deepEqual(project.rawHighlightLines, ['Alpha', 'Beta', '• ']);
+  assert.equal(project.rawHighlightText, 'Alpha\r\nBeta\n• ');
+  assert.deepEqual(project.highlights, ['Alpha', 'Beta']);
+  assert.deepEqual(project.rawActionLines, ['  ', '\t']);
+  assert.deepEqual(project.actions, []);
 });
 
 test('keeps weekly actions out of risk action pairs without an explicit risk', () => {

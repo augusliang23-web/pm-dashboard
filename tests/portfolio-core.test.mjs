@@ -4,6 +4,7 @@ import * as portfolioCore from '../js/portfolio-core.mjs';
 
 import {
   BUILT_IN_WORKSTREAM_TEMPLATES,
+  DEFAULT_GANTT_WINDOW_MONTHS,
   PROJECT_LEVEL,
   PROJECT_LIFECYCLE,
   buildGanttCalendarAxis,
@@ -31,7 +32,9 @@ import {
   normalizeWorkstream,
   parseIsoDate,
   projectOwnershipMatchesIdentity,
+  resolveGanttWindowConfig,
   resolveProjectStatusDate,
+  validateGanttWindowConfig,
   validateResourceInput,
   validateWorkstreamTemplateConfig,
   validateWorkstreams,
@@ -819,6 +822,40 @@ test('workstream template validation trims names and rejects blank, duplicate, a
   assert.match(empty.errors.system.join(' '), /at least 1/i);
 });
 
+test('Gantt window validation accepts a default plus per-project overrides keyed by code', () => {
+  const valid = validateGanttWindowConfig({ defaultMonths: 9, overrides: { 'EGP-014': 12, 'BMR-007': 4 } });
+  assert.deepEqual(valid, {
+    valid: true,
+    errors: {},
+    config: { defaultMonths: 9, overrides: { 'EGP-014': 12, 'BMR-007': 4 } },
+  });
+});
+
+test('Gantt window validation rejects an out-of-range default and reports override-specific errors', () => {
+  const badDefault = validateGanttWindowConfig({ defaultMonths: 0, overrides: {} });
+  assert.equal(badDefault.valid, false);
+  assert.match(badDefault.errors.defaultMonths.join(' '), /between 1 and 36/);
+  assert.equal(badDefault.config.defaultMonths, DEFAULT_GANTT_WINDOW_MONTHS);
+
+  const badOverride = validateGanttWindowConfig({ defaultMonths: 6, overrides: { 'EGP-014': 999 } });
+  assert.equal(badOverride.valid, false);
+  assert.match(badOverride.errors.overrides.join(' '), /EGP-014/);
+
+  const blankCode = validateGanttWindowConfig({ defaultMonths: 6, overrides: { '': 6 } });
+  assert.equal(blankCode.valid, false);
+  assert.match(blankCode.errors.overrides.join(' '), /needs a project/i);
+});
+
+test('resolveGanttWindowConfig sanitizes the raw settings document, discarding malformed overrides', () => {
+  const resolved = resolveGanttWindowConfig({
+    ganttWindowDefaultMonths: 9,
+    ganttWindowOverrides: { 'EGP-014': 12, 'BAD-CODE': 999, '': 3 },
+  });
+  assert.deepEqual(resolved, { defaultMonths: 9, overrides: { 'EGP-014': 12 } });
+
+  assert.deepEqual(resolveGanttWindowConfig(undefined), { defaultMonths: DEFAULT_GANTT_WINDOW_MONTHS, overrides: {} });
+});
+
 test('createDefaultWorkstreams accepts validated config or names and falls back safely', () => {
   const config = {
     system: ['Discover', 'Deliver'],
@@ -865,6 +902,7 @@ test('normalizeWorkstream supplies safe defaults and preserves a stable identity
     status: 'at-risk',
     progress: '42',
     milestoneId: ' ms-1 ',
+    summaryGroupId: ' Design Phase ',
     sortOrder: 8,
   };
 
@@ -876,10 +914,12 @@ test('normalizeWorkstream supplies safe defaults and preserves a stable identity
     status: 'at-risk',
     progress: 42,
     milestoneId: 'ms-1',
+    summaryGroupId: 'Design Phase',
     sortOrder: 8,
   });
   assert.equal(normalizeWorkstream({}, 2).id, 'workstream-3');
   assert.equal(normalizeWorkstream({}, 2).id, normalizeWorkstream({}, 2).id);
+  assert.equal(normalizeWorkstream({}, 2).summaryGroupId, '');
   assert.equal(normalizeWorkstream({ status: 'unknown', progress: 'bad' }, 0).status, 'not-started');
   assert.equal(normalizeWorkstream({ status: 'unknown', progress: 'bad' }, 0).progress, 0);
 });
