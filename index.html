@@ -4663,7 +4663,7 @@ function setupUI() {
   loadOverviewScopeForCurrentUser();
   isAdminExecutivePreview = false;
   document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
-  document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
+  document.getElementById('displayUser').textContent = getUserDisplayName(getEmailKey(currentUser));
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole === 'executive' ? 'EXECUTIVE OWNER' : currentRole.toUpperCase();
   document.querySelectorAll('header button, header select').forEach(control => {
