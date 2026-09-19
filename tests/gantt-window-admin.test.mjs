@@ -114,7 +114,19 @@ test('a single Preview control lets the admin pick any project and render the dr
   assert.ok(source.includes('isGanttWindowSessionCurrent(session)'));
   assert.ok(source.includes('fetchOnePagerPreviewHtml('));
   assert.ok(source.includes('validateGanttWindowConfig(collectGanttWindowDraft())'));
-  assert.ok(source.includes('frame.srcdoc = html'));
+  assert.ok(source.includes("new Blob([html], { type: 'text/html' })"));
+  assert.ok(source.includes('frame.src = ganttWindowPreviewObjectUrl'));
+});
+
+test('preview navigates the iframe via a Blob URL instead of reassigning srcdoc, and revokes the previous URL', () => {
+  assert.doesNotMatch(dashboard, /\.srcdoc\s*=/);
+  const start = dashboard.indexOf('// GANTT WINDOW SETTINGS');
+  const end = dashboard.indexOf('// END GANTT WINDOW SETTINGS', start);
+  const source = dashboard.slice(start, end);
+  assert.ok(source.includes('let ganttWindowPreviewObjectUrl') || dashboard.includes('let ganttWindowPreviewObjectUrl'));
+  assert.match(source, /URL\.createObjectURL\(blob\)/);
+  assert.match(source, /URL\.revokeObjectURL\(previousUrl\)/);
+  assert.match(source, /URL\.revokeObjectURL\(ganttWindowPreviewObjectUrl\)/);
 });
 
 test('the preview project list is not filtered by which projects already have an override', () => {
