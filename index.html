@@ -98,6 +98,7 @@ body {
 }
 #saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+#saveToast.error .toast-check { background: var(--red); }
 .async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
 #productionWeekSyncSpinner[hidden] { display:none; }
 @media (prefers-reduced-motion: reduce) { #productionWeekSyncSpinner { animation:none; } }
@@ -2052,7 +2053,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <div id="saveToast">
-  <div class="toast-check">✓</div>
+  <div class="toast-check" id="saveToastIcon">✓</div>
   <span id="saveToastMsg">Saved successfully</span>
 </div>
 
@@ -2510,6 +2511,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Overall Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100" placeholder="0–100" title="Overall project completion from 0% to 100%"></div>
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention" title="Executive priority used in Overview"></select></div>
   </div>
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+    <button type="button" class="btn btn-ghost" id="pe_btn_copy_copilot_prompt" onclick="copyProjectCopilotWeeklyPrompt()">Copy Copilot Weekly Update Prompt</button>
+    <span class="inline-field-guide" style="margin:0;">Copies a prompt for Microsoft Copilot. Nothing is saved.</span>
+  </div>
   <div class="fg"><label class="fl">Highlight</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Add accomplishments, decisions, or changes."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Add actions the team needs to execute next week."></textarea></div>
   <div class="fg">
@@ -2901,6 +2906,7 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
+import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -3572,9 +3578,11 @@ const hideLoader = () => {
   }, 300);
 };
 let _toastTimer = null;
-const showSaveToast = (msg = "Saved successfully") => {
+const showSaveToast = (msg = "Saved successfully", { type = 'success' } = {}) => {
   const toast = document.getElementById('saveToast');
   document.getElementById('saveToastMsg').textContent = msg;
+  document.getElementById('saveToastIcon').textContent = type === 'error' ? '!' : '✓';
+  toast.classList.toggle('error', type === 'error');
   if (_toastTimer) clearTimeout(_toastTimer);
   toast.classList.add('show');
   _toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
@@ -10872,6 +10880,57 @@ window.copyCopilotPrompt = async () => {
     document.execCommand('copy');
     showSaveToast("Copilot prompt copied");
   }
+};
+
+function copyTextWithLegacyFallback(text) {
+  const previouslyFocused = document.activeElement;
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.setAttribute('aria-hidden', 'true');
+  area.style.cssText = 'position:fixed; top:0; left:-9999px; opacity:0;';
+  document.body.appendChild(area);
+  let copied = false;
+  try {
+    area.select();
+    copied = document.execCommand('copy') === true;
+  } catch {
+    copied = false;
+  } finally {
+    area.remove();
+    previouslyFocused?.focus?.();
+  }
+  return copied;
+}
+
+// Read-only: builds the prompt from persisted weeks in memory and copies it.
+// It never reads the editor's Highlight/Actions/Risk fields and never saves.
+window.copyProjectCopilotWeeklyPrompt = async () => {
+  let copied = false;
+  try {
+    const session = projectEditorSession;
+    if (!session) throw new Error('Project editor is not open.');
+    const currentWeek = allWeeks.find(week => (week.__documentId || week.weekLabel.replace(/\s+/g, '-')) === session.weekId)
+      || allWeeks[currentIdx];
+    const persisted = session.isNew ? null : currentWeek?.projects?.find(project => project.code === session.code);
+    const project = persisted || {
+      name: document.getElementById('pe_name').value,
+      customer: document.getElementById('pe_customer').value
+    };
+    const prompt = buildWeeklyCopilotPrompt(buildPromptContext({
+      weeks: persisted ? allWeeks : [],
+      currentWeek,
+      project
+    }));
+    copied = await copyTextToClipboard(prompt, {
+      clipboard: navigator.clipboard,
+      fallbackCopy: copyTextWithLegacyFallback
+    });
+  } catch (error) {
+    console.error('Copilot weekly update prompt failed:', error);
+  }
+  if (copied) showSaveToast('Copilot Weekly Update Prompt copied.');
+  else showSaveToast('Unable to copy the prompt. Please try again.', { type: 'error' });
 };
 
 function activeProjectsForWeek(week) {
