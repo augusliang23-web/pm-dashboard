@@ -19,6 +19,7 @@ test('dashboard API maps each business mutation to its protected Callable', asyn
   await api.createWeek({ weekId: 'W31-2026' });
   await api.setWeekRelease({ weekId: 'W30-2026' });
   await api.saveGanttTemplateSettings({ expectedRevision: 4, config: { system: ['Plan'] } });
+  await api.saveGanttWindowSettings({ expectedRevision: 4, defaultMonths: 12, overrides: {} });
 
   assert.deepEqual(calls.map(call => call.name), [
     'saveDashboardProject',
@@ -28,5 +29,6 @@ test('dashboard API maps each business mutation to its protected Callable', asyn
     'createDashboardWeek',
     'setDashboardWeekRelease',
     'saveDashboardGanttTemplateSettings',
+    'saveDashboardGanttWindowSettings',
   ]);
 });
