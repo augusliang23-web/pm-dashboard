@@ -119,6 +119,57 @@ test('does not flag low confidence when most workstreams are grouped by mileston
   assert.equal(lowConfidence, false);
 });
 
+test('splits a single milestone-linked lane back into individual workstreams when it is the only lane and there is enough detail to show', () => {
+  const milestones = [{ id: 'ms-1', name: 'Prototype gate' }];
+  const workstreams = Array.from({ length: 8 }, (_, index) => workstream({
+    id: `ws-${index}`, name: `Task ${String.fromCharCode(65 + index)}`, milestoneId: 'ms-1'
+  }));
+  const { lanes } = buildSummaryLanes({ milestones, workstreams });
+
+  assert.equal(lanes.length, 8, 'every workstream should become its own lane instead of one collapsed lane');
+  assert.deepEqual(lanes.map(lane => lane.workstreamCount), Array(8).fill(1));
+  assert.ok(lanes.every(lane => lane.label.startsWith('Task ')));
+});
+
+test('splits only enough lanes to reach the 4-lane minimum, leaving the rest grouped', () => {
+  const milestones = [{ id: 'ms-1', name: 'Big Milestone' }, { id: 'ms-2', name: 'Small Milestone' }];
+  const workstreams = [
+    ...Array.from({ length: 5 }, (_, index) => workstream({ id: `big-${index}`, name: `Big ${index}`, milestoneId: 'ms-1' })),
+    workstream({ id: 'small-0', name: 'Small task', milestoneId: 'ms-2' })
+  ];
+  const { lanes } = buildSummaryLanes({ milestones, workstreams });
+
+  // Starts as 2 lanes (5-workstream + 1-workstream); splitting the 5-lane
+  // alone reaches 6 lanes, already past the 4-lane minimum, so it stops there
+  // rather than continuing to split every remaining group.
+  assert.equal(lanes.length, 6);
+  assert.equal(lanes.find(lane => lane.label === 'Small Milestone')?.workstreamCount, 1);
+});
+
+test('never splits a PM-assigned manual grouping even when it is the only lane', () => {
+  const pdfSummaryLanes = [{ id: 'lane-custom', label: 'Custom Phase', sortOrder: 0 }];
+  const workstreams = Array.from({ length: 6 }, (_, index) => workstream({
+    id: `ws-${index}`, name: `Task ${index}`, summaryGroupId: 'lane-custom'
+  }));
+  const { lanes } = buildSummaryLanes({ pdfSummaryLanes, workstreams });
+
+  assert.equal(lanes.length, 1);
+  assert.equal(lanes[0].label, 'Custom Phase');
+  assert.equal(lanes[0].workstreamCount, 6);
+});
+
+test('does not split when there are too few raw workstreams to ever reach the 4-lane minimum', () => {
+  const milestones = [{ id: 'ms-1', name: 'Pilot Build' }];
+  const workstreams = [
+    workstream({ id: 'a', name: 'Firmware', milestoneId: 'ms-1' }),
+    workstream({ id: 'b', name: 'Hardware', milestoneId: 'ms-1' })
+  ];
+  const { lanes } = buildSummaryLanes({ milestones, workstreams });
+
+  assert.equal(lanes.length, 1);
+  assert.equal(lanes[0].workstreamCount, 2);
+});
+
 test('defaults lane progress to a duration-weighted average when no manual override exists', () => {
   const { lanes } = buildSummaryLanes({
     workstreams: [
