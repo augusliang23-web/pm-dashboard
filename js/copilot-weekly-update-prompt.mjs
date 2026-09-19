@@ -288,7 +288,7 @@ function generateSection(context) {
     hasBaseline
       ? '3-6 concise, fact-based, executive-level bullets describing meaningful changes versus last week: completed milestones, meaningful progress, important decisions, clarified root causes, resolved blockers, confirmed responsibilities, technical findings, or major stakeholder alignment.'
       : '3-6 concise, fact-based, executive-level bullets describing the most meaningful developments in the reporting period: completed milestones, meaningful progress, important decisions, clarified root causes, resolved blockers, confirmed responsibilities, technical findings, or major stakeholder alignment.',
-    'Describe the actual change, not just activity.',
+    'Describe the actual change, not just activity. Keep each bullet to 1-2 sentences, about 40 words or fewer.',
     'Weaker: "Continued discussion with the supplier about installation."',
     'Better: "Clarified that the original supplier engagement covered equipment supply only, explaining the gap in onsite installation responsibility."',
     '',
@@ -298,6 +298,7 @@ function generateSection(context) {
     'Prefer action verbs such as Confirm, Complete, Validate, Resolve, Finalize, Obtain, Close, Execute. Avoid "Follow up", "Continue discussion", and "Keep monitoring"; state the intended outcome instead.',
     'Weaker: "Follow up with the supplier regarding installation resources."',
     'Better: "Obtain final confirmation of the onsite installation team and mobilization schedule."',
+    'Keep each action to one sentence, about 33 words or fewer.',
     '',
     '3. RISK / ACTION PAIRS',
     '',
@@ -310,6 +311,7 @@ function generateSection(context) {
     'Required Action:',
     '',
     'Every Risk must have its own Required Action; do not reuse one generic action for several risks.',
+    'Keep each Risk / Blocker to 1-2 sentences, about 60 words or fewer, and each Required Action to one sentence, about 45 words or fewer.',
     hasBaseline
       ? "Do not automatically carry forward last week's risks. Reassess each one as: remains active, improved, resolved, replaced, or mitigation needs revision. Remove resolved risks from the active list."
       : 'Include only risks that are supported by evidence.',
@@ -318,8 +320,10 @@ function generateSection(context) {
     '4. WEEK-OVER-WEEK CHANGES',
     '',
     hasBaseline
-      ? 'A review section for the PM only; it is not pasted into the executive report. For each important topic give: Topic, Last Week, This Week, Change, and Evidence Confidence (High / Medium / Low).'
+      ? 'A review section for the PM only; it is not pasted into the executive report. For each important topic give: Topic, Last Week, This Week, Change, and Evidence Confidence (High / Medium / Low). List at most 6 topics and keep each field to 1-2 sentences.'
       : 'Not applicable: there is no previous weekly report, so write exactly "Not applicable - no previous weekly report is available."',
+    '',
+    'Length limits are approximate. Never drop a confirmed date, owner, or decision just to stay within them.',
     '',
     'CONSISTENCY CHECK:',
     '',
@@ -344,6 +348,7 @@ function outputFormatSection(context) {
     hasBaseline
       ? "Use exactly this structure and write in the same language and tone as last week's report."
       : 'Use exactly this structure and write in concise, professional English.',
+    'Return only these sections, with no introduction, explanation, or closing remarks.',
     '',
     '## HIGHLIGHT',
     '',

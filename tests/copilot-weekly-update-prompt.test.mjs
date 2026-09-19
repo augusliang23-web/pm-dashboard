@@ -124,6 +124,16 @@ test('the prompt has the fixed output structure including WEEK-OVER-WEEK CHANGES
   assert.match(prompt, /Evidence Confidence:\nHigh \/ Medium \/ Low/);
 });
 
+test('the prompt sets approximate length limits and protects confirmed facts', () => {
+  const prompt = promptFor();
+  assert.match(prompt, /Keep each bullet to 1-2 sentences, about 40 words or fewer\./);
+  assert.match(prompt, /Keep each action to one sentence, about 33 words or fewer\./);
+  assert.match(prompt, /Keep each Risk \/ Blocker to 1-2 sentences, about 60 words or fewer, and each Required Action to one sentence, about 45 words or fewer\./);
+  assert.match(prompt, /List at most 6 topics and keep each field to 1-2 sentences\./);
+  assert.match(prompt, /Never drop a confirmed date, owner, or decision just to stay within them\./);
+  assert.match(prompt, /Return only these sections, with no introduction, explanation, or closing remarks\./);
+});
+
 test('first report: no previous week produces the no-baseline instructions and does not crash', () => {
   const weeks = [{ weekLabel: 'W38 2026', weekDate: 'Sep 14 - Sep 18', projects: [currentProject] }];
   const prompt = promptFor({ weeks });
