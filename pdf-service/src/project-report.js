@@ -160,8 +160,8 @@ function renderBudget(model) {
  * Team allocation, Discipline hours and Budget remain optional detail pages
  * appended after it, selected the same way they always were.
  */
-export function renderProjectReportHtml({ week, project, sections }) {
-  const model = buildProjectReportModel({ week, project, sections });
+export function renderProjectReportHtml({ week, project, sections, ganttWindowSettings }) {
+  const model = buildProjectReportModel({ week, project, sections, ganttWindowSettings });
   const selected = new Set(model.sections);
   const pages = [renderProjectOnePagerHtml(model, model.period)];
   const milestone = selected.has('milestone') ? renderMilestoneFlow(model) : '';

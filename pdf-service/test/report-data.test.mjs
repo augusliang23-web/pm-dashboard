@@ -360,6 +360,40 @@ test('rejects malformed Executive Summary structure with a PDF data error', asyn
   );
 });
 
+test('resolves a default Gantt window when the dashboard settings adapter is unavailable', async () => {
+  const report = await loadAuthorizedReport({
+    request: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['gantt'] },
+    idToken: 'pm@example.com',
+    adapters
+  });
+
+  assert.deepEqual(report.ganttWindowSettings, { defaultMonths: 6, overrides: {} });
+});
+
+test('reads the admin-configured Gantt window settings for both project and overview reports', async () => {
+  const ganttWindowAdapters = {
+    ...adapters,
+    getDashboardSettings: async () => ({
+      ganttWindowDefaultMonths: 9,
+      ganttWindowOverrides: { 'PMS-001': 12 }
+    })
+  };
+
+  const projectReport = await loadAuthorizedReport({
+    request: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['gantt'] },
+    idToken: 'pm@example.com',
+    adapters: ganttWindowAdapters
+  });
+  assert.deepEqual(projectReport.ganttWindowSettings, { defaultMonths: 9, overrides: { 'PMS-001': 12 } });
+
+  const overviewReport = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['health-focus'] },
+    idToken: 'pm@example.com',
+    adapters: ganttWindowAdapters
+  });
+  assert.deepEqual(overviewReport.ganttWindowSettings, { defaultMonths: 9, overrides: { 'PMS-001': 12 } });
+});
+
 test('does not validate Weekly Summary when Executive Summary is not selected', async () => {
   const [, invalidSummary] = invalidSummaryCases[0];
   const report = await loadAuthorizedReport({

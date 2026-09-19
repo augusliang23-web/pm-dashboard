@@ -270,6 +270,83 @@ export function resolveWorkstreamTemplateConfig(source) {
   };
 }
 
+export const DEFAULT_GANTT_WINDOW_MONTHS = 6;
+export const GANTT_WINDOW_MONTHS_RANGE = Object.freeze({ min: 1, max: 36 });
+
+function isValidGanttWindowMonths(value) {
+  return Number.isInteger(value) && value >= GANTT_WINDOW_MONTHS_RANGE.min && value <= GANTT_WINDOW_MONTHS_RANGE.max;
+}
+
+/**
+ * Validates an admin's draft Gantt display-window settings (default months
+ * plus per-project overrides, keyed by project code) before it is sent to
+ * saveDashboardGanttWindowSettings.
+ */
+export function validateGanttWindowConfig(source = {}) {
+  const errors = {};
+  const rangeMessage = `Enter a whole number of months between ${GANTT_WINDOW_MONTHS_RANGE.min} and ${GANTT_WINDOW_MONTHS_RANGE.max}.`;
+  const defaultMonths = Number(source?.defaultMonths);
+  if (!isValidGanttWindowMonths(defaultMonths)) errors.defaultMonths = [rangeMessage];
+
+  const overridesSource = source?.overrides && typeof source.overrides === 'object' && !Array.isArray(source.overrides)
+    ? source.overrides
+    : {};
+  const overrides = {};
+  const overrideErrors = [];
+  const seenCodes = new Set();
+  for (const [code, months] of Object.entries(overridesSource)) {
+    const trimmedCode = String(code || '').trim();
+    if (!trimmedCode) {
+      overrideErrors.push('Every project override needs a project selected.');
+      continue;
+    }
+    if (seenCodes.has(trimmedCode)) {
+      overrideErrors.push(`${trimmedCode} is selected more than once.`);
+      continue;
+    }
+    seenCodes.add(trimmedCode);
+    const numericMonths = Number(months);
+    if (!isValidGanttWindowMonths(numericMonths)) {
+      overrideErrors.push(`${trimmedCode}: ${rangeMessage}`);
+      continue;
+    }
+    overrides[trimmedCode] = numericMonths;
+  }
+  if (overrideErrors.length) errors.overrides = overrideErrors;
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    config: {
+      defaultMonths: isValidGanttWindowMonths(defaultMonths) ? defaultMonths : DEFAULT_GANTT_WINDOW_MONTHS,
+      overrides,
+    },
+  };
+}
+
+/**
+ * Sanitizes the raw dashboardSettings/team-2-portfolio document (as read
+ * from Firestore) into a clean { defaultMonths, overrides } shape, falling
+ * back to the 6-month default whenever a field is missing or malformed.
+ */
+export function resolveGanttWindowConfig(source) {
+  const doc = source && typeof source === 'object' ? source : {};
+  const defaultMonths = Number(doc.ganttWindowDefaultMonths);
+  const overridesSource = doc.ganttWindowOverrides && typeof doc.ganttWindowOverrides === 'object'
+    ? doc.ganttWindowOverrides
+    : {};
+  const overrides = {};
+  for (const [code, months] of Object.entries(overridesSource)) {
+    const trimmedCode = String(code || '').trim();
+    const numeric = Number(months);
+    if (trimmedCode && isValidGanttWindowMonths(numeric)) overrides[trimmedCode] = numeric;
+  }
+  return {
+    defaultMonths: isValidGanttWindowMonths(defaultMonths) ? defaultMonths : DEFAULT_GANTT_WINDOW_MONTHS,
+    overrides,
+  };
+}
+
 export function createDefaultWorkstreams(projectLevel, templateConfigOrNames) {
   const level = PROJECT_LEVELS.has(projectLevel) ? projectLevel : PROJECT_LEVEL.SYSTEM;
   let names;

@@ -4,6 +4,7 @@ import {
   ReportAccessError
 } from './report-access.js';
 import { validateExecutiveSummaryForPdf } from './executive-summary-brief.js';
+import { resolveGanttWindowSettings } from './gantt-window.js';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -70,6 +71,10 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const week = await adapters.getWeekById(request.weekId);
   if (!week) throw new ReportDataError('The selected reporting week no longer exists.');
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);
+  const dashboardSettings = typeof adapters.getDashboardSettings === 'function'
+    ? await adapters.getDashboardSettings()
+    : undefined;
+  const ganttWindowSettings = resolveGanttWindowSettings(dashboardSettings);
 
   if (request.mode !== 'project') {
     if (request.sections.includes('executive-summary')) {
@@ -103,7 +108,8 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       availableProjectCount,
       selectedProjectCount,
       projectSelectionApplied: Array.isArray(request.projectCodes),
-      projectSelectionIsPartial: selectedProjectCount < availableProjectCount
+      projectSelectionIsPartial: selectedProjectCount < availableProjectCount,
+      ganttWindowSettings
     };
     if (request.sections.includes('executive-milestones')) {
       report.executiveAudienceView = authorizeExecutiveAudienceView(user?.role, request.executiveAudienceView);
@@ -113,5 +119,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
 
   const project = (week.projects || []).find(item => item?.code === request.projectCode);
   if (!project) throw new ReportDataError('The selected project no longer exists in this reporting week.');
-  return { access, week, project, sections: includedProjectSections(project, request.sections) };
+  return {
+    access, week, project, sections: includedProjectSections(project, request.sections), ganttWindowSettings
+  };
 }

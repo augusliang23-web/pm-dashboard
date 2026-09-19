@@ -118,10 +118,86 @@ test('does not surface a low-confidence note when grouping is confident', () => 
   assert.doesNotMatch(html, /could not be confidently auto-grouped/);
 });
 
+test('surfaces a display-window note when the admin-configured Gantt window hides tasks', () => {
+  const fixture = completeProjectReportFixture();
+  const model = buildProjectReportModel({
+    week: fixture.week,
+    sections: fixture.sections,
+    ganttWindowSettings: { defaultMonths: 1, overrides: {} },
+    project: {
+      ...fixture.project,
+      ganttWorkstreams: [
+        { id: 'a', name: 'Design', startDate: '2026-07-01', endDate: '2026-07-08', status: 'completed', progress: 100 },
+        { id: 'b', name: 'Far out work', startDate: '2027-06-01', endDate: '2027-06-10', status: 'not-started', progress: 0 }
+      ]
+    }
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /1 task\(s\) outside the 1-month display window are not shown/);
+});
+
+test('does not surface a display-window note when nothing is hidden by the window', () => {
+  const model = buildModel();
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.doesNotMatch(html, /display window are not shown/);
+});
+
 test('escapes project content to avoid HTML injection from stored fields', () => {
   const model = buildModel({ name: '<img src=x onerror=alert(1)>' });
   const html = renderProjectOnePagerHtml(model, model.period);
 
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /&lt;img src=x/);
+});
+
+test('highlights and action items shrink to a dense style past 4 items, not before', () => {
+  const fourItems = Array.from({ length: 4 }, (_, index) => `Highlight ${index + 1}`).join('\n');
+  const fiveItems = Array.from({ length: 5 }, (_, index) => `Highlight ${index + 1}`).join('\n');
+
+  const normalHtml = renderProjectOnePagerHtml(buildModel({ highlight: fourItems }));
+  assert.doesNotMatch(normalHtml, /one-pager-list {2}dense/);
+
+  const denseHtml = renderProjectOnePagerHtml(buildModel({ highlight: fiveItems }));
+  assert.match(denseHtml, /one-pager-list {2}dense/);
+});
+
+test('the risk quadrant shrinks to a dense style past 2 risks, not before', () => {
+  const twoRisks = [
+    { risk: 'Risk one', action: 'Action one', primary: true },
+    { risk: 'Risk two', action: 'Action two' }
+  ];
+  const threeRisks = [...twoRisks, { risk: 'Risk three', action: 'Action three' }];
+
+  const normalHtml = renderProjectOnePagerHtml(buildModel({ riskActions: twoRisks }));
+  assert.doesNotMatch(normalHtml, /one-pager-risk-stack dense/);
+
+  const denseHtml = renderProjectOnePagerHtml(buildModel({ riskActions: threeRisks }));
+  assert.match(denseHtml, /one-pager-risk-stack dense/);
+  assert.match(denseHtml, /Risk three/);
+});
+
+test('the schedule summary shrinks to a dense style only when more than 8 lanes survive grouping', () => {
+  // Each workstream carries a distinct milestone and an at-risk status, so
+  // none of them can be merged away by the grouping/merge-down-to-8 logic -
+  // this is the one realistic way a project ends up with more than 8 lanes.
+  const riskyWorkstream = index => ({
+    id: `ws-${index}`, name: `Task ${index}`, status: 'at-risk',
+    startDate: '2026-01-01', endDate: '2026-01-10', progress: 10, milestoneId: `ms-${index}`
+  });
+  const milestone = index => ({ id: `ms-${index}`, name: `Milestone ${index}` });
+
+  const eightMilestones = Array.from({ length: 8 }, (_, index) => milestone(index));
+  const eightRiskyWorkstreams = Array.from({ length: 8 }, (_, index) => riskyWorkstream(index));
+  const nineMilestones = [...eightMilestones, milestone(8)];
+  const nineRiskyWorkstreams = [...eightRiskyWorkstreams, riskyWorkstream(8)];
+
+  const normalHtml = renderProjectOnePagerHtml(buildModel({ milestones: eightMilestones, ganttWorkstreams: eightRiskyWorkstreams }));
+  assert.doesNotMatch(normalHtml, /one-pager-gantt-stack dense/);
+  assert.equal((normalHtml.match(/one-pager-gantt-row/g) || []).length, 8);
+
+  const denseHtml = renderProjectOnePagerHtml(buildModel({ milestones: nineMilestones, ganttWorkstreams: nineRiskyWorkstreams }));
+  assert.match(denseHtml, /one-pager-gantt-stack dense/);
+  assert.equal((denseHtml.match(/one-pager-gantt-row/g) || []).length, 9);
 });

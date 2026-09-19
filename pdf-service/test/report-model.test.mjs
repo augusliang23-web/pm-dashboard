@@ -109,6 +109,64 @@ test('a pdfSummaryLanes entry with no manual progress falls back to the calculat
   assert.equal(lane.progress, 80, 'a null override must fall back to the weighted-average suggestion, not 0%');
 });
 
+test('does not window-filter Gantt data when no ganttWindowSettings is provided', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
+    sections: ['gantt'],
+    project: {
+      code: 'PMS-001',
+      ganttWorkstreams: [
+        { id: 'a', name: 'Far future work', startDate: '2028-01-01', endDate: '2028-01-10', progress: 0 }
+      ]
+    }
+  });
+
+  assert.equal(model.ganttWindowMonths, null);
+  assert.equal(model.ganttWindowFilteredCount, 0);
+  assert.equal(model.summaryLanes.length, 1);
+});
+
+test('bounds the schedule summary to the configured window and counts what it hid', () => {
+  const model = buildProjectReportModel({
+    week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
+    sections: ['gantt'],
+    ganttWindowSettings: { defaultMonths: 3, overrides: {} },
+    project: {
+      code: 'PMS-001',
+      ganttWorkstreams: [
+        { id: 'a', name: 'In window', startDate: '2026-07-15', endDate: '2026-08-01', progress: 40 },
+        { id: 'b', name: 'Beyond window', startDate: '2027-01-01', endDate: '2027-01-10', progress: 0 },
+        { id: 'c', name: 'Beyond window but at-risk', startDate: '2027-06-01', endDate: '2027-06-10', progress: 0, status: 'at-risk' }
+      ]
+    }
+  });
+
+  assert.equal(model.ganttWindowMonths, 3);
+  assert.equal(model.ganttWindowFilteredCount, 1);
+  const ids = model.summaryLanes.flatMap(lane => lane.workstreamIds);
+  assert.deepEqual(ids.sort(), ['a', 'c']);
+});
+
+test('applies a project-code override ahead of the portfolio default window in both report models', () => {
+  const week = { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' };
+  const ganttWindowSettings = { defaultMonths: 1, overrides: { 'PMS-001': 12 } };
+  const farWorkstream = { id: 'a', name: 'Far but overridden', startDate: '2027-01-01', endDate: '2027-01-10', progress: 0 };
+
+  const projectModel = buildProjectReportModel({
+    week, ganttWindowSettings, sections: ['gantt'],
+    project: { code: 'PMS-001', ganttWorkstreams: [farWorkstream] }
+  });
+  assert.equal(projectModel.ganttWindowMonths, 12);
+  assert.equal(projectModel.ganttWindowFilteredCount, 0);
+
+  const overviewModel = buildOverviewReportModel({
+    week: { ...week, projects: [{ code: 'PMS-001', ganttWorkstreams: [farWorkstream] }] },
+    sections: ['project-portfolio'], ganttWindowSettings
+  });
+  assert.equal(overviewModel.projects[0].ganttWindowMonths, 12);
+  assert.equal(overviewModel.projects[0].ganttWindowFilteredCount, 0);
+});
+
 test('resource and budget helpers preserve unknown actuals and zero-valued budgets', () => {
   const project = normalizeProjectForReport({
     teamMembers: [{ name: 'A', roleName: 'PMO', effortPct: 25 }],

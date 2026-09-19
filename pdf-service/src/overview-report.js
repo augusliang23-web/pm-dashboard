@@ -313,9 +313,10 @@ export function renderOverviewReportHtml({
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
   projectSelectionIsPartial = false,
-  projectPortfolioLayout = 'flow'
+  projectPortfolioLayout = 'flow',
+  ganttWindowSettings
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings });
   const selected = new Set(model.sections);
   const pages = [];
 

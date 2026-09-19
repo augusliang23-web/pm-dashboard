@@ -361,6 +361,7 @@ export const REPORT_CSS = `
   .one-pager-list li { margin:0 0 1.8mm; font-size:9.3pt; line-height:1.32; }
   .one-pager-list li::marker { color:var(--green); }
   .one-pager-list.blue li::marker { color:var(--blue); }
+  .one-pager-list.dense li { margin:0 0 1mm; font-size:8pt; line-height:1.2; }
   .one-pager-empty { margin:0; color:var(--muted); font-size:8.5pt; }
   .one-pager-gantt-axis { display:flex; justify-content:space-between; margin:0 26mm 1.5mm 38mm; color:var(--muted); font-size:6.4pt; font-weight:700; }
   .one-pager-gantt-stack { display:grid; gap:1.6mm; overflow:hidden; min-height:0; }
@@ -379,7 +380,14 @@ export const REPORT_CSS = `
   .one-pager-gantt-status.red { color:var(--red); background:var(--red-soft); }
   .one-pager-gantt-status.yellow { color:#8a641c; background:var(--yellow-soft); }
   .one-pager-gantt-status.neutral { color:var(--muted); background:var(--surface); }
+  .one-pager-gantt-stack.dense { gap:1mm; }
+  .one-pager-gantt-stack.dense .one-pager-gantt-row { gap:1.5mm; }
+  .one-pager-gantt-stack.dense .one-pager-gantt-name strong { font-size:6.6pt; line-height:1.05; }
+  .one-pager-gantt-stack.dense .one-pager-gantt-name small { font-size:5.2pt; }
+  .one-pager-gantt-stack.dense .one-pager-gantt-track,.one-pager-gantt-stack.dense .one-pager-gantt-bar { height:3.4mm; }
+  .one-pager-gantt-stack.dense .one-pager-gantt-status { font-size:5.2pt; padding:.5mm .8mm; }
   .one-pager-low-confidence { margin-top:1.5mm; padding:1.2mm 2mm; border-radius:2mm; background:var(--yellow-soft); color:#8a641c; font-size:6.4pt; font-weight:700; }
+  .one-pager-window-note { margin-top:1.5mm; padding:1.2mm 2mm; border-radius:2mm; background:var(--yellow-soft); color:#8a641c; font-size:6.4pt; font-weight:700; }
   .one-pager-risk-stack { display:grid; gap:2mm; overflow:hidden; min-height:0; }
   .one-pager-risk-pair { display:grid; gap:1.2mm; }
   .one-pager-risk-block { margin-bottom:0; padding:2mm 2.5mm; border-left:1.1mm solid var(--red); border-radius:1mm 2.5mm 2.5mm 1mm; background:rgba(255,255,255,.78); }
@@ -388,5 +396,13 @@ export const REPORT_CSS = `
   .one-pager-required-action { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:start; gap:2mm; padding:2mm 2.5mm; border:1px solid rgba(181,82,82,.25); border-radius:2.5mm; background:var(--white); }
   .one-pager-required-action strong { display:inline-flex; border-radius:99px; padding:.8mm 1.6mm; color:var(--white); background:var(--red); font-size:6.2pt; text-transform:uppercase; }
   .one-pager-required-action p { margin:0; font-size:8.5pt; line-height:1.3; }
+  .one-pager-risk-stack.dense { gap:1mm; }
+  .one-pager-risk-stack.dense .one-pager-risk-pair { gap:.6mm; }
+  .one-pager-risk-stack.dense .one-pager-risk-block { padding:1mm 2mm; }
+  .one-pager-risk-stack.dense .one-pager-risk-label { margin-bottom:.3mm; font-size:5.8pt; }
+  .one-pager-risk-stack.dense .one-pager-risk-block p { font-size:7.3pt; line-height:1.2; }
+  .one-pager-risk-stack.dense .one-pager-required-action { padding:1mm 2mm; gap:1.5mm; }
+  .one-pager-risk-stack.dense .one-pager-required-action strong { font-size:5.6pt; padding:.6mm 1.2mm; }
+  .one-pager-risk-stack.dense .one-pager-required-action p { font-size:7pt; line-height:1.2; }
   .one-pager-footer { display:flex; align-items:end; justify-content:space-between; color:var(--muted); font-size:6.6pt; }
 `;

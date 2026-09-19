@@ -1,4 +1,5 @@
 import { buildSummaryLanes } from './workstream-summary.js';
+import { filterWorkstreamsByWindow, resolveGanttWindowMonths, resolveReportAnchorDate } from './gantt-window.js';
 
 const VALID_STATUSES = new Set(['green', 'yellow', 'red']);
 const VALID_ATTENTION = new Set(['action', 'monitor', 'strategy', 'watch']);
@@ -113,7 +114,7 @@ function rawRiskActionPairs(source) {
   return risk.trim() ? [{ risk, action: '', primary: true }] : [];
 }
 
-export function normalizeProjectForReport(source = {}) {
+export function normalizeProjectForReport(source = {}, { ganttWindowSettings, anchorDate } = {}) {
   const project = source && typeof source === 'object' ? source : {};
   const normalizedStatus = String(project.status || '').toLowerCase();
   const status = VALID_STATUSES.has(normalizedStatus) ? normalizedStatus : 'green';
@@ -167,14 +168,20 @@ export function normalizeProjectForReport(source = {}) {
     budgetSource: project.budget && typeof project.budget === 'object' ? { ...project.budget } : {}
   };
   model.attention = attentionFor(model);
+  const ganttWindowMonths = resolveGanttWindowMonths(model.code, ganttWindowSettings);
+  const { workstreams: windowedWorkstreams, filteredOutCount } = ganttWindowMonths
+    ? filterWorkstreamsByWindow({ workstreams: model.workstreams, anchorDate, windowMonths: ganttWindowMonths })
+    : { workstreams: model.workstreams, filteredOutCount: 0 };
   const { lanes, lowConfidence, ungroupedCount } = buildSummaryLanes({
-    workstreams: model.workstreams,
+    workstreams: windowedWorkstreams,
     milestones: model.milestones,
     pdfSummaryLanes: model.pdfSummaryLanes
   });
   model.summaryLanes = lanes;
   model.summaryLanesLowConfidence = lowConfidence;
   model.summaryLanesUngroupedCount = ungroupedCount;
+  model.ganttWindowMonths = ganttWindowMonths;
+  model.ganttWindowFilteredCount = filteredOutCount;
   return model;
 }
 
@@ -220,8 +227,9 @@ export function budgetTotals(project) {
   };
 }
 
-export function buildProjectReportModel({ week = {}, project = {}, sections = [] } = {}) {
-  const model = normalizeProjectForReport(project);
+export function buildProjectReportModel({ week = {}, project = {}, sections = [], ganttWindowSettings } = {}) {
+  const anchorDate = resolveReportAnchorDate(week);
+  const model = normalizeProjectForReport(project, { ganttWindowSettings, anchorDate });
   return {
     ...model,
     period: formatReportingPeriod(week),
@@ -238,9 +246,10 @@ function scopeLevel(scope) {
   return 'system';
 }
 
-function scopedProjects(projects, scope) {
+function scopedProjects(projects, scope, context = {}) {
   const level = scopeLevel(scope);
-  const normalized = (Array.isArray(projects) ? projects : []).map(normalizeProjectForReport)
+  const normalized = (Array.isArray(projects) ? projects : [])
+    .map(project => normalizeProjectForReport(project, context))
     .filter(project => !['hidden', 'archived'].includes(project.visibility));
   return level === 'all' ? normalized : normalized.filter(project => project.projectLevel === level);
 }
@@ -416,9 +425,11 @@ export function buildOverviewReportModel({
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
-  projectSelectionIsPartial = false
+  projectSelectionIsPartial = false,
+  ganttWindowSettings
 } = {}) {
-  const projects = scopedProjects(week.projects, overviewScope);
+  const anchorDate = resolveReportAnchorDate(week);
+  const projects = scopedProjects(week.projects, overviewScope, { ganttWindowSettings, anchorDate });
   const attention = { action: [], monitor: [], strategy: [], watch: [] };
   projects.forEach(project => attention[project.attention].push(project));
   const quarterlyItems = projects.flatMap(project => project.quarterlyMilestones.map(item => ({
