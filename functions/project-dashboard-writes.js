@@ -23,12 +23,6 @@ const DEFAULT_LIMITS = Object.freeze({
   maxStringLength: 20000,
 });
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
-const LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX = Object.freeze({
-  'augus.liang': 'Augus',
-  'josiah.winkler': 'Josiah',
-  'qianyun.zhu': 'Bonnie',
-  'huichong.kong': 'Huichong',
-});
 
 function database() {
   return getFirestore();
@@ -41,11 +35,7 @@ function normalized(value) {
 function resolveActorDisplayName(email, storedDisplayName) {
   const explicitName = String(storedDisplayName || '').trim();
   if (explicitName) return explicitName;
-  const emailPrefix = normalized(email).split('@')[0];
-  if (LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX[emailPrefix]) {
-    return LEGACY_DISPLAY_NAME_BY_EMAIL_PREFIX[emailPrefix];
-  }
-  return emailPrefix;
+  return normalized(email).split('@')[0];
 }
 
 function securityError(code, reason, message) {

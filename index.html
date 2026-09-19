@@ -2658,6 +2658,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
+import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -2696,6 +2697,7 @@ let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
 let authSessionGeneration = 0;
+const displayNameDirectory = createDisplayNameDirectory();
 let isAdminVipPreview = false;
 let currentPMFilter = 'all';
 const PORTFOLIO_SCOPE_KEY = 'team2.portfolioScope';
@@ -4015,7 +4017,7 @@ function renderOnlineUsers(users) {
   } else {
     pulseDot.classList.remove('idle');
     container.innerHTML = finalUsers.map(u => 
-      `<div class="online-badge ${u.idle ? 'idle' : ''}">${u.name}</div>`
+      `<div class="online-badge ${u.idle ? 'idle' : ''}">${escHtml(u.name)}</div>`
     ).join('');
   }
 }
@@ -4059,6 +4061,7 @@ function setDashboardAccessPending() {
 
 function quiesceDashboardForAuthTransition() {
   stopPresenceSystem();
+  displayNameDirectory.clear();
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4144,6 +4147,7 @@ window.saveNewPassword = async () => {
 
 window.handleLogout = async () => {
   const logoutGeneration = ++authSessionGeneration;
+  displayNameDirectory.clear();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   stopGanttTemplateConfigSubscription();
@@ -4190,10 +4194,14 @@ onAuthStateChanged(auth, async user => {
 
       const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
-      const nextPMList = await fetchDynamicPMList();
+      const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
-      PM_LIST = nextPMList;
+      applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data());
+      PM_LIST = [...new Set(nextDirectory.accounts
+        .filter(account => normalizeRole(account.role) !== 'vip')
+        .map(account => getUserDisplayName(account.id)))].sort();
       setupUI();
+      if (!nextDirectory.available) showSaveToast('PM list unavailable. Refresh to retry.');
       initData(authGeneration, user);
       startPresenceSystem(authGeneration, user);
       dot.classList.add('ok');
@@ -4225,20 +4233,7 @@ onAuthStateChanged(auth, async user => {
 });
 
 function getUserDisplayName(emailStr) {
-  if(!emailStr || emailStr === 'System') return 'System';
-  let prefix = emailStr.split('@')[0].toLowerCase();
-  
-  // Add new PM aliases here. Replace these placeholders with real email prefixes and names.
-  const map = { 
-    "augus.liang": "Augus", 
-    "josiah.winkler": "Josiah", 
-    "qianyun.zhu": "Bonnie",
-    "huichong.kong": "Huichong"  // Update here
-  };
-  
-  if (map[prefix]) return map[prefix];
-  let n = prefix.split('.')[0];
-  return n.charAt(0).toUpperCase() + n.slice(1);
+  return displayNameDirectory.resolve(emailStr);
 }
 
 function sectionUpdateLabel(project, section) {
@@ -4254,18 +4249,13 @@ function sectionUpdateLabel(project, section) {
 async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
-    const pmSet = new Set();
-    snap.forEach(d => { 
-      // Only non-VIP roles are included in the PM list.
-      if (normalizeRole(d.data().role) !== 'vip') {
-        pmSet.add(getUserDisplayName(d.id)); 
-      }
-    });
-    return Array.from(pmSet).sort();
+    return {
+      accounts: snap.docs.map(entry => ({ id: entry.id, ...entry.data() })),
+      available: true,
+    };
   } catch(e) {
-    console.warn("Could not load users list, falling back.", e);
-    // Fallback list for network issues. Replace with real PM names.
-    return ["Augus", "Bonnie", "Josiah", "Huichong"];
+    console.warn('Could not load users list.', e);
+    return { accounts: [], available: false };
   }
 }
 
@@ -4275,7 +4265,7 @@ function setupUI() {
   loadOverviewScopeForCurrentUser();
   isAdminVipPreview = false;
   document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
-  document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
+  document.getElementById('displayUser').textContent = getUserDisplayName(getEmailKey(currentUser));
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
   document.querySelectorAll('header button, header select').forEach(control => {
@@ -4315,7 +4305,7 @@ function setupUI() {
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
-    PM_LIST.map(pm => `<option value="${pm}">${pm}</option>`).join('');
+    PM_LIST.map(pm => `<option value="${escHtml(pm)}">${escHtml(pm)}</option>`).join('');
   updateMasterDataLists();
   refreshFxRates();
 }
@@ -4530,7 +4520,7 @@ function demoProjectFinance(project, index = 0) {
 
 function demoTeamMembers(project, index = 0) {
   const seed = stableHash(project.code || project.name || index);
-  const people = ['Augus', 'Bonnie', 'Josiah', 'Huichong', 'Mia Chen', 'Ryan Tan', 'Grace Lin', 'Ethan Wu'];
+  const people = ['Demo PM A', 'Demo PM B', 'Demo PM C', 'Demo Member D', 'Demo Member E', 'Demo Member F', 'Demo Member G', 'Demo Member H'];
   const roles = ['PM', 'Technical Lead', 'Firmware Engineer', 'Hardware Engineer', 'QA / Validation', 'Sourcing'];
   return [
     { name: project.owner || people[seed % people.length], roleName: 'PM', effortPct: 35 + (seed % 4) * 5 },
@@ -4682,8 +4672,8 @@ function buildPrototypeWeeks() {
     {
       name: 'EV Charger Platform UAT',
       code: 'DEMO-EVC',
-      owner: 'Augus',
-      deputy: 'Bonnie',
+      owner: 'Demo PM A',
+      deputy: 'Demo PM B',
       customer: 'Tier-1 Energy',
       location: 'Taipei / Singapore',
       status: 'yellow',
@@ -4703,9 +4693,9 @@ function buildPrototypeWeeks() {
         { quarter:'2026 Q3', goal:'Complete pilot validation', window:'Sep', status:'planned' }
       ],
       teamMembers: [
-        { name:'Augus', roleName:'PM', effortPct:40 },
-        { name:'Mia Chen', roleName:'Firmware Engineer', effortPct:75 },
-        { name:'Ryan Tan', roleName:'QA / Validation', effortPct:50 }
+        { name:'Demo PM A', roleName:'PM', effortPct:40 },
+        { name:'Demo Member D', roleName:'Firmware Engineer', effortPct:75 },
+        { name:'Demo Member E', roleName:'QA / Validation', effortPct:50 }
       ],
       budget: {
         mode:'manual',
@@ -4725,8 +4715,8 @@ function buildPrototypeWeeks() {
     {
       name: 'Smart Factory Gateway',
       code: 'DEMO-SFG',
-      owner: 'Bonnie',
-      deputy: 'Josiah',
+      owner: 'Demo PM B',
+      deputy: 'Demo PM C',
       customer: 'Internal Digital Factory',
       location: 'Kaohsiung',
       status: 'green',
@@ -4744,9 +4734,9 @@ function buildPrototypeWeeks() {
         { quarter:'2026 Q3', goal:'Pilot one production line', window:'Aug', status:'planned' }
       ],
       teamMembers: [
-        { name:'Bonnie', roleName:'PM', effortPct:35 },
-        { name:'Huichong', roleName:'Technical Lead', effortPct:60 },
-        { name:'Grace Lin', roleName:'Manufacturing Engineer', effortPct:65 }
+        { name:'Demo PM B', roleName:'PM', effortPct:35 },
+        { name:'Demo Member F', roleName:'Technical Lead', effortPct:60 },
+        { name:'Demo Member G', roleName:'Manufacturing Engineer', effortPct:65 }
       ],
       budget: {
         mode:'manual',
@@ -4766,8 +4756,8 @@ function buildPrototypeWeeks() {
     {
       name: 'AI Power Module Sample Build',
       code: 'DEMO-AIP',
-      owner: 'Josiah',
-      deputy: 'Augus',
+      owner: 'Demo PM C',
+      deputy: 'Demo PM A',
       customer: 'Cloud Compute BU',
       location: 'Singapore',
       status: 'red',
@@ -4787,10 +4777,10 @@ function buildPrototypeWeeks() {
         { quarter:'2026 Q3', goal:'Ship A-sample to customer lab', window:'Sep', status:'at-risk' }
       ],
       teamMembers: [
-        { name:'Josiah', roleName:'PM', effortPct:50 },
-        { name:'Mia Chen', roleName:'Hardware Engineer', effortPct:70 },
-        { name:'Ethan Wu', roleName:'Sourcing', effortPct:45 },
-        { name:'Ryan Tan', roleName:'QA / Validation', effortPct:65 }
+        { name:'Demo PM C', roleName:'PM', effortPct:50 },
+        { name:'Demo Member D', roleName:'Hardware Engineer', effortPct:70 },
+        { name:'Demo Member H', roleName:'Sourcing', effortPct:45 },
+        { name:'Demo Member E', roleName:'QA / Validation', effortPct:65 }
       ],
       budget: {
         mode:'manual',
