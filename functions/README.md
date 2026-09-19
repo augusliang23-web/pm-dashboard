@@ -11,11 +11,11 @@ project ID from the authorized Production `.firebaserc`, then pass that exact ID
 to every command with `--project`; do not change a Firebase alias or global
 gcloud configuration.
 
-Deploy only the seven dashboard write Callables first:
+Deploy only the eight dashboard write Callables first:
 
 ```powershell
 firebase deploy `
-  --only functions:saveDashboardProject,functions:deleteDashboardProject,functions:setDashboardProjectAttention,functions:setDashboardWeekRelease,functions:saveDashboardWeekFields,functions:createDashboardWeek,functions:saveDashboardGanttTemplateSettings `
+  --only functions:saveDashboardProject,functions:deleteDashboardProject,functions:setDashboardProjectAttention,functions:setDashboardWeekRelease,functions:saveDashboardWeekFields,functions:createDashboardWeek,functions:saveDashboardGanttTemplateSettings,functions:saveDashboardGanttWindowSettings `
   --project <production-project-id>
 ```
 
