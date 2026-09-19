@@ -2798,6 +2798,7 @@ let ganttWindowSession = null;
 let ganttWindowSessionSequence = 0;
 let ganttWindowSaveInFlight = false;
 let ganttWindowPreviewInFlight = false;
+let ganttWindowPreviewObjectUrl = null;
 let modalReturnFocus = null;
 let ganttScale = 'month';
 let workstreamPreviewFrame = 0;
@@ -3208,7 +3209,11 @@ function resetGanttWindowPreview() {
   const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
   if (frameWrap) frameWrap.hidden = true;
   const frame = document.getElementById('ganttWindowPreviewFrame');
-  if (frame) frame.srcdoc = '';
+  if (frame) frame.src = 'about:blank';
+  if (ganttWindowPreviewObjectUrl) {
+    URL.revokeObjectURL(ganttWindowPreviewObjectUrl);
+    ganttWindowPreviewObjectUrl = null;
+  }
 }
 
 function renderGanttWindowDraft(config) {
@@ -3372,11 +3377,15 @@ window.previewGanttWindowSettings = async () => {
     if (!isGanttWindowSessionCurrent(session)) return;
     const frame = document.getElementById('ganttWindowPreviewFrame');
     if (frame) {
-      // Clearing before reassigning forces the iframe to fully re-navigate its
-      // srcdoc document; some browsers can otherwise skip repainting a sandboxed
-      // iframe when its srcdoc is overwritten directly with new content.
-      frame.srcdoc = '';
-      requestAnimationFrame(() => { frame.srcdoc = html; });
+      // A Blob URL navigation is a real page load, unlike reassigning
+      // srcdoc on an already-used sandboxed iframe - some browsers can
+      // silently skip repainting that case, leaving the previous (or no)
+      // content visible even though the new markup was correctly assigned.
+      const previousUrl = ganttWindowPreviewObjectUrl;
+      const blob = new Blob([html], { type: 'text/html' });
+      ganttWindowPreviewObjectUrl = URL.createObjectURL(blob);
+      frame.src = ganttWindowPreviewObjectUrl;
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
     }
     if (frameWrap) frameWrap.hidden = false;
     if (status) status.textContent = '';
