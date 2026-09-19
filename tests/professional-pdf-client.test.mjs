@@ -21,6 +21,18 @@ test('professional PDF client sends only selection data and downloads a nonpersi
   assert.doesNotMatch(client, /localStorage|sessionStorage|setDoc|Cloud Storage/);
 });
 
+test('the one-pager preview client fetches HTML with the same bearer-token auth, without any download side effect', () => {
+  assert.match(client, /export async function fetchOnePagerPreviewHtml/);
+  const start = client.indexOf('export async function fetchOnePagerPreviewHtml');
+  const end = client.indexOf('export async function downloadProfessionalPdf', start);
+  const fn = client.slice(start, end);
+  assert.match(fn, /getIdToken\(\)/);
+  assert.match(fn, /Authorization.*Bearer/);
+  assert.match(fn, /one-pager-preview/);
+  assert.match(fn, /text\/html/);
+  assert.doesNotMatch(fn, /URL\.createObjectURL|\.click\(\)/);
+});
+
 test('both PDF dialogs stay visible with progress feedback until the download finishes', () => {
   for (const dashboard of [root, team]) {
     assert.match(dashboard, /async function confirmProjectPdfExport\(\)/);

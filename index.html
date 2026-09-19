@@ -197,6 +197,11 @@ button[aria-busy="true"] { cursor:wait; }
 .gantt-window-row input { min-width:0; }
 .gantt-window-row button { min-height:32px; border:1px solid var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; }
 .gantt-window-row button:hover { background:var(--s3); color:var(--text); }
+.gantt-window-preview-section { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.gantt-window-preview-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.gantt-window-preview-row select { flex:1; min-width:0; }
+.gantt-window-preview-frame-wrap { width:100%; max-width:808px; aspect-ratio:1122/794; overflow:auto; border:1px solid var(--border2); border-radius:8px; background:#fff; }
+.gantt-window-preview-frame-wrap iframe { width:1122px; height:794px; border:0; transform:scale(.72); transform-origin:top left; }
 
 /* Compact Icons */
 .btn-icon {
@@ -2676,7 +2681,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <div class="overlay" id="ganttWindowOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="ganttWindowTitle" onclick="closeProjectOverlayFromBackdrop(event)">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:900px">
     <div class="modal-hdr">
       <h3 id="ganttWindowTitle">PDF Gantt Display Window</h3>
       <button id="closeGanttWindowXBtn" class="modal-x" onclick="closeModal('ganttWindowOverlay')" aria-label="Close PDF Gantt display window settings">×</button>
@@ -2694,6 +2699,17 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="addGanttWindowOverrideBtn" class="btn btn-ghost" type="button" onclick="addGanttWindowOverrideRow()">+ Add project override</button>
     </div>
     <div id="ganttWindowError" class="import-error" role="alert" aria-live="assertive"></div>
+    <div class="gantt-window-preview-section">
+      <p class="gantt-template-note">Preview the one-page PDF with the settings above (not yet saved):</p>
+      <div class="gantt-window-preview-row">
+        <select id="ganttWindowPreviewProjectSelect" class="fi" aria-label="Project to preview"></select>
+        <button id="previewGanttWindowBtn" class="btn btn-ghost" type="button" onclick="previewGanttWindowSettings()">👁 Preview</button>
+      </div>
+      <div id="ganttWindowPreviewStatus" class="gantt-template-note" role="status" aria-live="polite"></div>
+      <div id="ganttWindowPreviewFrameWrap" class="gantt-window-preview-frame-wrap" hidden>
+        <iframe id="ganttWindowPreviewFrame" title="One-page PDF preview" sandbox=""></iframe>
+      </div>
+    </div>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
       <button id="cancelGanttWindowBtn" class="btn btn-ghost" type="button" onclick="closeModal('ganttWindowOverlay')">Cancel</button>
       <button id="saveGanttWindowBtn" class="btn btn-primary" type="button" onclick="saveGanttWindowSettings()">Save Settings</button>
@@ -2718,7 +2734,7 @@ import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordR
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
-import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
+import { downloadProfessionalPdf, fetchOnePagerPreviewHtml } from "./professional-pdf-client.mjs?v=one-pager-preview-1";
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 
@@ -2779,6 +2795,7 @@ let currentGanttWindowRevision = 0;
 let ganttWindowSession = null;
 let ganttWindowSessionSequence = 0;
 let ganttWindowSaveInFlight = false;
+let ganttWindowPreviewInFlight = false;
 let modalReturnFocus = null;
 let ganttScale = 'month';
 let workstreamPreviewFrame = 0;
@@ -3170,11 +3187,35 @@ function collectGanttWindowDraft() {
   return { defaultMonths, overrides };
 }
 
+function renderGanttWindowPreviewProjectOptions() {
+  const select = document.getElementById('ganttWindowPreviewProjectSelect');
+  if (!select) return;
+  const projects = ganttWindowOverridableProjects();
+  select.innerHTML = projects.length
+    ? projects.map(p => `<option value="${escHtml(p.code)}">${escHtml(p.name || p.code)} (${escHtml(p.code)})</option>`).join('')
+    : '<option value="">No active projects this week</option>';
+  select.disabled = !projects.length;
+  const previewBtn = document.getElementById('previewGanttWindowBtn');
+  if (previewBtn) previewBtn.disabled = !projects.length;
+}
+
+function resetGanttWindowPreview() {
+  ganttWindowPreviewInFlight = false;
+  const status = document.getElementById('ganttWindowPreviewStatus');
+  if (status) status.textContent = '';
+  const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
+  if (frameWrap) frameWrap.hidden = true;
+  const frame = document.getElementById('ganttWindowPreviewFrame');
+  if (frame) frame.srcdoc = '';
+}
+
 function renderGanttWindowDraft(config) {
   document.getElementById('ganttWindowDefaultMonths').value = config.defaultMonths;
   document.getElementById('ganttWindowOverrideList').replaceChildren();
   Object.entries(config.overrides).forEach(([code, months]) => renderGanttWindowRow(code, months));
   renderGanttWindowAddOptions();
+  renderGanttWindowPreviewProjectOptions();
+  resetGanttWindowPreview();
 }
 
 function isGanttWindowSessionCurrent(session) {
@@ -3201,6 +3242,7 @@ function invalidateGanttWindowSession() {
   document.getElementById('ganttWindowOverrideList')?.replaceChildren();
   const error = document.getElementById('ganttWindowError');
   if (error) error.textContent = '';
+  resetGanttWindowPreview();
   setGanttWindowControlsDisabled(false);
 }
 
@@ -3286,6 +3328,57 @@ window.saveGanttWindowSettings = async () => {
     document.getElementById('ganttWindowError').textContent = `${message} Your draft is still open.`;
     ganttWindowSaveInFlight = false;
     setGanttWindowControlsDisabled(false);
+  }
+};
+
+window.previewGanttWindowSettings = async () => {
+  const session = ganttWindowSession;
+  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session) || ganttWindowPreviewInFlight) return;
+  const projectCode = document.getElementById('ganttWindowPreviewProjectSelect')?.value;
+  const status = document.getElementById('ganttWindowPreviewStatus');
+  const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
+  if (!projectCode) {
+    if (status) status.textContent = 'Select a project to preview.';
+    return;
+  }
+  const selectedWeek = allWeeks[currentIdx];
+  const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
+  if (!weekId) {
+    if (status) status.textContent = 'The selected reporting week is unavailable.';
+    return;
+  }
+
+  const previewBtn = document.getElementById('previewGanttWindowBtn');
+  ganttWindowPreviewInFlight = true;
+  if (previewBtn) previewBtn.disabled = true;
+  if (frameWrap) frameWrap.hidden = true;
+  if (status) status.textContent = 'Loading preview…';
+  try {
+    const { config } = validateGanttWindowConfig(collectGanttWindowDraft());
+    const html = await fetchOnePagerPreviewHtml({
+      endpoint: PROFESSIONAL_PDF_SERVICE_URL,
+      user: currentUser,
+      weekId,
+      projectCode,
+      ganttWindowSettings: config,
+    });
+    if (!isGanttWindowSessionCurrent(session)) return;
+    const frame = document.getElementById('ganttWindowPreviewFrame');
+    if (frame) {
+      // Clearing before reassigning forces the iframe to fully re-navigate its
+      // srcdoc document; some browsers can otherwise skip repainting a sandboxed
+      // iframe when its srcdoc is overwritten directly with new content.
+      frame.srcdoc = '';
+      requestAnimationFrame(() => { frame.srcdoc = html; });
+    }
+    if (frameWrap) frameWrap.hidden = false;
+    if (status) status.textContent = '';
+  } catch (error) {
+    if (!isGanttWindowSessionCurrent(session)) return;
+    if (status) status.textContent = error instanceof Error ? error.message : 'Unable to generate the preview.';
+  } finally {
+    ganttWindowPreviewInFlight = false;
+    if (previewBtn) previewBtn.disabled = false;
   }
 };
 // END GANTT WINDOW SETTINGS

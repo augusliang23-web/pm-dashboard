@@ -70,6 +70,21 @@ function laneRange(lanes) {
   return { start, end, span: Math.max(1, end.getTime() - start.getTime()) };
 }
 
+const AXIS_TICK_COUNT = 6;
+
+/**
+ * Evenly-spaced date labels across the lane range, aligned with the gantt
+ * track's own 5-band background texture (20% per band -> 6 tick marks).
+ */
+function laneAxisTicks(range) {
+  if (!range.start || !range.end) return [];
+  const startMs = range.start.getTime();
+  return Array.from({ length: AXIS_TICK_COUNT }, (_, index) => {
+    const fraction = index / (AXIS_TICK_COUNT - 1);
+    return new Date(startMs + range.span * fraction);
+  });
+}
+
 function renderSummaryGantt(lanes) {
   if (!lanes.length) return '<p class="one-pager-empty">No schedule data reported.</p>';
   const range = laneRange(lanes);
@@ -85,7 +100,7 @@ function renderSummaryGantt(lanes) {
     return `<div class="one-pager-gantt-row"><div class="one-pager-gantt-name"><strong>${escapeHtml(lane.label)}</strong><small>${escapeHtml(formatShortDate(start))} – ${escapeHtml(formatShortDate(end))}</small></div><div class="one-pager-gantt-track"><div class="one-pager-gantt-bar ${tone}" style="left:${left.toFixed(2)}%;width:${Math.min(width, 100 - left).toFixed(2)}%"><span style="width:${lane.progress}%"></span><b>${escapeHtml(lane.progress)}%</b></div></div><div class="one-pager-gantt-status ${tone}">${escapeHtml(label)}</div></div>`;
   }).join('');
   const axis = range.start && range.end
-    ? `<div class="one-pager-gantt-axis"><span>${escapeHtml(formatShortDate(range.start))}</span><span>${escapeHtml(formatShortDate(range.end))}</span></div>`
+    ? `<div class="one-pager-gantt-axis">${laneAxisTicks(range).map(date => `<span>${escapeHtml(formatShortDate(date))}</span>`).join('')}</div>`
     : '';
   const dense = lanes.length > GANTT_DENSE_THRESHOLD ? ' dense' : '';
   return `${axis}<div class="one-pager-gantt-stack${dense}">${rows}</div>`;

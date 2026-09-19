@@ -113,4 +113,4 @@ export function parseReportRequest(input) {
   return request;
 }
 
-export { PROJECT_SECTIONS, OVERVIEW_SECTIONS };
+export { PROJECT_SECTIONS, OVERVIEW_SECTIONS, requiredText };

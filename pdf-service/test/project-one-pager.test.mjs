@@ -99,6 +99,21 @@ test('renders one Gantt row per summary lane, not per raw workstream', () => {
   assert.match(html, /Integration/);
 });
 
+test('the schedule axis shows 6 evenly-spaced date ticks instead of just the start and end', () => {
+  const model = buildModel({
+    ganttWorkstreams: [
+      { id: 'a', name: 'Design', startDate: '2026-01-01', endDate: '2026-01-20', progress: 100, status: 'completed' },
+      { id: 'b', name: 'Integration', startDate: '2026-06-01', endDate: '2026-10-29', progress: 20, status: 'at-risk' }
+    ]
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+  const axis = html.match(/<div class="one-pager-gantt-axis">([\s\S]*?)<\/div>/)?.[1] || '';
+
+  assert.equal((axis.match(/<span>/g) || []).length, 6);
+  assert.match(axis, /01 Jan/);
+  assert.match(axis, /29 Oct/);
+});
+
 test('surfaces a low-confidence note when most workstreams could not be auto-grouped', () => {
   const model = buildModel({
     ganttWorkstreams: Array.from({ length: 6 }, (_, index) => ({

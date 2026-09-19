@@ -61,6 +61,31 @@ export function resolveGanttWindowSettings(source) {
 }
 
 /**
+ * Sanitizes an already-clean { defaultMonths, overrides } draft (the shape
+ * the admin settings UI collects and the one-pager preview endpoint
+ * receives) - as opposed to resolveGanttWindowSettings above, which reads
+ * the differently-shaped raw Firestore document. Out-of-range or malformed
+ * values fall back to the 6-month default per field, same as
+ * resolveGanttWindowSettings, so a bad draft can never crash preview
+ * rendering.
+ */
+export function sanitizeDraftGanttWindowSettings(source) {
+  const draft = source && typeof source === 'object' ? source : {};
+  const defaultMonths = Number(draft.defaultMonths);
+  const overridesSource = draft.overrides && typeof draft.overrides === 'object' ? draft.overrides : {};
+  const overrides = {};
+  for (const [code, months] of Object.entries(overridesSource)) {
+    const numeric = Number(months);
+    const trimmedCode = String(code || '').trim();
+    if (trimmedCode && isValidWindowMonths(numeric)) overrides[trimmedCode] = numeric;
+  }
+  return {
+    defaultMonths: isValidWindowMonths(defaultMonths) ? defaultMonths : DEFAULT_WINDOW_MONTHS,
+    overrides
+  };
+}
+
+/**
  * Returns the effective window length for a project from an already-resolved
  * { defaultMonths, overrides } settings object (see resolveGanttWindowSettings
  * above, which is the only place that reads the raw Firestore document shape).

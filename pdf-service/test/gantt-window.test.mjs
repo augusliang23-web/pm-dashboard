@@ -5,7 +5,8 @@ import {
   filterWorkstreamsByWindow,
   resolveGanttWindowMonths,
   resolveGanttWindowSettings,
-  resolveReportAnchorDate
+  resolveReportAnchorDate,
+  sanitizeDraftGanttWindowSettings
 } from '../src/gantt-window.js';
 
 test('resolves the report anchor date from the week label and date range', () => {
@@ -33,6 +34,21 @@ test('falls back to the 6-month default when the settings document is missing or
   assert.deepEqual(resolveGanttWindowSettings(undefined), { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} });
   assert.deepEqual(resolveGanttWindowSettings({ ganttWindowDefaultMonths: 999 }), { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} });
   assert.deepEqual(resolveGanttWindowSettings({ ganttWindowOverrides: 'not-an-object' }), { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} });
+});
+
+test('sanitizes an already-clean draft (defaultMonths/overrides), unlike resolveGanttWindowSettings which expects raw doc field names', () => {
+  const clean = sanitizeDraftGanttWindowSettings({ defaultMonths: 12, overrides: { 'EGP-014': 9, 'BAD-CODE': 999, '': 3 } });
+  assert.deepEqual(clean, { defaultMonths: 12, overrides: { 'EGP-014': 9 } });
+
+  assert.deepEqual(sanitizeDraftGanttWindowSettings(undefined), { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} });
+  assert.deepEqual(sanitizeDraftGanttWindowSettings({ defaultMonths: 'nope' }), { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} });
+
+  // Feeding a raw-doc-shaped object (ganttWindowDefaultMonths) through the draft sanitizer
+  // finds no defaultMonths field and correctly falls back, rather than silently misreading it.
+  assert.deepEqual(
+    sanitizeDraftGanttWindowSettings({ ganttWindowDefaultMonths: 12 }),
+    { defaultMonths: DEFAULT_WINDOW_MONTHS, overrides: {} }
+  );
 });
 
 test('resolves a project-specific override ahead of the portfolio default', () => {

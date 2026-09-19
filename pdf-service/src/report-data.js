@@ -4,7 +4,7 @@ import {
   ReportAccessError
 } from './report-access.js';
 import { validateExecutiveSummaryForPdf } from './executive-summary-brief.js';
-import { resolveGanttWindowSettings } from './gantt-window.js';
+import { resolveGanttWindowSettings, sanitizeDraftGanttWindowSettings } from './gantt-window.js';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -71,10 +71,11 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const week = await adapters.getWeekById(request.weekId);
   if (!week) throw new ReportDataError('The selected reporting week no longer exists.');
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);
-  const dashboardSettings = typeof adapters.getDashboardSettings === 'function'
-    ? await adapters.getDashboardSettings()
-    : undefined;
-  const ganttWindowSettings = resolveGanttWindowSettings(dashboardSettings);
+  const ganttWindowSettings = request.previewGanttWindowSettings !== undefined
+    ? sanitizeDraftGanttWindowSettings(request.previewGanttWindowSettings)
+    : resolveGanttWindowSettings(
+      typeof adapters.getDashboardSettings === 'function' ? await adapters.getDashboardSettings() : undefined
+    );
 
   if (request.mode !== 'project') {
     if (request.sections.includes('executive-summary')) {
