@@ -74,6 +74,7 @@ test('PM selector treats a stored label as text in both value and caption', () =
     DASHBOARD_RELEASE: 'test',
     DASHBOARD_BASE_COMMIT: 'test',
     getEmailKey: user => user.email,
+    getUserDisplayName: email => String(email).split('@')[0],
     invalidateProjectEditorSession: () => {},
     invalidateGanttTemplateSession: () => {},
     loadOverviewScopeForCurrentUser: () => {},
@@ -86,4 +87,47 @@ test('PM selector treats a stored label as text in both value and caption', () =
   context.setupUI();
   assert.doesNotMatch(element('topPmSelect').innerHTML, /<img/);
   assert.match(element('topPmSelect').innerHTML, /&lt;img src=x&gt;/);
+});
+
+test('authenticated header renders the stored directory display name', () => {
+  const directory = createDisplayNameDirectory();
+  directory.replace([
+    { id: 'robin.lee@example.test', displayName: 'Project Lead' },
+  ]);
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        classList: { add() {}, remove() {} },
+        className: '',
+        disabled: false,
+        innerHTML: '',
+        style: {},
+        textContent: '',
+      });
+    }
+    return elements.get(id);
+  };
+  const context = vm.createContext({
+    displayNameDirectory: directory,
+    document: { getElementById: element, querySelectorAll: () => [] },
+    currentUser: { email: 'robin.lee@example.test' },
+    currentRole: 'pm',
+    PM_LIST: [],
+    DASHBOARD_RELEASE: 'test',
+    DASHBOARD_BASE_COMMIT: 'test',
+    getEmailKey: user => typeof user === 'string' ? user.toLowerCase() : user.email.toLowerCase(),
+    invalidateProjectEditorSession: () => {},
+    invalidateGanttTemplateSession: () => {},
+    loadOverviewScopeForCurrentUser: () => {},
+    updateMasterDataLists: () => {},
+    refreshFxRates: () => {},
+    escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+  });
+  vm.runInContext(sourceBetween('function getUserDisplayName(', 'function sectionUpdateLabel('), context);
+  vm.runInContext(sourceBetween('function setupUI(', '// ── DATA ──'), context);
+
+  context.setupUI();
+
+  assert.equal(element('displayUser').textContent, 'Project Lead');
 });
