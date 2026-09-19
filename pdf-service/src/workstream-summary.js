@@ -1,6 +1,7 @@
 import { parseIsoDate } from './date-utils.js';
 
 const MAX_LANES = 8;
+const MIN_LANES = 4;
 const LOW_CONFIDENCE_MIN_WORKSTREAMS = 4;
 const RISK_STATUSES = new Set(['at-risk', 'delayed', 'risk']);
 const STATUS_SEVERITY = {
@@ -90,6 +91,15 @@ function weightedAverageProgress(workstreams) {
  * Priority: PM-assigned summaryGroupId > linked milestone > keyword stem of the name.
  * Groups containing an at-risk/delayed workstream are never merged away, even if
  * that pushes the lane count above 8 - visibility of risk wins over the target count.
+ *
+ * Symmetrically, when every workstream happens to share one milestone (or
+ * keyword stem), auto-grouping alone can collapse everything into just 1-2
+ * lanes even though the project has plenty of real detail to show - wasting
+ * the one-pager's fixed-size Schedule Summary quadrant. When that leaves the
+ * lane count below the 4-lane target and there is more raw detail available,
+ * the largest auto-grouped lanes (never a PM's manual grouping) are split
+ * back into one lane per workstream, biggest group first, stopping as soon
+ * as the target is met or the next split would exceed the 8-lane cap.
  */
 export function buildSummaryLanes({ workstreams = [], milestones = [], pdfSummaryLanes = [] } = {}) {
   const rows = Array.isArray(workstreams) ? workstreams : [];
@@ -170,6 +180,25 @@ export function buildSummaryLanes({ workstreams = [], milestones = [], pdfSummar
     first.workstreams = [...first.workstreams, ...second.workstreams];
     first.merged = true;
     lanes = lanes.filter(lane => lane !== second);
+  }
+
+  if (lanes.length < MIN_LANES && rows.length >= MIN_LANES) {
+    const splittable = lanes
+      .filter(lane => lane.source !== 'manual' && lane.workstreams.length > 1)
+      .sort((a, b) => b.workstreams.length - a.workstreams.length);
+
+    for (const lane of splittable) {
+      if (lanes.length >= MIN_LANES) break;
+      if (lanes.length - 1 + lane.workstreams.length > MAX_LANES) continue;
+
+      const split = lane.workstreams.map(item => ({
+        id: `workstream:${item.id}`,
+        label: String(item.name || '').trim() || 'Workstream',
+        source: 'split',
+        workstreams: [item]
+      }));
+      lanes.splice(lanes.indexOf(lane), 1, ...split);
+    }
   }
 
   const result = lanes.map(lane => {
