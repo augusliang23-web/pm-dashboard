@@ -1,13 +1,14 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { getFirestore } = require('firebase-admin/firestore');
+const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
+const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
 
 const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
 ]);
 const PROJECT_INPUT_KEYS = [
-  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'resources', 'name', 'code', 'owner', 'deputy',
+  'projectLevel', 'lifecycle', 'ganttWorkstreams', 'pdfSummaryLanes', 'resources', 'name', 'code', 'owner', 'deputy',
   'customer', 'location', 'visibility', 'milestones', 'quarterlyMilestones', 'status', 'progress',
   'attention', 'attentionManual', 'highlight', 'weeklyActions', 'riskActions', 'riskPairs', 'risk',
   'next', 'riskList', 'riskManual', 'teamMembers', 'budget', 'dataStatus',
@@ -31,6 +32,12 @@ function normalized(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function resolveActorDisplayName(email, storedDisplayName) {
+  const explicitName = String(storedDisplayName || '').trim();
+  if (explicitName) return explicitName;
+  return normalized(email).split('@')[0];
+}
+
 function securityError(code, reason, message) {
   return new HttpsError(code, message, { reason });
 }
@@ -47,10 +54,21 @@ function assertActor(actor) {
   }
 }
 
+function buildAuthenticatedActor(authIdentity = {}, userData = {}) {
+  const actor = {
+    uid: String(authIdentity.uid || '').trim(),
+    email: normalized(authIdentity.email),
+    role: normalized(userData.role),
+    displayName: resolveActorDisplayName(authIdentity.email, userData.displayName),
+  };
+  assertActor(actor);
+  return actor;
+}
+
 function identityTokens(actor = {}) {
   const email = normalized(actor.email);
   const displayName = normalized(actor.displayName);
-  if (!email || !displayName) return new Set();
+  if (!email) return new Set();
   return new Set([displayName, email, email.split('@')[0]].filter(Boolean));
 }
 
@@ -181,13 +199,22 @@ function requireWeekId(data) {
   return requireId(data?.weekId, 'Week identifier');
 }
 
+// Project codes are values inside weeks.projects, not Firestore document paths.
+function requireProjectCode(value, label = 'Project code') {
+  const result = String(value || '').trim();
+  if (!result || result.length > 128) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} must contain 1 to 128 characters.`);
+  }
+  return result;
+}
+
 function nextWeekVersion(week = {}) {
   const current = Number(week.version);
   return Number.isFinite(current) && current >= 0 ? current + 1 : 1;
 }
 
 function requestedProjectCode(data, fallback = '') {
-  return requireId(data?.projectCode || data?.project?.code || fallback, 'Project code');
+  return requireProjectCode(data?.projectCode || data?.project?.code || fallback);
 }
 
 function canonicalValue(value) {
@@ -216,7 +243,7 @@ const SECTION_METADATA_PATHS = {
   status: ['projectLevel', 'lifecycle', 'status', 'progress', 'attention', 'attentionManual'],
   highlights: ['highlight'], weeklyActions: ['weeklyActions'],
   riskActions: ['riskActions', 'risk', 'next', 'riskList', 'riskManual'],
-  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams'],
+  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams', 'pdfSummaryLanes'],
   teamAllocation: ['teamMembers', 'dataStatus.team'],
   budgetPlan: ['budget.mode', 'budget.currency', 'budget.totalEstimated', 'budget.monthlyPlans', 'dataStatus.budgetPlan'],
   actualSpend: ['budget.actuals', 'dataStatus.budgetActual'], disciplineHours: ['resources'],
@@ -250,7 +277,11 @@ function assertProjectRevision(liveProject, expectedRevision) {
 
 function buildProjectPatch(week, data, actor, nowIso) {
   assertActor(actor);
-  assertBoundedJson(data);
+  // The revision is a serialized project, not an editable text field.
+  // Keep the total request cap while applying field limits to the actual draft.
+  assertBoundedJson(data, { maxStringLength: DEFAULT_LIMITS.maxBytes });
+  const { expectedRevision, ...editableRequest } = data;
+  assertBoundedJson(editableRequest);
   assertAllowedKeys(data, SAVE_PROJECT_KEYS, 'Project save request');
   assertDraftWeek(week);
   const projects = Array.isArray(week?.projects) ? week.projects : [];
@@ -268,7 +299,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
     }
     committedProject = { ...draft, code };
   } else {
-    const originalCode = requireId(data.originalCode || code, 'Original project code');
+    const originalCode = requireProjectCode(data.originalCode || code, 'Original project code');
     targetIndex = projects.findIndex(project => String(project?.code || '').trim() === originalCode);
     if (targetIndex < 0) {
       throw securityError('not-found', 'not-found', 'The project no longer exists.');
@@ -278,7 +309,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
     }
     assertProjectRevision(liveProject, data.expectedRevision);
-    committedProject = { ...liveProject, ...draft, code };
+    committedProject = { ...mergePreservingUnknown(withProjectEditorRowIds(liveProject), draft), code };
   }
 
   const sectionUpdatedAt = updateProjectSectionMetadata(
@@ -344,6 +375,96 @@ function buildCreatedWeek(data, actor, sourceWeek) {
   };
 }
 
+function normalizeGanttTemplateNames(value, label) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 20) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} must contain between 1 and 20 workstreams.`);
+  }
+  const names = value.map(item => String(item || '').trim());
+  if (names.some(name => !name || name.length > 120)) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} contains an invalid workstream name.`);
+  }
+  const unique = new Set(names.map(normalized));
+  if (unique.size !== names.length) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} contains duplicate workstream names.`);
+  }
+  return names;
+}
+
+function buildGanttTemplateSettingsPatch(liveSettings, data, actor) {
+  assertActor(actor);
+  if (normalized(actor.role) !== 'admin') {
+    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update default Gantt templates.');
+  }
+  assertBoundedJson(data);
+  assertAllowedKeys(data, ['expectedRevision', 'config'], 'Gantt template request');
+  assertAllowedKeys(data.config, ['system', 'hardware-module'], 'Gantt template config');
+  const liveRevision = Number.isSafeInteger(liveSettings?.revision) && liveSettings.revision >= 0
+    ? liveSettings.revision
+    : 0;
+  if (!Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 || data.expectedRevision !== liveRevision) {
+    throw securityError('failed-precondition', 'conflict', 'These defaults changed in another Admin session. Reload the dashboard to review the latest version.');
+  }
+  return {
+    system: normalizeGanttTemplateNames(data.config.system, 'System template'),
+    'hardware-module': normalizeGanttTemplateNames(data.config['hardware-module'], 'Hardware Module template'),
+    revision: liveRevision + 1,
+    updatedBy: actor.email,
+  };
+}
+
+const GANTT_WINDOW_MIN_MONTHS = 1;
+const GANTT_WINDOW_MAX_MONTHS = 36;
+const GANTT_WINDOW_MAX_OVERRIDES = 200;
+
+function normalizeGanttWindowMonths(value, label) {
+  const months = Number(value);
+  if (!Number.isInteger(months) || months < GANTT_WINDOW_MIN_MONTHS || months > GANTT_WINDOW_MAX_MONTHS) {
+    throw securityError('invalid-argument', 'invalid-payload', `${label} must be a whole number of months between ${GANTT_WINDOW_MIN_MONTHS} and ${GANTT_WINDOW_MAX_MONTHS}.`);
+  }
+  return months;
+}
+
+function normalizeGanttWindowOverrides(value) {
+  if (value === null || value === undefined) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw securityError('invalid-argument', 'invalid-payload', 'Project overrides must be an object keyed by project code.');
+  }
+  const entries = Object.entries(value);
+  if (entries.length > GANTT_WINDOW_MAX_OVERRIDES) {
+    throw securityError('invalid-argument', 'invalid-payload', `No more than ${GANTT_WINDOW_MAX_OVERRIDES} project overrides are allowed.`);
+  }
+  const overrides = {};
+  for (const [code, months] of entries) {
+    const trimmedCode = String(code || '').trim();
+    if (!trimmedCode || trimmedCode.length > 40 || DANGEROUS_KEYS.has(trimmedCode)) {
+      throw securityError('invalid-argument', 'invalid-payload', 'A project override contains an invalid project code.');
+    }
+    overrides[trimmedCode] = normalizeGanttWindowMonths(months, `Override for ${trimmedCode}`);
+  }
+  return overrides;
+}
+
+function buildGanttWindowSettingsPatch(liveSettings, data, actor) {
+  assertActor(actor);
+  if (normalized(actor.role) !== 'admin') {
+    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update the Gantt display window settings.');
+  }
+  assertBoundedJson(data);
+  assertAllowedKeys(data, ['expectedRevision', 'defaultMonths', 'overrides'], 'Gantt window request');
+  const liveRevision = Number.isSafeInteger(liveSettings?.ganttWindowRevision) && liveSettings.ganttWindowRevision >= 0
+    ? liveSettings.ganttWindowRevision
+    : 0;
+  if (!Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 || data.expectedRevision !== liveRevision) {
+    throw securityError('failed-precondition', 'conflict', 'These settings changed in another Admin session. Reload the dashboard to review the latest version.');
+  }
+  return {
+    ganttWindowDefaultMonths: normalizeGanttWindowMonths(data.defaultMonths, 'Default display window'),
+    ganttWindowOverrides: normalizeGanttWindowOverrides(data.overrides),
+    ganttWindowRevision: liveRevision + 1,
+    ganttWindowUpdatedBy: actor.email,
+  };
+}
+
 async function authenticatedActor(transaction, request) {
   const uid = String(request.auth?.uid || '').trim();
   const email = normalized(request.auth?.token?.email);
@@ -354,15 +475,12 @@ async function authenticatedActor(transaction, request) {
   if (!snapshot.exists) {
     throw securityError('permission-denied', 'role-forbidden', 'Dashboard identity is missing.');
   }
-  const actor = {
-    uid, email, role: normalized(snapshot.data()?.role),
-    displayName: String(snapshot.data()?.displayName || '').trim(),
-  };
-  assertActor(actor);
-  return actor;
+  return buildAuthenticatedActor({ uid, email }, snapshot.data());
 }
 
-const saveDashboardProject = onCall(async request => database().runTransaction(async transaction => {
+const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
+
+const saveDashboardProject = dashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -376,7 +494,7 @@ const saveDashboardProject = onCall(async request => database().runTransaction(a
   };
 }));
 
-const deleteDashboardProject = onCall(async request => database().runTransaction(async transaction => {
+const deleteDashboardProject = dashboardOnCall('pmdash-delete-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'originalCode'], 'Project delete request');
@@ -388,7 +506,7 @@ const deleteDashboardProject = onCall(async request => database().runTransaction
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
   const week = weekSnapshot.data();
   assertDraftWeek(week);
-  const code = requireId(request.data.originalCode, 'Original project code');
+  const code = requireProjectCode(request.data.originalCode, 'Original project code');
   const projects = Array.isArray(week.projects) ? week.projects : [];
   if (!projects.some(project => String(project?.code || '').trim() === code)) {
     throw securityError('not-found', 'not-found', 'The project no longer exists.');
@@ -401,7 +519,7 @@ const deleteDashboardProject = onCall(async request => database().runTransaction
   return { week: { ...week, ...patch } };
 }));
 
-const setDashboardProjectAttention = onCall(async request => database().runTransaction(async transaction => {
+const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'projectCode', 'attention'], 'Project attention request');
@@ -410,7 +528,7 @@ const setDashboardProjectAttention = onCall(async request => database().runTrans
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
   const week = weekSnapshot.data();
   assertDraftWeek(week);
-  const code = requireId(request.data.projectCode, 'Project code');
+  const code = requireProjectCode(request.data.projectCode);
   const projects = Array.isArray(week.projects) ? week.projects : [];
   const index = projects.findIndex(project => String(project?.code || '').trim() === code);
   if (index < 0) throw securityError('not-found', 'not-found', 'The project no longer exists.');
@@ -436,7 +554,7 @@ const setDashboardProjectAttention = onCall(async request => database().runTrans
   };
 }));
 
-const setDashboardWeekRelease = onCall(async request => database().runTransaction(async transaction => {
+const setDashboardWeekRelease = dashboardOnCall('pmdash-week-release@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'isReleased'], 'Week release request');
@@ -464,7 +582,7 @@ const setDashboardWeekRelease = onCall(async request => database().runTransactio
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const saveDashboardWeekFields = onCall(async request => database().runTransaction(async transaction => {
+const saveDashboardWeekFields = dashboardOnCall('pmdash-week-fields@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -474,7 +592,7 @@ const saveDashboardWeekFields = onCall(async request => database().runTransactio
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const createDashboardWeek = onCall(async request => database().runTransaction(async transaction => {
+const createDashboardWeek = dashboardOnCall('pmdash-create-week@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'weekLabel', 'weekDate', 'sourceWeekId'], 'Week creation request');
@@ -494,11 +612,35 @@ const createDashboardWeek = onCall(async request => database().runTransaction(as
   return { week: { ...week, __documentId: weekId } };
 }));
 
+const saveDashboardGanttTemplateSettings = dashboardOnCall('pmdash-gantt-template@', async request => database().runTransaction(async transaction => {
+  const actor = await authenticatedActor(transaction, request);
+  const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
+  const snapshot = await transaction.get(settingsRef);
+  const patch = buildGanttTemplateSettingsPatch(snapshot.exists ? snapshot.data() : {}, request.data, actor);
+  transaction.set(settingsRef, { ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { config: { system: patch.system, 'hardware-module': patch['hardware-module'] }, revision: patch.revision };
+}));
+
+const saveDashboardGanttWindowSettings = dashboardOnCall('pmdash-gantt-window@', async request => database().runTransaction(async transaction => {
+  const actor = await authenticatedActor(transaction, request);
+  const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
+  const snapshot = await transaction.get(settingsRef);
+  const patch = buildGanttWindowSettingsPatch(snapshot.exists ? snapshot.data() : {}, request.data, actor);
+  transaction.set(settingsRef, { ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return {
+    defaultMonths: patch.ganttWindowDefaultMonths,
+    overrides: patch.ganttWindowOverrides,
+    revision: patch.ganttWindowRevision,
+  };
+}));
+
 module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
+  buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
   buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
   canManageWeekFields, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
-  saveDashboardWeekFields, createDashboardWeek,
+  saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,
+  saveDashboardGanttWindowSettings,
 };

@@ -4,6 +4,7 @@ const {
   assertAllowedKeys,
   assertBoundedJson,
   assertDraftWeek,
+  buildAuthenticatedActor,
   buildCreatedWeek,
   buildProjectPatch,
   buildWeekFieldsPatch,
@@ -35,6 +36,36 @@ function reasonFrom(callback) {
   }
   assert.fail('Expected the operation to throw.');
 }
+
+test('slash project codes preserve saves and authorization boundaries', () => {
+  const live = { ...project, code: 'H/W-001', highlight: 'before' };
+  const week = { projects: [live], isReleased: false, version: 1 };
+  const request = {
+    weekId: 'W1', originalCode: live.code, projectCode: live.code,
+    project: { ...live, highlight: 'after' }, expectedRevision: projectRevisionFingerprint(live),
+  };
+  const result = buildProjectPatch(week, request, actor, '2026-09-10T00:00:00Z');
+  assert.equal(result.committedProject.code, 'H/W-001');
+  assert.equal(result.committedProject.highlight, 'after');
+  assert.equal(reasonFrom(() => buildProjectPatch(week, { ...request, projectCode: 'x'.repeat(129) }, actor)), 'invalid-payload');
+});
+
+test('authenticated displayName falls back to email prefix without borrowing a similarly named owner', () => {
+  assert.equal(typeof buildAuthenticatedActor, 'function');
+  const admin = buildAuthenticatedActor(
+    { uid: 'admin-user', email: 'admin.member@example.test' },
+    { role: 'admin' },
+  );
+  const unnamedPm = buildAuthenticatedActor(
+    { uid: 'pm-user', email: 'robin.other@example.test' },
+    { role: 'pm' },
+  );
+  assert.equal(admin.displayName, 'admin.member');
+  assert.equal(canSetWeekRelease(admin.role), true);
+  assert.equal(unnamedPm.displayName, 'robin.other');
+  assert.equal(ownerOrDeputyMatches({ owner: 'Robin' }, unnamedPm), false);
+  assert.equal(ownerOrDeputyMatches({ owner: 'robin.other@example.test' }, { ...unnamedPm, displayName: '' }), true);
+});
 
 test('project authority permits Admin globally and PM ownership only', () => {
   assert.equal(canMutateProject({ actor: { ...actor, role: 'admin' }, project }), true);
@@ -71,7 +102,7 @@ test('ownership uses exact canonical display-name, email, or email-prefix tokens
   }
   assert.equal(ownerOrDeputyMatches({ owner: 'Joann' }, { ...actor, displayName: 'Ann' }), false);
   assert.equal(ownerOrDeputyMatches({ owner: 'augustus' }, actor), false);
-  assert.equal(ownerOrDeputyMatches({ owner: 'augus@example.com' }, { ...actor, displayName: '' }), false);
+  assert.equal(ownerOrDeputyMatches({ owner: 'augus@example.com' }, { ...actor, displayName: '' }), true);
 });
 
 test('released weeks reject writes and only PM or Admin changes release state', () => {
@@ -102,6 +133,19 @@ test('section update metadata changes only the saved project sections', () => {
   assert.deepEqual(metadata, {
     status: { savedAt: '2026-07-30T00:00:00.000Z', editorName: 'BONNIE' },
     highlights: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' }
+  });
+});
+
+test('PDF summary lanes are accepted and update schedule metadata', () => {
+  const pdfSummaryLanes = [{ id: 'Design', label: 'Design', progress: 65, sortOrder: 0 }];
+  const week = { projects: [project], version: 1, isReleased: false };
+  const result = buildProjectPatch(week, {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...project, pdfSummaryLanes }, expectedRevision: projectRevisionFingerprint(project),
+  }, actor, '2026-09-10T00:00:00Z');
+  assert.deepEqual(result.committedProject.pdfSummaryLanes, pdfSummaryLanes);
+  assert.deepEqual(result.committedProject.sectionUpdatedAt.schedule, {
+    savedAt: '2026-09-10T00:00:00Z', editorName: 'Augus Liang',
   });
 });
 
@@ -177,6 +221,29 @@ test('successful project patches use trusted server metadata and return a commit
     savedAt: '2026-08-18T02:03:04.000Z', editorName: 'Augus Liang',
   });
   assert.equal(result.revision, projectRevisionFingerprint(result.committedProject));
+});
+
+test('large revisions save and unknown metadata survives while deleted rows stay deleted', () => {
+  const liveProject = {
+    code: 'ALPHA', owner: 'Augus Liang', highlight: 'h'.repeat(11000), weeklyActions: 'w'.repeat(11000),
+    budget: {
+      mode: 'manual', approvedBy: 'finance@example.com',
+      monthlyPlans: [
+        { id: 'keep', month: '2026-09', amount: 10, auditNote: 'reviewed' },
+        { id: 'remove', month: '2026-10', amount: 20, auditNote: 'remove me' },
+      ],
+    },
+  };
+  const week = { projects: [liveProject], version: 1, isReleased: false };
+  const expectedRevision = projectRevisionFingerprint(liveProject);
+  assert.ok(expectedRevision.length > 20000);
+  const result = buildProjectPatch(week, {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...liveProject, budget: { ...liveProject.budget, monthlyPlans: [liveProject.budget.monthlyPlans[0]] } },
+    expectedRevision,
+  }, actor, '2026-09-10T00:00:00Z');
+  assert.equal(result.committedProject.budget.approvedBy, 'finance@example.com');
+  assert.deepEqual(result.committedProject.budget.monthlyPlans, [liveProject.budget.monthlyPlans[0]]);
 });
 
 test('week field saves are closed and week creation accepts only server-side carryover input', () => {
