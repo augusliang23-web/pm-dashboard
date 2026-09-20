@@ -14,6 +14,31 @@ daily per-user documents in `presenceDailyRollups`.
 
 Each callable reloads the authenticated user's role inside its transaction. Released weeks are immutable. Update history, change requests, and audit records are client read-only.
 
+## UAT dashboard callables
+
+The UAT dashboard backend exposes these eight protected Callable selectors:
+
+- `saveDashboardProject`
+- `deleteDashboardProject`
+- `setDashboardProjectAttention`
+- `setDashboardWeekRelease`
+- `saveDashboardWeekFields`
+- `createDashboardWeek`
+- `saveDashboardGanttTemplateSettings`
+- `saveDashboardGanttWindowSettings`
+
+Each selector has a distinct source-level runtime service-account shorthand.
+No IAM change or deployment was performed by this local change. A future,
+separately authorized UAT deployment must select exactly these eight Callables;
+it must not include Rules, Hosting, the UAT-only sync Callables, Executive
+milestone Callables, or presence aggregation without a separate authorization.
+The eight runtime identities and their least-privilege grants must be created
+and independently verified before that deployment; this source change does not
+prove that either prerequisite exists in UAT. The separately authorized deploy
+principal must also have `iam.serviceAccounts.actAs` (Service Account User) on
+each selected runtime identity; do not replace that narrow grant with a
+project-wide role.
+
 ## Deployment and Production-to-UAT sync runbook
 
 This is a review checklist, not an executable deployment or IAM script. Run

@@ -7,5 +7,7 @@ export function createProjectDashboardApi({ functions, httpsCallable }) {
     saveWeekFields: data => call('saveDashboardWeekFields')(data).then(result => result.data),
     createWeek: data => call('createDashboardWeek')(data).then(result => result.data),
     setWeekRelease: data => call('setDashboardWeekRelease')(data).then(result => result.data),
+    saveGanttTemplateSettings: data => call('saveDashboardGanttTemplateSettings')(data).then(result => result.data),
+    saveGanttWindowSettings: data => call('saveDashboardGanttWindowSettings')(data).then(result => result.data),
   };
 }
