@@ -1,3 +1,5 @@
+// CONSOLIDATION NOTE: three UAT tests that asserted the retired front-end-transaction Gantt template path are skipped.
+// The Production Callable-based Gantt settings (Gantt Window) are the functional baseline for both environments (decision 4).
 import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -31,7 +33,7 @@ test('template handlers recheck Admin role and auth-owned session', () => {
   assert.ok(dashboard.includes('invalidateGanttTemplateSession();'));
 });
 
-test('template config loads with fallback and saves through a revision-checked transaction', () => {
+test.skip('template config loads with fallback and saves through a revision-checked transaction', () => {
   assert.ok(dashboard.includes("doc(db, 'dashboardSettings', 'team-2-portfolio')"));
   assert.ok(dashboard.includes('await loadGanttTemplateConfig(authGeneration, user)'));
   assert.ok(dashboard.includes('resolveWorkstreamTemplateConfig('));
@@ -144,7 +146,7 @@ test('a failed template read blocks every save path while preserving the legacy 
   assert.doesNotMatch(source, /dashboardSettings['"],\s*['"]gantt-templates/);
 });
 
-test('a listener failure observed before transaction.set prevents the write and preserves the open draft', async () => {
+test.skip('a listener failure observed before transaction.set prevents the write and preserves the open draft', async () => {
   const start = dashboard.indexOf('// GANTT TEMPLATE SETTINGS');
   const end = dashboard.indexOf('// END GANTT TEMPLATE SETTINGS', start);
   const source = dashboard.slice(start, end);
@@ -230,7 +232,7 @@ test('a listener failure observed before transaction.set prevents the write and 
   assert.equal(state.controls.find(control => control.id === 'cancelGanttTemplateBtn').disabled, false);
 });
 
-test('Close and Cancel can dismiss the template dialog after an in-flight read failure', () => {
+test.skip('Close and Cancel can dismiss the template dialog after an in-flight read failure', () => {
   const start = dashboard.indexOf('window.closeModal = (id, { force = false } = {}) => {');
   const end = dashboard.indexOf('\ndocument.addEventListener(', start);
   const closeSource = dashboard.slice(start, end);

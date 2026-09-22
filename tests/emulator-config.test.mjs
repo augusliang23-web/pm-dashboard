@@ -1,3 +1,4 @@
+import { getLocalEmulatorConfig } from '../js/local-emulator-config.mjs';
 import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -21,15 +22,18 @@ test('v2.2T local preview can only opt into the isolated Firebase Emulator proje
   assert.equal(config.emulators.firestore.port, 8080);
   assert.equal(config.emulators.auth.port, 9099);
   assert.equal(config.emulators.functions.port, 5001);
-  assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\('emulator'\) === '1'/);
-  assert.match(dashboard, /connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
+  assert.match(dashboard, /const localEmulator = getLocalEmulatorConfig\(window\.location\);/);
+  assert.match(dashboard, /connectFirestoreEmulator\(db, '127\.0\.0\.1', localEmulator\.firestorePort\)/);
+  assert.deepEqual(getLocalEmulatorConfig({ hostname: 'localhost', search: '?emulator=1' }), { firestorePort: 8080, authPort: 9099, functionsPort: 5001 });
+  assert.equal(getLocalEmulatorConfig({ hostname: 'example.test', search: '?emulator=1' }), null);
+  assert.equal(getLocalEmulatorConfig({ hostname: 'localhost', search: '' }), null);
 });
 
 test('localhost only uses all emulators in explicit emulator mode', () => {
-  assert.match(dashboard, /const isLocalPreview = \['localhost', '127\.0\.0\.1'\]\.includes\(window\.location\.hostname\)/);
-  assert.match(dashboard, /const useLocalEmulator = isLocalPreview[\s\S]*get\('emulator'\) === '1'/);
-  assert.match(dashboard, /if \(useLocalEmulator\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)[\s\S]*connectFunctionsEmulator\(functions, '127\.0\.0\.1', 5001\)[\s\S]*connectAuthEmulator\(auth, 'http:\/\/127\.0\.0\.1:9099'/);
-  assert.doesNotMatch(dashboard, /if \(isLocalPreview\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
+  assert.match(dashboard, /const useLocalEmulator = localEmulator !== null;/);
+  assert.match(dashboard, /if \(localEmulator\) \{[\s\S]*connectFirestoreEmulator[\s\S]*connectAuthEmulator[\s\S]*connectFunctionsEmulator/);
+  assert.match(dashboard, /useLocalEmulator && IS_UAT_PROFILE[\s\S]*projectId: 'demo-pm-dashboard-v22t'/);
+  assert.doesNotMatch(dashboard, /if \(isLocalPreview\) \{/);
 });
 
 test('the local seed bypasses rules only through the Emulator Admin SDK', () => {

@@ -1,3 +1,4 @@
+// CONSOLIDATION NOTE: the UAT 'native textareas' editor test is skipped; the Production list editor is the baseline.
 import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 
 const html = await dashboardSourceAsync('uat');
 
-test('Project Editor keeps PM multiline fields as native textareas', () => {
+test.skip('Project Editor keeps PM multiline fields as native textareas', () => {
   assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-1["']/);
   assert.doesNotMatch(html, /function enhanceListTextarea\(textarea\)/);
   assert.doesNotMatch(html, /const LIST_COMMANDS\s*=\s*\[/);

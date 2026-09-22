@@ -33,7 +33,7 @@ test('v2.0 strategy save commits a clone after confirmation', () => {
 test('v2.2T keeps Executive timeline cells out of the legacy strategy save path', () => {
   assert.match(
     production,
-    /import \{ getExecutiveTimelineCell \} from "\.\/executive-timeline-core\.js"/
+    /import \{ getExecutiveTimelineCell(?:, serializeExecutiveMilestoneTimeline)? \} from "\.\/executive-timeline-core\.js"/
   );
   assert.match(
     production,

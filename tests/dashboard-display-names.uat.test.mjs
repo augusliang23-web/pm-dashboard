@@ -121,6 +121,7 @@ test('authenticated header renders the stored directory display name', () => {
     canReadDraftWeeks: () => true,
     invalidateProjectEditorSession: () => {},
     invalidateGanttTemplateSession: () => {},
+    invalidateGanttWindowSession: () => {}, // Production-baseline Gantt Window helper shared with the UAT profile
     loadOverviewScopeForCurrentUser: () => {},
     syncProjectManagerFilterOptions: () => {},
     updateMasterDataLists: () => {},
