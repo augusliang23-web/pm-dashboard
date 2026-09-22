@@ -164,8 +164,11 @@ test('every Firebase deploy invocation in package scripts and scripts/ is Hostin
     if (text !== null) targets.push([`scripts/${entry.name}`, text]);
   }
   assert.ok(targets.length >= Object.keys(pkg.scripts).length + 5, 'sanity: scripts/ must have been scanned');
+  // Comment-only lines are prose, not code (e.g. deployment-manifest.mjs's module docstring mentions "firebase
+  // deploy" while never invoking it — see its own "never exposes a way to run a Functions deploy" test).
+  const stripCommentOnlyLines = text => text.split('\n').filter(line => !/^\s*\/\//.test(line)).join('\n');
   for (const [source, text] of targets) {
-    for (const match of text.matchAll(/firebase\s+deploy\b[^\n]*/gi)) {
+    for (const match of stripCommentOnlyLines(text).matchAll(/firebase\s+deploy\b[^\n]*/gi)) {
       assert.match(match[0], /--only\s+hosting\b/, `${source} has a Firebase deploy that is not Hosting-only: ${match[0]}`);
     }
   }

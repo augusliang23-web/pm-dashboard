@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "environments": {
+    "prod": {
+      "firebaseProjectId": "project-manager-dashboar-a067f",
+      "hostingTarget": "prod",
+      "firestoreRulesFile": "firestore.rules",
+      "pdfTarget": "production",
+      "functionsAllowlist": [
+        "aggregatePresenceSessions",
+        "saveDashboardProject",
+        "deleteDashboardProject",
+        "setDashboardProjectAttention",
+        "setDashboardWeekRelease",
+        "saveDashboardWeekFields",
+        "createDashboardWeek",
+        "saveDashboardGanttTemplateSettings",
+        "saveDashboardGanttWindowSettings"
+      ],
+      "functionsNeverDeploy": {
+        "executiveMilestone": [
+          "addExecutiveMilestoneUpdate",
+          "createExecutiveMilestoneChangeRequest",
+          "withdrawExecutiveMilestoneChangeRequest",
+          "decideExecutiveMilestoneChangeRequest",
+          "applyDirectExecutiveMilestoneChange",
+          "initializeExecutiveMilestoneLiveTimeline",
+          "saveExecutiveMilestoneTimelineConfig",
+          "setExecutiveRagOverride"
+        ],
+        "productionWeekSync": [
+          "syncProductionWeeksToUat",
+          "getProductionWeekSyncStatus",
+          "restoreUatWeeksSnapshot"
+        ]
+      }
+    },
+    "uat": {
+      "firebaseProjectId": "pm-dashboard-uat-20260820-a7f3",
+      "hostingTarget": "uat",
+      "firestoreRulesFile": "firestore.uat.rules",
+      "pdfTarget": "uat",
+      "functionsAllowlist": [
+        "aggregatePresenceSessions",
+        "saveDashboardProject",
+        "deleteDashboardProject",
+        "setDashboardProjectAttention",
+        "setDashboardWeekRelease",
+        "saveDashboardWeekFields",
+        "createDashboardWeek",
+        "saveDashboardGanttTemplateSettings",
+        "saveDashboardGanttWindowSettings",
+        "addExecutiveMilestoneUpdate",
+        "createExecutiveMilestoneChangeRequest",
+        "withdrawExecutiveMilestoneChangeRequest",
+        "decideExecutiveMilestoneChangeRequest",
+        "applyDirectExecutiveMilestoneChange",
+        "initializeExecutiveMilestoneLiveTimeline",
+        "saveExecutiveMilestoneTimelineConfig",
+        "setExecutiveRagOverride",
+        "syncProductionWeeksToUat",
+        "getProductionWeekSyncStatus",
+        "restoreUatWeeksSnapshot"
+      ],
+      "functionsNeverDeploy": {}
+    }
+  },
+  "notes": [
+    "This manifest is a source-of-truth allowlist only. It does not grant, prove, or perform any deployment.",
+    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11) plus the shared presence scheduler.",
+    "Production's functionsNeverDeploy is authoritative and explicit, not merely 'everything not in the allowlist': Executive milestone Callables stay UAT-runtime-only per the approved architecture (Control Plane decision 2), and the Production-to-UAT sync Callables read Production and write UAT collections that do not exist in the Production project, so deploying them there is both against policy and would be inert or broken.",
+    "Before any real Functions deployment: read-only enumerate the live deployed Functions for the target project, diff against this manifest's allowlist, and deploy only named functions (`firebase deploy --only functions:name1,functions:name2,...`) -- never an unscoped `firebase deploy` or `firebase deploy --only functions`. This manifest does not perform that live enumeration; it is a separate, explicitly authorized step (see the Functions safety note in the integration report)."
+  ]
+}
