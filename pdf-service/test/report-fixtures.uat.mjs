@@ -2,7 +2,8 @@ export function completeProjectReportFixture() {
   return {
     week: { weekLabel: 'W28 2026', weekDate: 'Jul 6 - Jul 12' },
     sections: [
-      'milestone', 'gantt', 'team-allocation', 'resources', 'budget'
+      'project-brief', 'project-update', 'milestone', 'gantt',
+      'team-allocation', 'resources', 'budget'
     ],
     project: {
       name: 'Platform Modernization', code: 'PMS-001', projectLevel: 'system',
@@ -59,11 +60,9 @@ export function completeOverviewReportFixture() {
           quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
           phases: ['Foundation', 'Validation', 'Scale', 'Commercialization'],
           rows: [
-            { label: 'Shared delivery', audience: 'all-working-team', cells: [[{ text: 'Shared Q1' }], [], [], []] },
-            { label: 'Engineering', audience: 'pm-engineering', cells: { q1: [], q2: [{ text: 'Engineering Q2', sources: [{ title: 'Hidden evidence' }] }], q3: [], q4: [] } },
-            { label: 'Commercial', audience: 'business-product', cells: [[], [], [{ text: 'Commercial Q3' }], []] },
-            { label: 'Leadership', audience: 'leadership-only', cells: [[], [], [], [{ text: 'Leadership Q4' }]] },
-            { label: 'Public', audience: 'everyone', cells: [[{ text: 'Everyone Q1' }], [], [], []] }
+            { sectionId: 'ioe-product-portfolio', label: 'IoE Product Portfolio', cells: [[{ text: 'Architecture Q1' }], [{ text: 'Engineering Q2', sources: [{ title: 'Hidden evidence' }] }], [], []] },
+            { sectionId: 'customer-engagements', label: 'Customer Engagements', cells: [[], [], [{ text: 'Customer Q3' }], []] },
+            { sectionId: 'investors-strategy', label: 'Investors & Strategy', cells: [[], [], [], [{ text: 'Investor Q4' }]] }
           ]
         }
       },

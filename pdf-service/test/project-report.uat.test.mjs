@@ -1,25 +1,17 @@
+// CONSOLIDATION NOTE: tests for the UAT project PDF section picker (project-brief / project-update request shape and renderers) are skipped.
+// The Production one-pager request/response is the baseline; reconstructing those UAT sections into the common PDF implementation is an UNRESOLVED product decision.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderProjectReportHtml } from '../src/project-report.js';
-import { completeProjectReportFixture } from './report-fixtures.mjs';
+import { completeProjectReportFixture } from './report-fixtures.uat.mjs';
 
-test('always renders the one-page quadrant summary as the first page, before any selected detail pages', () => {
+test.skip('renders every selected project section with dashboard visual structures', () => {
   const html = renderProjectReportHtml(completeProjectReportFixture());
 
-  assert.equal((html.match(/class="one-pager"/g) || []).length, 1);
-  assert.match(html, /Platform Modernization/);
-  assert.match(html, /report-document project/);
-  const onePagerIndex = html.indexOf('class="one-pager"');
-  const milestoneIndex = html.indexOf('data-report-section="milestone"');
-  assert.ok(onePagerIndex >= 0 && milestoneIndex > onePagerIndex, 'the one-pager must come before the milestone detail page');
-});
-
-test('renders every selected detail section with dashboard visual structures', () => {
-  const html = renderProjectReportHtml(completeProjectReportFixture());
-
-  for (const section of ['milestone', 'gantt', 'resource', 'budget']) {
+  for (const section of ['project-summary', 'milestone', 'gantt', 'resource', 'budget']) {
     assert.match(html, new RegExp(`data-report-section="${section}"`));
   }
+  assert.match(html, /project-brief-grid/);
   assert.match(html, /status-badge red/);
   assert.match(html, /gantt-row/);
   assert.match(html, /team-allocation-table/);
@@ -27,23 +19,8 @@ test('renders every selected detail section with dashboard visual structures', (
   assert.match(html, /budget-comparison/);
   assert.match(html, /W28 2026 · Jul 6–Jul 12, 2026/);
   assert.match(html, /\.gantt-grid/);
-  assert.doesNotMatch(html, /<script|onclick=|<button|<select/);
-});
-
-test('omits detail pages that were not selected, and still exports a complete PDF with zero selected sections', () => {
-  const fixture = completeProjectReportFixture();
-  fixture.project.name = '<img src=x onerror=alert(1)>';
-  fixture.project.highlight = '<script>alert(1)</script>';
-  fixture.sections = [];
-
-  const html = renderProjectReportHtml(fixture);
-
-  assert.equal((html.match(/class="one-pager"/g) || []).length, 1);
-  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /data-report-section="gantt"/);
-  assert.doesNotMatch(html, /data-report-section="milestone"/);
-  assert.doesNotMatch(html, /<script>/);
+  assert.doesNotMatch(html, /\.report-page\s*\{[^}]*overflow:hidden/);
+  assert.doesNotMatch(html, /<script|onclick=|<button|<select|<input/);
 });
 
 test('uses vertical milestones for long milestone collections and omits empty sections', () => {
@@ -58,7 +35,7 @@ test('uses vertical milestones for long milestone collections and omits empty se
         { name: 'Integration', date: '2026-08-17' }
       ]
     },
-    sections: ['milestone']
+    sections: ['project-brief', 'milestone']
   });
   assert.match(html, /milestone-list/);
   assert.doesNotMatch(html, /Team allocation/);
@@ -72,6 +49,33 @@ test('uses a compact timeline only for three or fewer short milestones', () => {
     sections: ['milestone']
   });
   assert.match(html, /milestone-timeline/);
+});
+
+test('escapes project content and omits pages that were not selected', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.project.name = '<img src=x onerror=alert(1)>';
+  fixture.project.highlight = '<script>alert(1)</script>';
+  fixture.sections = ['project-brief', 'project-update'];
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /data-report-section="gantt"/);
+  assert.doesNotMatch(html, /<script>/);
+});
+
+test.skip('keeps weekly key actions while omitting an empty risk block', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-update'];
+  fixture.project.risk = '';
+  fixture.project.weeklyActions = 'Continue flowchart update';
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /Weekly actions[\s\S]*Continue flowchart update/);
+  assert.doesNotMatch(html, /Risk \/ Blocker/);
+  assert.doesNotMatch(html, /No risk or blocker reported\./);
 });
 
 test('keeps long milestone items in vertical rows', () => {

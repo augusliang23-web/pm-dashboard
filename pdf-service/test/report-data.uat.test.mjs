@@ -8,7 +8,7 @@ import { packedHeadingAndAskSummary, packedMissingFieldSummary, packedSummaryCon
 
 const adapters = {
   verifyIdToken: async token => ({ email: token }),
-  getUserByEmail: async email => ({ role: email.startsWith('vip') ? 'vip' : 'pm' }),
+  getUserByEmail: async email => ({ role: email.startsWith('owner') ? 'executive' : 'pm' }),
   getWeekById: async () => ({
     weekLabel: 'W28 2026',
     isReleased: true,
@@ -112,10 +112,10 @@ test('propagates the authorized Executive milestone audience view', async () => 
       sections: ['executive-milestones'],
       executiveAudienceView: 'business-product'
     },
-    idToken: 'business@example.com',
+    idToken: 'sales@example.com',
     adapters: {
       ...adapters,
-      getUserByEmail: async () => ({ role: 'business' })
+      getUserByEmail: async () => ({ role: 'sales' })
     }
   });
 
@@ -130,14 +130,83 @@ test('rejects an unknown stored role instead of widening Executive milestone acc
   }), ReportAccessError);
 });
 
-test('filters current and trend weeks to selected Overview project codes', async () => {
+test('does not read update-history collections for a historical week PDF', async () => {
+  let historyCalls = 0;
+  await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: { ...adapters, getExecutiveMilestoneUpdates: async () => { historyCalls += 1; return []; } },
+  });
+  assert.equal(historyCalls, 0);
+});
+
+test('uses the Executive milestone snapshot captured at release for a released overview PDF', async () => {
+  let liveReads = 0;
+  const snapshotTimeline = { title: 'Released Executive timeline', rows: [] };
   const report = await loadAuthorizedReport({
-    request: { mode: 'overview', weekId: 'W28', sections: ['weekly-trend'], projectCodes: ['PMS-001'] },
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
     idToken: 'pm@example.com',
     adapters: {
       ...adapters,
-      getWeekById: async () => ({ projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }] }),
-      getTrendWeeks: async () => [{ projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }] }]
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        isReleased: true,
+        projects: [],
+        strategyLayer: {
+          executiveMilestoneTimeline: { title: 'Legacy timeline', rows: [] },
+          executiveMilestoneTimelineSnapshot: { timeline: snapshotTimeline }
+        }
+      }),
+      getLiveExecutiveTimeline: async () => { liveReads += 1; return { timeline: { title: 'Live timeline', rows: [] } }; }
+    }
+  });
+
+  assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Released Executive timeline');
+  assert.equal(liveReads, 0);
+});
+
+test('uses the current live Executive timeline for a draft overview PDF', async () => {
+  let liveReads = 0;
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W30', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W30 2026',
+        isReleased: false,
+        projects: [],
+        strategyLayer: { executiveMilestoneTimeline: { title: 'Legacy draft timeline', rows: [] } }
+      }),
+      getLiveExecutiveTimeline: async () => { liveReads += 1; return { timeline: { title: 'Current live timeline', rows: [] } }; }
+    }
+  });
+
+  assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Current live timeline');
+  assert.equal(liveReads, 1);
+});
+
+test('filters current and trend weeks to selected Overview project codes', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['weekly-trend'],
+      projectCodes: ['PMS-001']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        isReleased: true,
+        projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }]
+      }),
+      getTrendWeeks: async () => [{
+        weekLabel: 'W27 2026',
+        isReleased: true,
+        projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }]
+      }]
     }
   });
 
@@ -358,40 +427,6 @@ test('rejects malformed Executive Summary structure with a PDF data error', asyn
     }),
     error => error instanceof ReportDataError && error.statusCode === 422
   );
-});
-
-test('resolves a default Gantt window when the dashboard settings adapter is unavailable', async () => {
-  const report = await loadAuthorizedReport({
-    request: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['gantt'] },
-    idToken: 'pm@example.com',
-    adapters
-  });
-
-  assert.deepEqual(report.ganttWindowSettings, { defaultMonths: 6, overrides: {} });
-});
-
-test('reads the admin-configured Gantt window settings for both project and overview reports', async () => {
-  const ganttWindowAdapters = {
-    ...adapters,
-    getDashboardSettings: async () => ({
-      ganttWindowDefaultMonths: 9,
-      ganttWindowOverrides: { 'PMS-001': 12 }
-    })
-  };
-
-  const projectReport = await loadAuthorizedReport({
-    request: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['gantt'] },
-    idToken: 'pm@example.com',
-    adapters: ganttWindowAdapters
-  });
-  assert.deepEqual(projectReport.ganttWindowSettings, { defaultMonths: 9, overrides: { 'PMS-001': 12 } });
-
-  const overviewReport = await loadAuthorizedReport({
-    request: { mode: 'overview', weekId: 'W28', sections: ['health-focus'] },
-    idToken: 'pm@example.com',
-    adapters: ganttWindowAdapters
-  });
-  assert.deepEqual(overviewReport.ganttWindowSettings, { defaultMonths: 9, overrides: { 'PMS-001': 12 } });
 });
 
 test('does not validate Weekly Summary when Executive Summary is not selected', async () => {

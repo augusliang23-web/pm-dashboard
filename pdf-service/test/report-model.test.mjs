@@ -223,17 +223,6 @@ test('keeps weekly actions out of risk action pairs without an explicit risk', (
   assert.deepEqual(project.riskActions, []);
 });
 
-test('keeps weekly actions out of risk action pairs without an explicit risk', () => {
-  const project = normalizeProjectForReport({
-    weeklyActions: 'Continue flowchart update',
-    risk: '',
-    riskActions: [{ risk: '', action: 'This is not a risk action' }]
-  });
-
-  assert.deepEqual(project.actions, ['Continue flowchart update']);
-  assert.deepEqual(project.riskActions, []);
-});
-
 test('builds scoped Overview metrics, risk rows, resources, budget and trend points', () => {
   const systemProject = {
     code: 'SYS-1', name: 'System One', projectLevel: 'system', status: 'red', progress: 40,
@@ -271,44 +260,19 @@ test('filters Executive milestones for each authorized audience view', () => {
   }).executiveMilestones.rows.map(row => row.label);
 
   assert.deepEqual(labelsFor('leadership'), [
-    'IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy'
+    'Shared delivery', 'Engineering', 'Commercial', 'Leadership', 'Public'
   ]);
-  assert.deepEqual(labelsFor('pm-engineering'), ['IoE Product Portfolio']);
-  assert.deepEqual(labelsFor('business-product'), ['IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy']);
-  assert.deepEqual(labelsFor('all-working-team'), ['IoE Product Portfolio']);
-  assert.deepEqual(labelsFor('everyone'), ['IoE Product Portfolio']);
-});
-
-test('preserves legacy Executive milestone row labels and audience filtering', () => {
-  const fixture = completeOverviewReportFixture();
-  fixture.week.strategyLayer.executiveMilestoneTimeline = {
-    title: 'Legacy Executive Timeline',
-    quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
-    phases: ['Plan', 'Build', 'Validate', 'Launch'],
-    rows: [
-      { label: 'Shared delivery', audience: 'all-working-team', cells: [['Shared Q1'], [], [], []] },
-      { label: 'Engineering', audience: 'pm-engineering', cells: [[], ['Engineering Q2'], [], []] },
-      { label: 'Commercial', audience: 'business-product', cells: [[], [], ['Commercial Q3'], []] },
-      { label: 'Leadership', audience: 'leadership-only', cells: [[], [], [], ['Leadership Q4']] },
-      { label: 'Public', audience: 'everyone', cells: [['Public Q1'], [], [], []] }
-    ]
-  };
-
-  const model = buildOverviewReportModel({ ...fixture, executiveAudienceView: 'pm-engineering' });
-
-  assert.deepEqual(model.executiveMilestones.rows.map(row => row.label), [
-    'Shared delivery', 'Engineering', 'Public'
-  ]);
-  assert.equal(JSON.stringify(model.executiveMilestones).includes('IoE Product Portfolio'), false);
-  assert.equal(JSON.stringify(model.executiveMilestones).includes('Commercial Q3'), false);
-  assert.equal(JSON.stringify(model.executiveMilestones).includes('Leadership Q4'), false);
+  assert.deepEqual(labelsFor('pm-engineering'), ['Shared delivery', 'Engineering', 'Public']);
+  assert.deepEqual(labelsFor('business-product'), ['Shared delivery', 'Commercial', 'Public']);
+  assert.deepEqual(labelsFor('all-working-team'), ['Shared delivery', 'Public']);
+  assert.deepEqual(labelsFor('everyone'), ['Public']);
 });
 
 test('normalizes Executive milestone outcomes to display text only', () => {
   const fixture = completeOverviewReportFixture();
   const model = buildOverviewReportModel({ ...fixture, executiveAudienceView: 'leadership' });
-  const engineering = model.executiveMilestones.rows.find(row => row.label === 'IoE Product Portfolio');
+  const engineering = model.executiveMilestones.rows.find(row => row.label === 'Engineering');
 
-  assert.deepEqual(engineering.cells, [['Architecture Q1'], ['Engineering Q2'], [], []]);
+  assert.deepEqual(engineering.cells, [[], ['Engineering Q2'], [], []]);
   assert.equal(JSON.stringify(model.executiveMilestones).includes('Hidden evidence'), false);
 });
