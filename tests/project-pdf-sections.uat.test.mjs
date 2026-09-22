@@ -1,5 +1,11 @@
-// CONSOLIDATION NOTE: two UAT tests for the project-brief / project-update PDF section picker are skipped. The Production one-pager
-// replaced those sections; reconstructing them into the common PDF implementation is an UNRESOLVED product decision.
+// CONSOLIDATION NOTE: two UAT tests for the DASHBOARD/BROWSER project-brief / project-update PDF section-picker UI remain skipped.
+// The pdf-service BACKEND capability for these two sections was restored (Control Plane remediation after Codex's independent
+// review flagged its removal as a blocking regression; see pdf-service/test/project-brief-update-boundary.test.mjs and the six
+// restored tests in pdf-service/test/{report-request,project-report,app,pdf-layout}.uat.test.mjs). That remediation was scoped to
+// the pdf-service request contract and report generation only (the two files Codex's confirmed finding cited); it deliberately did
+// not touch index.html's own client-rendered "presentation report" print path (renderProjectUpdateReport, #projectPdfSectionPicker
+// markup), a separate browser-only feature this file's two remaining skipped tests cover. Whether/how to also restore that picker
+// UI is still an UNRESOLVED product decision, out of scope for that remediation.
 import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';

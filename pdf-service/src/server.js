@@ -28,7 +28,7 @@ const adapters = {
     return snapshot.docs.map(document => document.data()).reverse();
   }
 };
-const handler = createReportHandler({ adapters, renderPdf: renderPdfBuffer });
+const handler = createReportHandler({ adapters, renderPdf: renderPdfBuffer, features: target.features });
 const previewHandler = createOnePagerPreviewHandler({ adapters });
 const ROUTES = {
   '/v1/reports/project': handler,

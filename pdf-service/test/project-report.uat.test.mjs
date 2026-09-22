@@ -1,11 +1,14 @@
-// CONSOLIDATION NOTE: tests for the UAT project PDF section picker (project-brief / project-update request shape and renderers) are skipped.
-// The Production one-pager request/response is the baseline; reconstructing those UAT sections into the common PDF implementation is an UNRESOLVED product decision.
+// RESTORED (Codex independent review flagged the previous removal as a blocking regression): the UAT project-brief / project-update
+// PDF section-picker capability is preserved as a UAT-profile-only capability, gated by report-request.js's explicit,
+// registry-driven features.projectBriefUpdateSections switch (see test/project-brief-update-boundary.test.mjs for the Production/UAT
+// boundary). These tests call the pure functions directly, unmodified from the original UAT source, and always exercise the full
+// section vocabulary; only server.js's real request path is environment-gated.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderProjectReportHtml } from '../src/project-report.js';
 import { completeProjectReportFixture } from './report-fixtures.uat.mjs';
 
-test.skip('renders every selected project section with dashboard visual structures', () => {
+test('renders every selected project section with dashboard visual structures', () => {
   const html = renderProjectReportHtml(completeProjectReportFixture());
 
   for (const section of ['project-summary', 'milestone', 'gantt', 'resource', 'budget']) {
@@ -65,7 +68,7 @@ test('escapes project content and omits pages that were not selected', () => {
   assert.doesNotMatch(html, /<script>/);
 });
 
-test.skip('keeps weekly key actions while omitting an empty risk block', () => {
+test('keeps weekly key actions while omitting an empty risk block', () => {
   const fixture = completeProjectReportFixture();
   fixture.sections = ['project-update'];
   fixture.project.risk = '';

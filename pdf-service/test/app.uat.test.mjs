@@ -1,5 +1,8 @@
-// CONSOLIDATION NOTE: tests for the UAT project PDF section picker (project-brief / project-update request shape and renderers) are skipped.
-// The Production one-pager request/response is the baseline; reconstructing those UAT sections into the common PDF implementation is an UNRESOLVED product decision.
+// RESTORED (Codex independent review flagged the previous removal as a blocking regression): the UAT project-brief / project-update
+// PDF section-picker capability is preserved as a UAT-profile-only capability, gated by report-request.js's explicit,
+// registry-driven features.projectBriefUpdateSections switch (see test/project-brief-update-boundary.test.mjs for the Production/UAT
+// boundary). These tests call the pure functions directly, unmodified from the original UAT source, and always exercise the full
+// section vocabulary; only server.js's real request path is environment-gated.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createReportHandler } from '../src/app.js';
@@ -21,7 +24,7 @@ test('requires a bearer token before reading or rendering a report', async () =>
   assert.equal(res.statusCode, 401);
 });
 
-test.skip('returns an attachment PDF without persistence when authorized', async () => {
+test('returns an attachment PDF without persistence when authorized', async () => {
   let rendered = '';
   const handle = createReportHandler({ adapters, renderPdf: async html => { rendered = html; return Buffer.from('%PDF'); } });
   const res = response();

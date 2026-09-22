@@ -68,7 +68,10 @@ export function resolveRuntimeTarget(environment = process.env, registry = loadT
     environment: name,
     firebaseProjectId: target.firebaseProjectId,
     allowedOrigins: Object.freeze([...target.allowedOrigins]),
-    features: Object.freeze({ liveExecutiveTimeline: target.features?.liveExecutiveTimeline === true })
+    features: Object.freeze({
+      liveExecutiveTimeline: target.features?.liveExecutiveTimeline === true,
+      projectBriefUpdateSections: target.features?.projectBriefUpdateSections === true
+    })
   });
 }
 
@@ -82,7 +85,7 @@ function resolveLocalTarget(environment) {
     environment: LOCAL_ENVIRONMENT,
     firebaseProjectId: projectId,
     allowedOrigins: Object.freeze(parseAllowedOrigins(environment.ALLOWED_ORIGIN)),
-    features: Object.freeze({ liveExecutiveTimeline: true })
+    features: Object.freeze({ liveExecutiveTimeline: true, projectBriefUpdateSections: true })
   });
 }
 

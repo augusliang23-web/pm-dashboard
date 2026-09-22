@@ -1,5 +1,8 @@
-// CONSOLIDATION NOTE: tests for the UAT project PDF section picker (project-brief / project-update request shape and renderers) are skipped.
-// The Production one-pager request/response is the baseline; reconstructing those UAT sections into the common PDF implementation is an UNRESOLVED product decision.
+// RESTORED (Codex independent review flagged the previous removal as a blocking regression): the UAT project-brief / project-update
+// PDF section-picker capability is preserved as a UAT-profile-only capability, gated by report-request.js's explicit,
+// registry-driven features.projectBriefUpdateSections switch (see test/project-brief-update-boundary.test.mjs for the Production/UAT
+// boundary). These tests call the pure functions directly, unmodified from the original UAT source, and always exercise the full
+// section vocabulary; only server.js's real request path is environment-gated.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
@@ -293,7 +296,7 @@ test('dense management attention and risk actions use titled measured pages', { 
   }
 });
 
-test.skip('Project Update continuations preserve every list item and safe page spacing', { timeout: 60000 }, async () => {
+test('Project Update continuations preserve every list item and safe page spacing', { timeout: 60000 }, async () => {
   const fixture = completeProjectReportFixture();
   fixture.sections = ['project-brief', 'project-update'];
   fixture.project.name = 'Long Project Update';
@@ -431,7 +434,7 @@ test('long milestone and Gantt sections retain rows, axes, titles, and footer cl
   }
 });
 
-test.skip('full Overview and Project PDFs preserve explicit page parity and period metadata', { timeout: 60000 }, async () => {
+test('full Overview and Project PDFs preserve explicit page parity and period metadata', { timeout: 60000 }, async () => {
   const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const cases = [
     ['Overview', renderOverviewReportHtml(completeOverviewReportFixture())],
