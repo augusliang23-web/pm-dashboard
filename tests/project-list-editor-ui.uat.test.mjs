@@ -1,4 +1,12 @@
-// CONSOLIDATION NOTE: the UAT 'native textareas' editor test is skipped; the Production list editor is the baseline.
+// MEDIUM #4 (Control Plane remediation on top of fcca7b6): this test was skipped in 37e8408 on the premise that
+// "the Production list editor is the baseline" superseded UAT's plain textareas. That premise does not hold:
+// tests/project-list-editor-ui.test.mjs (Production) asserts these exact same things -- no enhanceListTextarea, no
+// LIST_COMMANDS, no toolbar -- and currently passes. Neither profile wires up an interactive list editor for the
+// Highlight/Weekly Actions fields; the CSS classes for one (.list-editor, .list-editor-toolbar, ...) are unused
+// dead styles, and the only thing index.html imports from js/list-editor.mjs is renderListHtml, used solely for
+// read-only Risk/Action-row rendering elsewhere. The one real drift was a cache-busting version-string bump
+// (raw-text-preserve-1 -> -2, matching the Production test) with no behavior change, so this is un-skipped rather
+// than replaced.
 import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,8 +14,8 @@ import { readFile } from 'node:fs/promises';
 
 const html = await dashboardSourceAsync('uat');
 
-test.skip('Project Editor keeps PM multiline fields as native textareas', () => {
-  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-1["']/);
+test('Project Editor keeps PM multiline fields as native textareas', () => {
+  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-2["']/);
   assert.doesNotMatch(html, /function enhanceListTextarea\(textarea\)/);
   assert.doesNotMatch(html, /const LIST_COMMANDS\s*=\s*\[/);
   assert.doesNotMatch(html, /Enter: new item · Tab: sub-item · Shift\+Tab: move up/);

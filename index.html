@@ -5420,7 +5420,6 @@ onAuthStateChanged(auth, async user => {
       await startProjectManagerSubscription(isCurrentAuthInitialization);
       if (!isCurrentAuthInitialization()) return;
       setupUI();
-      if (!nextDirectory.available) showSaveToast('PM list unavailable. Refresh to retry.');
       initData(authGeneration, user);
       startPresenceSystem(authGeneration, user);
       dot.classList.add('ok');
