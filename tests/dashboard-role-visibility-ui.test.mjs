@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('uat');
 
 test('v2.2T uses role-safe week queries and a live PM-only list', () => {
   assert.match(dashboard, /canReadDraftWeeks\(currentRole\)\s*\?\s*query\(weeksRef, orderBy\('weekLabel'\)\)\s*:\s*query\(weeksRef, where\('isReleased', '==', true\)\)/);

@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -12,10 +13,7 @@ import {
   withProjectEditorRowIds,
 } from '../js/project-mutations.mjs';
 
-const dashboard = await readFile(
-  new URL('../index.html', import.meta.url),
-  'utf8',
-);
+const dashboard = await dashboardSourceAsync('production');
 
 test('attention update preserves nested project data and changes only the target', () => {
   const week = {

@@ -146,7 +146,9 @@ button[aria-busy="true"] { cursor:wait; }
 .display-name { font-size: 12px; font-weight: 700; color: var(--text); }
 .role-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: var(--s3); color: var(--muted); text-transform: uppercase; }
 .role-badge.admin { background: var(--adim); color: var(--accent-hov); }
+/* @prod-only begin */
 .role-badge.vip { background: var(--ydim); color: #B09854; }
+/* @prod-only end */
 .role-badge.executive { background: var(--ydim); color: #B09854; }
 
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); transition: background 0.3s; }
@@ -739,6 +741,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .risk-primary-control { display:flex; align-items:center; gap:6px; min-height:36px; font-size:11px; font-weight:800; color:var(--text-light); }
 .risk-primary-control input { margin:0; }
 .risk-pair-delete { border:none; background:none; cursor:pointer; font-size:16px; line-height:1; min-height:36px; }
+/* @prod-only begin */
 .list-editor { min-width:0; border:1px solid var(--border2); border-radius:8px; background:#fff; overflow:hidden; }
 .list-editor:focus-within { border-color:var(--accent); box-shadow:0 0 0 2px var(--adim); }
 .list-editor-toolbar { display:flex; gap:4px; padding:5px 7px; border-bottom:1px solid var(--border); background:var(--s2); }
@@ -747,7 +750,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .list-editor-button.active { box-shadow:inset 0 0 0 1px var(--accent); }
 .list-editor .ft { display:block; width:100%; min-width:0; resize:vertical; box-sizing:border-box; border:0; border-radius:0; line-height:1.55; }
 .list-editor .ft:focus { border-color:transparent; }
+/* @prod-only end */
+/* @prod-only begin */
 .list-editor-hint { padding:4px 8px 6px; color:var(--muted); font-size:9px; line-height:1.35; }
+/* @prod-only end */
 .risk-list-cell { min-width:0; }
 .risk-list-cell .ft { width:100%; min-width:0; resize:vertical; box-sizing:border-box; }
 @media (max-width:760px) {
@@ -2334,9 +2340,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
 
     <div style="display:flex; gap:6px; margin-right:10px; padding-right:10px; border-right:1px solid var(--border);">
+<!-- @prod-only begin -->
       <button class="btn-icon admin-only" data-profile-only="production" id="vipPreviewBtn" style="display:none;" onclick="toggleVipPreview()" title="Preview as VIP" aria-label="Preview as VIP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
+<!-- @prod-only end -->
       <button class="btn-icon admin-only" data-profile-only="uat" id="executivePreviewBtn" style="display:none;" onclick="toggleExecutivePreview()" title="Preview as Executive Owner" aria-label="Preview as Executive Owner">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -2899,10 +2907,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
+    <!-- @prod-only begin -->
     <section class="strategy-section" data-profile-only="production">
       <div class="strategy-section-title">Executive Milestone Timeline</div>
       <div id="quarterGoalEditor"></div>
     </section>
+    <!-- @prod-only end -->
     <section class="strategy-section">
       <div class="strategy-section-title">Project Strategic Mapping</div>
       <div id="projectStrategyEditor"></div>
@@ -3077,19 +3087,23 @@ window.confirmProductionWeekSync = () => submitInlineUatProductionSyncConfirmati
   controller: uatProductionSyncController,
   close: () => { document.getElementById('productionWeekSyncDetails').open = false; },
 });
+// @uat-only begin cancelProductionWeekSync
 window.cancelProductionWeekSync = () => {
   uatProductionSyncController.cancelConfirmation();
   document.getElementById('productionWeekSyncDetails').open = false;
 };
+// @uat-only end cancelProductionWeekSync
 window.requestRestoreUatWeekSnapshot = () => uatProductionSyncController.requestRestore();
 window.confirmProductionWeekRestore = () => submitUatProductionRestoreConfirmation({
   controller: uatProductionSyncController,
   close: () => hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm')),
 });
+// @uat-only begin cancelProductionWeekRestore
 window.cancelProductionWeekRestore = () => {
   uatProductionSyncController.cancelConfirmation();
   hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm'));
 };
+// @uat-only end cancelProductionWeekRestore
 bindProductionSyncActions({
   restoreButton: document.getElementById('restoreUatWeekSnapshotButton'),
   confirmSyncButton: document.getElementById('confirmProductionWeekSyncButton'),
@@ -3135,9 +3149,14 @@ let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
 let activePortfolioRoadmapView = 'executive';
 let isOverview = false;
+// @profile-group begin const isVipPerspective
+// @profile-variant prod
 const isVipPerspective__prod = () => currentRole === 'vip' || (currentRole === 'admin' && isAdminVipPreview);
+// @profile-variant uat
 const isVipPerspective__uat = () => currentRole === 'admin' && isAdminVipPreview;
+// @profile-dispatcher
 const isVipPerspective = IS_UAT_PROFILE ? isVipPerspective__uat : isVipPerspective__prod;
+// @profile-group end isVipPerspective
 const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
 let editingProjCode = null;
 let isCreatingNew = false;
@@ -3198,6 +3217,7 @@ function ganttTemplateSettingsRef() {
   return doc(db, 'dashboardSettings', 'team-2-portfolio');
 }
 
+// @uat-only begin reportGanttTemplateAvailabilityFailure
 function reportGanttTemplateAvailabilityFailure(error) {
   ganttTemplateSubscriptionReady = false;
   ganttTemplateAvailabilityStatus = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
@@ -3211,7 +3231,10 @@ function reportGanttTemplateAvailabilityFailure(error) {
   if (bannerMeta) bannerMeta.textContent = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
   console.warn('Default Gantt template configuration is unavailable.', error);
 }
+// @uat-only end reportGanttTemplateAvailabilityFailure
 
+// @profile-group begin fn applyGanttTemplateSnapshot
+// @profile-variant prod
 function applyGanttTemplateSnapshot__prod(snapshot) {
   const data = snapshot.exists() ? snapshot.data() : {};
   const nextRevision = Number.isSafeInteger(data.revision) && data.revision >= 0
@@ -3251,7 +3274,7 @@ function applyGanttTemplateSnapshot__prod(snapshot) {
       'The settings changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
   }
 }
-
+// @profile-variant uat
 function applyGanttTemplateSnapshot__uat(snapshot) {
   const data = snapshot.exists() ? snapshot.data() : {};
   const nextRevision = Number.isSafeInteger(data.revision) && data.revision >= 0
@@ -3292,9 +3315,12 @@ function applyGanttTemplateSnapshot__uat(snapshot) {
       'The settings changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
   }
 }
-
+// @profile-dispatcher
 function applyGanttTemplateSnapshot(...args) { return (IS_UAT_PROFILE ? applyGanttTemplateSnapshot__uat : applyGanttTemplateSnapshot__prod)(...args); }
+// @profile-group end applyGanttTemplateSnapshot
 
+// @profile-group begin fn stopGanttTemplateConfigSubscription
+// @profile-variant prod
 function stopGanttTemplateConfigSubscription__prod() {
   ganttTemplateSubscriptionGeneration += 1;
   if (ganttTemplateConfigUnsub) ganttTemplateConfigUnsub();
@@ -3307,7 +3333,7 @@ function stopGanttTemplateConfigSubscription__prod() {
   currentGanttWindowConfig = resolveGanttWindowConfig();
   currentGanttWindowRevision = 0;
 }
-
+// @profile-variant uat
 function stopGanttTemplateConfigSubscription__uat() {
   ganttTemplateSubscriptionGeneration += 1;
   if (ganttTemplateConfigUnsub) ganttTemplateConfigUnsub();
@@ -3321,9 +3347,12 @@ function stopGanttTemplateConfigSubscription__uat() {
   currentGanttWindowConfig = resolveGanttWindowConfig();
   currentGanttWindowRevision = 0;
 }
-
+// @profile-dispatcher
 function stopGanttTemplateConfigSubscription(...args) { return (IS_UAT_PROFILE ? stopGanttTemplateConfigSubscription__uat : stopGanttTemplateConfigSubscription__prod)(...args); }
+// @profile-group end stopGanttTemplateConfigSubscription
 
+// @profile-group begin fn loadGanttTemplateConfig
+// @profile-variant prod
 async function loadGanttTemplateConfig__prod(authGeneration, authUser) {
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
@@ -3404,7 +3433,7 @@ async function loadGanttTemplateConfig__prod(authGeneration, authUser) {
     }
   });
 }
-
+// @profile-variant uat
 async function loadGanttTemplateConfig__uat(authGeneration, authUser) {
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
@@ -3486,8 +3515,9 @@ async function loadGanttTemplateConfig__uat(authGeneration, authUser) {
     }
   });
 }
-
+// @profile-dispatcher
 function loadGanttTemplateConfig(...args) { return (IS_UAT_PROFILE ? loadGanttTemplateConfig__uat : loadGanttTemplateConfig__prod)(...args); }
+// @profile-group end loadGanttTemplateConfig
 
 function ganttTemplateListId(level) {
   return level === 'hardware-module' ? 'hardwareModuleTemplateList' : 'systemTemplateList';
@@ -3521,12 +3551,14 @@ function invalidateGanttTemplateSession() {
   setGanttTemplateControlsDisabled(false);
 }
 
+// @profile-group begin fn setGanttTemplateControlsDisabled
+// @profile-variant prod
 function setGanttTemplateControlsDisabled__prod(disabled) {
   document.getElementById('ganttTemplateOverlay')
     ?.querySelectorAll('button, input')
     .forEach(control => { control.disabled = disabled; });
 }
-
+// @profile-variant uat
 function setGanttTemplateControlsDisabled__uat(disabled) {
   document.getElementById('ganttTemplateOverlay')
     ?.querySelectorAll('button, input')
@@ -3535,8 +3567,9 @@ function setGanttTemplateControlsDisabled__uat(disabled) {
       control.disabled = disabled;
     });
 }
-
+// @profile-dispatcher
 function setGanttTemplateControlsDisabled(...args) { return (IS_UAT_PROFILE ? setGanttTemplateControlsDisabled__uat : setGanttTemplateControlsDisabled__prod)(...args); }
+// @profile-group end setGanttTemplateControlsDisabled
 
 function renderGanttTemplateRow(level, name = '') {
   const container = document.getElementById(ganttTemplateListId(level));
@@ -3618,6 +3651,8 @@ window.deleteGanttTemplateRow = button => {
   button.closest('.gantt-template-row')?.remove();
 };
 
+// @profile-group begin win saveGanttTemplateSettings
+// @profile-variant prod
 const saveGanttTemplateSettings__prod = async () => {
   const session = ganttTemplateSession;
   if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session) || ganttTemplateSaveInFlight) return;
@@ -3660,7 +3695,7 @@ const saveGanttTemplateSettings__prod = async () => {
     setGanttTemplateControlsDisabled(false);
   }
 };
-
+// @profile-variant uat
 const saveGanttTemplateSettings__uat = async () => {
   const session = ganttTemplateSession;
   if (
@@ -3708,8 +3743,9 @@ const saveGanttTemplateSettings__uat = async () => {
     setGanttTemplateControlsDisabled(Boolean(ganttTemplateAvailabilityStatus));
   }
 };
-
+// @profile-dispatcher
 window.saveGanttTemplateSettings = (...args) => (IS_UAT_PROFILE ? saveGanttTemplateSettings__uat : saveGanttTemplateSettings__prod)(...args);
+// @profile-group end saveGanttTemplateSettings
 // END GANTT TEMPLATE SETTINGS
 
 // GANTT WINDOW SETTINGS
@@ -3997,6 +4033,8 @@ function loadOverviewScopeForCurrentUser() {
   } catch {}
 }
 
+// @profile-group begin fn getRoleVisibleProjectsForOverview
+// @profile-variant prod
 function getRoleVisibleProjectsForOverview__prod(projects) {
   const visibilityFilter = document.getElementById('visSelect')?.value || 'active';
   return filterRoleVisibleProjects(projects, {
@@ -4005,7 +4043,7 @@ function getRoleVisibleProjectsForOverview__prod(projects) {
     visibilityFilter
   });
 }
-
+// @profile-variant uat
 function getRoleVisibleProjectsForOverview__uat(projects) {
   const visibilityFilter = document.getElementById('visSelect')?.value || 'active';
   return filterRoleVisibleProjects(projects, {
@@ -4014,8 +4052,9 @@ function getRoleVisibleProjectsForOverview__uat(projects) {
     visibilityFilter
   });
 }
-
+// @profile-dispatcher
 function getRoleVisibleProjectsForOverview(...args) { return (IS_UAT_PROFILE ? getRoleVisibleProjectsForOverview__uat : getRoleVisibleProjectsForOverview__prod)(...args); }
+// @profile-group end getRoleVisibleProjectsForOverview
 
 function overviewProjectBadge(project) {
   const label = getOverviewProjectBadgeLabel(project, overviewScope);
@@ -4208,24 +4247,29 @@ function getEmailKey(userOrEmail) {
   return (email || '').trim().toLowerCase();
 }
 
+// @profile-group begin fn normalizeRole
+// @profile-variant prod
 function normalizeRole__prod(role) {
   const normalized = (role || 'pm').toString().trim().toLowerCase();
   return ['admin', 'pm', 'vip', 'engineering', 'business', 'product'].includes(normalized) ? normalized : 'pm';
 }
-
+// @profile-variant uat
 function normalizeRole__uat(role) {
   return normalizeExecutiveRole(role) || '';
 }
-
+// @profile-dispatcher
 function normalizeRole(...args) { return (IS_UAT_PROFILE ? normalizeRole__uat : normalizeRole__prod)(...args); }
+// @profile-group end normalizeRole
 
+// @profile-group begin fn getDashboardRole
+// @profile-variant prod
 function getDashboardRole__prod(userDoc) {
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
   return normalizeRole(userDoc.data().role);
 }
-
+// @profile-variant uat
 function getDashboardRole__uat(userDoc) {
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
@@ -4234,8 +4278,9 @@ function getDashboardRole__uat(userDoc) {
   if (!role) throw new Error('missing-dashboard-role');
   return role;
 }
-
+// @profile-dispatcher
 function getDashboardRole(...args) { return (IS_UAT_PROFILE ? getDashboardRole__uat : getDashboardRole__prod)(...args); }
+// @profile-group end getDashboardRole
 
 function showAuthError(message) {
   const msg = document.getElementById('authMsg');
@@ -4252,24 +4297,31 @@ function isWeekReleased(week) {
   return week?.isReleased === true;
 }
 
+// @uat-only begin canManageWeekRelease
 function canManageWeekRelease() {
   return ['admin', 'pm'].includes(currentRole);
 }
+// @uat-only end canManageWeekRelease
 
+// @profile-group begin fn assertCurrentWeekEditable
+// @profile-variant prod
 function assertCurrentWeekEditable__prod(week = allWeeks[currentIdx]) {
   if (isWeekReleased(week)) {
     throw new Error('This week has been released to VIP and is locked. Create a new week to make updates.');
   }
 }
-
+// @profile-variant uat
 function assertCurrentWeekEditable__uat(week = allWeeks[currentIdx]) {
   if (isWeekReleased(week)) {
     throw new Error('This week has been released to Executive Owner and is locked. Create a new week to make updates.');
   }
 }
-
+// @profile-dispatcher
 function assertCurrentWeekEditable(...args) { return (IS_UAT_PROFILE ? assertCurrentWeekEditable__uat : assertCurrentWeekEditable__prod)(...args); }
+// @profile-group end assertCurrentWeekEditable
 
+// @profile-group begin fn showDataLoadError
+// @profile-variant prod
 function showDataLoadError__prod(error) {
   console.error("Weeks DB Error:", error);
   hideLoader();
@@ -4289,7 +4341,7 @@ function showDataLoadError__prod(error) {
   document.getElementById('normalView').style.display = currentRole === 'vip' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'vip' ? 'block' : 'none';
 }
-
+// @profile-variant uat
 function showDataLoadError__uat(error) {
   console.error("Weeks DB Error:", error);
   hideLoader();
@@ -4309,8 +4361,9 @@ function showDataLoadError__uat(error) {
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
 }
-
+// @profile-dispatcher
 function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
+// @profile-group end showDataLoadError
 
 // ── PRESENCE USAGE COUNTER ──
 function getPresenceUsageStorageKey(owner = currentUser) {
@@ -4410,6 +4463,8 @@ function makePresenceSessionId() {
   return `${userKey}-${Date.now()}-${random}`;
 }
 
+// @profile-group begin fn startPresenceSession
+// @profile-variant prod
 function startPresenceSession__prod() {
   if (!currentUser || presenceSessionId) return;
   const now = Date.now();
@@ -4441,7 +4496,7 @@ function startPresenceSession__prod() {
     console.warn('Presence session start skipped:', error);
   });
 }
-
+// @profile-variant uat
 function startPresenceSession__uat() {
   if (!currentUser || presenceSessionId) return;
   const now = Date.now();
@@ -4473,8 +4528,9 @@ function startPresenceSession__uat() {
     console.warn('Presence session start skipped:', error);
   });
 }
-
+// @profile-dispatcher
 function startPresenceSession(...args) { return (IS_UAT_PROFILE ? startPresenceSession__uat : startPresenceSession__prod)(...args); }
+// @profile-group end startPresenceSession
 
 function trackPresenceSession(nextState = 'active', options = {}) {
   if (!currentUser || !presenceSessionId || presenceSessionClosed) return presenceSessionWriteChain;
@@ -4730,6 +4786,8 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   });
 }
 
+// @profile-group begin fn renderPresenceSessionStats
+// @profile-variant prod
 function renderPresenceSessionStats__prod(sessions = []) {
   const normalized = sessions.map(session => normalizePresenceSession(session));
   const users = new Set(normalized.map(session => session.userKey || session.displayName).filter(Boolean));
@@ -4762,7 +4820,7 @@ function renderPresenceSessionStats__prod(sessions = []) {
       </tr>`).join('')}</tbody>
   </table></div>`;
 }
-
+// @profile-variant uat
 function renderPresenceSessionStats__uat(sessions = []) {
   const normalized = sessions.map(session => normalizePresenceSession(session));
   const users = new Set(normalized.map(session => session.userKey || session.displayName).filter(Boolean));
@@ -4795,8 +4853,9 @@ function renderPresenceSessionStats__uat(sessions = []) {
       </tr>`).join('')}</tbody>
   </table></div>`;
 }
-
+// @profile-dispatcher
 function renderPresenceSessionStats(...args) { return (IS_UAT_PROFILE ? renderPresenceSessionStats__uat : renderPresenceSessionStats__prod)(...args); }
+// @profile-group end renderPresenceSessionStats
 
 function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimatedActivities = [], lastSeenActivities = []) {
   const totals = rows.reduce((acc, row) => {
@@ -5144,6 +5203,8 @@ function setDashboardAccessPending() {
   document.getElementById('topMetricsGrid').style.display = 'none';
 }
 
+// @profile-group begin fn quiesceDashboardForAuthTransition
+// @profile-variant prod
 function quiesceDashboardForAuthTransition__prod() {
   stopPresenceSystem();
   displayNameDirectory.clear();
@@ -5161,7 +5222,7 @@ function quiesceDashboardForAuthTransition__prod() {
   currentIdx = -1;
   setDashboardAccessPending();
 }
-
+// @profile-variant uat
 function quiesceDashboardForAuthTransition__uat() {
   stopPresenceSystem();
   stopProjectManagerSubscription();
@@ -5196,8 +5257,9 @@ function quiesceDashboardForAuthTransition__uat() {
   currentIdx = -1;
   setDashboardAccessPending();
 }
-
+// @profile-dispatcher
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
+// @profile-group end quiesceDashboardForAuthTransition
 
 // ── AUTH ──
 window.handleLogin = async () => {
@@ -5268,6 +5330,8 @@ window.saveNewPassword = async () => {
   }
 };
 
+// @profile-group begin win handleLogout
+// @profile-variant prod
 const handleLogout__prod = async () => {
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
@@ -5292,7 +5356,7 @@ const handleLogout__prod = async () => {
   if (logoutGeneration !== authSessionGeneration) return;
   hideLoader();
 };
-
+// @profile-variant uat
 const handleLogout__uat = async () => {
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
@@ -5318,10 +5382,13 @@ const handleLogout__uat = async () => {
   if (logoutGeneration !== authSessionGeneration) return;
   hideLoader();
 };
-
+// @profile-dispatcher
 window.handleLogout = (...args) => (IS_UAT_PROFILE ? handleLogout__uat : handleLogout__prod)(...args);
+// @profile-group end handleLogout
 
+// @profile-stmt begin
 if (IS_UAT_PROFILE) {
+// @profile-variant uat
 onAuthStateChanged(auth, async user => {
   window.__dashboardAuthObserved = true;
   const authGeneration = ++authSessionGeneration;
@@ -5383,6 +5450,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 } else {
+// @profile-variant prod
 onAuthStateChanged(auth, async user => {
   window.__dashboardAuthObserved = true;
   const authGeneration = ++authSessionGeneration;
@@ -5448,6 +5516,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 }
+// @profile-stmt end
 
 function getUserDisplayName(emailStr) {
   return displayNameDirectory.resolve(emailStr);
@@ -5476,11 +5545,14 @@ async function fetchDynamicPMList() {
   }
 }
 
+// @uat-only begin stopProjectManagerSubscription
 function stopProjectManagerSubscription() {
   if (projectManagerUnsub) projectManagerUnsub();
   projectManagerUnsub = null;
 }
+// @uat-only end stopProjectManagerSubscription
 
+// @uat-only begin syncProjectManagerFilterOptions
 function syncProjectManagerFilterOptions() {
   const selector = document.getElementById('topPmSelect');
   if (!selector) return;
@@ -5488,7 +5560,9 @@ function syncProjectManagerFilterOptions() {
   selector.innerHTML = `<option value="all">👥 All PMs</option>${PM_LIST.map(name => `<option value="${escHtml(name)}">${escHtml(name)}</option>`).join('')}`;
   selector.value = currentPMFilter;
 }
+// @uat-only end syncProjectManagerFilterOptions
 
+// @uat-only begin startProjectManagerSubscription
 function startProjectManagerSubscription(isCurrentSession) {
   stopProjectManagerSubscription();
   return new Promise((resolve, reject) => {
@@ -5515,7 +5589,10 @@ function startProjectManagerSubscription(isCurrentSession) {
     });
   });
 }
+// @uat-only end startProjectManagerSubscription
 
+// @profile-group begin fn setupUI
+// @profile-variant prod
 function setupUI__prod() {
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
@@ -5568,7 +5645,7 @@ function setupUI__prod() {
   updateMasterDataLists();
   refreshFxRates();
 }
-
+// @profile-variant uat
 function setupUI__uat() {
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
@@ -5620,23 +5697,29 @@ function setupUI__uat() {
   refreshExecutivePendingCount();
   refreshFxRates();
 }
-
+// @profile-dispatcher
 function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__prod)(...args); }
+// @profile-group end setupUI
 
 // ── DATA ──
+// @profile-group begin win jumpToWeek
+// @profile-variant prod
 const jumpToWeek__prod = (idx) => {
   currentIdx = parseInt(idx, 10);
   render();
 };
-
+// @profile-variant uat
 const jumpToWeek__uat = (idx) => {
   currentIdx = parseInt(idx, 10);
   resetExecutiveTimelineView();
   render();
 };
-
+// @profile-dispatcher
 window.jumpToWeek = (...args) => (IS_UAT_PROFILE ? jumpToWeek__uat : jumpToWeek__prod)(...args);
+// @profile-group end jumpToWeek
 
+// @profile-group begin win toggleReleaseWeek
+// @profile-variant prod
 const toggleReleaseWeek__prod = async () => {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || releaseWriteInProgress) return;
@@ -5672,7 +5755,7 @@ const toggleReleaseWeek__prod = async () => {
     hideLoader();
   }
 };
-
+// @profile-variant uat
 const toggleReleaseWeek__uat = async () => {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || releaseWriteInProgress || !canManageWeekRelease()) return;
@@ -5708,9 +5791,12 @@ const toggleReleaseWeek__uat = async () => {
     hideLoader();
   }
 };
-
+// @profile-dispatcher
 window.toggleReleaseWeek = (...args) => (IS_UAT_PROFILE ? toggleReleaseWeek__uat : toggleReleaseWeek__prod)(...args);
+// @profile-group end toggleReleaseWeek
 
+// @profile-group begin fn initData
+// @profile-variant prod
 function initData__prod(authGeneration, authUser) {
   if (weeksUnsub) {
     weeksUnsub();
@@ -5779,7 +5865,7 @@ function initData__prod(authGeneration, authUser) {
     showDataLoadError(error);
   });
 }
-
+// @profile-variant uat
 function initData__uat(authGeneration, authUser) {
   if (weeksUnsub) {
     weeksUnsub();
@@ -5880,9 +5966,12 @@ function initData__uat(authGeneration, authUser) {
     showDataLoadError(error);
   });
 }
-
+// @profile-dispatcher
 function initData(...args) { return (IS_UAT_PROFILE ? initData__uat : initData__prod)(...args); }
+// @profile-group end initData
 
+// @profile-group begin fn canEditProject
+// @profile-variant prod
 function canEditProject__prod(proj) {
   if (currentRole === 'admin') return true;
   if (currentRole === 'vip') return false;
@@ -5899,7 +5988,7 @@ function canEditProject__prod(proj) {
     email: userEmail,
   });
 }
-
+// @profile-variant uat
 function canEditProject__uat(proj) {
   if (currentRole === 'admin') return true;
   if (currentRole !== 'pm') return false;
@@ -5916,12 +6005,18 @@ function canEditProject__uat(proj) {
     email: userEmail,
   });
 }
-
+// @profile-dispatcher
 function canEditProject(...args) { return (IS_UAT_PROFILE ? canEditProject__uat : canEditProject__prod)(...args); }
+// @profile-group end canEditProject
 
+// @profile-group begin const RELEASED_WEEK_PROJECT_EDIT_MESSAGE
+// @profile-variant prod
 const RELEASED_WEEK_PROJECT_EDIT_MESSAGE__prod = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+// @profile-variant uat
 const RELEASED_WEEK_PROJECT_EDIT_MESSAGE__uat = 'This week has been released to Executive Owner and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+// @profile-dispatcher
 const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = IS_UAT_PROFILE ? RELEASED_WEEK_PROJECT_EDIT_MESSAGE__uat : RELEASED_WEEK_PROJECT_EDIT_MESSAGE__prod;
+// @profile-group end RELEASED_WEEK_PROJECT_EDIT_MESSAGE
 
 function formatBullets(text) {
   return renderListHtml(text);
@@ -6600,17 +6695,24 @@ const EXECUTIVE_SECTION_MIGRATION = {
   'customers-gtm': 'customer-engagements',
   'investors-others': 'investors-strategy',
 };
+// @profile-group begin const EXECUTIVE_SECTION_DEFINITIONS
+// @profile-variant prod
 const EXECUTIVE_SECTION_DEFINITIONS__prod = [
   { sectionId: 'solution-ecosystem', label: 'Solution & ecosystem', audience: 'all-working-team' },
   { sectionId: 'customers-gtm', label: 'Customers & GTM', audience: 'business-product' },
   { sectionId: 'investors-others', label: 'Investors & Others', audience: 'leadership-only' },
 ];
+// @profile-variant uat
 const EXECUTIVE_SECTION_DEFINITIONS__uat = EXECUTIVE_SECTIONS.map((section, index) => ({
   ...section,
   audience: ['pm-engineering', 'business-product', 'leadership-only'][index],
 }));
+// @profile-dispatcher
 const EXECUTIVE_SECTION_DEFINITIONS = IS_UAT_PROFILE ? EXECUTIVE_SECTION_DEFINITIONS__uat : EXECUTIVE_SECTION_DEFINITIONS__prod;
+// @profile-group end EXECUTIVE_SECTION_DEFINITIONS
 
+// @profile-group begin const EXECUTIVE_AUDIENCE_OPTIONS
+// @profile-variant prod
 const EXECUTIVE_AUDIENCE_OPTIONS__prod = [
   ['all-working-team', 'All working teams'],
   ['pm-engineering', 'PM / Engineering only'],
@@ -6618,6 +6720,7 @@ const EXECUTIVE_AUDIENCE_OPTIONS__prod = [
   ['leadership-only', 'Leadership only'],
   ['everyone', 'Everyone'],
 ];
+// @profile-variant uat
 const EXECUTIVE_AUDIENCE_OPTIONS__uat = [
   ['all-working-team', 'All working teams'],
   ['pm-engineering', 'PM / Engineering only'],
@@ -6625,8 +6728,12 @@ const EXECUTIVE_AUDIENCE_OPTIONS__uat = [
   ['leadership-only', 'Leadership only'],
   ['everyone', 'Everyone'],
 ];
+// @profile-dispatcher
 const EXECUTIVE_AUDIENCE_OPTIONS = IS_UAT_PROFILE ? EXECUTIVE_AUDIENCE_OPTIONS__uat : EXECUTIVE_AUDIENCE_OPTIONS__prod;
+// @profile-group end EXECUTIVE_AUDIENCE_OPTIONS
 
+// @profile-group begin const EXECUTIVE_AUDIENCE_ROLES
+// @profile-variant prod
 const EXECUTIVE_AUDIENCE_ROLES__prod = {
   'all-working-team': new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
   'pm-engineering': new Set(['admin', 'vip', 'pm', 'engineering']),
@@ -6634,6 +6741,7 @@ const EXECUTIVE_AUDIENCE_ROLES__prod = {
   'leadership-only': new Set(['admin', 'vip']),
   everyone: new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
 };
+// @profile-variant uat
 const EXECUTIVE_AUDIENCE_ROLES__uat = {
   'all-working-team': new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']),
   'pm-engineering': new Set(['admin', 'executive', 'pm', 'engineering']),
@@ -6641,8 +6749,12 @@ const EXECUTIVE_AUDIENCE_ROLES__uat = {
   'leadership-only': new Set(['admin', 'executive']),
   everyone: new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']),
 };
+// @profile-dispatcher
 const EXECUTIVE_AUDIENCE_ROLES = IS_UAT_PROFILE ? EXECUTIVE_AUDIENCE_ROLES__uat : EXECUTIVE_AUDIENCE_ROLES__prod;
+// @profile-group end EXECUTIVE_AUDIENCE_ROLES
 
+// @profile-group begin const DCDC_EXECUTIVE_MILESTONE_TIMELINE
+// @profile-variant prod
 const DCDC_EXECUTIVE_MILESTONE_TIMELINE__prod = {
   title: 'Selected 2026 DCDC Milestone Timeline',
   quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
@@ -6688,6 +6800,7 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE__prod = {
     'Commercialization & Investment'
   ]
 };
+// @profile-variant uat
 const DCDC_EXECUTIVE_MILESTONE_TIMELINE__uat = {
   title: 'Selected 2026 DCDC Milestone Timeline',
   quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
@@ -6733,24 +6846,33 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE__uat = {
     'Commercialization & Investment'
   ]
 };
+// @profile-dispatcher
 const DCDC_EXECUTIVE_MILESTONE_TIMELINE = IS_UAT_PROFILE ? DCDC_EXECUTIVE_MILESTONE_TIMELINE__uat : DCDC_EXECUTIVE_MILESTONE_TIMELINE__prod;
+// @profile-group end DCDC_EXECUTIVE_MILESTONE_TIMELINE
 
+// @profile-group begin const EXECUTIVE_CATEGORY_LABELS
+// @profile-variant prod
 const EXECUTIVE_CATEGORY_LABELS__prod = [
   'Solution & ecosystem',
   'Customers & GTM',
   'Investors & Others',
 ];
+// @profile-variant uat
 const EXECUTIVE_CATEGORY_LABELS__uat = [
   'IoE Product Portfolio',
   'Customer Engagements',
   'Investors & Strategy',
 ];
+// @profile-dispatcher
 const EXECUTIVE_CATEGORY_LABELS = IS_UAT_PROFILE ? EXECUTIVE_CATEGORY_LABELS__uat : EXECUTIVE_CATEGORY_LABELS__prod;
+// @profile-group end EXECUTIVE_CATEGORY_LABELS
 
 function executiveCategoryKey(label = '') {
   return String(label).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+// @profile-group begin fn defaultExecutiveSectionFor
+// @profile-variant prod
 function defaultExecutiveSectionFor__prod(row = {}, index = 0) {
   const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === row.sectionId);
   if (byId) return byId;
@@ -6759,7 +6881,7 @@ function defaultExecutiveSectionFor__prod(row = {}, index = 0) {
     || EXECUTIVE_SECTION_DEFINITIONS[index]
     || { sectionId: `custom-section-${index + 1}`, label: row.label || `Section ${index + 1}`, audience: 'leadership-only' };
 }
-
+// @profile-variant uat
 function defaultExecutiveSectionFor__uat(row = {}, index = 0) {
   const migratedId = EXECUTIVE_SECTION_MIGRATION[row.sectionId] || row.sectionId;
   const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === migratedId);
@@ -6769,24 +6891,29 @@ function defaultExecutiveSectionFor__uat(row = {}, index = 0) {
     || EXECUTIVE_SECTION_DEFINITIONS[index]
     || { sectionId: `custom-section-${index + 1}`, label: row.label || `Section ${index + 1}`, audience: 'leadership-only' };
 }
-
+// @profile-dispatcher
 function defaultExecutiveSectionFor(...args) { return (IS_UAT_PROFILE ? defaultExecutiveSectionFor__uat : defaultExecutiveSectionFor__prod)(...args); }
+// @profile-group end defaultExecutiveSectionFor
 
 function normalizeExecutiveAudience(value, fallback = 'leadership-only') {
   return EXECUTIVE_AUDIENCE_ROLES[value] ? value : fallback;
 }
 
+// @profile-group begin fn canViewExecutiveSection
+// @profile-variant prod
 function canViewExecutiveSection__prod(row = {}, role = currentRole) {
   const audience = normalizeExecutiveAudience(row.audience, 'leadership-only');
   return EXECUTIVE_AUDIENCE_ROLES[audience]?.has(normalizeRole(role)) === true;
 }
-
+// @profile-variant uat
 function canViewExecutiveSection__uat(row = {}, role = currentRole) {
   return canViewConfiguredSection(executiveTimelineConfig, role, row.sectionId);
 }
-
+// @profile-dispatcher
 function canViewExecutiveSection(...args) { return (IS_UAT_PROFILE ? canViewExecutiveSection__uat : canViewExecutiveSection__prod)(...args); }
+// @profile-group end canViewExecutiveSection
 
+// @uat-only begin selectedExecutiveTimelineSnapshot
 function selectedExecutiveTimelineSnapshot() {
   const week = allWeeks[currentIdx];
   if (!isWeekReleased(week)) return null;
@@ -6800,15 +6927,21 @@ function selectedExecutiveTimelineSnapshot() {
     legacy: !stored?.timeline,
   };
 }
+// @uat-only end selectedExecutiveTimelineSnapshot
 
+// @uat-only begin isViewingLiveExecutiveTimeline
 function isViewingLiveExecutiveTimeline() {
   return !selectedExecutiveTimelineSnapshot() || executiveTimelineViewMode === 'live';
 }
+// @uat-only end isViewingLiveExecutiveTimeline
 
+// @uat-only begin resetExecutiveTimelineView
 function resetExecutiveTimelineView() {
   executiveTimelineViewMode = 'period';
 }
+// @uat-only end resetExecutiveTimelineView
 
+// @uat-only begin currentExecutiveTimeline
 function currentExecutiveTimeline() {
   const snapshot = selectedExecutiveTimelineSnapshot();
   const timeline = !snapshot || isViewingLiveExecutiveTimeline()
@@ -6816,7 +6949,10 @@ function currentExecutiveTimeline() {
     : snapshot.timeline;
   return normalizeExecutiveMilestoneTimeline(timeline || {});
 }
+// @uat-only end currentExecutiveTimeline
 
+// @profile-group begin fn normalizeExecutiveMilestoneTimeline
+// @profile-variant prod
 function normalizeExecutiveMilestoneTimeline__prod(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
@@ -6847,7 +6983,7 @@ function normalizeExecutiveMilestoneTimeline__prod(raw = {}) {
     categoryOverrides,
   };
 }
-
+// @profile-variant uat
 function normalizeExecutiveMilestoneTimeline__uat(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
@@ -6886,8 +7022,9 @@ function normalizeExecutiveMilestoneTimeline__uat(raw = {}) {
     ragOverrides: source.ragOverrides && typeof source.ragOverrides === 'object' ? source.ragOverrides : {},
   };
 }
-
+// @profile-dispatcher
 function normalizeExecutiveMilestoneTimeline(...args) { return (IS_UAT_PROFILE ? normalizeExecutiveMilestoneTimeline__uat : normalizeExecutiveMilestoneTimeline__prod)(...args); }
+// @profile-group end normalizeExecutiveMilestoneTimeline
 
 function trackClassName(trackId) {
   const safeId = String(trackId || 'all').toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -7605,10 +7742,13 @@ function executiveRagLabel(health) {
   return 'Green';
 }
 
+// @uat-only begin executiveItemRag
 function executiveItemRag(item) {
   return normalizeExecutiveOutcome(item).rag || 'green';
 }
+// @uat-only end executiveItemRag
 
+// @uat-only begin calculateExecutiveSectionRag
 function calculateExecutiveSectionRag(timeline, row) {
   const calculated = calculateVisibleExecutiveRag(
     (row.cells || []).flat().map(item => ({ sectionId: row.sectionId, rag: executiveItemRag(item) })),
@@ -7616,11 +7756,14 @@ function calculateExecutiveSectionRag(timeline, row) {
   ) || 'green';
   return timeline.ragOverrides?.[`section:${row.sectionId}`]?.replacementValue || calculated;
 }
+// @uat-only end calculateExecutiveSectionRag
 
+// @profile-group begin fn calculateExecutiveQuarterRag
+// @profile-variant prod
 function calculateExecutiveQuarterRag__prod(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
   return calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex, rows).health;
 }
-
+// @profile-variant uat
 function calculateExecutiveQuarterRag__uat(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
   const quarterKey = `q${quarterIndex + 1}`;
   const calculated = calculateVisibleExecutiveRag(
@@ -7634,22 +7777,28 @@ function calculateExecutiveQuarterRag__uat(timeline, catalog, quarterIndex, rows
   const leadershipOverride = timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue;
   return canViewAllSections && leadershipOverride ? leadershipOverride : calculated;
 }
-
+// @profile-dispatcher
 function calculateExecutiveQuarterRag(...args) { return (IS_UAT_PROFILE ? calculateExecutiveQuarterRag__uat : calculateExecutiveQuarterRag__prod)(...args); }
+// @profile-group end calculateExecutiveQuarterRag
 
+// @uat-only begin formatExecutiveUpdateDate
 function formatExecutiveUpdateDate(value) {
   if (!value) return 'No update recorded';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'No update recorded' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
+// @uat-only end formatExecutiveUpdateDate
 
+// @uat-only begin executiveUpdateRecordLabel
 function executiveUpdateRecordLabel(freshness, latestStatusAt) {
   if (freshness === 'missing') return 'Update record · No update recorded';
   if (freshness === 'refresh-requested') return 'Update record · Refresh requested';
   if (freshness === 'please-refresh') return 'Update record · Please refresh';
   return `Update record · ${formatExecutiveUpdateDate(latestStatusAt)}`;
 }
+// @uat-only end executiveUpdateRecordLabel
 
+// @uat-only begin renderExecutiveCompactItem
 function renderExecutiveCompactItem(source, row) {
   const item = normalizeExecutiveOutcome(source);
   const rag = executiveItemRag(item);
@@ -7672,6 +7821,7 @@ function renderExecutiveCompactItem(source, row) {
     </button>
   </article>`;
 }
+// @uat-only end renderExecutiveCompactItem
 
 function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.rows || []) {
   return `<div class="exec-category-summary-grid">${rows.map(row => {
@@ -7689,6 +7839,8 @@ function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.row
   }).join('')}</div>`;
 }
 
+// @profile-group begin fn renderExecutiveQuarterMilestones
+// @profile-variant prod
 function renderExecutiveQuarterMilestones__prod(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
@@ -7721,7 +7873,7 @@ function renderExecutiveQuarterMilestones__prod(projs, layer = getStrategyLayer(
     </div>
   </section>`;
 }
-
+// @profile-variant uat
 function renderExecutiveQuarterMilestones__uat(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const snapshot = selectedExecutiveTimelineSnapshot();
   const viewingLive = isViewingLiveExecutiveTimeline();
@@ -7770,9 +7922,11 @@ function renderExecutiveQuarterMilestones__uat(projs, layer = getStrategyLayer()
     </div>
   </section>`;
 }
-
+// @profile-dispatcher
 function renderExecutiveQuarterMilestones(...args) { return (IS_UAT_PROFILE ? renderExecutiveQuarterMilestones__uat : renderExecutiveQuarterMilestones__prod)(...args); }
+// @profile-group end renderExecutiveQuarterMilestones
 
+// @uat-only begin toggleExecutiveTimelineView
 window.toggleExecutiveTimelineView = () => {
   if (!selectedExecutiveTimelineSnapshot()) return;
   executiveTimelineViewMode = isViewingLiveExecutiveTimeline() ? 'period' : 'live';
@@ -7781,6 +7935,7 @@ window.toggleExecutiveTimelineView = () => {
   closeModal('executiveRagOverrideOverlay', { force: true });
   render();
 };
+// @uat-only end toggleExecutiveTimelineView
 
 document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-executive-item-id]');
@@ -7789,6 +7944,7 @@ document.addEventListener('click', event => {
 });
 
 let executiveDragSession = null;
+// @uat-only begin clearExecutiveDragTarget
 function clearExecutiveDragTarget() { document.querySelectorAll('.executive-drop-target').forEach(cell => cell.classList.remove('executive-drop-target')); }
 function executiveDropIndex(cell, clientY) { const cards = [...cell.querySelectorAll('.executive-compact-item')]; const targetIndex = cards.findIndex(card => clientY < card.getBoundingClientRect().top + (card.getBoundingClientRect().height / 2)); return targetIndex < 0 ? cards.length : targetIndex; }
 document.addEventListener('dragstart', event => {
@@ -7799,6 +7955,7 @@ document.addEventListener('dragstart', event => {
   executiveDragSession = { itemId: location.item.id, sourceSectionId: location.row.sectionId, sourceQuarterKey: location.quarterKey, sourceIndex: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id) };
   event.dataTransfer?.setData('text/plain', location.item.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 });
+// @uat-only end clearExecutiveDragTarget
 document.addEventListener('dragover', event => {
   if (!executiveDragSession) return; const cell = event.target.closest?.('[data-executive-drop-section][data-executive-drop-quarter]'); if (!cell) return;
   event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; clearExecutiveDragTarget(); cell.classList.add('executive-drop-target');
@@ -7812,10 +7969,13 @@ document.addEventListener('drop', event => {
 });
 document.addEventListener('dragend', () => { executiveDragSession = null; clearExecutiveDragTarget(); });
 
+// @uat-only begin executiveWeekDocumentId
 function executiveWeekDocumentId(week = allWeeks[currentIdx]) {
   return String(week?.__documentId || week?.weekLabel || '').trim().replace(/\s+/g, '-');
 }
+// @uat-only end executiveWeekDocumentId
 
+// @uat-only begin initializeExecutiveLiveTimeline
 window.initializeExecutiveLiveTimeline = async () => {
   if (currentRole !== 'admin' || executiveLiveTimelineState?.timeline) return;
   const sourceWeekId = executiveWeekDocumentId();
@@ -7828,7 +7988,9 @@ window.initializeExecutiveLiveTimeline = async () => {
     showSaveToast(error.message || 'Unable to initialize Executive milestones.');
   }
 };
+// @uat-only end initializeExecutiveLiveTimeline
 
+// @uat-only begin findExecutiveTimelineItem
 function findExecutiveTimelineItem(itemId) {
   const timeline = currentExecutiveTimeline();
   for (const row of timeline.rows || []) {
@@ -7839,7 +8001,9 @@ function findExecutiveTimelineItem(itemId) {
   }
   return null;
 }
+// @uat-only end findExecutiveTimelineItem
 
+// @uat-only begin isExecutiveUpdateSessionCurrent
 function isExecutiveUpdateSessionCurrent(session = executiveUpdateSession, options = {}) {
   if (!session || session !== executiveUpdateSession) return false;
   if (!isViewingLiveExecutiveTimeline()) return false;
@@ -7850,12 +8014,16 @@ function isExecutiveUpdateSessionCurrent(session = executiveUpdateSession, optio
   if (!location) return false;
   return options.requireVersion === false || Number(location.item.version || 0) === Number(session.version || 0);
 }
+// @uat-only end isExecutiveUpdateSessionCurrent
 
+// @uat-only begin executiveHistoryDate
 function executiveHistoryDate(value) {
   const date = value?.toDate ? value.toDate() : new Date(value || 0);
   return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
 }
+// @uat-only end executiveHistoryDate
 
+// @uat-only begin renderExecutiveUpdateHistory
 function renderExecutiveUpdateHistory(records = []) {
   const history = document.getElementById('executiveUpdateHistory');
   if (!history) return;
@@ -7869,7 +8037,9 @@ function renderExecutiveUpdateHistory(records = []) {
     + '<div class="executive-history-meta">' + escHtml(record.actorEmail || 'Unknown actor') + ' · ' + escHtml(record.actorRole || '') + '</div>'
     + '</article>').join('');
 }
+// @uat-only end renderExecutiveUpdateHistory
 
+// @uat-only begin renderExecutiveItemDrawer
 function renderExecutiveItemDrawer(location, canEdit) {
   const item = normalizeExecutiveOutcome(location.item);
   const context = document.getElementById('executiveItemDrawerContext');
@@ -7905,14 +8075,18 @@ function renderExecutiveItemDrawer(location, canEdit) {
     error.className = 'resource-validation';
   }
 }
+// @uat-only end renderExecutiveItemDrawer
 
+// @uat-only begin selectExecutiveDrawerRag
 window.selectExecutiveDrawerRag = rag => {
   if (!isExecutiveUpdateSessionCurrent() || !executiveUpdateSession.canEdit) return;
   document.querySelectorAll('[data-executive-rag]').forEach(button => {
     button.classList.toggle('active', button.dataset.executiveRag === rag);
   });
 };
+// @uat-only end selectExecutiveDrawerRag
 
+// @uat-only begin openExecutiveItemDrawer
 window.openExecutiveItemDrawer = itemId => {
   const location = findExecutiveTimelineItem(String(itemId || ''));
   if (!location || !canViewExecutiveSection(location.row)) return;
@@ -7956,9 +8130,11 @@ window.openExecutiveItemDrawer = itemId => {
   });
   openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
 };
+// @uat-only end openExecutiveItemDrawer
 
 window.closeExecutiveItemDrawer = (options = {}) => closeModal('executiveItemDrawerOverlay', options);
 
+// @uat-only begin saveExecutiveItemUpdate
 window.saveExecutiveItemUpdate = async () => {
   const session = executiveUpdateSession;
   if (executiveUpdateSaving || !isExecutiveUpdateSessionCurrent(session) || !session.canEdit) return;
@@ -7990,7 +8166,9 @@ window.saveExecutiveItemUpdate = async () => {
     }
   }
 }
+// @uat-only end saveExecutiveItemUpdate
 
+// @uat-only begin executiveLocationSnapshot
 function executiveLocationSnapshot(location) {
   if (!location) return null;
   return {
@@ -8000,7 +8178,9 @@ function executiveLocationSnapshot(location) {
     item: normalizeExecutiveOutcome(location.item),
   };
 }
+// @uat-only end executiveLocationSnapshot
 
+// @uat-only begin isExecutiveChangeSessionCurrent
 function isExecutiveChangeSessionCurrent(session = executiveChangeSession) {
   return Boolean(session
     && session === executiveChangeSession
@@ -8009,15 +8189,21 @@ function isExecutiveChangeSessionCurrent(session = executiveChangeSession) {
     && session.authEmail === getEmailKey(currentUser)
     && session.role === currentRole);
 }
+// @uat-only end isExecutiveChangeSessionCurrent
 
+// @uat-only begin executiveStructuralActionLabel
 function executiveStructuralActionLabel(action) {
   return ({ add: 'Add milestone', rename: 'Rename milestone', move: 'Move milestone', delete: 'Delete milestone' })[action] || 'Milestone change';
 }
+// @uat-only end executiveStructuralActionLabel
 
+// @uat-only begin executiveStructuralLocationLabel
 function executiveStructuralLocationLabel(sectionId, quarterKey) {
   return `${configuredSectionLabel(executiveTimelineConfig, sectionId)} · ${configuredQuarterLabel(executiveTimelineConfig, quarterKey)}`;
 }
+// @uat-only end executiveStructuralLocationLabel
 
+// @uat-only begin buildExecutiveChangePayload
 function buildExecutiveChangePayload() {
   if (!isExecutiveChangeSessionCurrent()) throw new Error('Your dashboard session changed. Reopen the request.');
   const { action, before, newItemId, targetIndex } = executiveChangeSession;
@@ -8051,7 +8237,9 @@ function buildExecutiveChangePayload() {
     reason,
   };
 }
+// @uat-only end buildExecutiveChangePayload
 
+// @uat-only begin renderExecutiveStructuralSummary
 function renderExecutiveStructuralSummary() {
   if (!isExecutiveChangeSessionCurrent()) return;
   const { action, before } = executiveChangeSession;
@@ -8065,8 +8253,10 @@ function renderExecutiveStructuralSummary() {
   if (action === 'move') summary.textContent = `Move “${before?.item?.text || 'this milestone'}” from ${executiveStructuralLocationLabel(before?.sectionId, before?.quarterKey)} to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
   if (action === 'delete') summary.textContent = `Delete “${before?.item?.text || 'this milestone'}”. This action requires a recorded reason.`;
 }
+// @uat-only end renderExecutiveStructuralSummary
 window.renderExecutiveStructuralSummary = renderExecutiveStructuralSummary;
 
+// @uat-only begin openExecutiveStructuralAction
 function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId = '', quarterKey = '', targetIndex } = {}) {
   if (!isViewingLiveExecutiveTimeline()) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
@@ -8111,18 +8301,24 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
   renderExecutiveStructuralSummary();
   openAccessibleModal(document.getElementById('executiveChangeRequestOverlay'));
 }
+// @uat-only end openExecutiveStructuralAction
 window.openExecutiveStructuralAction = openExecutiveStructuralAction;
+// @uat-only begin openExecutiveStructuralActionFromDrawer
 window.openExecutiveStructuralActionFromDrawer = action => {
   const itemId = executiveUpdateSession?.itemId || '';
   openExecutiveStructuralAction({ action, itemId });
 };
+// @uat-only end openExecutiveStructuralActionFromDrawer
 window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ action: itemId ? 'rename' : 'add', itemId });
 
+// @uat-only begin showExecutiveMilestonePendingDialog
 function showExecutiveMilestonePendingDialog() {
   openAccessibleModal(document.getElementById('executivePendingMilestoneOverlay'));
 }
+// @uat-only end showExecutiveMilestonePendingDialog
 window.showExecutiveMilestonePendingDialog = showExecutiveMilestonePendingDialog;
 
+// @uat-only begin submitExecutiveChangeRequest
 window.submitExecutiveChangeRequest = async direct => {
   const errorBox = document.getElementById('executiveChangeError');
   const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn');
@@ -8160,25 +8356,35 @@ window.submitExecutiveChangeRequest = async direct => {
     }
   }
 };
+// @uat-only end submitExecutiveChangeRequest
 
+// @uat-only begin canOpenExecutiveChangeInbox
 function canOpenExecutiveChangeInbox() {
   return Boolean(getEmailKey(currentUser)) && (isExecutiveChangeReviewer() || isExecutiveChangeRequester());
 }
+// @uat-only end canOpenExecutiveChangeInbox
 
+// @uat-only begin isExecutiveChangeReviewer
 function isExecutiveChangeReviewer() {
   return ['admin', 'executive'].includes(currentRole);
 }
+// @uat-only end isExecutiveChangeReviewer
 
+// @uat-only begin isExecutiveChangeRequester
 function isExecutiveChangeRequester() {
   return ['pm', 'engineering', 'sales', 'bd', 'product'].includes(currentRole);
 }
+// @uat-only end isExecutiveChangeRequester
 
+// @uat-only begin executiveInboxCopy
 function executiveInboxCopy() {
   if (currentRole === 'executive') return { title: 'Approval requests', mode: 'Pending requests requiring Executive Owner decision.' };
   if (currentRole === 'admin') return { title: 'Change notifications', mode: 'Admin audit-only — Executive Owner makes approval decisions.' };
   return { title: 'My change requests', mode: 'Pending requests can be withdrawn until the Executive Owner makes a decision.' };
 }
+// @uat-only end executiveInboxCopy
 
+// @uat-only begin executiveChangeRecordDisplay
 function executiveChangeRecordDisplay(record) {
   const before = record.before || {};
   const after = record.after || {};
@@ -8202,7 +8408,9 @@ function executiveChangeRecordDisplay(record) {
     reason: record.reason || 'No reason provided.',
   };
 }
+// @uat-only end executiveChangeRecordDisplay
 
+// @uat-only begin refreshExecutivePendingCount
 async function refreshExecutivePendingCount() {
   const badge = document.getElementById('executivePendingCount');
   if (!badge || !isExecutiveChangeReviewer()) return;
@@ -8218,7 +8426,9 @@ async function refreshExecutivePendingCount() {
     badge.hidden = true;
   }
 }
+// @uat-only end refreshExecutivePendingCount
 
+// @uat-only begin renderExecutiveApprovalInbox
 function renderExecutiveApprovalInbox(records = []) {
   const list = document.getElementById('executiveApprovalInboxList');
   const visible = records;
@@ -8233,12 +8443,16 @@ function renderExecutiveApprovalInbox(records = []) {
     return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${decisionComment}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn btn-danger executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}',this)">Withdraw request</button>` : ''}${canDecide ? `<button class="btn btn-danger" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject',this)">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve',this)">Approve</button>` : ''}</div>` : ''}</article>`;
   }).join('');
 }
+// @uat-only end renderExecutiveApprovalInbox
 
+// @uat-only begin executiveDecisionComment
 function executiveDecisionComment(requestId) {
   return [...document.querySelectorAll('[data-executive-decision-comment]')]
     .find(field => field.dataset.executiveDecisionComment === requestId) || null;
 }
+// @uat-only end executiveDecisionComment
 
+// @uat-only begin setAsyncActionState
 function setAsyncActionState(button, busy, busyLabel = 'Working…') {
   if (!button) return;
   if (busy) {
@@ -8253,7 +8467,9 @@ function setAsyncActionState(button, busy, busyLabel = 'Working…') {
   button.textContent = button.dataset.idleLabel || button.textContent;
   delete button.dataset.idleLabel;
 }
+// @uat-only end setAsyncActionState
 
+// @uat-only begin openExecutiveApprovalInbox
 window.openExecutiveApprovalInbox = () => {
   if (!canOpenExecutiveChangeInbox()) return;
   if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
@@ -8273,13 +8489,17 @@ window.openExecutiveApprovalInbox = () => {
     badge.textContent = String(pending); badge.hidden = pending === 0;
   }, error => { document.getElementById('executiveApprovalInboxList').textContent = error.message || 'Inbox is unavailable.'; });
 };
+// @uat-only end openExecutiveApprovalInbox
 
+// @uat-only begin openExecutiveMyRequests
 window.openExecutiveMyRequests = () => {
   if (!isExecutiveChangeRequester()) return;
   closeModal('executiveChangeRequestOverlay', { force: true });
   window.openExecutiveApprovalInbox();
 };
+// @uat-only end openExecutiveMyRequests
 
+// @uat-only begin withdrawExecutiveChangeRequest
 window.withdrawExecutiveChangeRequest = async (requestId, sourceButton) => {
   if (executiveApprovalDecisionInFlight || !requestId) return;
   if (!window.confirm('Withdraw this pending change request?')) return;
@@ -8298,7 +8518,9 @@ window.withdrawExecutiveChangeRequest = async (requestId, sourceButton) => {
     setAsyncActionState(sourceButton, false);
   }
 };
+// @uat-only end withdrawExecutiveChangeRequest
 
+// @uat-only begin decideExecutiveChangeRequest
 window.decideExecutiveChangeRequest = async (requestId, decision, sourceButton) => {
   if (currentRole !== 'executive' || executiveApprovalDecisionInFlight) return;
   const commentField = executiveDecisionComment(requestId);
@@ -8328,7 +8550,9 @@ window.decideExecutiveChangeRequest = async (requestId, decision, sourceButton) 
     setAsyncActionState(sourceButton, false);
   }
 };
+// @uat-only end decideExecutiveChangeRequest
 
+// @uat-only begin openExecutiveRagOverride
 window.openExecutiveRagOverride = (scope, targetId) => {
   if (!isViewingLiveExecutiveTimeline()) return;
   if (!canChangeExecutiveStructure(currentRole)) return;
@@ -8342,7 +8566,9 @@ window.openExecutiveRagOverride = (scope, targetId) => {
   document.getElementById('executiveRagOverrideError').textContent = '';
   openAccessibleModal(document.getElementById('executiveRagOverrideOverlay'));
 };
+// @uat-only end openExecutiveRagOverride
 
+// @uat-only begin saveExecutiveRagOverride
 window.saveExecutiveRagOverride = async remove => {
   const session = executiveRagOverrideSession;
   const errorBox = document.getElementById('executiveRagOverrideError');
@@ -8355,14 +8581,18 @@ window.saveExecutiveRagOverride = async remove => {
     showSaveToast(remove ? 'RAG override removed.' : 'RAG override saved.');
   } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to change the RAG override.'; }
 };
+// @uat-only end saveExecutiveRagOverride
 
 const EXECUTIVE_TIMELINE_ROLE_OPTIONS = ['admin', 'executive', 'sales', 'bd', 'product', 'pm', 'engineering'];
 let executiveTimelineSettingsSession = null;
 
+// @uat-only begin renderExecutiveTimelineRoleOptions
 function renderExecutiveTimelineRoleOptions(sectionId, field, selectedRoles) {
   return `<div class="executive-timeline-role-options">${EXECUTIVE_TIMELINE_ROLE_OPTIONS.map(role => `<label><input type="checkbox" data-timeline-role="${field}" data-section-id="${escHtml(sectionId)}" value="${role}" ${selectedRoles.includes(role) ? 'checked' : ''}>${escHtml(role)}</label>`).join('')}</div>`;
 }
+// @uat-only end renderExecutiveTimelineRoleOptions
 
+// @uat-only begin openExecutiveTimelineSettings
 window.openExecutiveTimelineSettings = () => {
   if (!canChangeExecutiveStructure(currentRole)) return;
   executiveTimelineSettingsSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, version: Number(executiveTimelineConfig.version || 1) };
@@ -8372,11 +8602,15 @@ window.openExecutiveTimelineSettings = () => {
   document.getElementById('executiveTimelineSettingsError').textContent = '';
   openAccessibleModal(document.getElementById('executiveTimelineSettingsOverlay'));
 };
+// @uat-only end openExecutiveTimelineSettings
 
+// @uat-only begin selectedExecutiveTimelineRoles
 function selectedExecutiveTimelineRoles(sectionId, field) {
   return [...document.querySelectorAll(`input[data-timeline-role="${field}"]`)].filter(input => input.dataset.sectionId === sectionId && input.checked).map(input => input.value);
 }
+// @uat-only end selectedExecutiveTimelineRoles
 
+// @uat-only begin saveExecutiveTimelineSettings
 window.saveExecutiveTimelineSettings = async () => {
   const session = executiveTimelineSettingsSession;
   const errorBox = document.getElementById('executiveTimelineSettingsError');
@@ -8392,6 +8626,7 @@ window.saveExecutiveTimelineSettings = async () => {
     showSaveToast('Executive timeline settings saved.');
   } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to save timeline settings.'; }
 };
+// @uat-only end saveExecutiveTimelineSettings
 
 function renderProjectQuarterItems(items) {
   if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';
@@ -8528,6 +8763,8 @@ function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTra
   </section>`;
 }
 
+// @profile-group begin fn renderQuarterlyBoard
+// @profile-variant prod
 function renderQuarterlyBoard__prod(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const executive = activePortfolioRoadmapView === 'executive';
   return `<div class="portfolio-roadmap">
@@ -8550,7 +8787,7 @@ function renderQuarterlyBoard__prod(projs, layer = getStrategyLayer(), activeTra
       : `<div class="project-roadmap-guidance">Edit milestones from the project card.</div>${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}`}
   </div>`;
 }
-
+// @profile-variant uat
 function renderQuarterlyBoard__uat(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const executive = activePortfolioRoadmapView === 'executive';
   return `<div class="portfolio-roadmap">
@@ -8570,8 +8807,9 @@ function renderQuarterlyBoard__uat(projs, layer = getStrategyLayer(), activeTrac
       : `<div class="project-roadmap-guidance">Edit milestones from the project card.</div>${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}`}
   </div>`;
 }
-
+// @profile-dispatcher
 function renderQuarterlyBoard(...args) { return (IS_UAT_PROFILE ? renderQuarterlyBoard__uat : renderQuarterlyBoard__prod)(...args); }
+// @profile-group end renderQuarterlyBoard
 
 function renderAttentionMatrix(projs, editable) {
   const order = [
@@ -9411,6 +9649,8 @@ window.exportProjectOnePagePdf = () => {
 };
 
 // ── RENDER ──
+// @profile-group begin win render
+// @profile-variant prod
 const render__prod = () => {
   const week = allWeeks[currentIdx];
   if (!week) {
@@ -9500,7 +9740,7 @@ const render__prod = () => {
     }
   }
 };
-
+// @profile-variant uat
 const render__uat = () => {
   const week = allWeeks[currentIdx];
   if (!week) {
@@ -9593,8 +9833,9 @@ const render__uat = () => {
     }
   }
 };
-
+// @profile-dispatcher
 window.render = (...args) => (IS_UAT_PROFILE ? render__uat : render__prod)(...args);
+// @profile-group end render
 
 function renderNormal(projs) {
   const grid = document.getElementById('projGrid');
@@ -9987,6 +10228,8 @@ function newExecutiveOutcomeId() {
   return `exec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+// @profile-group begin fn renderExecutiveSourceSelect
+// @profile-variant prod
 function renderExecutiveSourceSelect__prod(reference = {}) {
   const selectedKey = reference.projectCode ? executiveSourceKey(reference) : '';
   const sourceExists = selectedKey && currentExecutiveEvidenceCatalog.options.some(option => option.key === selectedKey);
@@ -10000,7 +10243,7 @@ function renderExecutiveSourceSelect__prod(reference = {}) {
     <button type="button" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
   </div>`;
 }
-
+// @profile-variant uat
 function renderExecutiveSourceSelect__uat(reference = {}) {
   const selectedKey = reference.projectCode ? executiveSourceKey(reference) : '';
   const sourceExists = selectedKey && currentExecutiveEvidenceCatalog.options.some(option => option.key === selectedKey);
@@ -10014,8 +10257,9 @@ function renderExecutiveSourceSelect__uat(reference = {}) {
     <button type="button" class="row-delete" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
   </div>`;
 }
-
+// @profile-dispatcher
 function renderExecutiveSourceSelect(...args) { return (IS_UAT_PROFILE ? renderExecutiveSourceSelect__uat : renderExecutiveSourceSelect__prod)(...args); }
+// @profile-group end renderExecutiveSourceSelect
 
 function renderExecutiveOutcomeEditor(source = {}) {
   const outcome = normalizeExecutiveOutcome(source);
@@ -10332,6 +10576,8 @@ function collectExecutiveMilestoneTimeline() {
   });
 }
 
+// @profile-group begin win openStrategyLayerModal
+// @profile-variant prod
 const openStrategyLayerModal__prod = () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
@@ -10361,7 +10607,7 @@ const openStrategyLayerModal__prod = () => {
 
   openAccessibleModal(document.getElementById('strategyOverlay'));
 };
-
+// @profile-variant uat
 const openStrategyLayerModal__uat = () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
@@ -10389,9 +10635,12 @@ const openStrategyLayerModal__uat = () => {
 
   openAccessibleModal(document.getElementById('strategyOverlay'));
 };
-
+// @profile-dispatcher
 window.openStrategyLayerModal = (...args) => (IS_UAT_PROFILE ? openStrategyLayerModal__uat : openStrategyLayerModal__prod)(...args);
+// @profile-group end openStrategyLayerModal
 
+// @profile-group begin win openExecutiveTimelineEditor
+// @profile-variant prod
 const openExecutiveTimelineEditor__prod = () => {
   if (!canManageStrategy()) return;
   openStrategyLayerModal();
@@ -10401,13 +10650,14 @@ const openExecutiveTimelineEditor__prod = () => {
     editor?.querySelector('.etm-title')?.focus();
   });
 };
-
+// @profile-variant uat
 const openExecutiveTimelineEditor__uat = () => {
   if (!canManageStrategy()) return;
   window.openExecutiveChangeRequest('');
 };
-
+// @profile-dispatcher
 window.openExecutiveTimelineEditor = (...args) => (IS_UAT_PROFILE ? openExecutiveTimelineEditor__uat : openExecutiveTimelineEditor__prod)(...args);
+// @profile-group end openExecutiveTimelineEditor
 
 window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLayer()) => {
   if (!canManageStrategy()) return;
@@ -10428,6 +10678,8 @@ window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLaye
   group.querySelector('.quarter-goal-rows').appendChild(row);
 };
 
+// @profile-group begin win saveStrategyLayer
+// @profile-variant prod
 const saveStrategyLayer__prod = async () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
@@ -10476,7 +10728,7 @@ const saveStrategyLayer__prod = async () => {
     hideLoader();
   }
 };
-
+// @profile-variant uat
 const saveStrategyLayer__uat = async () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
@@ -10514,8 +10766,9 @@ const saveStrategyLayer__uat = async () => {
     hideLoader();
   }
 };
-
+// @profile-dispatcher
 window.saveStrategyLayer = (...args) => (IS_UAT_PROFILE ? saveStrategyLayer__uat : saveStrategyLayer__prod)(...args);
+// @profile-group end saveStrategyLayer
 
 function findCurrentProject(code) {
   const week = allWeeks[currentIdx];
@@ -10763,6 +11016,8 @@ window.applyOverviewPrintPreset = preset => {
   }
 };
 
+// @profile-group begin const EXECUTIVE_PDF_VIEWS_BY_ROLE
+// @profile-variant prod
 const EXECUTIVE_PDF_VIEWS_BY_ROLE__prod = {
   admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
   vip: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
@@ -10771,6 +11026,7 @@ const EXECUTIVE_PDF_VIEWS_BY_ROLE__prod = {
   business: ['business-product', 'all-working-team', 'everyone'],
   product: ['business-product', 'all-working-team', 'everyone'],
 };
+// @profile-variant uat
 const EXECUTIVE_PDF_VIEWS_BY_ROLE__uat = {
   admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
   executive: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
@@ -10780,7 +11036,9 @@ const EXECUTIVE_PDF_VIEWS_BY_ROLE__uat = {
   bd: ['business-product', 'all-working-team', 'everyone'],
   product: ['business-product', 'all-working-team', 'everyone'],
 };
+// @profile-dispatcher
 const EXECUTIVE_PDF_VIEWS_BY_ROLE = IS_UAT_PROFILE ? EXECUTIVE_PDF_VIEWS_BY_ROLE__uat : EXECUTIVE_PDF_VIEWS_BY_ROLE__prod;
+// @profile-group end EXECUTIVE_PDF_VIEWS_BY_ROLE
 
 window.syncExecutiveMilestoneAudienceField = () => {
   const checkbox = document.querySelector('#overviewPrintSections input[value="executive-milestones"]');
@@ -10788,6 +11046,8 @@ window.syncExecutiveMilestoneAudienceField = () => {
   if (wrapper) wrapper.hidden = !checkbox?.checked;
 };
 
+// @profile-group begin fn configureExecutiveMilestoneAudienceView
+// @profile-variant prod
 function configureExecutiveMilestoneAudienceView__prod() {
   const select = document.getElementById('executiveMilestoneAudienceView');
   if (!select) return;
@@ -10798,7 +11058,7 @@ function configureExecutiveMilestoneAudienceView__prod() {
   select.value = allowed[0];
   syncExecutiveMilestoneAudienceField();
 }
-
+// @profile-variant uat
 function configureExecutiveMilestoneAudienceView__uat() {
   const select = document.getElementById('executiveMilestoneAudienceView');
   if (!select) return;
@@ -10809,8 +11069,9 @@ function configureExecutiveMilestoneAudienceView__uat() {
   select.value = allowed[0] || '';
   syncExecutiveMilestoneAudienceField();
 }
-
+// @profile-dispatcher
 function configureExecutiveMilestoneAudienceView(...args) { return (IS_UAT_PROFILE ? configureExecutiveMilestoneAudienceView__uat : configureExecutiveMilestoneAudienceView__prod)(...args); }
+// @profile-group end configureExecutiveMilestoneAudienceView
 
 let overviewPrintDraft = null;
 
@@ -10945,6 +11206,7 @@ window.setOverviewScope = scope => {
   }
   render();
 };
+// @uat-only begin toggleExecutivePreview
 window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;
   isAdminVipPreview = !isAdminVipPreview;
@@ -10972,10 +11234,13 @@ window.toggleExecutivePreview = () => {
   badge.className = `role-badge ${isAdminVipPreview ? 'executive' : 'admin'}`;
   render();
 };
+// @uat-only end toggleExecutivePreview
 window.setOverviewCurrency = (currency) => {
   if (SUPPORTED_CURRENCIES.includes(currency)) overviewCurrency = currency;
   render();
 };
+// @profile-group begin win navWeek
+// @profile-variant prod
 const navWeek__prod = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
@@ -10983,7 +11248,7 @@ const navWeek__prod = (dir) => {
   }
   render();
 };
-
+// @profile-variant uat
 const navWeek__uat = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
@@ -10992,8 +11257,9 @@ const navWeek__uat = (dir) => {
   }
   render();
 };
-
+// @profile-dispatcher
 window.navWeek = (...args) => (IS_UAT_PROFILE ? navWeek__uat : navWeek__prod)(...args);
+// @profile-group end navWeek
 let projectDetailModalState = null;
 function isolateProjectDetailModal() {
   const projectDetail = document.getElementById('projDetailOverlay');
@@ -11024,6 +11290,8 @@ function openAccessibleModal(modal) {
   requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
 }
 
+// @profile-group begin fn serializeEditorState
+// @profile-variant prod
 function serializeEditorState__prod(overlay) {
   if (!overlay?.hasAttribute('data-editor-overlay')) return '';
   const values = [];
@@ -11042,7 +11310,7 @@ function serializeEditorState__prod(overlay) {
   values.sort((left, right) => left[0].localeCompare(right[0]) || left[1].localeCompare(right[1]));
   return JSON.stringify(values);
 }
-
+// @profile-variant uat
 function serializeEditorState__uat(overlay) {
   if (!overlay?.hasAttribute('data-editor-overlay')) return '';
   const values = [];
@@ -11063,8 +11331,9 @@ function serializeEditorState__uat(overlay) {
   values.sort((left, right) => left[0].localeCompare(right[0]) || left[1].localeCompare(right[1]));
   return JSON.stringify(values);
 }
-
+// @profile-dispatcher
 function serializeEditorState(...args) { return (IS_UAT_PROFILE ? serializeEditorState__uat : serializeEditorState__prod)(...args); }
+// @profile-group end serializeEditorState
 
 function captureEditorBaseline(overlay) {
   if (!overlay?.hasAttribute('data-editor-overlay')) return;
@@ -11094,6 +11363,8 @@ window.closeProjectOverlayFromBackdrop = event => {
   requestCloseModal(event.currentTarget.id);
 };
 
+// @profile-group begin win closeModal
+// @profile-variant prod
 const closeModal__prod = (id, { force = false } = {}) => {
   const modal = document.getElementById(id);
   if (!modal) return false;
@@ -11120,7 +11391,7 @@ const closeModal__prod = (id, { force = false } = {}) => {
   modalReturnFocus = null;
   return true;
 };
-
+// @profile-variant uat
 const closeModal__uat = (id, { force = false } = {}) => {
   const modal = document.getElementById(id);
   if (!modal) return false;
@@ -11158,8 +11429,9 @@ const closeModal__uat = (id, { force = false } = {}) => {
   modalReturnFocus = null;
   return true;
 };
-
+// @profile-dispatcher
 window.closeModal = (...args) => (IS_UAT_PROFILE ? closeModal__uat : closeModal__prod)(...args);
+// @profile-group end closeModal
 document.addEventListener('keydown', event => {
   const discard = document.getElementById('unsavedChangesOverlay');
   const openModals = [...document.querySelectorAll('.overlay.open[role="dialog"]')];
@@ -12224,6 +12496,8 @@ window.deleteProject = async () => {
   showSaveToast("Project deleted");
 };
 
+// @profile-group begin win addMilestoneRow
+// @profile-variant prod
 const addMilestoneRow__prod = (name='', status='to-do', dateStr='', planData = null) => {
   const normalized = planData ? normalizeMilestonePlan(planData) : normalizeMilestonePlan({ name, status, date: dateStr, history: [] });
   if (!planData) normalized.planId = `ms-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -12265,8 +12539,8 @@ const addMilestoneRow__prod = (name='', status='to-do', dateStr='', planData = n
   checkMsDates();
   refreshWorkstreamMilestoneOptions();
   scheduleWorkstreamPreview();
-};
-
+}
+// @profile-variant uat
 const addMilestoneRow__uat = (name='', status='to-do', dateStr='', planData = null) => {
   const normalized = planData ? normalizeMilestonePlan(planData) : normalizeMilestonePlan({ name, status, date: dateStr, history: [] });
   if (!planData) normalized.planId = `ms-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -12308,9 +12582,10 @@ const addMilestoneRow__uat = (name='', status='to-do', dateStr='', planData = nu
   checkMsDates();
   refreshWorkstreamMilestoneOptions();
   scheduleWorkstreamPreview();
-};
-
+}
+// @profile-dispatcher
 window.addMilestoneRow = (...args) => (IS_UAT_PROFILE ? addMilestoneRow__uat : addMilestoneRow__prod)(...args);
+// @profile-group end addMilestoneRow
 
 window.addQuarterlyMilestoneRow = (item = {}) => {
   const normalized = normalizeQuarterlyMilestone(item);
@@ -12442,6 +12717,8 @@ window.checkMsDates = () => {
 };
 
 // ── WEEK MANAGEMENT COMBINED LOGIC ──
+// @profile-group begin win openWeekManagement
+// @profile-variant prod
 const openWeekManagement__prod = () => {
   const week = allWeeks[currentIdx];
   if(!week) return;
@@ -12476,7 +12753,7 @@ const openWeekManagement__prod = () => {
   updateCopilotPrompt();
   openAccessibleModal(document.getElementById('weekManageOverlay'));
 };
-
+// @profile-variant uat
 const openWeekManagement__uat = () => {
   const week = allWeeks[currentIdx];
   if(!week) return;
@@ -12514,8 +12791,9 @@ const openWeekManagement__uat = () => {
     void uatProductionSyncController.open();
   }
 };
-
+// @profile-dispatcher
 window.openWeekManagement = (...args) => (IS_UAT_PROFILE ? openWeekManagement__uat : openWeekManagement__prod)(...args);
+// @profile-group end openWeekManagement
 
 window.updateWmDate = () => {
   const sel = document.getElementById('wm_nw_label');
@@ -12743,6 +13021,7 @@ function getIsoWeekData(baseDate, offsetWeeks) {
 
 
 // Production-profile functions retained from e1f0e5c (renamed or removed on the UAT side).
+// @prod-only begin toggleVipPreview
 window.toggleVipPreview = () => {
   if (currentRole !== 'admin') return;
   isAdminVipPreview = !isAdminVipPreview;
@@ -12769,6 +13048,7 @@ window.toggleVipPreview = () => {
   badge.className = `role-badge ${isAdminVipPreview ? 'vip' : 'admin'}`;
   render();
 };
+// @prod-only end toggleVipPreview
 </script>
 </body>
 </html>

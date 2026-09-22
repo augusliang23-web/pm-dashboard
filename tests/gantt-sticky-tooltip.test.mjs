@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 const renderStart = dashboard.indexOf("function renderProjectGantt(project, targetId = 'pd_schedule')");
 const renderEnd = dashboard.indexOf('\nconst RESOURCE_LABELS', renderStart);
 const renderer = dashboard.slice(renderStart, renderEnd);
@@ -93,6 +94,8 @@ test('root tooltip controller delegates hover focus Escape and scroll state', ()
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const dashboard = await dashboardSourceAsync('uat');
 test('UAT root Schedule scopes two-axis sticky behavior to detail and editor preview', () => {
   assert.ok(renderStart >= 0 && renderEnd > renderStart);
   assert.match(dashboard, /#pd_schedule \.gantt-chart--interactive[\s\S]*#workstreamGanttPreview \.gantt-chart--interactive/);
@@ -177,3 +180,4 @@ test('UAT root tooltip controller delegates hover focus Escape and scroll state'
   assert.match(dashboard, /window\.innerHeight/);
   assert.match(dashboard, /hideIfOwnedBy/);
 });
+}

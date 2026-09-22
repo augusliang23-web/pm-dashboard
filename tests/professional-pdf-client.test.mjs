@@ -1,9 +1,10 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const root = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const team = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const root = dashboardSource('production');
+const team = dashboardSource('production');
 const client = readFileSync(new URL('../professional-pdf-client.mjs', import.meta.url), 'utf8');
 
 test('both dashboard entry points use the professional direct-download client', () => {
@@ -47,7 +48,9 @@ test('both PDF dialogs stay visible with progress feedback until the download fi
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
 test('root dashboard uses the professional direct-download client', () => {
   assert.match(root, /professional-pdf-client\.mjs/);
   assert.match(root, /downloadProfessionalPdf/);
 });
+}

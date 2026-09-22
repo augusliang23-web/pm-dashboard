@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('uat');
 const seed = await readFile(new URL('../scripts/seed-v2.2t-emulator.mjs', import.meta.url), 'utf8');
 const starter = await readFile(new URL('../scripts/start-v2.2t-emulator.cmd', import.meta.url), 'utf8');
 const starterScript = await readFile(new URL('../scripts/start-v2.2t-emulator.ps1', import.meta.url), 'utf8');

@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -13,7 +14,7 @@ const readSharedBackendRules = () =>
   );
 
 const readDashboard = () =>
-  readFile(new URL("../index.html", import.meta.url), "utf8").catch(() => "");
+  dashboardSourceAsync('production').catch(() => "");
 
 test("presence sessions allow owner writes and admin reads", async () => {
   const rules = await readRules();

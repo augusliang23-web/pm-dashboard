@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const dashboard = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = dashboardSource('production');
 const deployedDashboards = [
-  ['root', readFileSync(new URL('../index.html', import.meta.url), 'utf8')],
+  ['root', dashboardSource('production')],
   ['team-2', dashboard],
 ];
 
@@ -90,6 +91,7 @@ test('resource and budget are separate PDF export choices', () => {
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
 test('root Overview PDF uses a second step to choose every active accessible project', () => {
   assert.match(dashboard, /id="overviewProjectPrintOverlay"/);
   assert.match(dashboard, />Next: choose projects</);
@@ -114,3 +116,4 @@ test('root Overview PDF uses a second step to choose every active accessible pro
   assert.match(exportSource, /overviewScope:\s*'all'/);
   assert.doesNotMatch(exportSource, /localStorage|setDoc|updateDoc|runTransaction/);
 });
+}

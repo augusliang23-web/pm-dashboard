@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const dashboards = await Promise.all([
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
+  dashboardSourceAsync('production'),
+  dashboardSourceAsync('production'),
 ]);
 
 test('protects PM editor overlays from accidental close with unsaved changes', () => {
@@ -44,6 +45,8 @@ test('protects PM editor overlays from accidental close with unsaved changes', (
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const dashboard = await dashboardSourceAsync('uat');
 test('marks every v2.2T editor and excludes read-only or export overlays', () => {
   for (const id of editingOverlays) {
     assert.match(dashboard, new RegExp(`<div[^>]*id="${id}"[^>]*data-editor-overlay`), id);
@@ -86,3 +89,4 @@ test('captures editor state through the shared accessible opening path', () => {
     assert.match(dashboard, new RegExp(`openAccessibleModal\\(document\\.getElementById\\('${id}'\\)\\)`), id);
   }
 });
+}

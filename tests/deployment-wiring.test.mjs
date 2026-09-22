@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const production = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const production = await dashboardSourceAsync('production');
 
 test('Production uses confirmed release state with a protected Callable write', () => {
   assert.match(
@@ -45,6 +46,8 @@ test('Overview PDF picker wires Executive milestones before Quarterly Roadmap', 
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const production = await dashboardSourceAsync('uat');
 test('root dashboard exposes the v2.2T release identity', () => {
   assert.match(production, /const DASHBOARD_RELEASE = 'v2\.2T';/);
   assert.match(production, /const DASHBOARD_BASE_COMMIT = '[0-9a-f]+';/);
@@ -84,3 +87,4 @@ test('v2.2T keeps Executive timeline cells out of the legacy strategy save path'
     /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
   );
 });
+}

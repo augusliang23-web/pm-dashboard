@@ -1,0 +1,18 @@
+{
+  "environment": "prod",
+  "dashboardProfile": "production",
+  "release": "v2.1",
+  "baseCommit": "6d9f7bd",
+  "firebaseProjectId": "project-manager-dashboar-a067f",
+  "hostingSite": "project-manager-dashboar-a067f",
+  "hostingOrigin": "https://project-manager-dashboar-a067f.web.app",
+  "firebaseConfig": {
+    "apiKey": "AIzaSyBke6_lXZwcS1UCGYpS15hLgfSbC6xGEFI",
+    "authDomain": "project-manager-dashboar-a067f.firebaseapp.com",
+    "projectId": "project-manager-dashboar-a067f",
+    "storageBucket": "project-manager-dashboar-a067f.firebasestorage.app",
+    "messagingSenderId": "842441149281",
+    "appId": "1:842441149281:web:ef2a9af8b37593451e1320",
+    "measurementId": "G-TW9FW819EY"
+  }
+}

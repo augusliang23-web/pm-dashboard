@@ -1,9 +1,10 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const productionDashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
+const productionDashboard = await dashboardSourceAsync('production');
 const printStart = dashboard.indexOf('@media print {');
 const printCss = dashboard.slice(printStart, dashboard.indexOf('</style>', printStart));
 

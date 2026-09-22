@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await dashboardSourceAsync('production');
 
 test('Project Editor keeps PM multiline fields as native textareas', () => {
   assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-2["']/);
@@ -79,6 +80,8 @@ test('Risk/Action editors stack inside their grid cells on phone widths', () => 
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const html = await dashboardSourceAsync('uat');
 test('Risk/Action editors stack at phone widths', () => {
   assert.match(
     html,
@@ -88,3 +91,4 @@ test('Risk/Action editors stack at phone widths', () => {
   assert.match(html, /class="risk-list-cell" data-list-label="Risk \/ Blocker"/);
   assert.match(html, /class="risk-list-cell" data-list-label="Required Action"/);
 });
+}

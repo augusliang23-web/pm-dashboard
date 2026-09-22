@@ -1,11 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const html = await readFile(
-  new URL('../index.html', import.meta.url),
-  'utf8',
-);
+const html = await dashboardSourceAsync('production');
 
 test('project detail and editor close only from a left-click on their backdrop', () => {
   assert.match(

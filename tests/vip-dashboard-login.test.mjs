@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {normalizeDashboardRole} from '../js/dashboard-access.mjs';
 import {normalizeExecutiveRole} from '../js/executive-governance.mjs';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('uat');
 const start = dashboard.indexOf('function getDashboardRole(userDoc) {');
 const end = dashboard.indexOf('\nfunction showAuthError(', start);
 assert.ok(start >= 0 && end > start, 'root dashboard role resolver must be present');

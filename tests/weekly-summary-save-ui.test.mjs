@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const sources = [await readFile(new URL('../index.html', import.meta.url), 'utf8')];
+const sources = [await dashboardSourceAsync('production')];
 
 for (const [index, source] of sources.entries()) {
   test(`dashboard ${index + 1} exposes the Weekly Summary validation panel`, () => {
@@ -33,6 +34,8 @@ test('successful saves expose automatic corrections in a separate accessible dia
 }
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const source = await dashboardSourceAsync('uat');
 test('root dashboard exposes the Weekly Summary validation panel', () => {
   assert.match(source, /id="weeklySummaryValidation"[^>]*role="alert"[^>]*aria-live="assertive"/);
   assert.match(source, /import \{ normalizeWeeklySummaryForSave \} from "\.\/js\/weekly-summary-contract\.mjs"/);
@@ -53,3 +56,4 @@ test('root dashboard validates before writing Weekly Summary', () => {
   assert.ok(saveSource.indexOf('normalizeWeeklySummaryForSave') < Math.min(...writeIndexes));
   assert.doesNotMatch(saveSource, /cleanWeeklySummaryTextarea/);
 });
+}

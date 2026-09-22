@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
@@ -19,7 +20,7 @@ import {
 
 const projectId = 'demo-pm-dashboard-v22t';
 const firestorePort = Number(process.env.FIRESTORE_EMULATOR_PORT || 8081);
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 let environment;
 
 function rootInitialPresencePayload() {

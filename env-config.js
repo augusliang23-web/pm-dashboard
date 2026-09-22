@@ -1,12 +1,13 @@
 // Environment configuration read by index.html before anything else runs.
-// The committed default is the PRODUCTION profile so a plain checkout (GitHub Pages, local serving) can only
-// ever behave as Production. The Hosting build writes dist/env-config.js from env/<name>.json for the target
-// environment; index.html refuses to start when this file is missing or names an unknown profile.
+// Generated from env/prod.json by scripts/env-config.mjs; do not edit by hand.
+// The committed default is the PRODUCTION profile, so a plain checkout (GitHub Pages, local serving) can only
+// ever behave as Production. The Hosting build writes dist/env-config.js for the target environment, and
+// index.html refuses to start when this file is missing or names an unknown profile.
 window.PM_DASHBOARD_ENV = Object.freeze({
-  dashboardProfile: 'production',
-  environment: 'production',
-  release: 'v2.1',
-  baseCommit: '6d9f7bd',
+  dashboardProfile: "production",
+  environment: "prod",
+  release: "v2.1",
+  baseCommit: "6d9f7bd",
   firebaseConfig: Object.freeze({
     apiKey: "AIzaSyBke6_lXZwcS1UCGYpS15hLgfSbC6xGEFI",
     authDomain: "project-manager-dashboar-a067f.firebaseapp.com",

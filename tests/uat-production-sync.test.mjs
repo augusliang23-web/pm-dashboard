@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -58,7 +59,7 @@ test('production sync actions use direct event listeners for request and inline 
     'sync', 'restore', 'confirm-sync', 'cancel-sync', 'confirm-restore', 'cancel-restore',
   ]);
 
-  const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  const dashboard = await dashboardSourceAsync('uat');
   assert.doesNotMatch(dashboard, /id="productionWeekSyncButton"[^>]*onclick=/);
   assert.doesNotMatch(dashboard, /id="restoreUatWeekSnapshotButton"[^>]*onclick=/);
   assert.match(dashboard, /bindProductionSyncActions\(\{/);

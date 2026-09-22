@@ -1,9 +1,10 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+const html=await dashboardSourceAsync('uat');
 const start=html.indexOf('const isLocalPreview =');
 const end=html.indexOf('const PROFESSIONAL_PDF_SERVICE_URL',start);
 assert.ok(start>=0 && end>start);

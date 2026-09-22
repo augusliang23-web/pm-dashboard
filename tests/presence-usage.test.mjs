@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -139,10 +140,7 @@ test("uses last-seen only when a user has no session or estimated activity", () 
 });
 
 test("dashboard wires dynamic scale, timeline lanes, and last-seen fallback", async () => {
-  const source = await readFile(
-    new URL("../index.html", import.meta.url),
-    "utf8",
-  );
+  const source = await dashboardSourceAsync('production');
 
   assert.match(source, /selectPresenceWriteScale/);
   assert.match(source, /buildLastSeenPresenceActivities/);
@@ -153,10 +151,7 @@ test("dashboard wires dynamic scale, timeline lanes, and last-seen fallback", as
 });
 
 test("presence timeline keeps user names frozen while the chart scrolls horizontally", async () => {
-  const source = await readFile(
-    new URL("../index.html", import.meta.url),
-    "utf8",
-  );
+  const source = await dashboardSourceAsync('production');
 
   assert.match(
     source,

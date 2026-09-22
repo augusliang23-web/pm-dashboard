@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { access, readFile, readdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -60,7 +61,7 @@ test('canonical root runtime has no team-2 path dependency', async () => {
 
 test('root Firebase runtime is exact UAT and deployment wiring has no non-UAT target', async () => {
   const [dashboard, firebaserc] = await Promise.all([
-    readRepositoryFile('index.html'),
+    dashboardSourceAsync('uat'),
     readRepositoryFile('.firebaserc'),
   ]);
   const rootProject = dashboard.match(/projectId\s*:\s*['"]([^'"]+)['"]/)?.[1];
@@ -102,7 +103,7 @@ test('canonical root tests do not read retired team-2 fixtures or HTML', async (
 test('Phase 1 Rules and callable project-write contracts remain present', async () => {
   const [rules, dashboard, writes] = await Promise.all([
     readRepositoryFile('firestore.rules'),
-    readRepositoryFile('index.html'),
+    dashboardSourceAsync('uat'),
     readRepositoryFile('functions/project-dashboard-writes.js'),
   ]);
 

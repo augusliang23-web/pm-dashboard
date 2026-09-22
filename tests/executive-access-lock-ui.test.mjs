@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 
 test('dashboard roles include engineering, business, and product access groups', () => {
   assert.match(dashboard, /engineering/);
@@ -44,6 +45,8 @@ test('single project detail exposes one-page PDF export from the card header', (
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const dashboard = await dashboardSourceAsync('uat');
 test('dashboard roles use Executive Owner, Sales, BD, and Product access groups', () => {
   assert.match(dashboard, /executive/);
   assert.match(dashboard, /engineering/);
@@ -62,3 +65,4 @@ test('released weeks remain protected by the root callable write path', () => {
   assert.match(dashboard, /projectDashboardApi\.setAttention\(\{/);
   assert.doesNotMatch(dashboard, /updateDoc\(doc\(db, ['"]weeks['"]/);
 });
+}

@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await dashboardSourceAsync('production');
 
 test('project detail places Gantt and quarterly milestones below the upper grid', () => {
   const gridStart = html.indexOf('<div class="detail-grid">');
@@ -46,6 +47,8 @@ test('attention Callable commits server state to UI only after success', () => {
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const html = await dashboardSourceAsync('uat');
 test('attention update uses the protected callable and commits UI only after success', () => {
   const start = html.indexOf('async function updateProjectAttention(code, attention)');
   const end = html.indexOf('function bindDecisionControls(editable)', start);
@@ -55,3 +58,4 @@ test('attention update uses the protected callable and commits UI only after suc
   assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await projectDashboardApi.setAttention'));
   assert.match(source, /render\(\)/);
 });
+}

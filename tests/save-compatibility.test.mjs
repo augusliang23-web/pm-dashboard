@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { createRequire } from 'node:module';
 import { withProjectEditorRowIds, mergePreservingUnknown } from '../js/project-mutations.mjs';
 const require = createRequire(import.meta.url);
 const backend = require('../functions/project-data-merge.cjs');
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = dashboardSource('production');
 
 test('server preservation matches browser legacy row identity and deletion semantics', () => {
   const live = { code: 'H/W-001', teamMembers: [{ name: 'One', extra: 'keep' }, { name: 'Two' }],

@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const rootDashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const rootDashboard = await dashboardSourceAsync('uat');
 const dashboards = [rootDashboard];
 
 test('root dashboard retains defaults while using configuration-driven Executive governance helpers', () => {

@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const sources = await Promise.all([
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../index.html', import.meta.url), 'utf8')
+  dashboardSourceAsync('production'),
+  dashboardSourceAsync('production')
 ]);
 
 test('both dashboards request the structured Weekly Summary contract', () => {
@@ -36,6 +37,8 @@ test('the prompt remains plain text and prohibits invented facts and tables', ()
 });
 
 // Tests carried over from the UAT lineage (consolidation).
+{
+  const source = await dashboardSourceAsync('uat');
 test('root dashboard requests the structured Weekly Summary contract', () => {
   assert.match(source, /Portfolio Summary:/);
   assert.match(source, /- Project: <exact project name>/);
@@ -53,3 +56,4 @@ test('root dashboard requests the structured Weekly Summary contract', () => {
   assert.match(source, /Your response will be rejected by the dashboard unless it follows this format exactly/);
   assert.match(source, /No immediate management decision required this week\./);
 });
+}
