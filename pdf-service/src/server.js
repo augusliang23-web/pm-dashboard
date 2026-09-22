@@ -14,6 +14,7 @@ const adapters = {
   verifyIdToken: token => auth.verifyIdToken(token),
   getUserByEmail: async email => (await db.collection('users').doc(email).get()).data(),
   getWeekById: async id => (await db.collection('weeks').doc(id).get()).data(),
+  getLiveExecutiveTimeline: async () => (await db.collection('executiveMilestoneState').doc('live').get()).data(),
   getDashboardSettings: async () => (await db.collection('dashboardSettings').doc('team-2-portfolio').get()).data(),
   getTrendWeeks: async week => {
     const snapshot = await db.collection('weeks')

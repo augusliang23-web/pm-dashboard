@@ -56,6 +56,29 @@ test('serialization does not mutate the editor timeline', () => {
   assert.deepEqual(timeline.rows[0].cells, [['Alpha'], [], [], []]);
 });
 
+test('preserves stable item identity and latest update fields during serialization', () => {
+  const stored = serializeExecutiveMilestoneTimeline({
+    rows: [{
+      sectionId: 'ioe-product-portfolio',
+      label: 'IoE Product Portfolio',
+      cells: [[{
+        id: 'exec-1',
+        text: 'Launch',
+        version: 4,
+        rag: 'yellow',
+        latestStatusText: 'Customer date moved',
+        latestStatusAt: '2026-07-18T00:00:00.000Z',
+        latestStatusBy: 'owner@example.com',
+      }], [], [], []],
+    }],
+  });
+
+  assert.equal(stored.rows[0].cells.q1[0].id, 'exec-1');
+  assert.equal(stored.rows[0].cells.q1[0].version, 4);
+  assert.equal(stored.rows[0].cells.q1[0].rag, 'yellow');
+  assert.equal(stored.rows[0].cells.q1[0].latestStatusText, 'Customer date moved');
+});
+
 test('reads structured UAT outcomes as their management-facing text', () => {
   assert.equal(
     getExecutiveTimelineItemText({
@@ -98,6 +121,11 @@ test('production text edits preserve structured UAT outcome metadata', () => {
   assert.deepEqual(stored.rows[0].cells.q1[0], {
     id: 'outcome-1',
     text: 'Container integration complete',
+    version: 0,
+    rag: 'green',
+    latestStatusText: '',
+    latestStatusAt: '',
+    latestStatusBy: '',
     progressMode: 'manual',
     manualProgress: 100,
     manualHealth: 'on-track',

@@ -125,3 +125,49 @@ test('marks every variable project section for measured continuation pages', () 
   assert.match(html, /Member 10/);
   assert.match(html, /Role 10/);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('renders every selected project section with dashboard visual structures', () => {
+  const html = renderProjectReportHtml(completeProjectReportFixture());
+
+  for (const section of ['project-summary', 'milestone', 'gantt', 'resource', 'budget']) {
+    assert.match(html, new RegExp(`data-report-section="${section}"`));
+  }
+  assert.match(html, /project-brief-grid/);
+  assert.match(html, /status-badge red/);
+  assert.match(html, /gantt-row/);
+  assert.match(html, /team-allocation-table/);
+  assert.match(html, /discipline-hours-table/);
+  assert.match(html, /budget-comparison/);
+  assert.match(html, /W28 2026 · Jul 6–Jul 12, 2026/);
+  assert.match(html, /\.gantt-grid/);
+  assert.doesNotMatch(html, /\.report-page\s*\{[^}]*overflow:hidden/);
+  assert.doesNotMatch(html, /<script|onclick=|<button|<select|<input/);
+});
+
+test('escapes project content and omits pages that were not selected', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.project.name = '<img src=x onerror=alert(1)>';
+  fixture.project.highlight = '<script>alert(1)</script>';
+  fixture.sections = ['project-brief', 'project-update'];
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /data-report-section="gantt"/);
+  assert.doesNotMatch(html, /<script>/);
+});
+
+test('keeps weekly key actions while omitting an empty risk block', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-update'];
+  fixture.project.risk = '';
+  fixture.project.weeklyActions = 'Continue flowchart update';
+
+  const html = renderProjectReportHtml(fixture);
+
+  assert.match(html, /Weekly actions[\s\S]*Continue flowchart update/);
+  assert.doesNotMatch(html, /Risk \/ Blocker/);
+  assert.doesNotMatch(html, /No risk or blocker reported\./);
+});

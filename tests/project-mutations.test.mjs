@@ -528,3 +528,41 @@ test('editable project row renderers and collectors persist stable DOM identitie
   assert.ok(dashboard.includes('p = withProjectEditorRowIds(p);'));
   assert.ok(dashboard.includes('newEditorRowId('));
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('project save and delete use protected callables and commit UI state only after await', () => {
+  const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
+  const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
+  const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
+  const saveSource = dashboard.slice(saveStart, deleteStart);
+  const deleteSource = dashboard.slice(deleteStart, deleteEnd);
+
+  assert.ok(saveStart >= 0 && deleteStart > saveStart && deleteEnd > deleteStart);
+  for (const [source, callable] of [
+    [saveSource, 'await projectDashboardApi.saveProject({'],
+    [deleteSource, 'await projectDashboardApi.deleteProject({'],
+  ]) {
+    const awaitPosition = source.indexOf(callable);
+    const closePosition = source.indexOf("closeModal('projEditOverlay'");
+    assert.ok(awaitPosition >= 0);
+    assert.ok(closePosition > awaitPosition);
+    assert.doesNotMatch(source, /(?:runTransaction|transaction\.|updateDoc|setDoc)\(/);
+    assert.match(source, /finally\s*\{[\s\S]*hideLoader\(\)/);
+    assert.ok(source.includes('showProjectMutationError('));
+  }
+
+  assert.match(dashboard, /id="pe_btn_save"[^>]+onclick="saveProjEdit\(\)"/);
+  assert.match(dashboard, /id="pe_btn_delete"[^>]+onclick="deleteProject\(\)"/);
+  assert.ok(dashboard.includes('let projectMutationInFlight = false;'));
+  assert.ok(dashboard.includes('function setProjectMutationControlsDisabled(disabled)'));
+  assert.ok(saveSource.includes('if (projectMutationInFlight) return;'));
+  assert.ok(deleteSource.includes('if (projectMutationInFlight) return;'));
+  assert.doesNotMatch(
+    saveSource.slice(0, saveSource.indexOf('await projectDashboardApi.saveProject')),
+    /week\.projects\.(?:push|splice)|week\.projects\[[^\]]+\]\s*=/,
+  );
+  assert.doesNotMatch(
+    deleteSource.slice(0, deleteSource.indexOf('await projectDashboardApi.deleteProject')),
+    /week\.projects\.(?:push|splice)|week\.projects\[[^\]]+\]\s*=/,
+  );
+});

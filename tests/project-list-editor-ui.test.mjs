@@ -77,3 +77,14 @@ test('Risk/Action editors stack inside their grid cells on phone widths', () => 
   assert.match(html, /class="risk-list-cell" data-list-label="Risk \/ Blocker"/);
   assert.match(html, /class="risk-list-cell" data-list-label="Required Action"/);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('Risk/Action editors stack at phone widths', () => {
+  assert.match(
+    html,
+    /@media\s*\(max-width:\s*760px\)[\s\S]*?\.risk-pair-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+34px/s,
+  );
+  assert.match(html, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.risk-list-cell\s*\{[^}]*grid-column:\s*1/s);
+  assert.match(html, /class="risk-list-cell" data-list-label="Risk \/ Blocker"/);
+  assert.match(html, /class="risk-list-cell" data-list-label="Required Action"/);
+});

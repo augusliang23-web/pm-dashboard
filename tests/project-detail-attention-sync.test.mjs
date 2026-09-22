@@ -44,3 +44,14 @@ test('attention Callable commits server state to UI only after success', () => {
   assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await projectDashboardApi.setAttention'));
   assert.match(source, /render\(\)/);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('attention update uses the protected callable and commits UI only after success', () => {
+  const start = html.indexOf('async function updateProjectAttention(code, attention)');
+  const end = html.indexOf('function bindDecisionControls(editable)', start);
+  const source = html.slice(start, end);
+  assert.match(source, /await projectDashboardApi\.setAttention\(\{ weekId, projectCode: code, attention \}\)/);
+  assert.doesNotMatch(source, /(?:runTransaction|transaction\.|updateDoc)\(/);
+  assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await projectDashboardApi.setAttention'));
+  assert.match(source, /render\(\)/);
+});

@@ -1,4 +1,6 @@
 node_modules/
 functions/node_modules/
 firestore-debug.log
+pdf-service/node_modules/
+tmp/
 .DS_Store

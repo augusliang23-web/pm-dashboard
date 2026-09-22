@@ -549,7 +549,7 @@ test('role-visible project filtering consistently enforces active-only access', 
     ['ACTIVE', 'LEGACY'],
   );
   assert.deepEqual(
-    filterRoleVisibleProjects(projects, { role: 'vip' }).map(project => project.code),
+    filterRoleVisibleProjects(projects, { role: 'executive' }).map(project => project.code),
     ['ACTIVE', 'LEGACY'],
   );
   assert.deepEqual(
@@ -557,7 +557,7 @@ test('role-visible project filtering consistently enforces active-only access', 
     ['ACTIVE', 'LEGACY', 'HIDDEN', 'ARCHIVED'],
   );
   assert.deepEqual(
-    filterRoleVisibleProjects(projects, { role: 'admin', visibilityFilter: 'all', vipPerspective: true }).map(project => project.code),
+    filterRoleVisibleProjects(projects, { role: 'admin', visibilityFilter: 'all', executivePerspective: true }).map(project => project.code),
     ['ACTIVE', 'LEGACY'],
   );
 });

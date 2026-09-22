@@ -559,3 +559,51 @@ test('projectPortfolioLayout "one-page" renders one physical page per project in
 
   assert.equal(physicalPageCount(pdf), 2);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('Project Update continuations preserve every list item and safe page spacing', { timeout: 60000 }, async () => {
+  const fixture = completeProjectReportFixture();
+  fixture.sections = ['project-brief', 'project-update'];
+  fixture.project.name = 'Long Project Update';
+  const highlights = Array.from({ length: 18 }, (_, index) => `H-${index + 1} highlight detail ${'delivery '.repeat(5)}`);
+  const risks = Array.from({ length: 14 }, (_, index) => `R-${index + 1} risk detail ${'blocker '.repeat(5)}`);
+  const actions = Array.from({ length: 16 }, (_, index) => `A-${index + 1} action detail ${'follow-up '.repeat(5)}`);
+  fixture.project.highlight = highlights.join('\n');
+  fixture.project.risk = risks.join('\n');
+  fixture.project.weeklyActions = actions.join('\n');
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(renderProjectReportHtml(fixture), { waitUntil: 'networkidle0' });
+    await page.evaluate(paginateMeasuredFlows);
+    const layout = await page.evaluate(() => [...document.querySelectorAll('[data-measured-page="project-summary"]')].map(node => {
+      const pageRect = node.getBoundingClientRect();
+      const headerRect = node.querySelector('.report-page-head').getBoundingClientRect();
+      const footerRect = node.querySelector('.report-footer').getBoundingClientRect();
+      const firstContent = node.querySelector('[data-pdf-flow-item]')?.getBoundingClientRect();
+      const cards = [...node.querySelectorAll('.project-update-card,.project-brief-grid')]
+        .map(card => card.getBoundingClientRect());
+      return {
+        title: node.querySelector('.report-title')?.textContent.trim(),
+        headerGap: firstContent ? firstContent.top - headerRect.bottom : 0,
+        updateUnits: node.querySelectorAll('.project-update-card [data-pdf-split-unit]').length,
+        cardsInside: cards.every(card => card.top >= pageRect.top && card.bottom <= footerRect.top - 8 * 96 / 25.4 + 1)
+      };
+    }));
+    const text = await page.$$eval('[data-pdf-split-unit]', nodes => nodes.map(node => node.textContent.trim()));
+
+    assert.ok(layout.length > 1);
+    assert.ok(layout[0].updateUnits > 0, 'Project Update should use the remaining space after Project brief');
+    assert.ok(layout.every(item => item.title.startsWith('Long Project Update')));
+    assert.ok(layout.slice(1).every(item => /Continued$/.test(item.title)));
+    assert.ok(layout.every(item => item.headerGap >= 3 * 96 / 25.4 - 1));
+    assert.ok(layout.every(item => item.cardsInside));
+    for (const marker of [...highlights, ...risks, ...actions]) {
+      assert.equal(text.filter(item => item === marker.trim()).length, 1, `${marker} must appear once`);
+    }
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});

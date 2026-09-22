@@ -1,5 +1,8 @@
 const PROGRESS_LEVELS = new Set([0, 25, 50, 75, 100]);
 const HEALTH_LEVELS = new Set(['on-track', 'at-risk', 'delayed']);
+const RAG_LEVELS = new Set(['green', 'yellow', 'red']);
+const RAG_TO_HEALTH = Object.freeze({ green: 'on-track', yellow: 'at-risk', red: 'delayed' });
+const HEALTH_TO_RAG = Object.freeze({ 'on-track': 'green', 'at-risk': 'yellow', delayed: 'red' });
 const SOURCE_TYPES = new Set(['milestone', 'quarterly']);
 
 function sourceValues(sources) {
@@ -29,6 +32,11 @@ export function normalizeExecutiveOutcome(source = '') {
     return {
       id: '',
       text: source,
+      version: 0,
+      rag: 'green',
+      latestStatusText: '',
+      latestStatusAt: '',
+      latestStatusBy: '',
       progressMode: 'manual',
       manualProgress: 0,
       manualHealth: 'on-track',
@@ -39,13 +47,21 @@ export function normalizeExecutiveOutcome(source = '') {
     };
   }
   const progress = Number(source.manualProgress);
-  const health = source.status || source.manualHealth;
+  const legacyHealth = source.status || source.manualHealth;
+  const rag = RAG_LEVELS.has(source.rag)
+    ? source.rag
+    : HEALTH_TO_RAG[legacyHealth] || 'green';
   return {
     id: String(source.id || ''),
     text: String(source.text || source.label || ''),
+    version: Math.max(0, Number.parseInt(source.version, 10) || 0),
+    rag,
+    latestStatusText: String(source.latestStatusText || '').trim(),
+    latestStatusAt: String(source.latestStatusAt || ''),
+    latestStatusBy: String(source.latestStatusBy || ''),
     progressMode: source.progressMode === 'auto' ? 'auto' : 'manual',
     manualProgress: PROGRESS_LEVELS.has(progress) ? progress : 0,
-    manualHealth: HEALTH_LEVELS.has(health) ? health : 'on-track',
+    manualHealth: RAG_TO_HEALTH[rag],
     statusReason: String(source.statusReason || source.reason || '').trim(),
     statusUpdatedAt: String(source.statusUpdatedAt || ''),
     statusUpdatedBy: String(source.statusUpdatedBy || ''),
@@ -157,7 +173,7 @@ export function serializeExecutiveOutcome(source) {
   const outcome = normalizeExecutiveOutcome(source);
   return {
     ...outcome,
-    status: outcome.manualHealth,
+    status: RAG_TO_HEALTH[outcome.rag],
     sources: Object.fromEntries(
       outcome.sources.map((item, index) => [`source${index + 1}`, item]),
     ),

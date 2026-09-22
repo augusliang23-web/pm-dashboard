@@ -1,0 +1,7 @@
+{
+  "productionProjectId": "project-manager-dashboar-a067f",
+  "productionRoles": ["roles/datastore.viewer"],
+  "uatProjectId": "pm-dashboard-uat-20260820-a7f3",
+  "uatRoles": ["roles/datastore.user"],
+  "sourceCollections": ["weeks"]
+}

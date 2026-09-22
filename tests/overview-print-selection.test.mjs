@@ -88,3 +88,29 @@ test('resource and budget are separate PDF export choices', () => {
   assert.ok(dashboard.includes("resource: ['resource-analytics']"));
   assert.ok(dashboard.includes("budget: ['budget-overview']"));
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('root Overview PDF uses a second step to choose every active accessible project', () => {
+  assert.match(dashboard, /id="overviewProjectPrintOverlay"/);
+  assert.match(dashboard, />Next: choose projects</);
+  assert.match(dashboard, /onclick="setOverviewProjectPrintSelection\(true\)"[^>]*>Select all</);
+  assert.match(dashboard, /onclick="setOverviewProjectPrintSelection\(false\)"[^>]*>Clear</);
+  assert.match(dashboard, /Select at least one project to export\./);
+  assert.match(dashboard, /buildOverviewProjectOptions\(/);
+  assert.match(dashboard, /buildOverviewPdfRequest\(/);
+  assert.match(dashboard, /projectCodes/);
+  assert.match(dashboard, /selectedProjectCodes/);
+  assert.match(dashboard, /All active projects you can access are listed\./);
+  const pickerStart = dashboard.indexOf('function getActiveOverviewProjectsForPdf()');
+  const pickerEnd = dashboard.indexOf('function setOverviewProjectPrintValidation', pickerStart);
+  assert.notEqual(pickerStart, -1);
+  const pickerSource = dashboard.slice(pickerStart, pickerEnd);
+  assert.match(pickerSource, /filterRoleVisibleProjects\(projects/);
+  assert.match(pickerSource, /visibilityFilter:\s*'active'/);
+  assert.doesNotMatch(pickerSource, /getOverviewProjects|overviewScope/);
+  const start = dashboard.indexOf('window.confirmOverviewProjectPrint =');
+  const end = dashboard.indexOf('window.setOverviewScope', start);
+  const exportSource = dashboard.slice(start, end);
+  assert.match(exportSource, /overviewScope:\s*'all'/);
+  assert.doesNotMatch(exportSource, /localStorage|setDoc|updateDoc|runTransaction/);
+});

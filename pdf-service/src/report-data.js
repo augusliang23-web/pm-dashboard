@@ -37,6 +37,10 @@ function includedProjectSections(project, sections) {
   });
 }
 
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
 function selectOverviewProjects(week, projectCodes) {
   if (!Array.isArray(projectCodes)) return week;
   const selected = new Set(projectCodes);
@@ -63,6 +67,13 @@ function activeOverviewWeek(week) {
   return { ...week, projects: reportableOverviewProjects(week, 'all') };
 }
 
+function executiveTimelineForReport(week, liveState) {
+  const snapshot = week?.strategyLayer?.executiveMilestoneTimelineSnapshot;
+  if (week?.isReleased === true && snapshot?.timeline) return snapshot.timeline;
+  if (week?.isReleased !== true && liveState?.timeline) return liveState.timeline;
+  return week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline || null;
+}
+
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const decodedToken = await adapters.verifyIdToken(idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
@@ -86,10 +97,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
         throw new ReportDataError(`Weekly Summary is not valid for PDF export: ${details}`, 422);
       }
     }
-    const selectedWeek = selectOverviewProjects(activeOverviewWeek(week), request.projectCodes);
     const overviewScope = request.overviewScope || 'system';
-    const availableProjectCount = reportableOverviewProjects(week, overviewScope).length;
-    const selectedProjectCount = reportableOverviewProjects(selectedWeek, overviewScope).length;
     let trendWeeks = [];
     if (request.sections.includes('weekly-trend') && typeof adapters.getTrendWeeks === 'function') {
       const history = await adapters.getTrendWeeks(week);
@@ -99,9 +107,24 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
         .map(item => selectOverviewProjects(activeOverviewWeek(item), request.projectCodes))
         .slice(-6);
     }
+    const reportWeek = selectOverviewProjects(activeOverviewWeek(clone(week)), request.projectCodes);
+    const availableProjectCount = reportableOverviewProjects(week, overviewScope).length;
+    const selectedProjectCount = reportableOverviewProjects(reportWeek, overviewScope).length;
+    if (request.sections.includes('executive-milestones')) {
+      const liveState = week.isReleased === true || typeof adapters.getLiveExecutiveTimeline !== 'function'
+        ? null
+        : await adapters.getLiveExecutiveTimeline();
+      const executiveTimeline = executiveTimelineForReport(week, liveState);
+      if (executiveTimeline) {
+        reportWeek.strategyLayer = {
+          ...(reportWeek.strategyLayer || {}),
+          executiveMilestoneTimeline: clone(executiveTimeline)
+        };
+      }
+    }
     const report = {
       access,
-      week: selectedWeek,
+      week: reportWeek,
       trendWeeks,
       sections: request.sections,
       overviewScope,

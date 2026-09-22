@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "rules": "firestore.shared-backend.rules",
+    "indexes": "firestore.uat.indexes.json"
+  }
+}

@@ -42,3 +42,23 @@ test('single project detail exposes one-page PDF export from the card header', (
   assert.match(dashboard, /exportProjectOnePagePdf/);
   assert.match(dashboard, /downloadProfessionalPdf/);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('dashboard roles use Executive Owner, Sales, BD, and Product access groups', () => {
+  assert.match(dashboard, /executive/);
+  assert.match(dashboard, /engineering/);
+  assert.match(dashboard, /sales/);
+  assert.match(dashboard, /bd/);
+  assert.match(dashboard, /product/);
+  assert.match(dashboard, /normalizeExecutiveRole/);
+  assert.match(dashboard, /function canViewExecutiveSection\(/);
+  assert.match(dashboard, /sectionId/);
+});
+
+test('released weeks remain protected by the root callable write path', () => {
+  assert.match(dashboard, /function assertCurrentWeekEditable\(/);
+  assert.match(dashboard, /assertCurrentWeekEditable\(week\)/);
+  assert.match(dashboard, /projectDashboardApi\.saveProject\(\{/);
+  assert.match(dashboard, /projectDashboardApi\.setAttention\(\{/);
+  assert.doesNotMatch(dashboard, /updateDoc\(doc\(db, ['"]weeks['"]/);
+});

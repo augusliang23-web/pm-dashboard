@@ -5,21 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Project Dashboard · LITEON Edition</title>
 
+<script src="./env-config.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════════════════
-//  FIREBASE SETUP
-// ═══════════════════════════════════════════════════════════════════
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBke6_lXZwcS1UCGYpS15hLgfSbC6xGEFI",
-  authDomain: "project-manager-dashboar-a067f.firebaseapp.com",
-  projectId: "project-manager-dashboar-a067f",
-  storageBucket: "project-manager-dashboar-a067f.firebasestorage.app",
-  messagingSenderId: "842441149281",
-  appId: "1:842441149281:web:ef2a9af8b37593451e1320",
-  measurementId: "G-TW9FW819EY"
-};
-const DASHBOARD_RELEASE = 'v2.1';
-const DASHBOARD_BASE_COMMIT = '6d9f7bd';
+// Environment is injected by env-config.js (committed default = Production; the Hosting build writes the target environment).
+const PM_ENV = window.PM_DASHBOARD_ENV;
+if (!PM_ENV || !['production', 'uat'].includes(PM_ENV.dashboardProfile)) {
+  throw new Error('Dashboard environment configuration is missing or invalid; refusing to start.');
+}
+const IS_UAT_PROFILE = PM_ENV.dashboardProfile === 'uat';
+const FIREBASE_CONFIG = PM_ENV.firebaseConfig;
+const DASHBOARD_RELEASE = PM_ENV.release;
+const DASHBOARD_BASE_COMMIT = PM_ENV.baseCommit;
+window.addEventListener('DOMContentLoaded', () => {
+  const versionLabel = document.querySelector('.hdr-version');
+  if (versionLabel) versionLabel.textContent = DASHBOARD_RELEASE;
+  const otherProfile = IS_UAT_PROFILE ? 'production' : 'uat';
+  document.querySelectorAll('[data-profile-only="' + otherProfile + '"]').forEach(el => { el.hidden = true; el.style.setProperty('display', 'none', 'important'); });
+  if (IS_UAT_PROFILE) {
+    const sheet = document.getElementById('uatButtonSystem'); if (sheet) sheet.media = 'all';
+    document.querySelectorAll('[data-uat-label]').forEach(el => { el.textContent = el.dataset.uatLabel; });
+  }
+});
 window.__dashboardBootStarted = false;
 window.__dashboardAuthObserved = false;
 window.addEventListener('DOMContentLoaded', () => {
@@ -34,7 +40,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (authMsg) {
       authMsg.className = 'auth-msg error';
       authMsg.style.display = 'block';
-      authMsg.textContent = 'Dashboard is still waiting for secure access. Please refresh once, or use the online v2.1 link if this local preview keeps waiting.';
+      authMsg.textContent = 'Dashboard is still waiting for secure access. Please refresh once, or use the online ' + DASHBOARD_RELEASE + ' link if this local preview keeps waiting.';
     }
     if (loginOverlay) loginOverlay.style.display = 'flex';
     loader.style.opacity = '0';
@@ -103,7 +109,11 @@ button[aria-busy="true"] { cursor:wait; }
 #unsavedChangesOverlay { z-index:10010; }
 .toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
 #saveToast.error .toast-check { background: var(--red); }
-
+.async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+#productionWeekSyncSpinner[hidden] { display:none; }
+@media (prefers-reduced-motion: reduce) { #productionWeekSyncSpinner { animation:none; } }
+button[aria-busy="true"] { cursor:wait; }
+#unsavedChangesOverlay { z-index:10010; }
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .login-card { width: 380px; padding: 40px; background: var(--s1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
@@ -137,6 +147,7 @@ button[aria-busy="true"] { cursor:wait; }
 .role-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: var(--s3); color: var(--muted); text-transform: uppercase; }
 .role-badge.admin { background: var(--adim); color: var(--accent-hov); }
 .role-badge.vip { background: var(--ydim); color: #B09854; }
+.role-badge.executive { background: var(--ydim); color: #B09854; }
 
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); transition: background 0.3s; }
 .sync-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--gdim); }
@@ -177,6 +188,26 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-danger:hover { background: #C77D7D; }
 .btn-ghost { font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; background: var(--s1); color: var(--text-light); }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
+</style>
+<style id="uatButtonSystem" media="not all">
+/* v2.2T button system: text actions use .btn plus one semantic variant. */
+.btn, .btn-primary, .btn-ghost, .btn-danger {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:32px; padding:6px 12px; border:1px solid transparent; border-radius:6px;
+  background:var(--s1); color:var(--text-light); font:inherit; font-size:12px;
+  font-weight:700; line-height:1.2; white-space:nowrap; cursor:pointer;
+  transition:background .2s, border-color .2s, color .2s, box-shadow .2s;
+}
+.btn:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.btn:disabled, .btn-primary:disabled, .btn-ghost:disabled, .btn-danger:disabled { opacity:.55; cursor:not-allowed; }
+.btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hov); border-color:var(--accent-hov); }
+.btn-ghost, .btn { background:var(--s1); border-color:var(--border2); color:var(--text-light); }
+.btn-ghost:hover:not(:disabled), .btn:hover:not(:disabled) { background:var(--s2); color:var(--text); }
+.btn-danger { background:var(--s1); border-color:#E39A9A; color:#B35858; }
+.btn-danger:hover:not(:disabled) { background:#FCEDED; border-color:#D98585; color:#9D4242; }
+</style>
+<style>
 .gantt-template-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .gantt-template-panel { padding:14px; border:1px solid var(--border); border-radius:9px; background:var(--s2); }
 .gantt-template-panel h4 { margin:0 0 5px; font-size:13px; }
@@ -725,8 +756,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .risk-primary-control { grid-column:1; }
   .risk-pair-delete { grid-column:2; grid-row:1; }
   .risk-list-cell { grid-column:1; }
-  .risk-list-cell::before { content:attr(data-list-label); display:block; margin:4px 0; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; }
   .list-editor-toolbar { flex-wrap:wrap; }
+  .risk-list-cell::before { content:attr(data-list-label); display:block; margin:4px 0; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; }
 }
 .structured-list { margin:0; padding-left:18px; }
 .structured-list li { margin-bottom:4px; }
@@ -823,6 +854,99 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .dcdc-row-label { font-size:14px; font-weight:900; line-height:1.25; color:var(--text); background:#F8FBFD; }
 .dcdc-list { margin:0; padding-left:18px; color:var(--text); }
 .dcdc-list li { margin:0 0 9px; font-size:13px; line-height:1.36; font-weight:700; }
+.dcdc-row-label { display:flex; flex-direction:column; gap:8px; }
+.dcdc-section-rag { display:inline-flex; align-items:center; gap:5px; width:max-content; padding:3px 7px; border-radius:999px; background:var(--gdim); color:#37775A; font-size:9px; font-weight:900; }
+.dcdc-section-rag::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--green); }
+.dcdc-section-rag.yellow { background:var(--ydim); color:#8E6C1F; }
+.dcdc-section-rag.yellow::before { background:var(--yellow); }
+.dcdc-section-rag.red { background:var(--rdim); color:#A84F4F; }
+.dcdc-section-rag.red::before { background:var(--red); }
+.executive-compact-list { display:grid; gap:7px; }
+.executive-compact-item { display:grid; grid-template-columns:22px minmax(0,1fr); align-items:start; gap:5px; width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); }
+.executive-compact-open { display:grid; grid-template-columns:9px minmax(0,1fr); align-items:start; gap:7px; min-width:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+.executive-compact-item:hover, .executive-compact-item:focus-within { border-color:var(--border2); background:var(--s2); box-shadow:0 0 0 2px rgba(120,179,149,.15); }
+.executive-compact-open:focus-visible, .executive-milestone-drag-handle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.executive-compact-item.read-only { opacity:.88; }
+.executive-milestone-drag-handle { width:22px; min-height:32px; padding:0; border:0; border-radius:5px; background:transparent; color:var(--muted); cursor:grab; font-size:16px; line-height:1; }
+.executive-milestone-drag-handle:active { cursor:grabbing; }
+.dcdc-cell.executive-drop-target { background:#EEF8F2; box-shadow:inset 0 0 0 2px var(--accent); }
+.executive-summary-rag-control { display:inline-flex; align-items:center; gap:5px; border:0; background:transparent; padding:0; color:inherit; font:inherit; cursor:pointer; }
+.executive-pending-count { position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#C53030; color:#fff; font-size:10px; line-height:17px; text-align:center; }
+.executive-governance-form { display:grid; gap:14px; }
+.executive-governance-form label { display:grid; gap:6px; font-weight:600; }
+#executiveChangeRequestOverlay [hidden] { display:none !important; }
+.resource-validation.success { color:#37775A; background:var(--gdim); border:1px solid rgba(136,201,172,.55); }
+.executive-timeline-settings { display:grid; gap:10px; }
+.executive-timeline-section-card { display:grid; gap:10px; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.executive-timeline-role-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.executive-timeline-role-group { display:grid; gap:5px; font-size:12px; }
+.executive-timeline-role-options { display:flex; flex-wrap:wrap; gap:6px 10px; }
+.executive-timeline-role-options label { display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; }
+.executive-timeline-quarter-settings { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.executive-structural-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.executive-structural-summary { margin:0; padding:11px 12px; border:1px solid #C8DDEB; border-radius:8px; background:#F1F7FB; color:#44667F; font-size:12px; line-height:1.45; }
+.executive-structural-note { margin:0; color:var(--muted); font-size:10px; line-height:1.4; }
+.executive-inline-add { width:100%; justify-content:center; border-style:dashed; color:#44667F; }
+.executive-drawer-structural-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.executive-drawer-structural-actions .btn-danger { border-color:#E7B7B7; color:#A85454; }
+.executive-approval-list { display:grid; gap:10px; }
+.executive-approval-card { border:1px solid var(--border); border-radius:10px; padding:12px; display:grid; gap:8px; }
+.executive-approval-card.conflict { border-color:#C53030; }
+.executive-request-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.executive-request-action { font-size:12px; font-weight:700; color:var(--blue-text); background:var(--bdim); border-radius:999px; padding:4px 9px; }
+.executive-request-state { font-size:12px; font-weight:700; color:var(--accent-hov); }
+.executive-request-item { font-size:15px; color:var(--text); }
+.executive-request-change { padding:10px 12px; border-radius:8px; background:var(--s2); color:var(--text-light); }
+.executive-request-reason { color:var(--text-light); }
+.executive-request-meta { font-size:11px; color:var(--muted); }
+.executive-decision-comment { display:grid; gap:6px; color:var(--text); font-size:12px; font-weight:700; }
+.executive-decision-comment span:first-child { display:flex; justify-content:space-between; gap:8px; }
+.executive-decision-comment small { color:var(--muted); font-weight:500; }
+.executive-decision-comment textarea { width:100%; min-height:76px; resize:vertical; padding:9px 10px; border:1px solid var(--border2); border-radius:8px; color:var(--text); font:inherit; font-weight:400; }
+.executive-withdraw-btn { color:#B35858; border-color:#E39A9A; }
+.executive-approval-actions, .modal-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.executive-compact-rag { width:9px; height:9px; margin-top:3px; border-radius:50%; background:var(--green); }
+.executive-compact-rag.yellow { background:var(--yellow); }
+.executive-compact-rag.red { background:var(--red); }
+.executive-compact-body { display:grid; min-width:0; gap:3px; }
+.executive-compact-title { overflow:hidden; color:var(--text); font-size:11px; font-weight:850; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.executive-compact-update { overflow:hidden; color:var(--text-light); font-size:9px; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.executive-compact-meta { overflow:hidden; color:var(--muted); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
+.executive-update-record { overflow:hidden; display:block; color:var(--blue-text); font-size:8px; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.executive-drawer-overlay { justify-content:center; align-items:center; padding:20px; }
+.executive-item-modal { display:flex; flex-direction:column; width:min(760px,94vw); max-height:90vh; overflow:hidden; background:var(--s1); }
+.executive-drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:20px; border-bottom:1px solid var(--border); }
+.executive-drawer-head h2 { margin-top:4px; color:var(--text); font-size:20px; }
+.executive-drawer-kicker { color:var(--accent-hov); font-size:10px; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
+.executive-drawer-content { flex:1; display:grid; gap:18px; padding:20px; overflow:auto; }
+.executive-drawer-section { display:grid; gap:8px; color:var(--text); }
+.executive-drawer-section h3, .executive-drawer-label { color:var(--text); font-size:12px; font-weight:850; }
+.executive-drawer-section small { color:var(--muted); font-size:9px; }
+.executive-drawer-section textarea { width:100%; resize:vertical; padding:10px; border:1px solid var(--border2); border-radius:8px; color:var(--text); font:inherit; font-size:12px; }
+.executive-drawer-rag { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.executive-drawer-rag button { display:flex; align-items:center; justify-content:center; gap:7px; min-height:38px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text-light); cursor:pointer; font-weight:800; }
+.executive-drawer-rag button span { width:9px; height:9px; border-radius:50%; background:var(--green); }
+.executive-drawer-rag button[data-executive-rag="yellow"] span { background:var(--yellow); }
+.executive-drawer-rag button[data-executive-rag="red"] span { background:var(--red); }
+.executive-drawer-rag button.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--gdim); color:var(--text); }
+.executive-drawer-rag button:disabled, .executive-drawer-section textarea:disabled { cursor:not-allowed; opacity:.58; }
+.executive-drawer-read-only { padding:9px 11px; border:1px solid #C8DDEB; border-radius:8px; background:#F1F7FB; color:#44667F; font-size:10px; }
+.executive-drawer-section-head { display:flex; align-items:center; justify-content:space-between; }
+.executive-drawer-section-head span { color:var(--muted); font-size:9px; }
+.executive-update-history { display:grid; gap:8px; }
+.executive-history-item { padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.executive-history-top { display:flex; justify-content:space-between; gap:8px; margin-bottom:5px; font-size:9px; }
+.executive-history-rag { font-weight:900; text-transform:uppercase; }
+.executive-history-text { color:var(--text); font-size:11px; line-height:1.45; white-space:pre-wrap; }
+.executive-history-meta, .executive-history-empty { color:var(--muted); font-size:9px; }
+.executive-drawer-actions { display:flex; gap:8px; margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); background:#fff; }
+.executive-drawer-actions .btn:first-child { margin-right:auto; }
+@media (max-width: 760px) {
+  .executive-drawer-overlay { padding:12px; }
+  .executive-item-modal { width:100%; max-height:92vh; }
+  .executive-drawer-rag { grid-template-columns:1fr; }
+  .executive-drawer-actions { flex-wrap:wrap; }
+}
 .exec-outcome-head { display:flex; gap:6px; align-items:flex-start; justify-content:space-between; }
 .exec-outcome-badges { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
 .exec-outcome-badge { padding:2px 5px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:#fff; font-family:'IBM Plex Mono',monospace; font-size:8px; white-space:nowrap; }
@@ -948,6 +1072,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-outcome-badge.red { background:var(--rdim); color:#A84F4F; }
 .exec-outcome-sources { display:grid; gap:4px; }
 .exec-outcome-source { display:grid; grid-template-columns:minmax(0,1fr) 26px; gap:4px; }
+.exec-outcome-source .row-delete { width:26px; height:26px; padding:0; }
 .exec-outcome-row .fi, .exec-outcome-row .fs { min-width:0; width:100%; font-size:10px; padding:6px; }
 .exec-outcome-row button { min-height:27px; border:1px solid var(--border2); border-radius:5px; background:#fff; color:var(--text-light); cursor:pointer; }
 .exec-outcome-add, .exec-source-add { margin-top:5px; width:100%; padding:6px; border:1px dashed var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; font-size:10px; font-weight:700; }
@@ -1989,6 +2114,103 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <main id="printReportRoot" aria-hidden="true"></main>
 
+<div class="overlay executive-drawer-overlay" id="executiveItemDrawerOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveItemDrawerTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal executive-item-modal">
+    <div class="executive-drawer-head">
+      <div>
+        <div class="executive-drawer-kicker" id="executiveItemDrawerContext">Executive milestone</div>
+        <h2 id="executiveItemDrawerTitle">Milestone update</h2>
+      </div>
+      <button type="button" class="btn-icon" onclick="closeExecutiveItemDrawer()" aria-label="Close milestone drawer">×</button>
+    </div>
+    <div class="executive-drawer-content">
+      <div id="executiveDrawerReadOnly" class="executive-drawer-read-only" hidden>Read-only access. You may review history or request a structural change.</div>
+      <section class="executive-drawer-section" id="executiveDrawerStructuralSection">
+        <div class="executive-drawer-section-head"><h3>Milestone structure</h3><span>Requires approval unless you are Admin or Executive Owner</span></div>
+        <div class="executive-drawer-structural-actions">
+          <button type="button" class="btn btn-ghost" id="executiveRenameChangeBtn" onclick="openExecutiveStructuralActionFromDrawer('rename')">Rename</button>
+          <button type="button" class="btn btn-danger" id="executiveDeleteChangeBtn" onclick="openExecutiveStructuralActionFromDrawer('delete')">Delete milestone</button>
+        </div>
+      </section>
+      <section class="executive-drawer-section">
+        <h3>RAG status</h3>
+        <div class="executive-drawer-rag" role="group" aria-label="Milestone RAG status">
+          <button type="button" data-executive-rag="green" onclick="selectExecutiveDrawerRag('green')"><span></span>Green</button>
+          <button type="button" data-executive-rag="yellow" onclick="selectExecutiveDrawerRag('yellow')"><span></span>Yellow</button>
+          <button type="button" data-executive-rag="red" onclick="selectExecutiveDrawerRag('red')"><span></span>Red</button>
+        </div>
+      </section>
+      <label class="executive-drawer-section" for="executiveStatusUpdate">
+        <span class="executive-drawer-label">Monthly status update</span>
+        <textarea id="executiveStatusUpdate" rows="5" maxlength="1200" placeholder="What changed, why, and what happens next?"></textarea>
+        <small>A written update is mandatory whenever RAG changes.</small>
+      </label>
+      <div id="executiveItemDrawerError" class="resource-validation error" role="alert" aria-live="assertive"></div>
+      <section class="executive-drawer-section">
+        <div class="executive-drawer-section-head"><h3>Update history</h3><span>Newest first</span></div>
+        <div id="executiveUpdateHistory" class="executive-update-history"><div class="executive-history-empty">Loading history…</div></div>
+      </section>
+    </div>
+    <div class="executive-drawer-actions">
+      <button type="button" class="btn btn-primary" id="executiveSaveUpdateBtn" onclick="saveExecutiveItemUpdate()">Save monthly update</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveChangeRequestOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveChangeRequestTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(720px,94vw);">
+    <div class="modal-hdr"><h3 id="executiveChangeRequestTitle">Executive milestone change</h3><button class="modal-x" onclick="closeModal('executiveChangeRequestOverlay')" aria-label="Close structural change dialog">×</button></div>
+    <div class="modal-body executive-governance-form">
+      <div class="executive-structural-actions" id="executiveStructuralActions"></div>
+      <div class="form-grid-2">
+        <label id="executiveStructuralTitle">Milestone title<input class="fi" id="executiveChangeTitle" maxlength="240" oninput="renderExecutiveStructuralSummary()"></label>
+        <label id="executiveStructuralSection">Section<select class="fs" id="executiveChangeSection" onchange="renderExecutiveStructuralSummary()"></select></label>
+        <label id="executiveStructuralQuarter">Quarter<select class="fs" id="executiveChangeQuarter" onchange="renderExecutiveStructuralSummary()"><option value="q1">Q1</option><option value="q2">Q2</option><option value="q3">Q3</option><option value="q4">Q4</option></select></label>
+      </div>
+      <p class="executive-structural-note" id="executiveStructuralMoveContext" hidden></p>
+      <label id="executiveStructuralReason">Reason<textarea class="fi" id="executiveChangeReason" rows="3" maxlength="1200" placeholder="Explain why this structural change is needed."></textarea></label>
+      <p class="executive-structural-summary" id="executiveStructuralSummary">Choose the requested change.</p>
+      <div id="executiveChangeError" class="resource-validation" role="alert" aria-live="assertive"></div>
+      <div class="modal-actions"><button class="btn-ghost" id="executiveChangeCancelBtn" onclick="closeModal('executiveChangeRequestOverlay')">Cancel</button><button class="btn-primary" id="executiveViewMyRequestsBtn" hidden onclick="openExecutiveMyRequests()">My change requests</button><button class="btn-primary" id="executiveSubmitChangeBtn" onclick="submitExecutiveChangeRequest(false)">Submit for approval</button><button class="btn-primary" id="executiveDirectChangeBtn" onclick="submitExecutiveChangeRequest(true)">Apply direct change</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="executivePendingMilestoneOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executivePendingMilestoneTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(520px,92vw);">
+    <div class="modal-hdr"><h3 id="executivePendingMilestoneTitle">Approval pending</h3><button class="modal-x" onclick="closeModal('executivePendingMilestoneOverlay')" aria-label="Close approval pending dialog">×</button></div>
+    <div class="modal-body"><p>This Executive Milestone is waiting for approval. You can move, rename, or delete it after the request is approved, rejected, or withdrawn.</p><div class="modal-actions"><button type="button" class="btn btn-primary" onclick="closeModal('executivePendingMilestoneOverlay')">Close</button></div></div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveApprovalInboxOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(860px,94vw);">
+    <div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div>
+    <div class="modal-body"><div id="executiveApprovalInboxList" class="executive-approval-list">Loading requests…</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveRagOverrideOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(540px,92vw);">
+    <div class="modal-hdr"><h3 id="executiveRagOverrideTitle">Summary RAG override</h3><button class="modal-x" onclick="closeModal('executiveRagOverrideOverlay')" aria-label="Close RAG override">×</button></div>
+    <div class="modal-body executive-governance-form"><p id="executiveRagOverrideTarget"></p><label>Override RAG<select class="fs" id="executiveRagOverrideValue"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select></label><label>Audit reason<textarea class="fi" id="executiveRagOverrideReason" rows="3" maxlength="1200"></textarea></label><div id="executiveRagOverrideError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn btn-danger" id="executiveRemoveRagOverrideBtn" onclick="saveExecutiveRagOverride(true)">Remove override</button><button class="btn btn-primary" onclick="saveExecutiveRagOverride(false)">Save override</button></div></div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveTimelineSettingsOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveTimelineSettingsTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal" style="width:min(840px,94vw);">
+    <div class="modal-hdr"><h3 id="executiveTimelineSettingsTitle">Executive timeline settings</h3><button class="modal-x" onclick="closeModal('executiveTimelineSettingsOverlay')" aria-label="Close timeline settings">×</button></div>
+    <div class="modal-body executive-governance-form">
+      <p class="executive-structural-note">Change display labels and access policy. Stable IDs and the sequence of sections and quarters stay protected so historical records remain valid.</p>
+      <div id="executiveTimelineSectionSettings" class="executive-timeline-settings"></div>
+      <div id="executiveTimelineQuarterSettings" class="executive-timeline-quarter-settings"></div>
+      <label>Audit reason<textarea class="fi" id="executiveTimelineSettingsReason" rows="3" maxlength="1200" placeholder="Explain why the timeline settings are changing."></textarea></label>
+      <div id="executiveTimelineSettingsError" class="resource-validation" role="alert"></div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('executiveTimelineSettingsOverlay')">Cancel</button><button class="btn btn-primary" onclick="saveExecutiveTimelineSettings()">Save settings</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="unsavedChangesOverlay" role="dialog" aria-modal="true" aria-labelledby="unsavedChangesTitle">
   <div class="modal" style="width:min(460px,92vw);">
     <div class="modal-hdr"><h3 id="unsavedChangesTitle">Discard unsaved changes?</h3></div>
@@ -2033,7 +2255,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
           <option value="leadership">Leadership only</option>
           <option value="all-working-team">All working teams</option>
           <option value="pm-engineering">PM &amp; Engineering</option>
-          <option value="business-product">Business &amp; Product</option>
+          <option value="business-product" data-uat-label="Sales, BD &amp; Product">Business &amp; Product</option>
           <option value="everyone">Everyone</option>
         </select>
       </div>
@@ -2091,7 +2313,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <option value="active">👀 Active</option>
       <option value="all">👀 All</option>
     </select>
-    <select id="topPmSelect" class="pm-select vip-hidden" onchange="handleTopPmChange()"></select>
+    <select id="topPmSelect" class="pm-select vip-hidden executive-hidden" onchange="handleTopPmChange()"></select>
     <div class="week-nav" style="margin-left: 4px;">
       <button onclick="navWeek(-1)" title="Previous Week">‹</button>
       <select id="wNavSelect" class="wlabel-select" onchange="jumpToWeek(this.value)"></select>
@@ -2112,14 +2334,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
 
     <div style="display:flex; gap:6px; margin-right:10px; padding-right:10px; border-right:1px solid var(--border);">
-      <button class="btn-icon admin-only" id="vipPreviewBtn" style="display:none;" onclick="toggleVipPreview()" title="Preview as VIP" aria-label="Preview as VIP">
+      <button class="btn-icon admin-only" data-profile-only="production" id="vipPreviewBtn" style="display:none;" onclick="toggleVipPreview()" title="Preview as VIP" aria-label="Preview as VIP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
-      <button class="btn-icon vip-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
+      <button class="btn-icon admin-only" data-profile-only="uat" id="executivePreviewBtn" style="display:none;" onclick="toggleExecutivePreview()" title="Preview as Executive Owner" aria-label="Preview as Executive Owner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button class="btn-icon" data-profile-only="uat" id="executiveApprovalInboxBtn" style="display:none; position:relative;" onclick="openExecutiveApprovalInbox()" title="Change notifications" aria-label="Change notifications"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="executivePendingCount" class="executive-pending-count">0</span></button>
+      <button class="btn-icon vip-hidden executive-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
       
-      <button class="btn-icon vip-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
+      <button class="btn-icon vip-hidden executive-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
 
@@ -2127,7 +2353,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
       </button>
       
-      <button class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
+      <button id="manageWeeksBtn" class="btn-icon vip-hidden executive-hidden" onclick="openWeekManagement()" title="Manage Weeks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
 
@@ -2310,7 +2536,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="budget" checked><span>Budget</span></label>
     </div>
     <div class="project-pdf-picker-error" id="projectPdfSectionPickerError" role="alert"></div>
-    <div class="project-pdf-picker-actions"><button class="btn" type="button" onclick="closeModal('projectPdfSectionPicker')">Cancel</button><button class="btn btn-primary" id="projectPdfExportButton" type="button" onclick="confirmProjectPdfExport()">Preview PDF</button></div>
+    <div class="project-pdf-picker-actions"><button class="btn btn-ghost" type="button" onclick="closeModal('projectPdfSectionPicker')">Cancel</button><button class="btn btn-primary" id="projectPdfExportButton" type="button" onclick="confirmProjectPdfExport()">Preview PDF</button></div>
   </div>
 </div>
 
@@ -2552,6 +2778,39 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Copilot Prompt Preview</label><textarea class="ft copilot-prompt-box" id="copilotPrompt" readonly></textarea></div>
   </div>
 
+  <section id="productionWeekSyncPanel" data-profile-only="uat" class="admin-only" style="display:none; background:var(--s1); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;" aria-labelledby="productionWeekSyncHeading">
+    <h4 id="productionWeekSyncHeading" style="margin-bottom:8px; font-size:14px; color:var(--text);">Production Data Sync</h4>
+    <p style="font-size:12px; color:var(--text-light); margin-bottom:12px;">Admin-only controls for the protected Production-to-UAT reporting-week mirror.</p>
+    <div id="productionWeekSyncStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:6px;">No Production sync has been recorded.</div>
+    <div id="productionWeekSyncLastRun" role="status" aria-live="polite" style="font-size:12px; color:var(--text-light); margin-bottom:12px;"></div>
+    <div id="productionWeekSyncResult" role="status" aria-live="polite" style="display:flex; align-items:center; min-height:18px; font-size:12px; color:var(--text-light); margin-bottom:12px;">
+      <span id="productionWeekSyncSpinner" class="async-action-spinner" hidden aria-hidden="true"></span>
+      <span id="productionWeekSyncResultText"></span>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+      <details id="productionWeekSyncDetails" style="width:100%;">
+        <summary id="productionWeekSyncButton" class="btn btn-primary" style="display:inline-flex; list-style:none;">Sync from Production</summary>
+        <div role="alert" style="margin-top:14px; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+          <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm Production Data Sync</strong>
+          <p style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;">This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.</p>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button id="cancelProductionWeekSyncButton" class="btn btn-ghost" type="button">Cancel</button>
+            <button id="confirmProductionWeekSyncButton" class="btn btn-primary" type="button">Confirm Sync</button>
+          </div>
+        </div>
+      </details>
+      <button id="restoreUatWeekSnapshotButton" class="btn btn-ghost" type="button" disabled>Restore Last Snapshot</button>
+      <div id="productionWeekRestoreInlineConfirm" hidden role="alert" style="width:100%; padding:14px; border:1px solid var(--yellow); border-radius:8px; background:var(--ydim);">
+        <strong style="display:block; margin-bottom:6px; color:var(--text);">Confirm UAT Snapshot Restore</strong>
+        <p id="productionWeekRestoreConfirmMessage" style="font-size:12px; color:var(--text-light); line-height:1.6; margin-bottom:12px;"></p>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="cancelProductionWeekRestoreButton" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="confirmProductionWeekRestoreButton" class="btn btn-primary" type="button">Restore Snapshot</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div style="background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px;">
     <h4 style="margin-bottom:16px; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
       <span id="wm_current_title" style="font-weight:700;">Current Week</span>
@@ -2640,7 +2899,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
-    <section class="strategy-section">
+    <section class="strategy-section" data-profile-only="production">
       <div class="strategy-section-title">Executive Milestone Timeline</div>
       <div id="quarterGoalEditor"></div>
     </section>
@@ -2729,6 +2988,11 @@ import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-2";
 import { DEFAULT_GANTT_WINDOW_MONTHS, GANTT_WINDOW_MONTHS_RANGE, RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveGanttWindowConfig, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateGanttWindowConfig, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
+import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
+import { createExecutiveApi } from "./js/executive-api.mjs";
+import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
+import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs?v=vip-readonly-1";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
@@ -2744,26 +3008,115 @@ import { downloadProfessionalPdf, fetchOnePagerPreviewHtml } from "./professiona
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
+import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
+import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
-const app = initializeApp(FIREBASE_CONFIG);
+const localEmulator = getLocalEmulatorConfig(window.location);
+const useLocalEmulator = localEmulator !== null;
+const app = initializeApp(useLocalEmulator && IS_UAT_PROFILE
+  ? { ...FIREBASE_CONFIG, projectId: 'demo-pm-dashboard-v22t' }
+  : FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
-const localEmulator = getLocalEmulatorConfig(window.location);
 if (localEmulator) {
   connectFirestoreEmulator(db, '127.0.0.1', localEmulator.firestorePort);
   connectAuthEmulator(auth, `http://127.0.0.1:${localEmulator.authPort}`, { disableWarnings: true });
   connectFunctionsEmulator(functions, '127.0.0.1', localEmulator.functionsPort);
 }
+const executiveApi = createExecutiveApi({ functions, httpsCallable });
 const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });
+const uatProductionSyncApi = createUatProductionSyncApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
 // ── STATE ──
 let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
-let currentRole = 'pm';
+let currentRole = IS_UAT_PROFILE ? ('pending') : ('pm');
+const uatProductionSyncController = createUatProductionSyncController({
+  api: uatProductionSyncApi,
+  getRole: () => currentRole,
+  view: {
+    render(state) {
+      const panel = document.getElementById('productionWeekSyncPanel');
+      const status = document.getElementById('productionWeekSyncStatus');
+      const lastRun = document.getElementById('productionWeekSyncLastRun');
+      const result = document.getElementById('productionWeekSyncResultText');
+      const spinner = document.getElementById('productionWeekSyncSpinner');
+      const syncButton = document.getElementById('productionWeekSyncButton');
+      const restoreButton = document.getElementById('restoreUatWeekSnapshotButton');
+      if (!panel || !status || !lastRun || !result || !spinner || !syncButton || !restoreButton) return;
+      panel.style.display = state.isAdmin && !isAdminVipPreview ? '' : 'none';
+      status.textContent = state.statusText || '';
+      const completed = getLatestSuccessfulOperation(state.status);
+      if (completed) {
+        const counts = ['createdCount', 'updatedCount', 'deletedCount'].some(key => completed[key] !== undefined)
+          ? ` · ${Number(completed.createdCount || 0)} created, ${Number(completed.updatedCount || 0)} updated, ${Number(completed.deletedCount || 0)} deleted`
+          : '';
+        lastRun.textContent = `Last successful operation: ${completed.completedAt || 'time unavailable'}${counts}.`;
+      } else {
+        lastRun.textContent = '';
+      }
+      applyProductionSyncResultState({ resultNode: result, spinnerNode: spinner }, state);
+      applyProductionSyncButtonState({ syncButton, restoreButton }, state);
+    },
+    confirm({ kind, message }) {
+      if (kind === 'sync') return;
+      showInlineProductionSyncConfirmation({
+        container: document.getElementById('productionWeekRestoreInlineConfirm'),
+        messageNode: document.getElementById('productionWeekRestoreConfirmMessage'),
+        message,
+      });
+    },
+  },
+});
+window.requestProductionWeekSync = () => uatProductionSyncController.requestSync();
+window.confirmProductionWeekSync = () => submitInlineUatProductionSyncConfirmation({
+  controller: uatProductionSyncController,
+  close: () => { document.getElementById('productionWeekSyncDetails').open = false; },
+});
+window.cancelProductionWeekSync = () => {
+  uatProductionSyncController.cancelConfirmation();
+  document.getElementById('productionWeekSyncDetails').open = false;
+};
+window.requestRestoreUatWeekSnapshot = () => uatProductionSyncController.requestRestore();
+window.confirmProductionWeekRestore = () => submitUatProductionRestoreConfirmation({
+  controller: uatProductionSyncController,
+  close: () => hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm')),
+});
+window.cancelProductionWeekRestore = () => {
+  uatProductionSyncController.cancelConfirmation();
+  hideInlineProductionSyncConfirmation(document.getElementById('productionWeekRestoreInlineConfirm'));
+};
+bindProductionSyncActions({
+  restoreButton: document.getElementById('restoreUatWeekSnapshotButton'),
+  confirmSyncButton: document.getElementById('confirmProductionWeekSyncButton'),
+  cancelSyncButton: document.getElementById('cancelProductionWeekSyncButton'),
+  confirmRestoreButton: document.getElementById('confirmProductionWeekRestoreButton'),
+  cancelRestoreButton: document.getElementById('cancelProductionWeekRestoreButton'),
+  requestRestore: window.requestRestoreUatWeekSnapshot,
+  confirmSync: window.confirmProductionWeekSync,
+  cancelSync: window.cancelProductionWeekSync,
+  confirmRestore: window.confirmProductionWeekRestore,
+  cancelRestore: window.cancelProductionWeekRestore,
+});
+window.refreshProductionWeekSyncStatus = () => uatProductionSyncController.refreshStatus();
+let executiveUpdateSession = null;
+let executiveUpdateHistoryUnsub = null;
+let executiveUpdateSaving = false;
+let executiveChangeSession = null;
+let executiveApprovalInboxUnsub = null;
+let executivePendingMilestoneUnsub = null;
+let executivePendingMilestoneIds = new Set();
+let executiveApprovalDecisionInFlight = false;
+let executiveRagOverrideSession = null;
+let executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+let executiveTimelineConfigUnsub = null;
+let executiveLiveTimelineState = null;
+let executiveLiveTimelineUnsub = null;
+let executiveTimelineViewMode = 'period';
 let authSessionGeneration = 0;
 const displayNameDirectory = createDisplayNameDirectory();
 let isAdminVipPreview = false;
@@ -2782,7 +3135,9 @@ let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
 let activePortfolioRoadmapView = 'executive';
 let isOverview = false;
-const isVipPerspective = () => currentRole === 'vip' || (currentRole === 'admin' && isAdminVipPreview);
+const isVipPerspective__prod = () => currentRole === 'vip' || (currentRole === 'admin' && isAdminVipPreview);
+const isVipPerspective__uat = () => currentRole === 'admin' && isAdminVipPreview;
+const isVipPerspective = IS_UAT_PROFILE ? isVipPerspective__uat : isVipPerspective__prod;
 const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
 let editingProjCode = null;
 let isCreatingNew = false;
@@ -2806,6 +3161,7 @@ let ganttWindowSaveInFlight = false;
 let ganttWindowPreviewInFlight = false;
 let ganttWindowPreviewObjectUrl = null;
 let modalReturnFocus = null;
+let pendingDiscardEditorId = '';
 let ganttScale = 'month';
 let workstreamPreviewFrame = 0;
 let editorResourceStatus = normalizeResourceBudgetStatus({});
@@ -2835,12 +3191,28 @@ let ganttTemplateSubscriptionReady = false;
 let resolvePendingGanttTemplateSubscription = null;
 let ganttTemplateSessionConflicted = false;
 let ganttWindowSessionConflicted = false;
+let ganttTemplateAvailabilityStatus = '';
+const GANTT_TEMPLATE_UNAVAILABLE_MESSAGE = 'Default Gantt templates are temporarily unavailable; saving is disabled.';
 
 function ganttTemplateSettingsRef() {
   return doc(db, 'dashboardSettings', 'team-2-portfolio');
 }
 
-function applyGanttTemplateSnapshot(snapshot) {
+function reportGanttTemplateAvailabilityFailure(error) {
+  ganttTemplateSubscriptionReady = false;
+  ganttTemplateAvailabilityStatus = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
+  if (ganttTemplateSession) {
+    ganttTemplateSessionConflicted = true;
+    document.getElementById('ganttTemplateError').textContent =
+      `${GANTT_TEMPLATE_UNAVAILABLE_MESSAGE} Your draft is preserved; close and reopen settings after access is restored.`;
+  }
+  setGanttTemplateControlsDisabled(true);
+  const bannerMeta = document.getElementById('bannerMeta');
+  if (bannerMeta) bannerMeta.textContent = GANTT_TEMPLATE_UNAVAILABLE_MESSAGE;
+  console.warn('Default Gantt template configuration is unavailable.', error);
+}
+
+function applyGanttTemplateSnapshot__prod(snapshot) {
   const data = snapshot.exists() ? snapshot.data() : {};
   const nextRevision = Number.isSafeInteger(data.revision) && data.revision >= 0
     ? data.revision
@@ -2880,7 +3252,50 @@ function applyGanttTemplateSnapshot(snapshot) {
   }
 }
 
-function stopGanttTemplateConfigSubscription() {
+function applyGanttTemplateSnapshot__uat(snapshot) {
+  const data = snapshot.exists() ? snapshot.data() : {};
+  const nextRevision = Number.isSafeInteger(data.revision) && data.revision >= 0
+    ? data.revision
+    : 0;
+  const nextConfig = resolveWorkstreamTemplateConfig(snapshot.exists() ? snapshot.data() : undefined);
+  const remoteConflict = Boolean(
+    ganttTemplateSession
+    && ganttTemplateSession.revision !== nextRevision
+    && !ganttTemplateSaveInFlight
+    && document.getElementById('ganttTemplateOverlay').classList.contains('open')
+  );
+  currentGanttTemplateConfig = nextConfig;
+  currentGanttTemplateRevision = nextRevision;
+  ganttTemplateAvailabilityStatus = '';
+  ganttTemplateSubscriptionReady = true;
+  if (remoteConflict) {
+    ganttTemplateSessionConflicted = true;
+    document.getElementById('ganttTemplateError').textContent =
+      'The defaults changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
+  }
+
+  const nextWindowRevision = Number.isSafeInteger(data.ganttWindowRevision) && data.ganttWindowRevision >= 0
+    ? data.ganttWindowRevision
+    : 0;
+  const nextWindowConfig = resolveGanttWindowConfig(data);
+  const windowRemoteConflict = Boolean(
+    ganttWindowSession
+    && ganttWindowSession.revision !== nextWindowRevision
+    && !ganttWindowSaveInFlight
+    && document.getElementById('ganttWindowOverlay').classList.contains('open')
+  );
+  currentGanttWindowConfig = nextWindowConfig;
+  currentGanttWindowRevision = nextWindowRevision;
+  if (windowRemoteConflict) {
+    ganttWindowSessionConflicted = true;
+    document.getElementById('ganttWindowError').textContent =
+      'The settings changed in another Admin session. Your draft is preserved; close and reopen settings to review the latest version.';
+  }
+}
+
+function applyGanttTemplateSnapshot(...args) { return (IS_UAT_PROFILE ? applyGanttTemplateSnapshot__uat : applyGanttTemplateSnapshot__prod)(...args); }
+
+function stopGanttTemplateConfigSubscription__prod() {
   ganttTemplateSubscriptionGeneration += 1;
   if (ganttTemplateConfigUnsub) ganttTemplateConfigUnsub();
   ganttTemplateConfigUnsub = null;
@@ -2893,7 +3308,23 @@ function stopGanttTemplateConfigSubscription() {
   currentGanttWindowRevision = 0;
 }
 
-async function loadGanttTemplateConfig(authGeneration, authUser) {
+function stopGanttTemplateConfigSubscription__uat() {
+  ganttTemplateSubscriptionGeneration += 1;
+  if (ganttTemplateConfigUnsub) ganttTemplateConfigUnsub();
+  ganttTemplateConfigUnsub = null;
+  if (resolvePendingGanttTemplateSubscription) resolvePendingGanttTemplateSubscription(false);
+  resolvePendingGanttTemplateSubscription = null;
+  ganttTemplateSubscriptionReady = false;
+  ganttTemplateAvailabilityStatus = '';
+  currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
+  currentGanttTemplateRevision = 0;
+  currentGanttWindowConfig = resolveGanttWindowConfig();
+  currentGanttWindowRevision = 0;
+}
+
+function stopGanttTemplateConfigSubscription(...args) { return (IS_UAT_PROFILE ? stopGanttTemplateConfigSubscription__uat : stopGanttTemplateConfigSubscription__prod)(...args); }
+
+async function loadGanttTemplateConfig__prod(authGeneration, authUser) {
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
   if (!isAuthInitializationCurrent(
@@ -2974,6 +3405,90 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
   });
 }
 
+async function loadGanttTemplateConfig__uat(authGeneration, authUser) {
+  const ownerUid = authUser?.uid || '';
+  const ownerEmail = getEmailKey(authUser);
+  if (!isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    ownerUid,
+    ownerEmail,
+  )) return false;
+  stopGanttTemplateConfigSubscription();
+  if (executiveUpdateSession) window.closeExecutiveItemDrawer({ force: true });
+  const generation = ganttTemplateSubscriptionGeneration;
+  return new Promise(resolve => {
+    let settled = false;
+    const settle = ready => {
+      if (settled) return;
+      settled = true;
+      if (resolvePendingGanttTemplateSubscription === settle) {
+        resolvePendingGanttTemplateSubscription = null;
+      }
+      resolve(ready);
+    };
+    resolvePendingGanttTemplateSubscription = settle;
+    const isCurrentSubscription = () => (
+      authGeneration === authSessionGeneration
+      && generation === ganttTemplateSubscriptionGeneration
+      && isAuthInitializationCurrent(
+        authSessionGeneration,
+        authGeneration,
+        currentUser,
+        ownerUid,
+        ownerEmail,
+      )
+    );
+    try {
+      ganttTemplateConfigUnsub = onSnapshot(
+        ganttTemplateSettingsRef(),
+        snapshot => {
+          if (!isCurrentSubscription()) {
+            settle(false);
+            return;
+          }
+          applyGanttTemplateSnapshot(snapshot);
+          settle(true);
+        },
+        error => {
+          if (!isCurrentSubscription()) {
+            settle(false);
+            return;
+          }
+          currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
+          currentGanttTemplateRevision = 0;
+          currentGanttWindowConfig = resolveGanttWindowConfig();
+          currentGanttWindowRevision = 0;
+          ganttTemplateSubscriptionReady = true;
+          if (ganttTemplateSession && !ganttTemplateSaveInFlight) {
+            ganttTemplateSessionConflicted = true;
+            document.getElementById('ganttTemplateError').textContent =
+              'Live defaults are unavailable. Your draft is preserved; close and reopen settings after access is restored.';
+          }
+          if (ganttWindowSession && !ganttWindowSaveInFlight) {
+            ganttWindowSessionConflicted = true;
+            document.getElementById('ganttWindowError').textContent =
+              'Live settings are unavailable. Your draft is preserved; close and reopen settings after access is restored.';
+          }
+          console.warn('Default Gantt template config is unavailable; using built-in defaults.', error);
+          settle(true);
+        },
+      );
+    } catch (error) {
+      currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
+      currentGanttTemplateRevision = 0;
+      currentGanttWindowConfig = resolveGanttWindowConfig();
+      currentGanttWindowRevision = 0;
+      ganttTemplateSubscriptionReady = true;
+      console.warn('Default Gantt template subscription could not start; using built-in defaults.', error);
+      settle(true);
+    }
+  });
+}
+
+function loadGanttTemplateConfig(...args) { return (IS_UAT_PROFILE ? loadGanttTemplateConfig__uat : loadGanttTemplateConfig__prod)(...args); }
+
 function ganttTemplateListId(level) {
   return level === 'hardware-module' ? 'hardwareModuleTemplateList' : 'systemTemplateList';
 }
@@ -3006,11 +3521,22 @@ function invalidateGanttTemplateSession() {
   setGanttTemplateControlsDisabled(false);
 }
 
-function setGanttTemplateControlsDisabled(disabled) {
+function setGanttTemplateControlsDisabled__prod(disabled) {
   document.getElementById('ganttTemplateOverlay')
     ?.querySelectorAll('button, input')
     .forEach(control => { control.disabled = disabled; });
 }
+
+function setGanttTemplateControlsDisabled__uat(disabled) {
+  document.getElementById('ganttTemplateOverlay')
+    ?.querySelectorAll('button, input')
+    .forEach(control => {
+      if (control.id === 'closeGanttTemplateXBtn' || control.id === 'cancelGanttTemplateBtn') return;
+      control.disabled = disabled;
+    });
+}
+
+function setGanttTemplateControlsDisabled(...args) { return (IS_UAT_PROFILE ? setGanttTemplateControlsDisabled__uat : setGanttTemplateControlsDisabled__prod)(...args); }
 
 function renderGanttTemplateRow(level, name = '') {
   const container = document.getElementById(ganttTemplateListId(level));
@@ -3092,7 +3618,7 @@ window.deleteGanttTemplateRow = button => {
   button.closest('.gantt-template-row')?.remove();
 };
 
-window.saveGanttTemplateSettings = async () => {
+const saveGanttTemplateSettings__prod = async () => {
   const session = ganttTemplateSession;
   if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session) || ganttTemplateSaveInFlight) return;
   if (ganttTemplateSessionConflicted) {
@@ -3134,6 +3660,56 @@ window.saveGanttTemplateSettings = async () => {
     setGanttTemplateControlsDisabled(false);
   }
 };
+
+const saveGanttTemplateSettings__uat = async () => {
+  const session = ganttTemplateSession;
+  if (
+    currentRole !== 'admin'
+    || !isGanttTemplateSessionCurrent(session)
+    || ganttTemplateSaveInFlight
+    || !ganttTemplateSubscriptionReady
+  ) return;
+  if (ganttTemplateSessionConflicted) {
+    document.getElementById('ganttTemplateError').textContent =
+      'The live defaults changed. Close and reopen settings before saving a new draft.';
+    return;
+  }
+  const validation = validateWorkstreamTemplateConfig(collectGanttTemplateDraft());
+  if (!validation.valid) {
+    const labels = { system: 'System', 'hardware-module': 'Hardware Module' };
+    document.getElementById('ganttTemplateError').textContent = Object.entries(validation.errors)
+      .flatMap(([level, errors]) => errors.map(error => `${labels[level]}: ${error}`))
+      .join(' ');
+    return;
+  }
+
+  ganttTemplateSaveInFlight = true;
+  setGanttTemplateControlsDisabled(true);
+  document.getElementById('ganttTemplateError').textContent = '';
+  try {
+    const response = await projectDashboardApi.saveGanttTemplateSettings({
+      expectedRevision: session.revision,
+      config: validation.config,
+    });
+    const savedRevision = response.revision;
+
+    ganttTemplateSaveInFlight = false;
+    if (!isGanttTemplateSessionCurrent(session)) return;
+    currentGanttTemplateConfig = resolveWorkstreamTemplateConfig(validation.config);
+    currentGanttTemplateRevision = savedRevision;
+    ganttTemplateSession = null;
+    closeModal('ganttTemplateOverlay', { force: true });
+    showSaveToast('Default Gantt templates updated');
+  } catch (error) {
+    ganttTemplateSaveInFlight = false;
+    if (!isGanttTemplateSessionCurrent(session)) return;
+    const message = error instanceof Error ? error.message : 'The default templates could not be saved.';
+    document.getElementById('ganttTemplateError').textContent = `${message} Your draft is preserved and still open.`;
+    setGanttTemplateControlsDisabled(Boolean(ganttTemplateAvailabilityStatus));
+  }
+};
+
+window.saveGanttTemplateSettings = (...args) => (IS_UAT_PROFILE ? saveGanttTemplateSettings__uat : saveGanttTemplateSettings__prod)(...args);
 // END GANTT TEMPLATE SETTINGS
 
 // GANTT WINDOW SETTINGS
@@ -3421,7 +3997,7 @@ function loadOverviewScopeForCurrentUser() {
   } catch {}
 }
 
-function getRoleVisibleProjectsForOverview(projects) {
+function getRoleVisibleProjectsForOverview__prod(projects) {
   const visibilityFilter = document.getElementById('visSelect')?.value || 'active';
   return filterRoleVisibleProjects(projects, {
     role: currentRole,
@@ -3429,6 +4005,17 @@ function getRoleVisibleProjectsForOverview(projects) {
     visibilityFilter
   });
 }
+
+function getRoleVisibleProjectsForOverview__uat(projects) {
+  const visibilityFilter = document.getElementById('visSelect')?.value || 'active';
+  return filterRoleVisibleProjects(projects, {
+    role: currentRole,
+    executivePerspective: isVipPerspective(),
+    visibilityFilter
+  });
+}
+
+function getRoleVisibleProjectsForOverview(...args) { return (IS_UAT_PROFILE ? getRoleVisibleProjectsForOverview__uat : getRoleVisibleProjectsForOverview__prod)(...args); }
 
 function overviewProjectBadge(project) {
   const label = getOverviewProjectBadgeLabel(project, overviewScope);
@@ -3490,6 +4077,7 @@ const FIRESTORE_SIX_WEEK_BASELINE = {
   freeWriteQuota: 42 * FIRESTORE_FREE_WRITES_PER_DAY
 };
 let weeksUnsub = null;
+let projectManagerUnsub = null;
 let presenceUsageFlushTimer = null;
 let presenceSessionId = null;
 let presenceSessionStartedAt = 0;
@@ -3620,17 +4208,34 @@ function getEmailKey(userOrEmail) {
   return (email || '').trim().toLowerCase();
 }
 
-function normalizeRole(role) {
+function normalizeRole__prod(role) {
   const normalized = (role || 'pm').toString().trim().toLowerCase();
   return ['admin', 'pm', 'vip', 'engineering', 'business', 'product'].includes(normalized) ? normalized : 'pm';
 }
 
-function getDashboardRole(userDoc) {
+function normalizeRole__uat(role) {
+  return normalizeExecutiveRole(role) || '';
+}
+
+function normalizeRole(...args) { return (IS_UAT_PROFILE ? normalizeRole__uat : normalizeRole__prod)(...args); }
+
+function getDashboardRole__prod(userDoc) {
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
   return normalizeRole(userDoc.data().role);
 }
+
+function getDashboardRole__uat(userDoc) {
+  if (!userDoc.exists()) {
+    throw new Error('missing-dashboard-role');
+  }
+  const role = normalizeDashboardRole(userDoc.data().role);
+  if (!role) throw new Error('missing-dashboard-role');
+  return role;
+}
+
+function getDashboardRole(...args) { return (IS_UAT_PROFILE ? getDashboardRole__uat : getDashboardRole__prod)(...args); }
 
 function showAuthError(message) {
   const msg = document.getElementById('authMsg');
@@ -3647,13 +4252,25 @@ function isWeekReleased(week) {
   return week?.isReleased === true;
 }
 
-function assertCurrentWeekEditable(week = allWeeks[currentIdx]) {
+function canManageWeekRelease() {
+  return ['admin', 'pm'].includes(currentRole);
+}
+
+function assertCurrentWeekEditable__prod(week = allWeeks[currentIdx]) {
   if (isWeekReleased(week)) {
     throw new Error('This week has been released to VIP and is locked. Create a new week to make updates.');
   }
 }
 
-function showDataLoadError(error) {
+function assertCurrentWeekEditable__uat(week = allWeeks[currentIdx]) {
+  if (isWeekReleased(week)) {
+    throw new Error('This week has been released to Executive Owner and is locked. Create a new week to make updates.');
+  }
+}
+
+function assertCurrentWeekEditable(...args) { return (IS_UAT_PROFILE ? assertCurrentWeekEditable__uat : assertCurrentWeekEditable__prod)(...args); }
+
+function showDataLoadError__prod(error) {
   console.error("Weeks DB Error:", error);
   hideLoader();
   allWeeks = [];
@@ -3672,6 +4289,28 @@ function showDataLoadError(error) {
   document.getElementById('normalView').style.display = currentRole === 'vip' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'vip' ? 'block' : 'none';
 }
+
+function showDataLoadError__uat(error) {
+  console.error("Weeks DB Error:", error);
+  hideLoader();
+  allWeeks = [];
+  currentIdx = -1;
+  document.getElementById('bannerTitle').textContent = "Unable to load dashboard";
+  document.getElementById('bannerMeta').textContent = error?.code === 'permission-denied'
+    ? "This account does not have permission to read the requested dashboard data."
+    : "Please refresh and try again.";
+  document.getElementById('bannerPills').innerHTML = "";
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  document.getElementById('projGrid').innerHTML = '';
+  document.getElementById('execView').innerHTML = `
+    <div class="empty-state">
+      <span>Dashboard data could not be loaded.</span>
+    </div>`;
+  document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
+  document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+}
+
+function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
 
 // ── PRESENCE USAGE COUNTER ──
 function getPresenceUsageStorageKey(owner = currentUser) {
@@ -3771,7 +4410,7 @@ function makePresenceSessionId() {
   return `${userKey}-${Date.now()}-${random}`;
 }
 
-function startPresenceSession() {
+function startPresenceSession__prod() {
   if (!currentUser || presenceSessionId) return;
   const now = Date.now();
   presenceSessionId = makePresenceSessionId();
@@ -3802,6 +4441,40 @@ function startPresenceSession() {
     console.warn('Presence session start skipped:', error);
   });
 }
+
+function startPresenceSession__uat() {
+  if (!currentUser || presenceSessionId) return;
+  const now = Date.now();
+  presenceSessionId = makePresenceSessionId();
+  presenceSessionStartedAt = now;
+  presenceSessionLastEventAt = now;
+  presenceSessionState = 'active';
+  presenceSessionClosed = false;
+  const expiresAt = new Date(now + PRESENCE_SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  presenceSessionWriteChain = setDoc(doc(db, PRESENCE_SESSION_COLLECTION, presenceSessionId), {
+    sessionId: presenceSessionId,
+    ownerUid: currentUser.uid,
+    userKey: getEmailKey(currentUser),
+    displayName: getUserDisplayName(currentUser.email),
+    role: currentRole,
+    environment: 'v2.2T',
+    startedAt: now,
+    lastSeenAt: now,
+    endedAt: null,
+    activeMs: 0,
+    idleMs: 0,
+    state: 'active',
+    endReason: null,
+    aggregatedAt: null,
+    expiresAt,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }).catch(error => {
+    console.warn('Presence session start skipped:', error);
+  });
+}
+
+function startPresenceSession(...args) { return (IS_UAT_PROFILE ? startPresenceSession__uat : startPresenceSession__prod)(...args); }
 
 function trackPresenceSession(nextState = 'active', options = {}) {
   if (!currentUser || !presenceSessionId || presenceSessionClosed) return presenceSessionWriteChain;
@@ -4057,7 +4730,7 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   });
 }
 
-function renderPresenceSessionStats(sessions = []) {
+function renderPresenceSessionStats__prod(sessions = []) {
   const normalized = sessions.map(session => normalizePresenceSession(session));
   const users = new Set(normalized.map(session => session.userKey || session.displayName).filter(Boolean));
   const onlineMs = normalized.reduce((sum, session) => sum + session.onlineMs, 0);
@@ -4089,6 +4762,41 @@ function renderPresenceSessionStats(sessions = []) {
       </tr>`).join('')}</tbody>
   </table></div>`;
 }
+
+function renderPresenceSessionStats__uat(sessions = []) {
+  const normalized = sessions.map(session => normalizePresenceSession(session));
+  const users = new Set(normalized.map(session => session.userKey || session.displayName).filter(Boolean));
+  const onlineMs = normalized.reduce((sum, session) => sum + session.onlineMs, 0);
+  const activeMs = normalized.reduce((sum, session) => sum + Number(session.activeMs || 0), 0);
+  const timedOut = normalized.filter(session => session.timedOut).length;
+  document.getElementById('presenceSessionSummary').innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Unique users</div><div class="usage-card-value">${users.size}</div><div class="usage-card-note">PM, Executive Owner and Admin accounts</div></div>
+    <div class="usage-card"><div class="usage-card-label">Sessions</div><div class="usage-card-value">${normalized.length}</div><div class="usage-card-note">${timedOut} inferred timeout${timedOut === 1 ? '' : 's'}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Online time</div><div class="usage-card-value">${fmtSessionDuration(onlineMs)}</div><div class="usage-card-note">Login to logout or inferred end</div></div>
+    <div class="usage-card"><div class="usage-card-label">Active time</div><div class="usage-card-value">${fmtSessionDuration(activeMs)}</div><div class="usage-card-note">Accumulated heartbeat activity</div></div>
+  `;
+  const table = document.getElementById('presenceSessionTable');
+  if (!normalized.length) {
+    table.innerHTML = '<div class="usage-empty">No session history has been recorded in this range yet.</div>';
+    return;
+  }
+  table.innerHTML = `<div class="session-table-wrap"><table class="usage-table">
+    <thead><tr><th>User</th><th>Role</th><th>Login</th><th>Logout / inferred end</th><th>Online</th><th>Active</th><th>Idle</th><th>Status</th></tr></thead>
+    <tbody>${normalized.sort((a, b) => b.startedAt - a.startedAt).map(session => `
+      <tr>
+        <td>${escHtml(session.displayName || session.userKey || '-')}</td>
+        <td><span class="session-role">${escHtml(session.role || 'pm')}</span></td>
+        <td>${escHtml(new Date(session.startedAt).toLocaleString())}</td>
+        <td>${escHtml(new Date(session.endedAt).toLocaleString())}</td>
+        <td class="num">${fmtSessionDuration(session.onlineMs)}</td>
+        <td class="num">${fmtSessionDuration(session.activeMs)}</td>
+        <td class="num">${fmtSessionDuration(session.idleMs)}</td>
+        <td><span class="session-state ${session.timedOut ? 'timed-out' : ''}">${session.timedOut ? 'Timed out' : (session.state || 'Closed')}</span></td>
+      </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderPresenceSessionStats(...args) { return (IS_UAT_PROFILE ? renderPresenceSessionStats__uat : renderPresenceSessionStats__prod)(...args); }
 
 function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimatedActivities = [], lastSeenActivities = []) {
   const totals = rows.reduce((acc, row) => {
@@ -4436,7 +5144,7 @@ function setDashboardAccessPending() {
   document.getElementById('topMetricsGrid').style.display = 'none';
 }
 
-function quiesceDashboardForAuthTransition() {
+function quiesceDashboardForAuthTransition__prod() {
   stopPresenceSystem();
   displayNameDirectory.clear();
   if (weeksUnsub) {
@@ -4453,6 +5161,43 @@ function quiesceDashboardForAuthTransition() {
   currentIdx = -1;
   setDashboardAccessPending();
 }
+
+function quiesceDashboardForAuthTransition__uat() {
+  stopPresenceSystem();
+  stopProjectManagerSubscription();
+  displayNameDirectory.clear();
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
+  if (executiveTimelineConfigUnsub) {
+    executiveTimelineConfigUnsub();
+    executiveTimelineConfigUnsub = null;
+  }
+  if (executiveLiveTimelineUnsub) {
+    executiveLiveTimelineUnsub();
+    executiveLiveTimelineUnsub = null;
+  }
+  executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+  executiveLiveTimelineState = null;
+  executiveTimelineViewMode = 'period';
+  stopGanttTemplateConfigSubscription();
+  invalidateProjectEditorSession();
+  invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
+  if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  executiveApprovalInboxUnsub = null;
+  executiveChangeSession = null;
+  executiveRagOverrideSession = null;
+  ['executiveChangeRequestOverlay', 'executiveApprovalInboxOverlay', 'executiveRagOverrideOverlay', 'executiveTimelineSettingsOverlay'].forEach(id => document.getElementById(id)?.classList.remove('open'));
+  currentRole = 'pending';
+  isAdminVipPreview = false;
+  allWeeks = [];
+  currentIdx = -1;
+  setDashboardAccessPending();
+}
+
+function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
 
 // ── AUTH ──
 window.handleLogin = async () => {
@@ -4523,7 +5268,7 @@ window.saveNewPassword = async () => {
   }
 };
 
-window.handleLogout = async () => {
+const handleLogout__prod = async () => {
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
   invalidateProjectEditorSession();
@@ -4548,6 +5293,96 @@ window.handleLogout = async () => {
   hideLoader();
 };
 
+const handleLogout__uat = async () => {
+  const logoutGeneration = ++authSessionGeneration;
+  displayNameDirectory.clear();
+  invalidateProjectEditorSession();
+  invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
+  stopGanttTemplateConfigSubscription();
+  showLoader("Logging out...");
+  stopPresenceSystem();
+  stopProjectManagerSubscription();
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
+  document.getElementById('projGrid').innerHTML = '';
+  document.getElementById('execView').innerHTML = '';
+  document.getElementById('bannerTitle').textContent = 'Loading...';
+  document.getElementById('bannerMeta').textContent = '';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  allWeeks = [];
+  currentIdx = -1;
+  await signOut(auth);
+  if (logoutGeneration !== authSessionGeneration) return;
+  hideLoader();
+};
+
+window.handleLogout = (...args) => (IS_UAT_PROFILE ? handleLogout__uat : handleLogout__prod)(...args);
+
+if (IS_UAT_PROFILE) {
+onAuthStateChanged(auth, async user => {
+  window.__dashboardAuthObserved = true;
+  const authGeneration = ++authSessionGeneration;
+  const authUid = user?.uid || '';
+  const authEmail = getEmailKey(user);
+  quiesceDashboardForAuthTransition();
+  currentUser = user;
+  const isCurrentAuthInitialization = () => isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    authUid,
+    authEmail,
+  );
+  const dot = document.getElementById('syncDot');
+  if (user) {
+    try {
+      document.getElementById('loginOverlay').style.display = 'none';
+
+      const userDoc = await getDoc(doc(db, "users", authEmail));
+      if (!isCurrentAuthInitialization()) return;
+      currentRole = getDashboardRole(userDoc);
+
+      const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
+      if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
+      await startProjectManagerSubscription(isCurrentAuthInitialization);
+      if (!isCurrentAuthInitialization()) return;
+      setupUI();
+      if (!nextDirectory.available) showSaveToast('PM list unavailable. Refresh to retry.');
+      initData(authGeneration, user);
+      startPresenceSystem(authGeneration, user);
+      dot.classList.add('ok');
+      dot.title = "Connected as " + user.email;
+    } catch (e) {
+      if (!isCurrentAuthInitialization()) return;
+      console.error("Login initialization failed:", e);
+      hideLoader();
+      dot.classList.remove('ok');
+      document.getElementById('loginOverlay').style.display = 'flex';
+      showAuthError(e.message === 'missing-dashboard-role'
+        ? "Login succeeded, but this account has not been assigned a dashboard role yet."
+        : "Login succeeded, but this account cannot load dashboard access settings. Please verify its user role and Firestore permissions.");
+      await signOut(auth).catch(() => {});
+    }
+  } else {
+    hideLoader();
+    currentRole = 'pm';
+    currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
+    currentGanttTemplateRevision = 0;
+    currentGanttWindowConfig = resolveGanttWindowConfig();
+    currentGanttWindowRevision = 0;
+    overviewScope = 'system';
+    stopPresenceUsageFlushTimer();
+    document.getElementById('projGrid').innerHTML = '';
+    document.getElementById('execView').innerHTML = '';
+    document.getElementById('topMetricsGrid').style.display = 'none';
+    document.getElementById('loginOverlay').style.display = 'flex';
+    dot.classList.remove('ok');
+  }
+});
+} else {
 onAuthStateChanged(auth, async user => {
   window.__dashboardAuthObserved = true;
   const authGeneration = ++authSessionGeneration;
@@ -4612,6 +5447,7 @@ onAuthStateChanged(auth, async user => {
     dot.classList.remove('ok');
   }
 });
+}
 
 function getUserDisplayName(emailStr) {
   return displayNameDirectory.resolve(emailStr);
@@ -4640,7 +5476,47 @@ async function fetchDynamicPMList() {
   }
 }
 
-function setupUI() {
+function stopProjectManagerSubscription() {
+  if (projectManagerUnsub) projectManagerUnsub();
+  projectManagerUnsub = null;
+}
+
+function syncProjectManagerFilterOptions() {
+  const selector = document.getElementById('topPmSelect');
+  if (!selector) return;
+  currentPMFilter = reconcileProjectManagerFilter(currentPMFilter, PM_LIST);
+  selector.innerHTML = `<option value="all">👥 All PMs</option>${PM_LIST.map(name => `<option value="${escHtml(name)}">${escHtml(name)}</option>`).join('')}`;
+  selector.value = currentPMFilter;
+}
+
+function startProjectManagerSubscription(isCurrentSession) {
+  stopProjectManagerSubscription();
+  return new Promise((resolve, reject) => {
+    let initial = true;
+    projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
+      if (!isCurrentSession()) return;
+      const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
+      displayNameDirectory.replace(accounts);
+      PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);
+      syncProjectManagerFilterOptions();
+      if (allWeeks.length) render();
+      if (initial) {
+        initial = false;
+        resolve(PM_LIST);
+      }
+    }, error => {
+      if (!isCurrentSession()) return;
+      displayNameDirectory.clear();
+      PM_LIST = [];
+      syncProjectManagerFilterOptions();
+      if (allWeeks.length) render();
+      if (initial) reject(error);
+      else console.warn('PM membership subscription failed.', error);
+    });
+  });
+}
+
+function setupUI__prod() {
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   invalidateGanttWindowSession();
@@ -4693,13 +5569,75 @@ function setupUI() {
   refreshFxRates();
 }
 
+function setupUI__uat() {
+  invalidateProjectEditorSession();
+  invalidateGanttTemplateSession();
+  invalidateGanttWindowSession();
+  loadOverviewScopeForCurrentUser();
+  isAdminVipPreview = false;
+  document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
+  document.getElementById('displayUser').textContent = getUserDisplayName(getEmailKey(currentUser));
+  const rBadge = document.getElementById('displayRole');
+  rBadge.textContent = currentRole === 'executive' ? 'EXECUTIVE OWNER' : currentRole.toUpperCase();
+  document.querySelectorAll('header button, header select').forEach(control => {
+    control.disabled = false;
+  });
+  
+  rBadge.className = 'role-badge';
+  document.querySelectorAll('.executive-hidden').forEach(el => el.style.display = '');
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
+  document.getElementById('presenceUsageBtn').style.display = 'none';
+  document.getElementById('executiveApprovalInboxBtn').style.display = 'none';
+  
+  isOverview = false;
+  document.getElementById('btnOverview').classList.remove('active');
+  document.getElementById('normalView').style.display = 'block';
+  document.getElementById('execView').style.display = 'none';
+  
+  if(currentRole === 'admin') {
+    rBadge.classList.add('admin');
+    document.getElementById('productionWeekSyncPanel').style.display = isAdminVipPreview ? 'none' : '';
+    document.getElementById('onlineUsersContainer').style.display = 'flex';
+    document.getElementById('visSelect').style.display = 'inline-block';
+    document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
+    document.getElementById('executivePreviewBtn').style.display = 'inline-flex';
+    document.getElementById('addProjectBtn').style.display = 'inline-flex';
+    document.getElementById('ganttTemplateSettingsBtn').style.display = 'inline-flex';
+    document.getElementById('ganttWindowSettingsBtn').style.display = 'inline-flex';
+    document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
+  } 
+  else if (currentRole === 'pm') {
+    document.getElementById('onlineUsersContainer').style.display = 'flex';
+  }
+  else if (currentRole === 'executive') {
+    rBadge.classList.add('executive');
+    document.getElementById('onlineUsersContainer').style.display = 'none'; 
+    document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
+  }
+  syncProjectManagerFilterOptions();
+  updateMasterDataLists();
+  refreshExecutivePendingCount();
+  refreshFxRates();
+}
+
+function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__prod)(...args); }
+
 // ── DATA ──
-window.jumpToWeek = (idx) => {
+const jumpToWeek__prod = (idx) => {
   currentIdx = parseInt(idx, 10);
   render();
 };
 
-window.toggleReleaseWeek = async () => {
+const jumpToWeek__uat = (idx) => {
+  currentIdx = parseInt(idx, 10);
+  resetExecutiveTimelineView();
+  render();
+};
+
+window.jumpToWeek = (...args) => (IS_UAT_PROFILE ? jumpToWeek__uat : jumpToWeek__prod)(...args);
+
+const toggleReleaseWeek__prod = async () => {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || releaseWriteInProgress) return;
   
@@ -4735,7 +5673,45 @@ window.toggleReleaseWeek = async () => {
   }
 };
 
-function initData(authGeneration, authUser) {
+const toggleReleaseWeek__uat = async () => {
+  const week = allWeeks[currentIdx];
+  if (!week || !currentUser || releaseWriteInProgress || !canManageWeekRelease()) return;
+  
+  const isCurrentlyReleased = isWeekReleased(week);
+  const newStatus = !isCurrentlyReleased;
+  const changes = {
+    isReleased: newStatus,
+    lastModifiedBy: currentUser.email
+  };
+  releaseWriteInProgress = true;
+  showLoader(newStatus ? "Releasing to Executive Owner..." : "Reverting to Draft...");
+  
+  const id = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+  try {
+    let serverWeek;
+    const savedWeek = await confirmWeekMutation(
+      week,
+      changes,
+      async () => {
+        const result = await projectDashboardApi.setWeekRelease({ weekId: id, isReleased: newStatus });
+        serverWeek = result.week;
+      }
+    );
+    allWeeks[currentIdx] = { ...savedWeek, ...serverWeek };
+    render();
+    showSaveToast(newStatus ? "Week released to Executive Owner!" : "Week reverted to Draft");
+  } catch (err) {
+    console.error("Release status update failed", err);
+    showSaveToast(getWriteErrorMessage(err));
+  } finally {
+    releaseWriteInProgress = false;
+    hideLoader();
+  }
+};
+
+window.toggleReleaseWeek = (...args) => (IS_UAT_PROFILE ? toggleReleaseWeek__uat : toggleReleaseWeek__prod)(...args);
+
+function initData__prod(authGeneration, authUser) {
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4804,7 +5780,110 @@ function initData(authGeneration, authUser) {
   });
 }
 
-function canEditProject(proj) {
+function initData__uat(authGeneration, authUser) {
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
+
+  const weeksRef = collection(db, "weeks");
+  const weeksQuery = canReadDraftWeeks(currentRole)
+    ? query(weeksRef, orderBy('weekLabel'))
+    : query(weeksRef, where('isReleased', '==', true));
+  const ownerUid = authUser?.uid || '';
+  const ownerEmail = getEmailKey(authUser);
+  const isCurrentDataSession = () => isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    ownerUid,
+    ownerEmail,
+  );
+
+  if (executiveTimelineConfigUnsub) executiveTimelineConfigUnsub();
+  executiveTimelineConfigUnsub = onSnapshot(doc(db, 'executiveMilestoneConfig', 'timeline'), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executiveTimelineConfig = normalizeExecutiveTimelineConfig(snapshot.exists() ? snapshot.data() : {});
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+  });
+
+  if (executiveLiveTimelineUnsub) executiveLiveTimelineUnsub();
+  executiveLiveTimelineUnsub = onSnapshot(doc(db, 'executiveMilestoneState', 'live'), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executiveLiveTimelineState = snapshot.exists() ? snapshot.data() : null;
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executiveLiveTimelineState = null;
+    window.render();
+  });
+
+  if (executivePendingMilestoneUnsub) executivePendingMilestoneUnsub();
+  executivePendingMilestoneUnsub = onSnapshot(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = pendingExecutiveMilestoneIds(snapshot.docs.map(entry => entry.data()));
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executivePendingMilestoneIds = new Set();
+    window.render();
+  });
+
+  weeksUnsub = onSnapshot(weeksQuery, snap => {
+    if (!isCurrentDataSession()) return;
+    let fetchedWeeks = snap.docs.map(d => {
+      const week = d.data();
+      const normalizedWeek = {
+        ...week,
+        projects: (week.projects || []).map(project => {
+          const normalizedProject = normalizeProject(project);
+          Object.defineProperty(normalizedProject, '__revisionFingerprint', {
+            value: projectRevisionFingerprint(project),
+            enumerable: false,
+          });
+          return normalizedProject;
+        })
+      };
+      Object.defineProperty(normalizedWeek, '__documentId', {
+        value: d.id,
+        enumerable: false
+      });
+      return normalizedWeek;
+    });
+    if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
+    allWeeks = sortWeeksByLabel(fetchedWeeks);
+    
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      currentIdx = allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    }
+
+    if (currentIdx >= allWeeks.length) {
+      currentIdx = allWeeks.length - 1;
+    }
+
+    const sel = document.getElementById('wNavSelect');
+    if (sel && allWeeks.length > 0) {
+      sel.innerHTML = allWeeks.map((w, i) => `<option value="${i}">${escHtml(w.weekLabel)} (${escHtml(w.weekDate)})</option>`).join('');
+      sel.value = currentIdx;
+    } else if (sel) {
+      sel.innerHTML = '<option value="">No Weeks Available</option>';
+    }
+
+    render();
+    hideLoader();
+  }, error => {
+    if (!isCurrentDataSession()) return;
+    showDataLoadError(error);
+  });
+}
+
+function initData(...args) { return (IS_UAT_PROFILE ? initData__uat : initData__prod)(...args); }
+
+function canEditProject__prod(proj) {
   if (currentRole === 'admin') return true;
   if (currentRole === 'vip') return false;
   if (!currentUser) return false;
@@ -4821,7 +5900,28 @@ function canEditProject(proj) {
   });
 }
 
-const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+function canEditProject__uat(proj) {
+  if (currentRole === 'admin') return true;
+  if (currentRole !== 'pm') return false;
+  if (!currentUser) return false;
+
+  const userEmail = getEmailKey(currentUser);
+  const owner = (proj.owner || "").toLowerCase();
+  const deputy = (proj.deputy || "").toLowerCase();
+  const assignedOwner = owner === PROJECT_MEMBER_TBD.toLowerCase() ? "" : owner;
+  const assignedDeputy = deputy === PROJECT_MEMBER_TBD.toLowerCase() ? "" : deputy;
+  if (!assignedOwner && !assignedDeputy) return false;
+  return projectOwnershipMatchesIdentity(proj, {
+    displayName: getUserDisplayName(userEmail),
+    email: userEmail,
+  });
+}
+
+function canEditProject(...args) { return (IS_UAT_PROFILE ? canEditProject__uat : canEditProject__prod)(...args); }
+
+const RELEASED_WEEK_PROJECT_EDIT_MESSAGE__prod = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+const RELEASED_WEEK_PROJECT_EDIT_MESSAGE__uat = 'This week has been released to Executive Owner and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = IS_UAT_PROFILE ? RELEASED_WEEK_PROJECT_EDIT_MESSAGE__uat : RELEASED_WEEK_PROJECT_EDIT_MESSAGE__prod;
 
 function formatBullets(text) {
   return renderListHtml(text);
@@ -5495,29 +6595,55 @@ const HEALTH_OPTIONS = [
   ['red', 'Blocked']
 ];
 
-const EXECUTIVE_SECTION_DEFINITIONS = [
+const EXECUTIVE_SECTION_MIGRATION = {
+  'solution-ecosystem': 'ioe-product-portfolio',
+  'customers-gtm': 'customer-engagements',
+  'investors-others': 'investors-strategy',
+};
+const EXECUTIVE_SECTION_DEFINITIONS__prod = [
   { sectionId: 'solution-ecosystem', label: 'Solution & ecosystem', audience: 'all-working-team' },
   { sectionId: 'customers-gtm', label: 'Customers & GTM', audience: 'business-product' },
   { sectionId: 'investors-others', label: 'Investors & Others', audience: 'leadership-only' },
 ];
+const EXECUTIVE_SECTION_DEFINITIONS__uat = EXECUTIVE_SECTIONS.map((section, index) => ({
+  ...section,
+  audience: ['pm-engineering', 'business-product', 'leadership-only'][index],
+}));
+const EXECUTIVE_SECTION_DEFINITIONS = IS_UAT_PROFILE ? EXECUTIVE_SECTION_DEFINITIONS__uat : EXECUTIVE_SECTION_DEFINITIONS__prod;
 
-const EXECUTIVE_AUDIENCE_OPTIONS = [
+const EXECUTIVE_AUDIENCE_OPTIONS__prod = [
   ['all-working-team', 'All working teams'],
   ['pm-engineering', 'PM / Engineering only'],
   ['business-product', 'Business / Product only'],
   ['leadership-only', 'Leadership only'],
   ['everyone', 'Everyone'],
 ];
+const EXECUTIVE_AUDIENCE_OPTIONS__uat = [
+  ['all-working-team', 'All working teams'],
+  ['pm-engineering', 'PM / Engineering only'],
+  ['business-product', 'Sales / BD / Product only'],
+  ['leadership-only', 'Leadership only'],
+  ['everyone', 'Everyone'],
+];
+const EXECUTIVE_AUDIENCE_OPTIONS = IS_UAT_PROFILE ? EXECUTIVE_AUDIENCE_OPTIONS__uat : EXECUTIVE_AUDIENCE_OPTIONS__prod;
 
-const EXECUTIVE_AUDIENCE_ROLES = {
+const EXECUTIVE_AUDIENCE_ROLES__prod = {
   'all-working-team': new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
   'pm-engineering': new Set(['admin', 'vip', 'pm', 'engineering']),
   'business-product': new Set(['admin', 'vip', 'business', 'product']),
   'leadership-only': new Set(['admin', 'vip']),
   everyone: new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
 };
+const EXECUTIVE_AUDIENCE_ROLES__uat = {
+  'all-working-team': new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']),
+  'pm-engineering': new Set(['admin', 'executive', 'pm', 'engineering']),
+  'business-product': new Set(['admin', 'executive', 'sales', 'bd', 'product']),
+  'leadership-only': new Set(['admin', 'executive']),
+  everyone: new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']),
+};
+const EXECUTIVE_AUDIENCE_ROLES = IS_UAT_PROFILE ? EXECUTIVE_AUDIENCE_ROLES__uat : EXECUTIVE_AUDIENCE_ROLES__prod;
 
-const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
+const DCDC_EXECUTIVE_MILESTONE_TIMELINE__prod = {
   title: 'Selected 2026 DCDC Milestone Timeline',
   quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
   rows: [
@@ -5562,18 +6688,70 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
     'Commercialization & Investment'
   ]
 };
+const DCDC_EXECUTIVE_MILESTONE_TIMELINE__uat = {
+  title: 'Selected 2026 DCDC Milestone Timeline',
+  quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
+  rows: [
+    {
+      sectionId: 'ioe-product-portfolio',
+      audience: 'all-working-team',
+      label: 'IoE Product Portfolio',
+      cells: [
+        ['33 kW container shipped to Plano'],
+        ['33kW container integration Complete in Plano', '10 kW Micro Edge design', 'Beta version of PMS software', 'POC with Zettabyte Phase1 complete (2 sites)'],
+        ['33kW container shipped to Aston Labs', 'Beta version of energy optimization software', 'POC with Zettabyte Phase1 complete (5 sites)', '325kW Test Phase1 start (ToP + AI server)'],
+        ['33kW container fully operating with PMS and energy optimization (PV + Fuel cell + battery)', '325kW Test Phase2 complete (Fuel cell and SST)']
+      ]
+    },
+    {
+      sectionId: 'customer-engagements',
+      audience: 'business-product',
+      label: 'Customer Engagements',
+      cells: [
+        ['Joint announcement with STT GDC on DCDC infra'],
+        ['Telco CO transformation to data center whitepaper'],
+        ['Micro Edge LOI with one lighthouse customer', 'Telco partnership LOI'],
+        ['Ultra Edge Prototype deployment']
+      ]
+    },
+    {
+      sectionId: 'investors-strategy',
+      audience: 'leadership-only',
+      label: 'Investors & Strategy',
+      cells: [
+        ['EDB program secured'],
+        ['Investor engagements', 'NewCo creation'],
+        ['Investment term sheet and cap table discussion', 'Charger assembly to partner (e.g. TECO)'],
+        ['External investment', 'Sale or closing of UPS business']
+      ]
+    }
+  ],
+  phases: [
+    'Foundation & Initial Deployment',
+    'Solution Refinement & Market Readiness',
+    'Scale & Customer Engagement',
+    'Commercialization & Investment'
+  ]
+};
+const DCDC_EXECUTIVE_MILESTONE_TIMELINE = IS_UAT_PROFILE ? DCDC_EXECUTIVE_MILESTONE_TIMELINE__uat : DCDC_EXECUTIVE_MILESTONE_TIMELINE__prod;
 
-const EXECUTIVE_CATEGORY_LABELS = [
+const EXECUTIVE_CATEGORY_LABELS__prod = [
   'Solution & ecosystem',
   'Customers & GTM',
   'Investors & Others',
 ];
+const EXECUTIVE_CATEGORY_LABELS__uat = [
+  'IoE Product Portfolio',
+  'Customer Engagements',
+  'Investors & Strategy',
+];
+const EXECUTIVE_CATEGORY_LABELS = IS_UAT_PROFILE ? EXECUTIVE_CATEGORY_LABELS__uat : EXECUTIVE_CATEGORY_LABELS__prod;
 
 function executiveCategoryKey(label = '') {
   return String(label).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function defaultExecutiveSectionFor(row = {}, index = 0) {
+function defaultExecutiveSectionFor__prod(row = {}, index = 0) {
   const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === row.sectionId);
   if (byId) return byId;
   const key = executiveCategoryKey(row.label);
@@ -5582,16 +6760,64 @@ function defaultExecutiveSectionFor(row = {}, index = 0) {
     || { sectionId: `custom-section-${index + 1}`, label: row.label || `Section ${index + 1}`, audience: 'leadership-only' };
 }
 
+function defaultExecutiveSectionFor__uat(row = {}, index = 0) {
+  const migratedId = EXECUTIVE_SECTION_MIGRATION[row.sectionId] || row.sectionId;
+  const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === migratedId);
+  if (byId) return byId;
+  const key = executiveCategoryKey(row.label);
+  return EXECUTIVE_SECTION_DEFINITIONS.find(item => executiveCategoryKey(item.label) === key)
+    || EXECUTIVE_SECTION_DEFINITIONS[index]
+    || { sectionId: `custom-section-${index + 1}`, label: row.label || `Section ${index + 1}`, audience: 'leadership-only' };
+}
+
+function defaultExecutiveSectionFor(...args) { return (IS_UAT_PROFILE ? defaultExecutiveSectionFor__uat : defaultExecutiveSectionFor__prod)(...args); }
+
 function normalizeExecutiveAudience(value, fallback = 'leadership-only') {
   return EXECUTIVE_AUDIENCE_ROLES[value] ? value : fallback;
 }
 
-function canViewExecutiveSection(row = {}, role = currentRole) {
+function canViewExecutiveSection__prod(row = {}, role = currentRole) {
   const audience = normalizeExecutiveAudience(row.audience, 'leadership-only');
   return EXECUTIVE_AUDIENCE_ROLES[audience]?.has(normalizeRole(role)) === true;
 }
 
-function normalizeExecutiveMilestoneTimeline(raw = {}) {
+function canViewExecutiveSection__uat(row = {}, role = currentRole) {
+  return canViewConfiguredSection(executiveTimelineConfig, role, row.sectionId);
+}
+
+function canViewExecutiveSection(...args) { return (IS_UAT_PROFILE ? canViewExecutiveSection__uat : canViewExecutiveSection__prod)(...args); }
+
+function selectedExecutiveTimelineSnapshot() {
+  const week = allWeeks[currentIdx];
+  if (!isWeekReleased(week)) return null;
+  const stored = week?.strategyLayer?.executiveMilestoneTimelineSnapshot;
+  const timeline = stored?.timeline || week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline;
+  if (!timeline) return null;
+  return {
+    timeline,
+    capturedAt: stored?.capturedAt || '',
+    capturedBy: stored?.capturedBy || '',
+    legacy: !stored?.timeline,
+  };
+}
+
+function isViewingLiveExecutiveTimeline() {
+  return !selectedExecutiveTimelineSnapshot() || executiveTimelineViewMode === 'live';
+}
+
+function resetExecutiveTimelineView() {
+  executiveTimelineViewMode = 'period';
+}
+
+function currentExecutiveTimeline() {
+  const snapshot = selectedExecutiveTimelineSnapshot();
+  const timeline = !snapshot || isViewingLiveExecutiveTimeline()
+    ? executiveLiveTimelineState?.timeline
+    : snapshot.timeline;
+  return normalizeExecutiveMilestoneTimeline(timeline || {});
+}
+
+function normalizeExecutiveMilestoneTimeline__prod(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
   const rows = (source.rows || []).map((row, rowIndex) => {
@@ -5621,6 +6847,47 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
     categoryOverrides,
   };
 }
+
+function normalizeExecutiveMilestoneTimeline__uat(raw = {}) {
+  const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
+  const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
+  const rows = (source.rows || []).map((row, rowIndex) => {
+    const legacySection = defaultExecutiveSectionFor(row, rowIndex);
+    const section = executiveTimelineConfig.sections.find(candidate => candidate.sectionId === legacySection.sectionId) || legacySection;
+    return {
+    sectionId: section.sectionId,
+    audience: section.audience,
+    label: configuredSectionLabel(executiveTimelineConfig, section.sectionId),
+    cells: Array.from({ length: 4 }, (_, index) => {
+      const cell = getExecutiveTimelineCell(row.cells, index);
+      const items = Array.isArray(cell) ? cell : textLines(cell);
+      return items.map((item, itemIndex) => {
+        const normalized = normalizeExecutiveOutcome(item);
+        if (!normalized.id) {
+          normalized.id = createExecutiveLegacyItemId(section.sectionId, `q${index + 1}`, itemIndex, normalized.text);
+        }
+        return normalized;
+      }).filter(item => item.text.trim());
+    })
+  };
+  }).filter(row => row.label || row.cells.some(cell => cell.length));
+  const phases = Array.from({ length: 4 }, (_, index) => String(source.phases?.[index] || ''));
+  const categoryOverrides = {};
+  rows.forEach(row => {
+    const key = executiveCategoryKey(row.label);
+    categoryOverrides[key] = normalizeExecutiveCategoryOverride(source.categoryOverrides?.[key] || {});
+  });
+  return {
+    title: String(source.title || 'Selected 2026 DCDC Milestone Timeline'),
+    quarters: executiveTimelineConfig.quarters.map(quarter => configuredQuarterLabel(executiveTimelineConfig, quarter.quarterId)),
+    rows: rows.length ? rows : DCDC_EXECUTIVE_MILESTONE_TIMELINE.rows,
+    phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases,
+    categoryOverrides,
+    ragOverrides: source.ragOverrides && typeof source.ragOverrides === 'object' ? source.ragOverrides : {},
+  };
+}
+
+function normalizeExecutiveMilestoneTimeline(...args) { return (IS_UAT_PROFILE ? normalizeExecutiveMilestoneTimeline__uat : normalizeExecutiveMilestoneTimeline__prod)(...args); }
 
 function trackClassName(trackId) {
   const safeId = String(trackId || 'all').toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -6338,8 +7605,72 @@ function executiveRagLabel(health) {
   return 'Green';
 }
 
-function calculateExecutiveQuarterRag(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
+function executiveItemRag(item) {
+  return normalizeExecutiveOutcome(item).rag || 'green';
+}
+
+function calculateExecutiveSectionRag(timeline, row) {
+  const calculated = calculateVisibleExecutiveRag(
+    (row.cells || []).flat().map(item => ({ sectionId: row.sectionId, rag: executiveItemRag(item) })),
+    currentRole,
+  ) || 'green';
+  return timeline.ragOverrides?.[`section:${row.sectionId}`]?.replacementValue || calculated;
+}
+
+function calculateExecutiveQuarterRag__prod(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
   return calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex, rows).health;
+}
+
+function calculateExecutiveQuarterRag__uat(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
+  const quarterKey = `q${quarterIndex + 1}`;
+  const calculated = calculateVisibleExecutiveRag(
+    rows.flatMap(row => (row.cells?.[quarterIndex] || []).map(item => ({
+      sectionId: row.sectionId,
+      rag: executiveItemRag(item),
+    }))),
+    currentRole,
+  ) || 'green';
+  const canViewAllSections = executiveTimelineConfig.sections.every(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
+  const leadershipOverride = timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue;
+  return canViewAllSections && leadershipOverride ? leadershipOverride : calculated;
+}
+
+function calculateExecutiveQuarterRag(...args) { return (IS_UAT_PROFILE ? calculateExecutiveQuarterRag__uat : calculateExecutiveQuarterRag__prod)(...args); }
+
+function formatExecutiveUpdateDate(value) {
+  if (!value) return 'No update recorded';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'No update recorded' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function executiveUpdateRecordLabel(freshness, latestStatusAt) {
+  if (freshness === 'missing') return 'Update record · No update recorded';
+  if (freshness === 'refresh-requested') return 'Update record · Refresh requested';
+  if (freshness === 'please-refresh') return 'Update record · Please refresh';
+  return `Update record · ${formatExecutiveUpdateDate(latestStatusAt)}`;
+}
+
+function renderExecutiveCompactItem(source, row) {
+  const item = normalizeExecutiveOutcome(source);
+  const rag = executiveItemRag(item);
+  const freshness = getExecutiveUpdateFreshness(item.latestStatusAt);
+  const updateRecord = executiveUpdateRecordLabel(freshness, item.latestStatusAt);
+  const updateRecordHelp = 'This indicates the freshness of the leadership status update only. It does not indicate milestone delay or change the RAG status.';
+  const canUpdate = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, row.sectionId);
+  const canDrag = isViewingLiveExecutiveTimeline() && canViewExecutiveSection(row);
+  const isPending = isExecutiveMilestoneActionLocked({ action: 'move', itemId: item.id, pendingIds: executivePendingMilestoneIds });
+  return `<article class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}">
+    ${canDrag ? `<button type="button" class="executive-milestone-drag-handle" draggable="${!isPending}" data-executive-drag-item-id="${escHtml(item.id)}" aria-disabled="${isPending}" ${isPending ? 'onclick="showExecutiveMilestonePendingDialog()"' : ''} aria-label="${escHtml(isPending ? `${item.text || 'Milestone'} is waiting for approval` : `Drag ${item.text || 'milestone'} to another quarter or section`)}">☰</button>` : '<span></span>'}
+    <button type="button" class="executive-compact-open" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
+      <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
+      <span class="executive-compact-body">
+        <span class="executive-compact-title">${escHtml(item.text || '-')}</span>
+        <span class="executive-compact-update">${escHtml(item.latestStatusText || 'No status update recorded.')}</span>
+        <span class="executive-update-record" title="${escHtml(updateRecordHelp)}">◷ ${escHtml(updateRecord)}</span>
+        <span class="executive-compact-meta">${escHtml(item.latestStatusBy ? `Updated by ${item.latestStatusBy}` : 'No update owner recorded')}</span>
+      </span>
+    </button>
+  </article>`;
 }
 
 function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.rows || []) {
@@ -6358,7 +7689,7 @@ function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.row
   }).join('')}</div>`;
 }
 
-function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+function renderExecutiveQuarterMilestones__prod(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
@@ -6390,6 +7721,677 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
     </div>
   </section>`;
 }
+
+function renderExecutiveQuarterMilestones__uat(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+  const snapshot = selectedExecutiveTimelineSnapshot();
+  const viewingLive = isViewingLiveExecutiveTimeline();
+  if (viewingLive && !executiveLiveTimelineState?.timeline) {
+    const canInitialize = currentRole === 'admin' && executiveWeekDocumentId();
+    return `<section class="roadmap-block executive-milestone-block"><div class="roadmap-block-head"><div><div class="roadmap-block-title">Executive milestones</div><div class="roadmap-block-note">The live Executive timeline has not been initialized yet.</div></div>${canInitialize ? '<button type="button" class="btn btn-primary" onclick="initializeExecutiveLiveTimeline()">Initialize Executive milestones</button>' : ''}</div></section>`;
+  }
+  const timeline = currentExecutiveTimeline();
+  const selectedWeek = allWeeks[currentIdx];
+  const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
+  const quarters = executiveTimelineConfig.quarters;
+  const catalog = buildExecutiveEvidenceCatalog(projs);
+  const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
+  const quarterRags = quarters.map((quarter, index) => calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows));
+  const canChangeStructure = viewingLive && canChangeExecutiveStructure(currentRole);
+  const canManageOwnRequests = isExecutiveChangeRequester();
+  const modeLabel = viewingLive
+    ? 'Live Executive milestones · Current as of now'
+    : `${selectedWeek?.weekLabel || 'Selected week'} · Release snapshot · Read-only`;
+  const modeToggle = snapshot
+    ? `<button type="button" class="btn btn-ghost" onclick="toggleExecutiveTimelineView()">${viewingLive ? `Back to ${escHtml(selectedWeek?.weekLabel || 'selected week')} snapshot` : 'View live now'}</button>`
+    : '';
+  if (!visibleRows.length) return '';
+  return `<section class="roadmap-block executive-milestone-block">
+    <div class="roadmap-block-head">
+      <div>
+        <div class="roadmap-block-title">Executive milestones</div>
+        <div class="roadmap-block-note">${escHtml(modeLabel)}</div>
+      </div>
+      <div class="executive-approval-actions">${modeToggle}${canManageOwnRequests ? '<button type="button" class="btn-ghost" onclick="openExecutiveMyRequests()">My change requests</button>' : ''}${canChangeStructure ? '<button type="button" class="btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
+    </div>
+    <div class="dcdc-timeline">
+      <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
+      <div class="dcdc-grid">
+        <div class="dcdc-cell dcdc-corner"></div>
+        ${quarters.map((quarter, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(quarter.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="${escHtml(quarter.quarterId)}" onclick="openExecutiveRagOverride('quarter','${escHtml(quarter.quarterId)}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
+        ${visibleRows.map(row => `
+          <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="section" data-target-id="${escHtml(row.sectionId)}" onclick="openExecutiveRagOverride('section','${escHtml(row.sectionId)}')"><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></button>` : `<span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span>`}</div>
+          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell" data-executive-drop-section="${escHtml(row.sectionId)}" data-executive-drop-quarter="${escHtml(quarters[quarterIndex]?.quarterId || '')}"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${viewingLive && canViewExecutiveSection(row) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
+        `).join('')}
+      </div>
+      <div class="dcdc-phase-row">
+        <div class="dcdc-phase-spacer"></div>
+        ${(timeline.phases || []).map(phase => `<div class="dcdc-phase">${escHtml(phase)}</div>`).join('')}
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderExecutiveQuarterMilestones(...args) { return (IS_UAT_PROFILE ? renderExecutiveQuarterMilestones__uat : renderExecutiveQuarterMilestones__prod)(...args); }
+
+window.toggleExecutiveTimelineView = () => {
+  if (!selectedExecutiveTimelineSnapshot()) return;
+  executiveTimelineViewMode = isViewingLiveExecutiveTimeline() ? 'period' : 'live';
+  closeModal('executiveItemDrawerOverlay', { force: true });
+  closeModal('executiveChangeRequestOverlay', { force: true });
+  closeModal('executiveRagOverrideOverlay', { force: true });
+  render();
+};
+
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-executive-item-id]');
+  if (!button) return;
+  window.openExecutiveItemDrawer?.(button.dataset.executiveItemId);
+});
+
+let executiveDragSession = null;
+function clearExecutiveDragTarget() { document.querySelectorAll('.executive-drop-target').forEach(cell => cell.classList.remove('executive-drop-target')); }
+function executiveDropIndex(cell, clientY) { const cards = [...cell.querySelectorAll('.executive-compact-item')]; const targetIndex = cards.findIndex(card => clientY < card.getBoundingClientRect().top + (card.getBoundingClientRect().height / 2)); return targetIndex < 0 ? cards.length : targetIndex; }
+document.addEventListener('dragstart', event => {
+  if (!isViewingLiveExecutiveTimeline()) return;
+  const handle = event.target.closest?.('[data-executive-drag-item-id]'); if (!handle) return;
+  const location = findExecutiveTimelineItem(handle.dataset.executiveDragItemId); if (!location || !canViewExecutiveSection(location.row)) return;
+  if (isExecutiveMilestoneActionLocked({ action: 'move', itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
+  executiveDragSession = { itemId: location.item.id, sourceSectionId: location.row.sectionId, sourceQuarterKey: location.quarterKey, sourceIndex: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id) };
+  event.dataTransfer?.setData('text/plain', location.item.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+});
+document.addEventListener('dragover', event => {
+  if (!executiveDragSession) return; const cell = event.target.closest?.('[data-executive-drop-section][data-executive-drop-quarter]'); if (!cell) return;
+  event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; clearExecutiveDragTarget(); cell.classList.add('executive-drop-target');
+});
+document.addEventListener('drop', event => {
+  if (!executiveDragSession) return; const cell = event.target.closest?.('[data-executive-drop-section][data-executive-drop-quarter]'); if (!cell) return;
+  event.preventDefault(); const { itemId, sourceSectionId, sourceQuarterKey, sourceIndex } = executiveDragSession; const sectionId = cell.dataset.executiveDropSection; const quarterKey = cell.dataset.executiveDropQuarter;
+  let targetIndex = executiveDropIndex(cell, event.clientY); if (sectionId === sourceSectionId && quarterKey === sourceQuarterKey && sourceIndex < targetIndex) targetIndex -= 1;
+  clearExecutiveDragTarget(); executiveDragSession = null; if (sectionId === sourceSectionId && quarterKey === sourceQuarterKey && sourceIndex === targetIndex) return;
+  openExecutiveStructuralAction({ action: 'move', itemId, sectionId, quarterKey, targetIndex });
+});
+document.addEventListener('dragend', () => { executiveDragSession = null; clearExecutiveDragTarget(); });
+
+function executiveWeekDocumentId(week = allWeeks[currentIdx]) {
+  return String(week?.__documentId || week?.weekLabel || '').trim().replace(/\s+/g, '-');
+}
+
+window.initializeExecutiveLiveTimeline = async () => {
+  if (currentRole !== 'admin' || executiveLiveTimelineState?.timeline) return;
+  const sourceWeekId = executiveWeekDocumentId();
+  if (!sourceWeekId) return;
+  if (!window.confirm('Initialize the live Executive timeline from the currently selected reporting week? This only runs once.')) return;
+  try {
+    await executiveApi.initializeLiveTimeline({ sourceWeekId });
+    showSaveToast('Live Executive milestones initialized.');
+  } catch (error) {
+    showSaveToast(error.message || 'Unable to initialize Executive milestones.');
+  }
+};
+
+function findExecutiveTimelineItem(itemId) {
+  const timeline = currentExecutiveTimeline();
+  for (const row of timeline.rows || []) {
+    for (let quarterIndex = 0; quarterIndex < executiveTimelineConfig.quarters.length; quarterIndex += 1) {
+      const item = (row.cells?.[quarterIndex] || []).find(candidate => candidate.id === itemId);
+      if (item) return { timeline, row, quarterIndex, quarterKey: executiveTimelineConfig.quarters[quarterIndex]?.quarterId || `q${quarterIndex + 1}`, item };
+    }
+  }
+  return null;
+}
+
+function isExecutiveUpdateSessionCurrent(session = executiveUpdateSession, options = {}) {
+  if (!session || session !== executiveUpdateSession) return false;
+  if (!isViewingLiveExecutiveTimeline()) return false;
+  if (session.authUid !== (currentUser?.uid || '')) return false;
+  if (session.authEmail !== getEmailKey(currentUser)) return false;
+  if (session.role !== currentRole) return false;
+  const location = findExecutiveTimelineItem(session.itemId);
+  if (!location) return false;
+  return options.requireVersion === false || Number(location.item.version || 0) === Number(session.version || 0);
+}
+
+function executiveHistoryDate(value) {
+  const date = value?.toDate ? value.toDate() : new Date(value || 0);
+  return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
+}
+
+function renderExecutiveUpdateHistory(records = []) {
+  const history = document.getElementById('executiveUpdateHistory');
+  if (!history) return;
+  if (!records.length) {
+    history.innerHTML = '<div class="executive-history-empty">No updates recorded yet.</div>';
+    return;
+  }
+  history.innerHTML = records.map(record => '<article class="executive-history-item">'
+    + '<div class="executive-history-top"><span class="executive-history-rag">' + escHtml(executiveRagLabel(record.ragAfter || 'green')) + '</span><span>' + escHtml(executiveHistoryDate(record.createdAt)) + '</span></div>'
+    + '<div class="executive-history-text">' + escHtml(record.statusText || '-') + '</div>'
+    + '<div class="executive-history-meta">' + escHtml(record.actorEmail || 'Unknown actor') + ' · ' + escHtml(record.actorRole || '') + '</div>'
+    + '</article>').join('');
+}
+
+function renderExecutiveItemDrawer(location, canEdit) {
+  const item = normalizeExecutiveOutcome(location.item);
+  const context = document.getElementById('executiveItemDrawerContext');
+  const title = document.getElementById('executiveItemDrawerTitle');
+  const readOnly = document.getElementById('executiveDrawerReadOnly');
+  const textarea = document.getElementById('executiveStatusUpdate');
+  const saveButton = document.getElementById('executiveSaveUpdateBtn');
+  if (context) context.textContent = location.row.label + ' · ' + location.quarterKey.toUpperCase();
+  if (title) title.textContent = item.text || 'Milestone update';
+  if (readOnly) {
+    readOnly.hidden = canEdit;
+    readOnly.textContent = isViewingLiveExecutiveTimeline()
+      ? 'Read-only access. You may review history or request a structural change.'
+      : 'This is the released snapshot. Select View live now to work with the current Executive milestones.';
+  }
+  if (textarea) {
+    textarea.value = '';
+    textarea.disabled = !canEdit;
+  }
+  document.querySelectorAll('[data-executive-rag]').forEach(button => {
+    button.classList.toggle('active', button.dataset.executiveRag === item.rag);
+    button.disabled = !canEdit;
+  });
+  if (saveButton) {
+    saveButton.hidden = !canEdit;
+    saveButton.disabled = false;
+  }
+  const structuralSection = document.getElementById('executiveDrawerStructuralSection');
+  if (structuralSection) structuralSection.hidden = !isViewingLiveExecutiveTimeline();
+  const error = document.getElementById('executiveItemDrawerError');
+  if (error) {
+    error.textContent = '';
+    error.className = 'resource-validation';
+  }
+}
+
+window.selectExecutiveDrawerRag = rag => {
+  if (!isExecutiveUpdateSessionCurrent() || !executiveUpdateSession.canEdit) return;
+  document.querySelectorAll('[data-executive-rag]').forEach(button => {
+    button.classList.toggle('active', button.dataset.executiveRag === rag);
+  });
+};
+
+window.openExecutiveItemDrawer = itemId => {
+  const location = findExecutiveTimelineItem(String(itemId || ''));
+  if (!location || !canViewExecutiveSection(location.row)) return;
+  if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
+  const viewingLive = isViewingLiveExecutiveTimeline();
+  const canEdit = viewingLive && canUpdateConfiguredSection(executiveTimelineConfig, currentRole, location.row.sectionId);
+  executiveUpdateSession = {
+    authUid: currentUser?.uid || '',
+    authEmail: getEmailKey(currentUser),
+    role: currentRole,
+    itemId: location.item.id,
+    sectionId: location.row.sectionId,
+    version: Number(location.item.version || 0),
+    canEdit,
+    originalRag: location.item.rag || 'green',
+  };
+  renderExecutiveItemDrawer(location, canEdit);
+  renderExecutiveUpdateHistory([]);
+  const history = document.getElementById('executiveUpdateHistory');
+  if (!viewingLive) {
+    if (history) history.innerHTML = '<div class="executive-history-empty">This is the released snapshot. View live now to review the current update history.</div>';
+    openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
+    return;
+  }
+  if (history) history.innerHTML = '<div class="executive-history-empty">Loading history…</div>';
+  const historyQuery = query(
+    collection(db, 'executiveMilestoneUpdates'),
+    where('weekId', '==', 'live'),
+    where('itemId', '==', executiveUpdateSession.itemId),
+    where('sectionId', '==', executiveUpdateSession.sectionId),
+    orderBy('createdAt', 'desc'),
+  );
+
+  const session = executiveUpdateSession;
+  executiveUpdateHistoryUnsub = onSnapshot(historyQuery, snapshot => {
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) return;
+    renderExecutiveUpdateHistory(snapshot.docs.map(item => item.data()));
+  }, error => {
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) return;
+    if (history) history.innerHTML = '<div class="executive-history-empty">' + escHtml(error.message || 'History is unavailable.') + '</div>';
+  });
+  openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
+};
+
+window.closeExecutiveItemDrawer = (options = {}) => closeModal('executiveItemDrawerOverlay', options);
+
+window.saveExecutiveItemUpdate = async () => {
+  const session = executiveUpdateSession;
+  if (executiveUpdateSaving || !isExecutiveUpdateSessionCurrent(session) || !session.canEdit) return;
+  const rag = document.querySelector('[data-executive-rag].active')?.dataset.executiveRag || session.originalRag;
+  const statusText = document.getElementById('executiveStatusUpdate')?.value.trim() || '';
+  const errorBox = document.getElementById('executiveItemDrawerError');
+  try {
+    if (!statusText) throw new Error('Enter a monthly status update before saving.');
+    const validated = validateExecutiveItemUpdate({ originalRag: session.originalRag, rag, statusText });
+    executiveUpdateSaving = true;
+    const saveButton = document.getElementById('executiveSaveUpdateBtn');
+    if (saveButton) saveButton.disabled = true;
+    await executiveApi.addUpdate({
+      itemId: session.itemId,
+      expectedVersion: session.version,
+      rag: validated.rag,
+      statusText: validated.statusText,
+    });
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) throw new Error('Your dashboard session changed before the update completed.');
+    closeModal('executiveItemDrawerOverlay', { force: true });
+    showSaveToast('Executive milestone update saved.');
+  } catch (error) {
+    executiveUpdateSaving = false;
+    const saveButton = document.getElementById('executiveSaveUpdateBtn');
+    if (saveButton) saveButton.disabled = false;
+    if (errorBox) {
+      errorBox.className = 'resource-validation error';
+      errorBox.textContent = error.message || 'Unable to save the Executive milestone update.';
+    }
+  }
+}
+
+function executiveLocationSnapshot(location) {
+  if (!location) return null;
+  return {
+    sectionId: location.row.sectionId,
+    quarterKey: location.quarterKey,
+    index: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id),
+    item: normalizeExecutiveOutcome(location.item),
+  };
+}
+
+function isExecutiveChangeSessionCurrent(session = executiveChangeSession) {
+  return Boolean(session
+    && session === executiveChangeSession
+    && isViewingLiveExecutiveTimeline()
+    && session.authUid === (currentUser?.uid || '')
+    && session.authEmail === getEmailKey(currentUser)
+    && session.role === currentRole);
+}
+
+function executiveStructuralActionLabel(action) {
+  return ({ add: 'Add milestone', rename: 'Rename milestone', move: 'Move milestone', delete: 'Delete milestone' })[action] || 'Milestone change';
+}
+
+function executiveStructuralLocationLabel(sectionId, quarterKey) {
+  return `${configuredSectionLabel(executiveTimelineConfig, sectionId)} · ${configuredQuarterLabel(executiveTimelineConfig, quarterKey)}`;
+}
+
+function buildExecutiveChangePayload() {
+  if (!isExecutiveChangeSessionCurrent()) throw new Error('Your dashboard session changed. Reopen the request.');
+  const { action, before, newItemId, targetIndex } = executiveChangeSession;
+  const title = document.getElementById('executiveChangeTitle').value.trim();
+  const sectionId = document.getElementById('executiveChangeSection').value;
+  const quarterKey = document.getElementById('executiveChangeQuarter').value;
+  const reason = document.getElementById('executiveChangeReason').value.trim();
+  if (!reason) throw new Error('Enter the reason for this structural change.');
+  let after = before ? structuredClone(before) : null;
+  if (action === 'add') {
+    if (!title) throw new Error('Enter a milestone title.');
+    after = { sectionId, quarterKey, index: Number.MAX_SAFE_INTEGER, item: { id: newItemId, text: title, version: 0, rag: 'green' } };
+  } else if (!before) {
+    throw new Error('The selected milestone no longer exists.');
+  } else if (action === 'delete') {
+    after = null;
+  } else if (action === 'rename') {
+    if (!title) throw new Error('Enter a milestone title.');
+    after.item.text = title;
+  } else if (action === 'move') {
+    after.sectionId = sectionId;
+    after.quarterKey = quarterKey;
+    after.index = Number.isInteger(targetIndex) ? targetIndex : Number.MAX_SAFE_INTEGER;
+  }
+  return {
+    itemId: before?.item?.id || newItemId,
+    expectedVersion: Number(before?.item?.version || 0),
+    changeType: action,
+    before,
+    after,
+    reason,
+  };
+}
+
+function renderExecutiveStructuralSummary() {
+  if (!isExecutiveChangeSessionCurrent()) return;
+  const { action, before } = executiveChangeSession;
+  const title = document.getElementById('executiveChangeTitle').value.trim();
+  const sectionId = document.getElementById('executiveChangeSection').value;
+  const quarterKey = document.getElementById('executiveChangeQuarter').value;
+  const summary = document.getElementById('executiveStructuralSummary');
+  if (!summary) return;
+  if (action === 'add') summary.textContent = `Add “${title || 'Untitled milestone'}” to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
+  if (action === 'rename') summary.textContent = `Rename “${before?.item?.text || 'this milestone'}” to “${title || 'Untitled milestone'}”.`;
+  if (action === 'move') summary.textContent = `Move “${before?.item?.text || 'this milestone'}” from ${executiveStructuralLocationLabel(before?.sectionId, before?.quarterKey)} to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
+  if (action === 'delete') summary.textContent = `Delete “${before?.item?.text || 'this milestone'}”. This action requires a recorded reason.`;
+}
+window.renderExecutiveStructuralSummary = renderExecutiveStructuralSummary;
+
+function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId = '', quarterKey = '', targetIndex } = {}) {
+  if (!isViewingLiveExecutiveTimeline()) return;
+  const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
+  if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
+  if (itemId && isExecutiveMilestoneActionLocked({ action, itemId: location.item.id, pendingIds: executivePendingMilestoneIds })) { showExecutiveMilestonePendingDialog(); return; }
+  const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
+  if (!visibleSections.length) return;
+  const before = executiveLocationSnapshot(location);
+  const selectedSectionId = visibleSections.some(section => section.sectionId === sectionId) ? sectionId : before?.sectionId || visibleSections[0].sectionId;
+  executiveChangeSession = {
+    authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole,
+    action, before,
+    targetIndex: Number.isInteger(targetIndex) ? targetIndex : Number.MAX_SAFE_INTEGER,
+    newItemId: `exec-${crypto.randomUUID?.() || Date.now().toString(36)}`,
+  };
+  document.getElementById('executiveChangeRequestTitle').textContent = executiveStructuralActionLabel(action);
+  document.getElementById('executiveStructuralActions').innerHTML = `<span class="reason-pill">${escHtml(executiveStructuralActionLabel(action))}</span>`;
+  document.getElementById('executiveChangeTitle').value = action === 'rename' ? before?.item?.text || '' : '';
+  document.getElementById('executiveChangeSection').innerHTML = visibleSections.map(section => `<option value="${escHtml(section.sectionId)}">${escHtml(section.label)}</option>`).join('');
+  document.getElementById('executiveChangeSection').value = selectedSectionId;
+  document.getElementById('executiveChangeQuarter').value = quarterKey || before?.quarterKey || 'q1';
+  const isMove = action === 'move';
+  document.getElementById('executiveStructuralTitle').hidden = isMove || action === 'delete';
+  document.getElementById('executiveStructuralSection').hidden = isMove || !['add'].includes(action);
+  document.getElementById('executiveStructuralQuarter').hidden = isMove || !['add'].includes(action);
+  const moveContext = document.getElementById('executiveStructuralMoveContext');
+  moveContext.hidden = !isMove;
+  moveContext.textContent = isMove ? `Move “${before?.item?.text || 'this milestone'}” from ${executiveStructuralLocationLabel(before?.sectionId, before?.quarterKey)} to ${executiveStructuralLocationLabel(selectedSectionId, quarterKey || before?.quarterKey || 'q1')}.` : '';
+  document.getElementById('executiveChangeReason').value = '';
+  document.getElementById('executiveChangeError').className = 'resource-validation';
+  document.getElementById('executiveChangeError').textContent = '';
+  const direct = canChangeExecutiveStructure(currentRole);
+  const requestButton = document.getElementById('executiveSubmitChangeBtn');
+  const directButton = document.getElementById('executiveDirectChangeBtn');
+  requestButton.hidden = direct;
+  requestButton.disabled = false;
+  requestButton.textContent = 'Submit for approval';
+  directButton.hidden = !direct;
+  directButton.disabled = false;
+  directButton.textContent = 'Apply direct change';
+  document.getElementById('executiveViewMyRequestsBtn').hidden = true;
+  renderExecutiveStructuralSummary();
+  openAccessibleModal(document.getElementById('executiveChangeRequestOverlay'));
+}
+window.openExecutiveStructuralAction = openExecutiveStructuralAction;
+window.openExecutiveStructuralActionFromDrawer = action => {
+  const itemId = executiveUpdateSession?.itemId || '';
+  openExecutiveStructuralAction({ action, itemId });
+};
+window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ action: itemId ? 'rename' : 'add', itemId });
+
+function showExecutiveMilestonePendingDialog() {
+  openAccessibleModal(document.getElementById('executivePendingMilestoneOverlay'));
+}
+window.showExecutiveMilestonePendingDialog = showExecutiveMilestonePendingDialog;
+
+window.submitExecutiveChangeRequest = async direct => {
+  const errorBox = document.getElementById('executiveChangeError');
+  const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn');
+  if (submitButton.disabled) return;
+  let keepConfirmationOpen = false;
+  setAsyncActionState(submitButton, true, direct ? 'Applying…' : 'Submitting…');
+  try {
+    const payload = buildExecutiveChangePayload();
+    if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
+    if (direct) {
+      await executiveApi.applyDirectChange(payload);
+      closeModal('executiveChangeRequestOverlay', { force: true });
+      await refreshExecutivePendingCount();
+      showSaveToast('Executive milestone changed.');
+      return;
+    }
+    await executiveApi.createRequest(payload);
+    keepConfirmationOpen = true;
+    errorBox.className = 'resource-validation success';
+    errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.';
+    showSaveToast('Change request submitted successfully.');
+    captureEditorBaseline(document.getElementById('executiveChangeRequestOverlay'));
+    setAsyncActionState(submitButton, false);
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submitted';
+    document.getElementById('executiveViewMyRequestsBtn').hidden = !isExecutiveChangeRequester();
+  } catch (error) {
+    const message = error.message || 'Unable to submit the change.';
+    errorBox.className = 'resource-validation error';
+    errorBox.textContent = message;
+    showSaveToast(error.message || 'Unable to submit the change.');
+  } finally {
+    if (!keepConfirmationOpen) {
+      setAsyncActionState(submitButton, false);
+    }
+  }
+};
+
+function canOpenExecutiveChangeInbox() {
+  return Boolean(getEmailKey(currentUser)) && (isExecutiveChangeReviewer() || isExecutiveChangeRequester());
+}
+
+function isExecutiveChangeReviewer() {
+  return ['admin', 'executive'].includes(currentRole);
+}
+
+function isExecutiveChangeRequester() {
+  return ['pm', 'engineering', 'sales', 'bd', 'product'].includes(currentRole);
+}
+
+function executiveInboxCopy() {
+  if (currentRole === 'executive') return { title: 'Approval requests', mode: 'Pending requests requiring Executive Owner decision.' };
+  if (currentRole === 'admin') return { title: 'Change notifications', mode: 'Admin audit-only — Executive Owner makes approval decisions.' };
+  return { title: 'My change requests', mode: 'Pending requests can be withdrawn until the Executive Owner makes a decision.' };
+}
+
+function executiveChangeRecordDisplay(record) {
+  const before = record.before || {};
+  const after = record.after || {};
+  const item = after.item || before.item || {};
+  const sourceSection = record.sourceSectionLabel || configuredSectionLabel(executiveTimelineConfig, before.sectionId);
+  const sourceQuarter = record.sourceQuarterLabel || configuredQuarterLabel(executiveTimelineConfig, before.quarterKey);
+  const targetSection = record.targetSectionLabel || configuredSectionLabel(executiveTimelineConfig, after.sectionId);
+  const targetQuarter = record.targetQuarterLabel || configuredQuarterLabel(executiveTimelineConfig, after.quarterKey);
+  const sourceLocation = [sourceSection, sourceQuarter].filter(Boolean).join(' · ');
+  const targetLocation = [targetSection, targetQuarter].filter(Boolean).join(' · ');
+  let summary = `Update ${targetLocation || sourceLocation || 'this milestone'}`;
+  if (record.changeType === 'move') summary = `Move from ${sourceLocation} to ${targetLocation}`;
+  if (record.changeType === 'rename') summary = `Rename from “${before.item?.text || ''}” to “${after.item?.text || ''}”`;
+  if (record.changeType === 'add') summary = `Add to ${targetLocation}`;
+  if (record.changeType === 'delete') summary = `Remove from ${sourceLocation}`;
+  if (record.changeType === 'reorder') summary = `Reorder within ${targetLocation || sourceLocation}`;
+  return {
+    action: executiveStructuralActionLabel(record.changeType),
+    item: item.text || 'Untitled milestone',
+    summary,
+    reason: record.reason || 'No reason provided.',
+  };
+}
+
+async function refreshExecutivePendingCount() {
+  const badge = document.getElementById('executivePendingCount');
+  if (!badge || !isExecutiveChangeReviewer()) return;
+  try {
+    const source = isExecutiveChangeReviewer()
+      ? query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending'))
+      : query(collection(db, 'executiveMilestoneChangeRequests'), where('requesterEmail', '==', getEmailKey(currentUser)));
+    const snapshot = await getDocs(source);
+    const pending = isExecutiveChangeReviewer() ? snapshot.size : snapshot.docs.filter(entry => entry.data().state === 'pending').length;
+    badge.textContent = String(pending);
+    badge.hidden = pending === 0;
+  } catch {
+    badge.hidden = true;
+  }
+}
+
+function renderExecutiveApprovalInbox(records = []) {
+  const list = document.getElementById('executiveApprovalInboxList');
+  const visible = records;
+  if (!visible.length) { list.innerHTML = `<div class="executive-history-empty">${currentRole === 'executive' ? 'No change requests to review.' : 'No change requests yet.'}</div>`; return; }
+  list.innerHTML = visible.map(record => {
+    const isConflict = record.state === 'conflict';
+    const canDecide = currentRole === 'executive' && record.state === 'pending' && !executiveApprovalDecisionInFlight;
+    const canWithdraw = record.state === 'pending' && record.requesterEmail === getEmailKey(currentUser) && !executiveApprovalDecisionInFlight;
+    const display = executiveChangeRecordDisplay(record);
+    const requester = isExecutiveChangeReviewer() ? `<div class="executive-request-meta">Requested by ${escHtml(record.requesterEmail || 'Unknown user')}</div>` : '';
+    const decisionComment = canDecide ? `<label class="executive-decision-comment"><span>Approver comment <small>Required when rejecting</small></span><textarea data-executive-decision-comment="${escHtml(record.requestId)}" maxlength="1200" placeholder="Add context for the requester and audit record."></textarea><span class="resource-validation error" data-executive-decision-error="${escHtml(record.requestId)}" role="alert"></span></label>` : '';
+    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${decisionComment}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn btn-danger executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}',this)">Withdraw request</button>` : ''}${canDecide ? `<button class="btn btn-danger" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject',this)">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve',this)">Approve</button>` : ''}</div>` : ''}</article>`;
+  }).join('');
+}
+
+function executiveDecisionComment(requestId) {
+  return [...document.querySelectorAll('[data-executive-decision-comment]')]
+    .find(field => field.dataset.executiveDecisionComment === requestId) || null;
+}
+
+function setAsyncActionState(button, busy, busyLabel = 'Working…') {
+  if (!button) return;
+  if (busy) {
+    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent.trim();
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML = `<span class="async-action-spinner" aria-hidden="true"></span>${escHtml(busyLabel)}`;
+    return;
+  }
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  button.textContent = button.dataset.idleLabel || button.textContent;
+  delete button.dataset.idleLabel;
+}
+
+window.openExecutiveApprovalInbox = () => {
+  if (!canOpenExecutiveChangeInbox()) return;
+  if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  const copy = executiveInboxCopy();
+  document.getElementById('executiveApprovalInboxTitle').textContent = copy.title;
+  document.getElementById('executiveApprovalInboxMode').textContent = copy.mode;
+  openAccessibleModal(document.getElementById('executiveApprovalInboxOverlay'));
+  const inboxSource = isExecutiveChangeReviewer()
+    ? query(collection(db, 'executiveMilestoneChangeRequests'), orderBy('createdAt', 'desc'), limit(100))
+    : query(collection(db, 'executiveMilestoneChangeRequests'), where('requesterEmail', '==', getEmailKey(currentUser)));
+  executiveApprovalInboxUnsub = onSnapshot(inboxSource, snapshot => {
+    const records = snapshot.docs.map(entry => ({ ...entry.data(), requestId: entry.id })).filter(record => record.state === 'pending');
+    records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    renderExecutiveApprovalInbox(records);
+    const pending = isExecutiveChangeReviewer() ? records.filter(record => record.state === 'pending').length : records.filter(record => record.state === 'pending' && record.requesterEmail === getEmailKey(currentUser)).length;
+    const badge = document.getElementById('executivePendingCount');
+    badge.textContent = String(pending); badge.hidden = pending === 0;
+  }, error => { document.getElementById('executiveApprovalInboxList').textContent = error.message || 'Inbox is unavailable.'; });
+};
+
+window.openExecutiveMyRequests = () => {
+  if (!isExecutiveChangeRequester()) return;
+  closeModal('executiveChangeRequestOverlay', { force: true });
+  window.openExecutiveApprovalInbox();
+};
+
+window.withdrawExecutiveChangeRequest = async (requestId, sourceButton) => {
+  if (executiveApprovalDecisionInFlight || !requestId) return;
+  if (!window.confirm('Withdraw this pending change request?')) return;
+  executiveApprovalDecisionInFlight = true;
+  document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  setAsyncActionState(sourceButton, true, 'Withdrawing…');
+  try {
+    await executiveApi.withdrawRequest({ requestId });
+    await refreshExecutivePendingCount();
+    showSaveToast('Change request withdrawn.');
+  } catch (error) {
+    showSaveToast(error.message || 'Unable to withdraw the request.');
+  } finally {
+    executiveApprovalDecisionInFlight = false;
+    document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+    setAsyncActionState(sourceButton, false);
+  }
+};
+
+window.decideExecutiveChangeRequest = async (requestId, decision, sourceButton) => {
+  if (currentRole !== 'executive' || executiveApprovalDecisionInFlight) return;
+  const commentField = executiveDecisionComment(requestId);
+  const decisionNote = commentField?.value.trim() || '';
+  const errorBox = [...document.querySelectorAll('[data-executive-decision-error]')]
+    .find(field => field.dataset.executiveDecisionError === requestId) || null;
+  if (decision === 'reject' && !decisionNote) {
+    if (errorBox) errorBox.textContent = 'Enter a comment before rejecting this request.';
+    commentField?.focus();
+    return;
+  }
+  if (errorBox) errorBox.textContent = '';
+  executiveApprovalDecisionInFlight = true;
+  document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  setAsyncActionState(sourceButton, true, decision === 'approve' ? 'Approving…' : 'Rejecting…');
+  try {
+    const result = await executiveApi.decideRequest({ requestId, decision, decisionNote });
+    if (commentField) commentField.value = '';
+    captureEditorBaseline(document.getElementById('executiveApprovalInboxOverlay'));
+    await refreshExecutivePendingCount();
+    showSaveToast(result.state === 'conflict' ? 'Request has a version conflict; submit a new request.' : `Request ${result.state || (decision === 'approve' ? 'approved' : 'rejected')}.`);
+  } catch (error) {
+    showSaveToast(error.message || 'Unable to decide the request.');
+  } finally {
+    executiveApprovalDecisionInFlight = false;
+    document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+    setAsyncActionState(sourceButton, false);
+  }
+};
+
+window.openExecutiveRagOverride = (scope, targetId) => {
+  if (!isViewingLiveExecutiveTimeline()) return;
+  if (!canChangeExecutiveStructure(currentRole)) return;
+  const timeline = currentExecutiveTimeline();
+  const existing = timeline.ragOverrides?.[`${scope}:${targetId}`] || null;
+  executiveRagOverrideSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, scope, targetId };
+  document.getElementById('executiveRagOverrideTarget').textContent = `${scope === 'quarter' ? 'Quarter' : 'Section'}: ${targetId}`;
+  document.getElementById('executiveRagOverrideValue').value = existing?.replacementValue || 'green';
+  document.getElementById('executiveRagOverrideReason').value = '';
+  document.getElementById('executiveRemoveRagOverrideBtn').hidden = !existing;
+  document.getElementById('executiveRagOverrideError').textContent = '';
+  openAccessibleModal(document.getElementById('executiveRagOverrideOverlay'));
+};
+
+window.saveExecutiveRagOverride = async remove => {
+  const session = executiveRagOverrideSession;
+  const errorBox = document.getElementById('executiveRagOverrideError');
+  try {
+    if (!session || session.authUid !== (currentUser?.uid || '') || session.authEmail !== getEmailKey(currentUser) || session.role !== currentRole || !canChangeExecutiveStructure(currentRole)) throw new Error('Your dashboard session changed. Reopen the override.');
+    const reason = document.getElementById('executiveRagOverrideReason').value.trim();
+    if (!reason) throw new Error('Enter an audit reason for this override change.');
+    await executiveApi.setRagOverride({ scope: session.scope, targetId: session.targetId, rag: remove ? null : document.getElementById('executiveRagOverrideValue').value, reason });
+    closeModal('executiveRagOverrideOverlay', { force: true });
+    showSaveToast(remove ? 'RAG override removed.' : 'RAG override saved.');
+  } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to change the RAG override.'; }
+};
+
+const EXECUTIVE_TIMELINE_ROLE_OPTIONS = ['admin', 'executive', 'sales', 'bd', 'product', 'pm', 'engineering'];
+let executiveTimelineSettingsSession = null;
+
+function renderExecutiveTimelineRoleOptions(sectionId, field, selectedRoles) {
+  return `<div class="executive-timeline-role-options">${EXECUTIVE_TIMELINE_ROLE_OPTIONS.map(role => `<label><input type="checkbox" data-timeline-role="${field}" data-section-id="${escHtml(sectionId)}" value="${role}" ${selectedRoles.includes(role) ? 'checked' : ''}>${escHtml(role)}</label>`).join('')}</div>`;
+}
+
+window.openExecutiveTimelineSettings = () => {
+  if (!canChangeExecutiveStructure(currentRole)) return;
+  executiveTimelineSettingsSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, version: Number(executiveTimelineConfig.version || 1) };
+  document.getElementById('executiveTimelineSectionSettings').innerHTML = executiveTimelineConfig.sections.map(section => `<section class="executive-timeline-section-card"><label>Section name<input class="fi" data-timeline-section-label="${escHtml(section.sectionId)}" maxlength="120" value="${escHtml(section.label)}"></label><div class="executive-timeline-role-grid"><div class="executive-timeline-role-group"><strong>Can view</strong>${renderExecutiveTimelineRoleOptions(section.sectionId, 'viewRoles', section.viewRoles || [])}</div><div class="executive-timeline-role-group"><strong>Can update</strong>${renderExecutiveTimelineRoleOptions(section.sectionId, 'updateRoles', section.updateRoles || [])}</div></div></section>`).join('');
+  document.getElementById('executiveTimelineQuarterSettings').innerHTML = executiveTimelineConfig.quarters.map(quarter => `<label>Quarter name<input class="fi" data-timeline-quarter-label="${escHtml(quarter.quarterId)}" maxlength="40" value="${escHtml(quarter.label)}"></label>`).join('');
+  document.getElementById('executiveTimelineSettingsReason').value = '';
+  document.getElementById('executiveTimelineSettingsError').textContent = '';
+  openAccessibleModal(document.getElementById('executiveTimelineSettingsOverlay'));
+};
+
+function selectedExecutiveTimelineRoles(sectionId, field) {
+  return [...document.querySelectorAll(`input[data-timeline-role="${field}"]`)].filter(input => input.dataset.sectionId === sectionId && input.checked).map(input => input.value);
+}
+
+window.saveExecutiveTimelineSettings = async () => {
+  const session = executiveTimelineSettingsSession;
+  const errorBox = document.getElementById('executiveTimelineSettingsError');
+  try {
+    if (!session || session.authUid !== (currentUser?.uid || '') || session.authEmail !== getEmailKey(currentUser) || session.role !== currentRole || !canChangeExecutiveStructure(currentRole)) throw new Error('Your dashboard session changed. Reopen timeline settings.');
+    const reason = document.getElementById('executiveTimelineSettingsReason').value.trim();
+    if (!reason) throw new Error('Enter an audit reason for these settings.');
+    const sections = executiveTimelineConfig.sections.map(section => ({ sectionId: section.sectionId, label: document.querySelector(`[data-timeline-section-label="${section.sectionId}"]`)?.value.trim() || '', viewRoles: selectedExecutiveTimelineRoles(section.sectionId, 'viewRoles'), updateRoles: selectedExecutiveTimelineRoles(section.sectionId, 'updateRoles') }));
+    const quarters = executiveTimelineConfig.quarters.map(quarter => ({ quarterId: quarter.quarterId, label: document.querySelector(`[data-timeline-quarter-label="${quarter.quarterId}"]`)?.value.trim() || '' }));
+    if (sections.some(section => !section.label) || quarters.some(quarter => !quarter.label)) throw new Error('Every section and quarter needs a display name.');
+    await executiveApi.saveTimelineConfig({ expectedVersion: session.version, reason, config: { sections, quarters } });
+    closeModal('executiveTimelineSettingsOverlay', { force: true });
+    showSaveToast('Executive timeline settings saved.');
+  } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to save timeline settings.'; }
+};
 
 function renderProjectQuarterItems(items) {
   if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';
@@ -6526,7 +8528,7 @@ function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTra
   </section>`;
 }
 
-function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+function renderQuarterlyBoard__prod(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const executive = activePortfolioRoadmapView === 'executive';
   return `<div class="portfolio-roadmap">
     <div class="portfolio-roadmap-head">
@@ -6548,6 +8550,28 @@ function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = '
       : `<div class="project-roadmap-guidance">Edit milestones from the project card.</div>${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}`}
   </div>`;
 }
+
+function renderQuarterlyBoard__uat(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
+  const executive = activePortfolioRoadmapView === 'executive';
+  return `<div class="portfolio-roadmap">
+    <div class="portfolio-roadmap-head">
+      <div>
+        <div class="exec-eyebrow">Portfolio Roadmap</div>
+        <div class="exec-decision-title">${executive ? `${year} IoE Executive Roadmap` : `${year} Project Milestone Roadmap`}</div>
+      </div>
+      <div class="portfolio-roadmap-actions">${renderRoadmapYearSelector(projs, layer)}</div>
+    </div>
+    <div class="portfolio-roadmap-tabs no-print" role="tablist" aria-label="Roadmap view">
+      <button type="button" role="tab" aria-selected="${executive}" class="${executive ? 'active' : ''}" onclick="setPortfolioRoadmapView('executive')">Executive Outcomes</button>
+      <button type="button" role="tab" aria-selected="${!executive}" class="${executive ? '' : 'active'}" onclick="setPortfolioRoadmapView('projects')">Project Milestones</button>
+    </div>
+    ${executive
+      ? renderExecutiveQuarterMilestones(projs, layer, activeTrack, year)
+      : `<div class="project-roadmap-guidance">Edit milestones from the project card.</div>${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}`}
+  </div>`;
+}
+
+function renderQuarterlyBoard(...args) { return (IS_UAT_PROFILE ? renderQuarterlyBoard__uat : renderQuarterlyBoard__prod)(...args); }
 
 function renderAttentionMatrix(projs, editable) {
   const order = [
@@ -7387,7 +9411,7 @@ window.exportProjectOnePagePdf = () => {
 };
 
 // ── RENDER ──
-window.render = () => {
+const render__prod = () => {
   const week = allWeeks[currentIdx];
   if (!week) {
     document.getElementById('bannerTitle').textContent = "No Data";
@@ -7476,6 +9500,101 @@ window.render = () => {
     }
   }
 };
+
+const render__uat = () => {
+  const week = allWeeks[currentIdx];
+  if (!week) {
+    document.getElementById('bannerTitle').textContent = "No Data";
+    document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus;
+    document.getElementById('bannerPills').innerHTML = "";
+    document.getElementById('projGrid').innerHTML = "";
+    document.getElementById('execView').innerHTML = "";
+    document.getElementById('topMetricsGrid').style.display = 'none';
+    return;
+  }
+
+  const sel = document.getElementById('wNavSelect');
+  if (sel) sel.value = currentIdx;
+
+  document.getElementById('bannerTitle').textContent = week.weekLabel;
+  const editorName = getUserDisplayName(week.lastModifiedBy);
+  document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
+    || (week.weekDate + " · Last edited by " + editorName);
+
+  const bannerPills = document.getElementById('bannerPills');
+  if (isVipPerspective()) {
+    bannerPills.innerHTML = ''; 
+  } else {
+    const isReleased = isWeekReleased(week);
+    if (isReleased) {
+      bannerPills.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
+          <span style="color:var(--green); font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
+            <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Released
+          </span>
+          ${canManageWeekRelease() ? `
+            <div style="width:1px; height:12px; background:var(--border2);"></div>
+            <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+          ` : ''}
+        </div>
+      `;
+    } else {
+      bannerPills.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
+          <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
+          ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
+        </div>
+      `;
+    }
+  }
+
+  const allCurrentProjects = enrichProjectsPrototype(week.projects || []);
+  const roleVisibleProjects = getRoleVisibleProjectsForOverview(allCurrentProjects);
+  refreshPortfolioToolbar(roleVisibleProjects);
+  const portfolioToolbar = document.getElementById('portfolioToolbar');
+  portfolioToolbar.style.display = isOverview ? 'none' : 'flex';
+
+  const overviewProjects = getOverviewProjects(roleVisibleProjects, overviewScope);
+  let portfolioProjects = roleVisibleProjects;
+  if (currentPMFilter !== 'all' && !isOverview) {
+    portfolioProjects = portfolioProjects.filter(p => p.owner === currentPMFilter);
+  }
+  portfolioProjects = filterProjects(portfolioProjects, getPortfolioFilters());
+
+  const metricProjects = isOverview ? overviewProjects : portfolioProjects;
+  const total = metricProjects.length;
+  const critical = metricProjects.filter(p => p.status === 'red').length;
+  const atRisk = metricProjects.filter(p => p.status === 'yellow').length;
+  const onTrack = total - critical - atRisk;
+
+  document.getElementById('m_total').textContent = total;
+  document.getElementById('m_critical').textContent = critical;
+  document.getElementById('m_atrisk').textContent = atRisk;
+  document.getElementById('m_ontrack').textContent = onTrack;
+  const showTopMetrics = !(isVipPerspective() || isOverview);
+  document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
+
+  renderNormal(portfolioProjects);
+  renderExec(overviewProjects, week.summary, allCurrentProjects);
+  
+  if (isVipPerspective()) {
+    document.getElementById('normalView').style.display = 'none';
+    document.getElementById('execView').style.display = 'block';
+  } else {
+    document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
+    document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+    
+    const btnOverview = document.getElementById('btnOverview');
+    if (isOverview) {
+      btnOverview.classList.add('active');
+    } else {
+      btnOverview.classList.remove('active');
+    }
+  }
+};
+
+window.render = (...args) => (IS_UAT_PROFILE ? render__uat : render__prod)(...args);
 
 function renderNormal(projs) {
   const grid = document.getElementById('projGrid');
@@ -7868,7 +9987,7 @@ function newExecutiveOutcomeId() {
   return `exec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function renderExecutiveSourceSelect(reference = {}) {
+function renderExecutiveSourceSelect__prod(reference = {}) {
   const selectedKey = reference.projectCode ? executiveSourceKey(reference) : '';
   const sourceExists = selectedKey && currentExecutiveEvidenceCatalog.options.some(option => option.key === selectedKey);
   if (selectedKey && !sourceExists) currentExecutiveEvidenceCatalog.byKey[selectedKey] = reference;
@@ -7881,6 +10000,22 @@ function renderExecutiveSourceSelect(reference = {}) {
     <button type="button" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
   </div>`;
 }
+
+function renderExecutiveSourceSelect__uat(reference = {}) {
+  const selectedKey = reference.projectCode ? executiveSourceKey(reference) : '';
+  const sourceExists = selectedKey && currentExecutiveEvidenceCatalog.options.some(option => option.key === selectedKey);
+  if (selectedKey && !sourceExists) currentExecutiveEvidenceCatalog.byKey[selectedKey] = reference;
+  return `<div class="exec-outcome-source">
+    <select class="fs etm-source-select" aria-label="Executive outcome evidence">
+      <option value="">Select project evidence</option>
+      ${selectedKey && !sourceExists ? `<option value="${escHtml(selectedKey)}" selected>Needs relink: ${escHtml(reference.projectCode)} / ${escHtml(reference.milestoneId)}</option>` : ''}
+      ${currentExecutiveEvidenceCatalog.options.map(option => `<option value="${escHtml(option.key)}" ${option.key === selectedKey ? 'selected' : ''}>${escHtml(option.label)}</option>`).join('')}
+    </select>
+    <button type="button" class="row-delete" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
+  </div>`;
+}
+
+function renderExecutiveSourceSelect(...args) { return (IS_UAT_PROFILE ? renderExecutiveSourceSelect__uat : renderExecutiveSourceSelect__prod)(...args); }
 
 function renderExecutiveOutcomeEditor(source = {}) {
   const outcome = normalizeExecutiveOutcome(source);
@@ -8197,7 +10332,7 @@ function collectExecutiveMilestoneTimeline() {
   });
 }
 
-window.openStrategyLayerModal = () => {
+const openStrategyLayerModal__prod = () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
   if (!week) return;
@@ -8227,7 +10362,37 @@ window.openStrategyLayerModal = () => {
   openAccessibleModal(document.getElementById('strategyOverlay'));
 };
 
-window.openExecutiveTimelineEditor = () => {
+const openStrategyLayerModal__uat = () => {
+  if (!canManageStrategy()) return;
+  const week = allWeeks[currentIdx];
+  if (!week) return;
+  if (isWeekReleased(week)) return;
+  const layer = getStrategyLayer(week);
+  const projs = (week.projects || []).filter(p => !p.visibility || p.visibility === 'active');
+  const quarters = getStrategyYears(projs, layer, { includeNextYear: true }).flatMap(getQuarterLabelsForYear);
+
+  currentExecutiveEvidenceCatalog = buildExecutiveEvidenceCatalog(projs);
+
+  const checkpointOptions = UNIVERSAL_CHECKPOINTS.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  document.getElementById('projectStrategyEditor').innerHTML = projs.map(p => {
+    const s = getProjectStrategy(p, layer);
+    return `<div class="project-map-row" data-code="${escHtml(p.code)}">
+      <input class="fi pm-project" value="${escHtml(p.name)}" readonly style="background:var(--s3); color:var(--muted);">
+      <input class="fi pm-objective" value="${escHtml(s.businessObjective || '')}" placeholder="Business objective / customer name">
+      <select class="fs pm-checkpoint"><option value="">Checkpoint not set</option>${checkpointOptions}</select>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.project-map-row').forEach(row => {
+    const s = getProjectStrategy(projs.find(p => p.code === row.dataset.code), layer);
+    row.querySelector('.pm-checkpoint').value = s.checkpoint || '';
+  });
+
+  openAccessibleModal(document.getElementById('strategyOverlay'));
+};
+
+window.openStrategyLayerModal = (...args) => (IS_UAT_PROFILE ? openStrategyLayerModal__uat : openStrategyLayerModal__prod)(...args);
+
+const openExecutiveTimelineEditor__prod = () => {
   if (!canManageStrategy()) return;
   openStrategyLayerModal();
   requestAnimationFrame(() => {
@@ -8236,6 +10401,13 @@ window.openExecutiveTimelineEditor = () => {
     editor?.querySelector('.etm-title')?.focus();
   });
 };
+
+const openExecutiveTimelineEditor__uat = () => {
+  if (!canManageStrategy()) return;
+  window.openExecutiveChangeRequest('');
+};
+
+window.openExecutiveTimelineEditor = (...args) => (IS_UAT_PROFILE ? openExecutiveTimelineEditor__uat : openExecutiveTimelineEditor__prod)(...args);
 
 window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLayer()) => {
   if (!canManageStrategy()) return;
@@ -8256,7 +10428,7 @@ window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLaye
   group.querySelector('.quarter-goal-rows').appendChild(row);
 };
 
-window.saveStrategyLayer = async () => {
+const saveStrategyLayer__prod = async () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
   if (!week || !currentUser) return;
@@ -8304,6 +10476,46 @@ window.saveStrategyLayer = async () => {
     hideLoader();
   }
 };
+
+const saveStrategyLayer__uat = async () => {
+  if (!canManageStrategy()) return;
+  const week = allWeeks[currentIdx];
+  if (!week || !currentUser) return;
+  try {
+    assertCurrentWeekEditable(week);
+  } catch (error) {
+    showSaveToast(getWriteErrorMessage(error));
+    return;
+  }
+  showLoader("Saving Strategy Layer...");
+  try {
+    const projectMap = {};
+    document.querySelectorAll('.project-map-row').forEach(row => {
+      const code = row.dataset.code || '';
+      const businessObjective = row.querySelector('.pm-objective').value.trim();
+      const checkpoint = row.querySelector('.pm-checkpoint').value;
+      if (code && (businessObjective || checkpoint)) {
+        projectMap[code] = { businessObjective, checkpoint };
+      }
+    });
+    const strategyLayer = { ...(week.strategyLayer || {}), projectMap };
+    const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+    const response = await projectDashboardApi.saveWeekFields({ weekId, fields: { strategyLayer } });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: weekId, enumerable: false, configurable: true });
+    allWeeks[currentIdx] = savedWeek;
+    closeModal('strategyOverlay', { force: true });
+    render();
+    showSaveToast("Strategy layer saved");
+  } catch (err) {
+    console.error("Strategy layer save failed", err);
+    showSaveToast(getWriteErrorMessage(err));
+  } finally {
+    hideLoader();
+  }
+};
+
+window.saveStrategyLayer = (...args) => (IS_UAT_PROFILE ? saveStrategyLayer__uat : saveStrategyLayer__prod)(...args);
 
 function findCurrentProject(code) {
   const week = allWeeks[currentIdx];
@@ -8551,7 +10763,7 @@ window.applyOverviewPrintPreset = preset => {
   }
 };
 
-const EXECUTIVE_PDF_VIEWS_BY_ROLE = {
+const EXECUTIVE_PDF_VIEWS_BY_ROLE__prod = {
   admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
   vip: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
   pm: ['pm-engineering', 'all-working-team', 'everyone'],
@@ -8559,6 +10771,16 @@ const EXECUTIVE_PDF_VIEWS_BY_ROLE = {
   business: ['business-product', 'all-working-team', 'everyone'],
   product: ['business-product', 'all-working-team', 'everyone'],
 };
+const EXECUTIVE_PDF_VIEWS_BY_ROLE__uat = {
+  admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  executive: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  pm: ['pm-engineering', 'all-working-team', 'everyone'],
+  engineering: ['pm-engineering', 'all-working-team', 'everyone'],
+  sales: ['business-product', 'all-working-team', 'everyone'],
+  bd: ['business-product', 'all-working-team', 'everyone'],
+  product: ['business-product', 'all-working-team', 'everyone'],
+};
+const EXECUTIVE_PDF_VIEWS_BY_ROLE = IS_UAT_PROFILE ? EXECUTIVE_PDF_VIEWS_BY_ROLE__uat : EXECUTIVE_PDF_VIEWS_BY_ROLE__prod;
 
 window.syncExecutiveMilestoneAudienceField = () => {
   const checkbox = document.querySelector('#overviewPrintSections input[value="executive-milestones"]');
@@ -8566,7 +10788,7 @@ window.syncExecutiveMilestoneAudienceField = () => {
   if (wrapper) wrapper.hidden = !checkbox?.checked;
 };
 
-function configureExecutiveMilestoneAudienceView() {
+function configureExecutiveMilestoneAudienceView__prod() {
   const select = document.getElementById('executiveMilestoneAudienceView');
   if (!select) return;
   const allowed = EXECUTIVE_PDF_VIEWS_BY_ROLE[normalizeRole(currentRole)] || ['everyone'];
@@ -8576,6 +10798,19 @@ function configureExecutiveMilestoneAudienceView() {
   select.value = allowed[0];
   syncExecutiveMilestoneAudienceField();
 }
+
+function configureExecutiveMilestoneAudienceView__uat() {
+  const select = document.getElementById('executiveMilestoneAudienceView');
+  if (!select) return;
+  const allowed = EXECUTIVE_PDF_VIEWS_BY_ROLE[normalizeRole(currentRole)] || [];
+  [...select.options].forEach(option => {
+    option.disabled = !allowed.includes(option.value);
+  });
+  select.value = allowed[0] || '';
+  syncExecutiveMilestoneAudienceField();
+}
+
+function configureExecutiveMilestoneAudienceView(...args) { return (IS_UAT_PROFILE ? configureExecutiveMilestoneAudienceView__uat : configureExecutiveMilestoneAudienceView__prod)(...args); }
 
 let overviewPrintDraft = null;
 
@@ -8710,14 +10945,14 @@ window.setOverviewScope = scope => {
   }
   render();
 };
-window.toggleVipPreview = () => {
+window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;
   isAdminVipPreview = !isAdminVipPreview;
   isOverview = isAdminVipPreview;
   if (isAdminVipPreview) invalidateGanttTemplateSession();
   if (isAdminVipPreview) invalidateGanttWindowSession();
 
-  document.querySelectorAll('.vip-hidden').forEach(el => {
+  document.querySelectorAll('.executive-hidden').forEach(el => {
     el.style.display = isAdminVipPreview ? 'none' : '';
   });
   document.getElementById('onlineUsersContainer').style.display = isAdminVipPreview ? 'none' : 'flex';
@@ -8725,28 +10960,40 @@ window.toggleVipPreview = () => {
   document.getElementById('presenceUsageBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
   document.getElementById('ganttTemplateSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
   document.getElementById('ganttWindowSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+  document.getElementById('productionWeekSyncPanel').style.display = isAdminVipPreview ? 'none' : '';
 
-  const button = document.getElementById('vipPreviewBtn');
+  const button = document.getElementById('executivePreviewBtn');
   button.classList.toggle('active', isAdminVipPreview);
-  button.title = isAdminVipPreview ? 'Return to Admin view' : 'Preview as VIP';
+  button.title = isAdminVipPreview ? 'Return to Admin view' : 'Preview as Executive Owner';
   button.setAttribute('aria-label', button.title);
 
   const badge = document.getElementById('displayRole');
-  badge.textContent = isAdminVipPreview ? 'VIP PREVIEW' : 'ADMIN';
-  badge.className = `role-badge ${isAdminVipPreview ? 'vip' : 'admin'}`;
+  badge.textContent = isAdminVipPreview ? 'Executive Owner PREVIEW' : 'ADMIN';
+  badge.className = `role-badge ${isAdminVipPreview ? 'executive' : 'admin'}`;
   render();
 };
 window.setOverviewCurrency = (currency) => {
   if (SUPPORTED_CURRENCIES.includes(currency)) overviewCurrency = currency;
   render();
 };
-window.navWeek = (dir) => {
+const navWeek__prod = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
     currentIdx = nextIndex;
   }
   render();
 };
+
+const navWeek__uat = (dir) => {
+  const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
+  if (nextIndex !== currentIdx) {
+    currentIdx = nextIndex;
+    resetExecutiveTimelineView();
+  }
+  render();
+};
+
+window.navWeek = (...args) => (IS_UAT_PROFILE ? navWeek__uat : navWeek__prod)(...args);
 let projectDetailModalState = null;
 function isolateProjectDetailModal() {
   const projectDetail = document.getElementById('projDetailOverlay');
@@ -8777,7 +11024,7 @@ function openAccessibleModal(modal) {
   requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
 }
 
-function serializeEditorState(overlay) {
+function serializeEditorState__prod(overlay) {
   if (!overlay?.hasAttribute('data-editor-overlay')) return '';
   const values = [];
   const controls = [...overlay.querySelectorAll('input, select, textarea, [contenteditable="true"]')];
@@ -8796,6 +11043,29 @@ function serializeEditorState(overlay) {
   return JSON.stringify(values);
 }
 
+function serializeEditorState__uat(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return '';
+  const values = [];
+  const controls = [...overlay.querySelectorAll('input, select, textarea, [contenteditable="true"]')];
+  controls.forEach((control, index) => {
+    if (control.disabled || control.hasAttribute('data-editor-ignore-dirty')) return;
+    const key = control.id || control.name || control.dataset.editorField || `${control.tagName.toLowerCase()}:${index}`;
+    if ((control.type === 'checkbox' || control.type === 'radio') && !control.checked) return;
+    let value = control.isContentEditable ? control.textContent.trim() : String(control.value ?? '');
+    if (control.tagName === 'SELECT' && control.multiple) {
+      value = [...control.selectedOptions].map(option => option.value).sort().join('|');
+    }
+    if (!value) return;
+    values.push([key, value]);
+  });
+  const activeRag = overlay.querySelector('[data-executive-rag].active');
+  if (activeRag) values.push(['executive-rag', activeRag.dataset.executiveRag || '']);
+  values.sort((left, right) => left[0].localeCompare(right[0]) || left[1].localeCompare(right[1]));
+  return JSON.stringify(values);
+}
+
+function serializeEditorState(...args) { return (IS_UAT_PROFILE ? serializeEditorState__uat : serializeEditorState__prod)(...args); }
+
 function captureEditorBaseline(overlay) {
   if (!overlay?.hasAttribute('data-editor-overlay')) return;
   overlay.dataset.editorBaseline = serializeEditorState(overlay);
@@ -8807,7 +11077,6 @@ function editorHasUnsavedChanges(overlay) {
   return overlay.dataset.editorBaseline !== serializeEditorState(overlay);
 }
 
-let pendingDiscardEditorId = '';
 window.requestCloseModal = id => closeModal(id);
 window.keepEditing = () => {
   pendingDiscardEditorId = '';
@@ -8825,7 +11094,7 @@ window.closeProjectOverlayFromBackdrop = event => {
   requestCloseModal(event.currentTarget.id);
 };
 
-window.closeModal = (id, { force = false } = {}) => {
+const closeModal__prod = (id, { force = false } = {}) => {
   const modal = document.getElementById(id);
   if (!modal) return false;
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
@@ -8851,6 +11120,46 @@ window.closeModal = (id, { force = false } = {}) => {
   modalReturnFocus = null;
   return true;
 };
+
+const closeModal__uat = (id, { force = false } = {}) => {
+  const modal = document.getElementById(id);
+  if (!modal) return false;
+  if (id === 'projEditOverlay' && projectMutationInFlight) return;
+  if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
+  if (id === 'ganttWindowOverlay' && ganttWindowSaveInFlight) return;
+  if (!force && editorHasUnsavedChanges(modal)) {
+    pendingDiscardEditorId = id;
+    openAccessibleModal(document.getElementById('unsavedChangesOverlay'));
+    return false;
+  }
+  if (id === 'executiveItemDrawerOverlay') {
+    if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
+    executiveUpdateHistoryUnsub = null;
+    executiveUpdateSession = null;
+    executiveUpdateSaving = false;
+  }
+  if (id === 'executiveApprovalInboxOverlay' && executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  if (id === 'executiveApprovalInboxOverlay') executiveApprovalInboxUnsub = null;
+  if (id === 'executiveChangeRequestOverlay') executiveChangeSession = null;
+  if (id === 'executiveRagOverrideOverlay') executiveRagOverrideSession = null;
+  if (id === 'executiveTimelineSettingsOverlay') executiveTimelineSettingsSession = null;
+  if (id === 'projEditOverlay') {
+    projectEditorSession = null;
+    editingProjCode = null;
+    isCreatingNew = false;
+    clearProjectMutationError();
+  }
+  if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
+  if (id === 'ganttWindowOverlay') ganttWindowSession = null;
+  modal.classList.remove('open');
+  delete modal.dataset.editorBaseline;
+  if (id === 'onePageStatusModal') restoreProjectDetailModalState();
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
+  modalReturnFocus = null;
+  return true;
+};
+
+window.closeModal = (...args) => (IS_UAT_PROFILE ? closeModal__uat : closeModal__prod)(...args);
 document.addEventListener('keydown', event => {
   const discard = document.getElementById('unsavedChangesOverlay');
   const openModals = [...document.querySelectorAll('.overlay.open[role="dialog"]')];
@@ -9915,7 +12224,7 @@ window.deleteProject = async () => {
   showSaveToast("Project deleted");
 };
 
-window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) => {
+const addMilestoneRow__prod = (name='', status='to-do', dateStr='', planData = null) => {
   const normalized = planData ? normalizeMilestonePlan(planData) : normalizeMilestonePlan({ name, status, date: dateStr, history: [] });
   if (!planData) normalized.planId = `ms-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const div = document.createElement('div');
@@ -9956,7 +12265,52 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
   checkMsDates();
   refreshWorkstreamMilestoneOptions();
   scheduleWorkstreamPreview();
-}
+};
+
+const addMilestoneRow__uat = (name='', status='to-do', dateStr='', planData = null) => {
+  const normalized = planData ? normalizeMilestonePlan(planData) : normalizeMilestonePlan({ name, status, date: dateStr, history: [] });
+  if (!planData) normalized.planId = `ms-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const div = document.createElement('div');
+  div.className = "ms-row";
+  div.dataset.planId = normalized.planId;
+  div.style = "display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px; align-items:center;";
+
+  div.innerHTML = `
+    <button type="button" class="drag-handle milestone-drag-handle" draggable="true"
+      title="Drag to reorder milestone" aria-label="Drag milestone to reorder">☰</button>
+    <input class="fi ms-name" style="flex:2" value="${escHtml(name)}" placeholder="Milestone name" aria-label="Milestone name">
+    <input type="date" class="fi ms-date" value="${escHtml(dateStr)}" onchange="checkMsDates()" aria-label="Milestone date">
+    <select class="fs ms-status" aria-label="Milestone status">
+      <option ${status==='to-do'?'selected':''}>to-do</option>
+      <option ${status==='in-progress'?'selected':''}>in-progress</option>
+      <option ${status==='at-risk'?'selected':''}>at-risk</option>
+      <option ${status==='done'?'selected':''}>done</option>
+    </select>
+    <button type="button" class="qms-delete row-delete" onclick="removeMilestoneRow(this)" title="Delete milestone" aria-label="Delete milestone">🗑️</button>
+  `;
+  const handle = div.querySelector('.milestone-drag-handle');
+  handle.ondragstart = event => {
+    event.dataTransfer.setData('text/plain', '');
+    div.classList.add('dragging');
+  };
+  handle.ondragend = () => {
+    div.classList.remove('dragging');
+    checkMsDates();
+    scheduleWorkstreamPreview();
+  };
+  div.insertAdjacentHTML('beforeend', milestoneHistoryHtml(normalized));
+  div.addEventListener('input', () => {
+    refreshWorkstreamMilestoneOptions();
+    scheduleWorkstreamPreview();
+  });
+  div.addEventListener('change', scheduleWorkstreamPreview);
+  document.getElementById('msListContainer').appendChild(div);
+  checkMsDates();
+  refreshWorkstreamMilestoneOptions();
+  scheduleWorkstreamPreview();
+};
+
+window.addMilestoneRow = (...args) => (IS_UAT_PROFILE ? addMilestoneRow__uat : addMilestoneRow__prod)(...args);
 
 window.addQuarterlyMilestoneRow = (item = {}) => {
   const normalized = normalizeQuarterlyMilestone(item);
@@ -10088,7 +12442,7 @@ window.checkMsDates = () => {
 };
 
 // ── WEEK MANAGEMENT COMBINED LOGIC ──
-window.openWeekManagement = () => {
+const openWeekManagement__prod = () => {
   const week = allWeeks[currentIdx];
   if(!week) return;
   
@@ -10122,6 +12476,46 @@ window.openWeekManagement = () => {
   updateCopilotPrompt();
   openAccessibleModal(document.getElementById('weekManageOverlay'));
 };
+
+const openWeekManagement__uat = () => {
+  const week = allWeeks[currentIdx];
+  if(!week) return;
+  
+  document.getElementById('wm_current_title').textContent = `Editing: ${week.weekLabel}`;
+  document.getElementById('wm_summary').value = week.summary || '';
+  setWeeklySummaryValidation();
+  
+  const sel = document.getElementById('wm_nw_label');
+  sel.innerHTML = '';
+  
+  let baseDate = new Date();
+  if (allWeeks.length > 0) {
+    const lastWk = allWeeks[allWeeks.length - 1];
+    const yearMatch = lastWk.weekLabel.match(/\d{4}/);
+    const year = yearMatch ? yearMatch[0] : new Date().getFullYear();
+    const monthDay = lastWk.weekDate.split('-')[0].trim();
+    const parsedDate = new Date(`${monthDay}, ${year}`);
+    if (!isNaN(parsedDate)) {
+       baseDate = parsedDate;
+    }
+  }
+  
+  const wkData = getIsoWeekData(baseDate, 1);
+  const opt = document.createElement('option');
+  opt.value = wkData.label;
+  opt.dataset.date = wkData.dateStr;
+  opt.textContent = wkData.label;
+  sel.appendChild(opt);
+  
+  window.updateWmDate();
+  updateCopilotPrompt();
+  openAccessibleModal(document.getElementById('weekManageOverlay'));
+  if (canUseProductionWeekSync(currentRole) && !isAdminVipPreview) {
+    void uatProductionSyncController.open();
+  }
+};
+
+window.openWeekManagement = (...args) => (IS_UAT_PROFILE ? openWeekManagement__uat : openWeekManagement__prod)(...args);
 
 window.updateWmDate = () => {
   const sel = document.getElementById('wm_nw_label');
@@ -10347,6 +12741,34 @@ function getIsoWeekData(baseDate, offsetWeeks) {
   };
 }
 
+
+// Production-profile functions retained from e1f0e5c (renamed or removed on the UAT side).
+window.toggleVipPreview = () => {
+  if (currentRole !== 'admin') return;
+  isAdminVipPreview = !isAdminVipPreview;
+  isOverview = isAdminVipPreview;
+  if (isAdminVipPreview) invalidateGanttTemplateSession();
+  if (isAdminVipPreview) invalidateGanttWindowSession();
+
+  document.querySelectorAll('.vip-hidden').forEach(el => {
+    el.style.display = isAdminVipPreview ? 'none' : '';
+  });
+  document.getElementById('onlineUsersContainer').style.display = isAdminVipPreview ? 'none' : 'flex';
+  document.getElementById('visSelect').style.display = isAdminVipPreview ? 'none' : 'inline-block';
+  document.getElementById('presenceUsageBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+  document.getElementById('ganttTemplateSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+  document.getElementById('ganttWindowSettingsBtn').style.display = isAdminVipPreview ? 'none' : 'inline-flex';
+
+  const button = document.getElementById('vipPreviewBtn');
+  button.classList.toggle('active', isAdminVipPreview);
+  button.title = isAdminVipPreview ? 'Return to Admin view' : 'Preview as VIP';
+  button.setAttribute('aria-label', button.title);
+
+  const badge = document.getElementById('displayRole');
+  badge.textContent = isAdminVipPreview ? 'VIP PREVIEW' : 'ADMIN';
+  badge.className = `role-badge ${isAdminVipPreview ? 'vip' : 'admin'}`;
+  render();
+};
 </script>
 </body>
 </html>

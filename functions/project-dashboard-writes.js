@@ -478,7 +478,9 @@ async function authenticatedActor(transaction, request) {
   return buildAuthenticatedActor({ uid, email }, snapshot.data());
 }
 
-const saveDashboardProject = onCall(async request => database().runTransaction(async transaction => {
+const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
+
+const saveDashboardProject = dashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -492,7 +494,7 @@ const saveDashboardProject = onCall(async request => database().runTransaction(a
   };
 }));
 
-const deleteDashboardProject = onCall(async request => database().runTransaction(async transaction => {
+const deleteDashboardProject = dashboardOnCall('pmdash-delete-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'originalCode'], 'Project delete request');
@@ -517,7 +519,7 @@ const deleteDashboardProject = onCall(async request => database().runTransaction
   return { week: { ...week, ...patch } };
 }));
 
-const setDashboardProjectAttention = onCall(async request => database().runTransaction(async transaction => {
+const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'projectCode', 'attention'], 'Project attention request');
@@ -552,7 +554,7 @@ const setDashboardProjectAttention = onCall(async request => database().runTrans
   };
 }));
 
-const setDashboardWeekRelease = onCall(async request => database().runTransaction(async transaction => {
+const setDashboardWeekRelease = dashboardOnCall('pmdash-week-release@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'isReleased'], 'Week release request');
@@ -580,7 +582,7 @@ const setDashboardWeekRelease = onCall(async request => database().runTransactio
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const saveDashboardWeekFields = onCall(async request => database().runTransaction(async transaction => {
+const saveDashboardWeekFields = dashboardOnCall('pmdash-week-fields@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -590,7 +592,7 @@ const saveDashboardWeekFields = onCall(async request => database().runTransactio
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const createDashboardWeek = onCall(async request => database().runTransaction(async transaction => {
+const createDashboardWeek = dashboardOnCall('pmdash-create-week@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'weekLabel', 'weekDate', 'sourceWeekId'], 'Week creation request');
@@ -610,7 +612,7 @@ const createDashboardWeek = onCall(async request => database().runTransaction(as
   return { week: { ...week, __documentId: weekId } };
 }));
 
-const saveDashboardGanttTemplateSettings = onCall(async request => database().runTransaction(async transaction => {
+const saveDashboardGanttTemplateSettings = dashboardOnCall('pmdash-gantt-template@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
   const snapshot = await transaction.get(settingsRef);
@@ -619,7 +621,7 @@ const saveDashboardGanttTemplateSettings = onCall(async request => database().ru
   return { config: { system: patch.system, 'hardware-module': patch['hardware-module'] }, revision: patch.revision };
 }));
 
-const saveDashboardGanttWindowSettings = onCall(async request => database().runTransaction(async transaction => {
+const saveDashboardGanttWindowSettings = dashboardOnCall('pmdash-gantt-window@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
   const snapshot = await transaction.get(settingsRef);
@@ -634,8 +636,8 @@ const saveDashboardGanttWindowSettings = onCall(async request => database().runT
 
 module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
-  buildAuthenticatedActor,
-  buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch, buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
+  buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
+  buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
   canManageWeekFields, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,

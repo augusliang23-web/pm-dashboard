@@ -410,3 +410,60 @@ test('does not validate Weekly Summary when Executive Summary is not selected', 
   });
   assert.deepEqual(report.sections, ['health-focus']);
 });
+
+// Tests carried over from the UAT lineage (consolidation).
+test('does not read update-history collections for a historical week PDF', async () => {
+  let historyCalls = 0;
+  await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: { ...adapters, getExecutiveMilestoneUpdates: async () => { historyCalls += 1; return []; } },
+  });
+  assert.equal(historyCalls, 0);
+});
+
+test('uses the Executive milestone snapshot captured at release for a released overview PDF', async () => {
+  let liveReads = 0;
+  const snapshotTimeline = { title: 'Released Executive timeline', rows: [] };
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        isReleased: true,
+        projects: [],
+        strategyLayer: {
+          executiveMilestoneTimeline: { title: 'Legacy timeline', rows: [] },
+          executiveMilestoneTimelineSnapshot: { timeline: snapshotTimeline }
+        }
+      }),
+      getLiveExecutiveTimeline: async () => { liveReads += 1; return { timeline: { title: 'Live timeline', rows: [] } }; }
+    }
+  });
+
+  assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Released Executive timeline');
+  assert.equal(liveReads, 0);
+});
+
+test('uses the current live Executive timeline for a draft overview PDF', async () => {
+  let liveReads = 0;
+  const report = await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W30', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W30 2026',
+        isReleased: false,
+        projects: [],
+        strategyLayer: { executiveMilestoneTimeline: { title: 'Legacy draft timeline', rows: [] } }
+      }),
+      getLiveExecutiveTimeline: async () => { liveReads += 1; return { timeline: { title: 'Current live timeline', rows: [] } }; }
+    }
+  });
+
+  assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Current live timeline');
+  assert.equal(liveReads, 1);
+});
