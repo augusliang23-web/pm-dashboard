@@ -2537,6 +2537,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="modal-hdr"><h3 id="projectPdfSectionPickerTitle">Export project PDF</h3><button class="modal-x" type="button" aria-label="Close PDF section picker" onclick="closeModal('projectPdfSectionPicker')">×</button></div>
     <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, risk &amp; required action) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
     <div class="project-pdf-picker-list">
+      <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-brief"><span>Project brief</span></label>
+      <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-update"><span>Project update</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="milestone" checked><span>Milestone timeline</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="gantt" checked><span>Gantt Chart</span></label>
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="team-allocation" checked><span>Team allocation</span></label>
@@ -9614,18 +9616,33 @@ function clearProjectOnePagePrintMode() {
   closeModal('onePageStatusModal');
 }
 
+// True unless the element (or its nearest data-profile-only ancestor) is gated to the other dashboard profile.
+// The boot-time loader already hides those elements from view; this lets code that runs later -- opening or
+// reading the PDF section picker -- honor the same gate at runtime instead of relying on hidden state alone.
+function isProfileVisible(el) {
+  const gate = el.closest('[data-profile-only]');
+  if (!gate) return true;
+  return gate.dataset.profileOnly === (IS_UAT_PROFILE ? 'uat' : 'production');
+}
+
 function openProjectPdfSectionPicker(code) {
   const picker = document.getElementById('projectPdfSectionPicker');
   picker.dataset.projectCode = code;
-  picker.querySelectorAll('input[data-pdf-section]').forEach(input => { input.checked = true; });
+  picker.querySelectorAll('input[data-pdf-section]').forEach(input => { input.checked = isProfileVisible(input); });
   document.getElementById('projectPdfSectionPickerError').textContent = '';
   openAccessibleModal(picker);
 }
 
 async function confirmProjectPdfExport() {
   const picker = document.getElementById('projectPdfSectionPicker');
-  const selectedSections = [...picker.querySelectorAll('input[data-pdf-section]:checked')].map(input => input.dataset.pdfSection);
+  const selectedSections = [...picker.querySelectorAll('input[data-pdf-section]:checked')]
+    .filter(isProfileVisible)
+    .map(input => input.dataset.pdfSection);
   const error = document.getElementById('projectPdfSectionPickerError');
+  if (!selectedSections.length) {
+    error.textContent = 'Select at least one section to export.';
+    return;
+  }
   const code = picker.dataset.projectCode;
   const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
   if (!rawProject) return;
