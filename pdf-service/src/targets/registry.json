@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "targets": {
+    "uat": {
+      "environment": "uat",
+      "firebaseProjectId": "pm-dashboard-uat-20260820-a7f3",
+      "region": "asia-southeast1",
+      "serviceName": "pm-dashboard-uat-pdf",
+      "runtimeServiceAccount": "pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "serviceUrl": null,
+      "allowedOrigins": [
+        "https://augusliang23-web.github.io",
+        "https://pm-dashboard-uat-20260820-a7f3.web.app"
+      ],
+      "features": { "liveExecutiveTimeline": true }
+    },
+    "production": {
+      "environment": "production",
+      "firebaseProjectId": "project-manager-dashboar-a067f",
+      "region": "asia-southeast1",
+      "serviceName": "pm-dashboard-pdf",
+      "runtimeServiceAccount": "pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com",
+      "serviceUrl": "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app",
+      "allowedOrigins": [
+        "https://augusliang23-web.github.io",
+        "https://project-manager-dashboar-a067f.web.app"
+      ],
+      "features": { "liveExecutiveTimeline": false }
+    }
+  }
+}

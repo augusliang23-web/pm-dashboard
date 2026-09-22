@@ -3,18 +3,21 @@ import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createReportHandler, createOnePagerPreviewHandler } from './app.js';
-import { createFirebaseAppOptions } from './firebase-app-options.js';
+import { initializeFirebaseAdmin, resolveRuntimeTarget } from './environment.js';
 import { renderPdfBuffer } from './pdf-renderer.js';
 import { applyCors, handlePreflight } from './cors.js';
 
-initializeApp(createFirebaseAppOptions(process.env, { applicationDefault }));
-const db = getFirestore();
-const auth = getAuth();
+const target = resolveRuntimeTarget(process.env);
+const app = initializeFirebaseAdmin({ target, initializeApp, applicationDefault });
+const db = getFirestore(app);
+const auth = getAuth(app);
 const adapters = {
   verifyIdToken: token => auth.verifyIdToken(token),
   getUserByEmail: async email => (await db.collection('users').doc(email).get()).data(),
   getWeekById: async id => (await db.collection('weeks').doc(id).get()).data(),
-  getLiveExecutiveTimeline: async () => (await db.collection('executiveMilestoneState').doc('live').get()).data(),
+  ...(target.features.liveExecutiveTimeline
+    ? { getLiveExecutiveTimeline: async () => (await db.collection('executiveMilestoneState').doc('live').get()).data() }
+    : {}),
   getDashboardSettings: async () => (await db.collection('dashboardSettings').doc('team-2-portfolio').get()).data(),
   getTrendWeeks: async week => {
     const snapshot = await db.collection('weeks')
@@ -34,10 +37,10 @@ const ROUTES = {
 };
 
 http.createServer((request, response) => {
-  if (handlePreflight(request, response, process.env.ALLOWED_ORIGIN)) return;
+  if (handlePreflight(request, response, target.allowedOrigins)) return;
   const routeHandler = request.method === 'POST' ? ROUTES[request.url] : undefined;
   if (!routeHandler) return response.writeHead(404).end();
-  if (!applyCors(request, response, process.env.ALLOWED_ORIGIN)) return response.writeHead(403).end();
+  if (!applyCors(request, response, target.allowedOrigins)) return response.writeHead(403).end();
   let raw = '';
   request.setEncoding('utf8');
   request.on('data', chunk => { raw += chunk; if (raw.length > 65536) request.destroy(); });
