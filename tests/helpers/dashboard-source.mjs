@@ -47,6 +47,7 @@ export function renderProfile(html, profile, env) {
   out = out.replace('<script src="./env-config.js"></script>\n', '').replace(ENV_BLOCK, legacyEnvConstants(env, uat));
   out = out.replace(/ data-profile-only="(?:production|uat)"/g, '');
   if (uat) {
+    out = out.replace(/\bisAdminVipPreview\b/g, 'isAdminExecutivePreview').replace(/\bisVipPerspective\b/g, 'isExecutivePerspective');
     out = out.replace(/ vip-hidden(?= |")/g, '').replace('<span class="hdr-version">v2.1</span>', `<span class="hdr-version">${env.release}</span>`);
     out = out.replace(/<option value="business-product" data-uat-label="([^"]*)">[^<]*<\/option>/g, '<option value="business-product">$1</option>')
       .replace('<style id="uatButtonSystem" media="not all">', '<style id="uatButtonSystem">');

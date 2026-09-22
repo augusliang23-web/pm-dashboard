@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await dashboardSourceAsync('production');
+const dashboard = await dashboardSourceAsync('uat');
 
 test('executive timeline normalizes legacy text into structured outcome rows', () => {
   assert.match(dashboard, /normalizeExecutiveOutcome/);
@@ -83,7 +83,8 @@ test('executive timeline removes noisy manual labels and shows quarterly RAG sta
   assert.match(dashboard, /function renderExecutiveOutcomeLegacy\(/);
   assert.match(source, /class="dcdc-title"/);
   assert.doesNotMatch(source, /renderExecutiveCategorySummaries\(/);
-  assert.doesNotMatch(source, /class="dcdc-quarter-rag/);
+  assert.match(source, /class="dcdc-quarter-rag/);
+  assert.match(source, /class="dcdc-section-rag/);
   assert.doesNotMatch(dashboard, /Leadership-level DCDC milestone timeline, separated from PM project milestone input\./);
   assert.doesNotMatch(dashboard, /Manual<\/span>/);
   assert.match(dashboard, /function calculateExecutiveQuarterSummary\(/);

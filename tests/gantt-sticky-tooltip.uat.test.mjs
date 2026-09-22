@@ -3,12 +3,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await dashboardSourceAsync('production');
+const dashboard = await dashboardSourceAsync('uat');
 const renderStart = dashboard.indexOf("function renderProjectGantt(project, targetId = 'pd_schedule')");
 const renderEnd = dashboard.indexOf('\nconst RESOURCE_LABELS', renderStart);
 const renderer = dashboard.slice(renderStart, renderEnd);
 
-test('root Schedule scopes two-axis sticky behavior to detail and editor preview', () => {
+test('UAT root Schedule scopes two-axis sticky behavior to detail and editor preview', () => {
   assert.ok(renderStart >= 0 && renderEnd > renderStart);
   assert.match(dashboard, /#pd_schedule \.gantt-chart--interactive[\s\S]*#workstreamGanttPreview \.gantt-chart--interactive/);
   assert.match(dashboard, /max-height:\s*min\(60vh,\s*720px\)/);
@@ -21,7 +21,7 @@ test('root Schedule scopes two-axis sticky behavior to detail and editor preview
   assert.doesNotMatch(dashboard, /#onePageGantt \.gantt-chart--interactive|#printReportGantt \.gantt-chart--interactive/);
 });
 
-test('root interactive bars expose dates and keyboard metadata without a native tooltip', () => {
+test('UAT root interactive bars expose dates and keyboard metadata without a native tooltip', () => {
   const rowRenderStart = renderer.indexOf('rows.map(row => {');
   const rowRenderer = renderer.slice(rowRenderStart, renderer.indexOf('}).join', rowRenderStart));
   assert.ok(rowRenderStart >= 0 && rowRenderer.length > 0);
@@ -69,7 +69,7 @@ test('root interactive bars expose dates and keyboard metadata without a native 
   assert.doesNotMatch(rowRenderer, /aria-describedby="ganttScheduleTooltip"/);
 });
 
-test('root tooltip controller delegates hover focus Escape and scroll state', () => {
+test('UAT root tooltip controller delegates hover focus Escape and scroll state', () => {
   assert.match(dashboard, /id\s*=\s*["']ganttScheduleTooltip["']/);
   assert.match(dashboard, /setAttribute\(["']role["'],\s*["']tooltip["']\)/);
   for (const state of ['activeBar', 'hoveredBar', 'focusedBar', 'dismissedBar']) {

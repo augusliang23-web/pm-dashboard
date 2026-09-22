@@ -742,7 +742,7 @@ export function buildResourceAnalytics(projects = []) {
 export function filterRoleVisibleProjects(source = [], options = {}) {
   const projects = Array.isArray(source) ? source : [];
   const role = stringValue(options.role).toLocaleLowerCase() || 'pm';
-  const restrictToActive = options.executivePerspective === true
+  const restrictToActive = options.executivePerspective === true || options.vipPerspective === true
     || role !== 'admin'
     || options.visibilityFilter === 'active';
   return restrictToActive

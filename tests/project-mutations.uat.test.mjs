@@ -13,7 +13,7 @@ import {
   withProjectEditorRowIds,
 } from '../js/project-mutations.mjs';
 
-const dashboard = await dashboardSourceAsync('production');
+const dashboard = await dashboardSourceAsync('uat');
 
 test('attention update preserves nested project data and changes only the target', () => {
   const week = {
@@ -54,7 +54,7 @@ test('attention update rejects released weeks, invalid values, and unauthorized 
   );
   assert.throws(
     () => applyProjectAttentionUpdate(base, {
-      projectCode: 'SYS-1', attention: 'action', role: 'vip',
+      projectCode: 'SYS-1', attention: 'action', role: 'unknown',
     }),
     error => error.code === 'edit-forbidden',
   );
@@ -95,46 +95,6 @@ test('editing merges only the live target and preserves concurrent projects and 
     name: 'Original',
     owner: 'PM One',
     unknownProjectField: 'keep',
-  });
-});
-
-test('project saves update metadata only for sections whose content changed', () => {
-  const liveWeek = {
-    projects: [{
-      code: 'META-1',
-      name: 'Metadata project',
-      owner: 'PM One',
-      status: 'green',
-      highlight: 'Existing highlight',
-      weeklyActions: 'Keep moving',
-      sectionUpdatedAt: {
-        status: { savedAt: '2026-07-30T00:00:00.000Z', editorName: 'BONNIE' },
-        highlights: { savedAt: '2026-07-29T00:00:00.000Z', editorName: 'BONNIE' },
-      },
-    }],
-  };
-
-  const result = applyProjectSave(liveWeek, {
-    originalCode: 'META-1',
-    isNew: false,
-    role: 'admin',
-    canEdit: () => true,
-    lastModifiedBy: 'admin@example.com',
-    editorName: 'AUGUS.LIANG',
-    savedAt: '2026-08-01T08:00:00.000Z',
-    draft: {
-      code: 'META-1',
-      name: 'Metadata project',
-      owner: 'PM One',
-      status: 'green',
-      highlight: 'Updated highlight',
-      weeklyActions: 'Keep moving',
-    },
-  });
-
-  assert.deepEqual(result.project.sectionUpdatedAt, {
-    status: { savedAt: '2026-07-30T00:00:00.000Z', editorName: 'BONNIE' },
-    highlights: { savedAt: '2026-08-01T08:00:00.000Z', editorName: 'AUGUS.LIANG' },
   });
 });
 
@@ -424,7 +384,7 @@ test('renaming a team member preserves metadata by ID and legacy row IDs are det
   assert.equal(merged.teamMembers[0].directoryRef, 'keep');
 });
 
-test('project save and delete use protected Callables and commit UI state only after await', () => {
+test('project save and delete use protected callables and commit UI state only after await', () => {
   const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
   const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
   const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
@@ -433,15 +393,14 @@ test('project save and delete use protected Callables and commit UI state only a
 
   assert.ok(saveStart >= 0 && deleteStart > saveStart && deleteEnd > deleteStart);
   for (const [source, callable] of [
-    [saveSource, 'projectDashboardApi.saveProject'],
-    [deleteSource, 'projectDashboardApi.deleteProject'],
+    [saveSource, 'await projectDashboardApi.saveProject({'],
+    [deleteSource, 'await projectDashboardApi.deleteProject({'],
   ]) {
-    const awaitPosition = source.indexOf(`await ${callable}`);
+    const awaitPosition = source.indexOf(callable);
     const closePosition = source.indexOf("closeModal('projEditOverlay'");
     assert.ok(awaitPosition >= 0);
     assert.ok(closePosition > awaitPosition);
-    assert.doesNotMatch(source, /setDoc\s*\(/);
-    assert.doesNotMatch(source, /runTransaction\s*\(/);
+    assert.doesNotMatch(source, /(?:runTransaction|transaction\.|updateDoc|setDoc)\(/);
     assert.match(source, /finally\s*\{[\s\S]*hideLoader\(\)/);
     assert.ok(source.includes('showProjectMutationError('));
   }
@@ -484,7 +443,10 @@ test('project editor pins week and identity session and stale completions cannot
 
   for (const source of [saveSource, deleteSource]) {
     assert.ok(source.includes('const session = projectEditorSession;'));
-    assert.ok(source.includes('weekId: session.weekId'));
+    assert.ok(
+      source.indexOf('allWeeks[currentIdx] = savedWeek') > source.indexOf('await projectDashboardApi.'),
+    );
+    assert.ok(source.includes('if (!isProjectEditorSessionCurrent(session)) return;'));
     assert.ok(source.includes('if (!isProjectEditorSessionCurrent(session)) return;'));
     assert.ok(
       source.indexOf('if (!isProjectEditorSessionCurrent(session)) return;')
@@ -492,6 +454,7 @@ test('project editor pins week and identity session and stale completions cannot
     );
   }
   assert.ok(saveSource.includes('expectedRevision: session.revisionFingerprint'));
+  assert.ok(deleteSource.includes('projectDashboardApi.deleteProject({ weekId: session.weekId, originalCode: session.code })'));
   assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
 });
 

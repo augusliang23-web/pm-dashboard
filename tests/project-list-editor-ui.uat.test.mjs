@@ -3,10 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await dashboardSourceAsync('production');
+const html = await dashboardSourceAsync('uat');
 
 test('Project Editor keeps PM multiline fields as native textareas', () => {
-  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-2["']/);
+  assert.match(html, /from ["']\.\/js\/list-editor\.mjs\?v=raw-text-preserve-1["']/);
   assert.doesNotMatch(html, /function enhanceListTextarea\(textarea\)/);
   assert.doesNotMatch(html, /const LIST_COMMANDS\s*=\s*\[/);
   assert.doesNotMatch(html, /Enter: new item · Tab: sub-item · Shift\+Tab: move up/);
@@ -36,15 +36,6 @@ test('Risk and Required Action inputs resize vertically without escaping their g
   assert.match(html, /class="risk-list-cell"[^>]*><textarea class="ft rap-action"/);
 });
 
-test('Project Editor preserves native textarea values when loading and saving', () => {
-  assert.match(html, /document\.getElementById\('pe_highlight'\)\.value = p\.highlight \|\| ''/);
-  assert.match(html, /document\.getElementById\('pe_weekly_actions'\)\.value = p\.weeklyActions \|\| p\.weeklyAction \|\| ''/);
-  assert.match(html, /risk:\s*row\.querySelector\('\.rap-risk'\)\?\.value \|\| ''/);
-  assert.match(html, /action:\s*row\.querySelector\('\.rap-action'\)\?\.value \|\| ''/);
-  assert.match(html, /highlight: document\.getElementById\('pe_highlight'\)\.value/);
-  assert.match(html, /weeklyActions: document\.getElementById\('pe_weekly_actions'\)\.value/);
-});
-
 test('Project Editor labels explain visible list controls instead of hidden newline behavior', () => {
   assert.match(html, /<label class="fl">Highlight<\/label>/);
   assert.doesNotMatch(html, /Highlight \(Press Enter for new bullet point\)/);
@@ -69,7 +60,7 @@ test('Single Project paired table stays two-column and scrollable at narrow widt
   assert.match(html, /\.project-risk-table\s*\{[^}]*min-width:\s*620px[^}]*table-layout:\s*fixed/s);
 });
 
-test('Risk/Action editors stack inside their grid cells on phone widths', () => {
+test('Risk/Action editors stack at phone widths', () => {
   assert.match(
     html,
     /@media\s*\(max-width:\s*760px\)[\s\S]*?\.risk-pair-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+34px/s,

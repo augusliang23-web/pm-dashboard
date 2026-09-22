@@ -46,11 +46,3 @@ test('both PDF dialogs stay visible with progress feedback until the download fi
     assert.match(dashboard, /aria-busy/);
   }
 });
-
-// Tests carried over from the UAT lineage (consolidation).
-{
-test('root dashboard uses the professional direct-download client', () => {
-  assert.match(root, /professional-pdf-client\.mjs/);
-  assert.match(root, /downloadProfessionalPdf/);
-});
-}

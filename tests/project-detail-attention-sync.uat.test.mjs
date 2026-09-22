@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await dashboardSourceAsync('production');
+const html = await dashboardSourceAsync('uat');
 
 test('project detail places Gantt and quarterly milestones below the upper grid', () => {
   const gridStart = html.indexOf('<div class="detail-grid">');
@@ -37,11 +37,12 @@ test('overview orders portfolio and routes both attention controls through one t
   assert.doesNotMatch(bindSource, /p\.attention\s*=/);
 });
 
-test('attention Callable commits server state to UI only after success', () => {
+test('attention update uses the protected callable and commits UI only after success', () => {
   const start = html.indexOf('async function updateProjectAttention(code, attention)');
   const end = html.indexOf('function bindDecisionControls(editable)', start);
   const source = html.slice(start, end);
   assert.match(source, /await projectDashboardApi\.setAttention\(\{ weekId, projectCode: code, attention \}\)/);
+  assert.doesNotMatch(source, /(?:runTransaction|transaction\.|updateDoc)\(/);
   assert.ok(source.indexOf('allWeeks[currentIdx] = result.week') > source.indexOf('await projectDashboardApi.setAttention'));
   assert.match(source, /render\(\)/);
 });

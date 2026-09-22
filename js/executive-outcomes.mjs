@@ -1,9 +1,20 @@
 const PROGRESS_LEVELS = new Set([0, 25, 50, 75, 100]);
 const HEALTH_LEVELS = new Set(['on-track', 'at-risk', 'delayed']);
+const SOURCE_TYPES = new Set(['milestone', 'quarterly']);
+
+// Two outcome data models share this module. 'legacy' is the Production model and is the default; 'v22t' adds
+// RAG, a version counter and latest-status fields. The UAT dashboard profile selects 'v22t' once at startup.
 const RAG_LEVELS = new Set(['green', 'yellow', 'red']);
 const RAG_TO_HEALTH = Object.freeze({ green: 'on-track', yellow: 'at-risk', red: 'delayed' });
 const HEALTH_TO_RAG = Object.freeze({ 'on-track': 'green', 'at-risk': 'yellow', delayed: 'red' });
-const SOURCE_TYPES = new Set(['milestone', 'quarterly']);
+const OUTCOME_MODELS = new Set(['legacy', 'v22t']);
+let outcomeModel = 'legacy';
+
+export function setExecutiveOutcomeModel(model) {
+  if (!OUTCOME_MODELS.has(model)) throw new Error(`Unknown executive outcome model "${model}".`);
+  outcomeModel = model;
+}
+export function getExecutiveOutcomeModel() { return outcomeModel; }
 
 function sourceValues(sources) {
   if (Array.isArray(sources)) return sources;
@@ -27,16 +38,11 @@ export function executiveSourceKey(source = {}) {
   return `${normalized.type}|${normalized.projectCode}|${normalized.milestoneId}`;
 }
 
-export function normalizeExecutiveOutcome(source = '') {
+function normalizeLegacyExecutiveOutcome(source = '') {
   if (typeof source === 'string') {
     return {
       id: '',
       text: source,
-      version: 0,
-      rag: 'green',
-      latestStatusText: '',
-      latestStatusAt: '',
-      latestStatusBy: '',
       progressMode: 'manual',
       manualProgress: 0,
       manualHealth: 'on-track',
@@ -47,21 +53,13 @@ export function normalizeExecutiveOutcome(source = '') {
     };
   }
   const progress = Number(source.manualProgress);
-  const legacyHealth = source.status || source.manualHealth;
-  const rag = RAG_LEVELS.has(source.rag)
-    ? source.rag
-    : HEALTH_TO_RAG[legacyHealth] || 'green';
+  const health = source.status || source.manualHealth;
   return {
     id: String(source.id || ''),
     text: String(source.text || source.label || ''),
-    version: Math.max(0, Number.parseInt(source.version, 10) || 0),
-    rag,
-    latestStatusText: String(source.latestStatusText || '').trim(),
-    latestStatusAt: String(source.latestStatusAt || ''),
-    latestStatusBy: String(source.latestStatusBy || ''),
     progressMode: source.progressMode === 'auto' ? 'auto' : 'manual',
     manualProgress: PROGRESS_LEVELS.has(progress) ? progress : 0,
-    manualHealth: RAG_TO_HEALTH[rag],
+    manualHealth: HEALTH_LEVELS.has(health) ? health : 'on-track',
     statusReason: String(source.statusReason || source.reason || '').trim(),
     statusUpdatedAt: String(source.statusUpdatedAt || ''),
     statusUpdatedBy: String(source.statusUpdatedBy || ''),
@@ -69,6 +67,25 @@ export function normalizeExecutiveOutcome(source = '') {
       .map(normalizeSource)
       .filter(item => item.projectCode && item.milestoneId)
       .slice(0, 3),
+  };
+}
+
+export function normalizeExecutiveOutcome(source = '') {
+  const legacy = normalizeLegacyExecutiveOutcome(source);
+  if (outcomeModel !== 'v22t') return legacy;
+  if (typeof source === 'string') {
+    return { ...legacy, version: 0, rag: 'green', latestStatusText: '', latestStatusAt: '', latestStatusBy: '' };
+  }
+  const legacyHealth = source.status || source.manualHealth;
+  const rag = RAG_LEVELS.has(source.rag) ? source.rag : HEALTH_TO_RAG[legacyHealth] || 'green';
+  return {
+    ...legacy,
+    version: Math.max(0, Number.parseInt(source.version, 10) || 0),
+    rag,
+    latestStatusText: String(source.latestStatusText || '').trim(),
+    latestStatusAt: String(source.latestStatusAt || ''),
+    latestStatusBy: String(source.latestStatusBy || ''),
+    manualHealth: RAG_TO_HEALTH[rag],
   };
 }
 
@@ -173,7 +190,7 @@ export function serializeExecutiveOutcome(source) {
   const outcome = normalizeExecutiveOutcome(source);
   return {
     ...outcome,
-    status: RAG_TO_HEALTH[outcome.rag],
+    status: outcomeModel === 'v22t' ? RAG_TO_HEALTH[outcome.rag] : outcome.manualHealth,
     sources: Object.fromEntries(
       outcome.sources.map((item, index) => [`source${index + 1}`, item]),
     ),

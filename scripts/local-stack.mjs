@@ -124,7 +124,7 @@ async function main() {
     return;
   }
 
-  const emulator = startProcess('firebase', ['emulators:start', '--project', projectId, '--only', 'auth,firestore,functions'], {
+  const emulator = startProcess('firebase', ['emulators:start', '--config', 'firebase.uat.json', '--project', projectId, '--only', 'auth,firestore,functions'], {
     JAVA_HOME: home,
     PATH: `${resolve(home, 'bin')}:${process.env.PATH || ''}`,
   }, 'v22t-emulator.log');
