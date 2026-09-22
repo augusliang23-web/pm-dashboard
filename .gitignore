@@ -4,3 +4,4 @@ firestore-debug.log
 pdf-service/node_modules/
 tmp/
 .DS_Store
+dist/

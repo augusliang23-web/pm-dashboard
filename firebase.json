@@ -5,6 +5,34 @@
   "functions": {
     "source": "functions"
   },
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "**/*.mjs",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/javascript; charset=utf-8"
+          }
+        ]
+      }
+    ]
+  },
   "emulators": {
     "auth": {
       "port": 9099

@@ -14,6 +14,9 @@ window.PM_DASHBOARD_ENV = Object.freeze({
   environment: ${JSON.stringify(env.environment)},
   release: ${JSON.stringify(env.release)},
   baseCommit: ${JSON.stringify(env.baseCommit)},
+  // null until this environment's dedicated PDF Cloud Run service is deployed and verified; professional-pdf-config.js
+  // refuses cleanly (never falls back to another environment's service) when this is null.
+  pdfServiceUrl: ${JSON.stringify(env.pdfServiceUrl ?? null)},
   firebaseConfig: Object.freeze({
 ${config}
   })

@@ -19,6 +19,12 @@
     "verify:sync-boundary": "node scripts/verify-production-sync-boundary.mjs",
     "test:local": "node scripts/local-health.mjs",
     "verify:local": "npm run test:all && npm run test:local && git diff --check",
-    "deploy": "node scripts/deploy-after-verify.mjs"
+    "deploy": "node scripts/deploy-after-verify.mjs",
+    "build:hosting:uat": "node scripts/build-hosting.mjs --env uat",
+    "build:hosting:prod": "node scripts/build-hosting.mjs --env prod",
+    "deploy:hosting:uat": "node scripts/deploy-hosting.mjs --env uat",
+    "deploy:hosting:uat:dry": "node scripts/deploy-hosting.mjs --env uat --dry-run",
+    "deploy:hosting:prod": "node scripts/deploy-hosting.mjs --env prod --confirm-production",
+    "deploy:hosting:prod:dry": "node scripts/deploy-hosting.mjs --env prod --dry-run"
   }
 }

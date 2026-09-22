@@ -13,5 +13,6 @@
     "storageBucket": "pm-dashboard-uat-20260820-a7f3.firebasestorage.app",
     "messagingSenderId": "317352278230",
     "appId": "1:317352278230:web:8cc08b9672db5481f4b177"
-  }
+  },
+  "pdfServiceUrl": null
 }

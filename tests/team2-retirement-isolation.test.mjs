@@ -61,19 +61,29 @@ test('canonical root runtime has no team-2 path dependency', async () => {
   );
 });
 
-test('root Firebase runtime is exact UAT and deployment wiring has no non-UAT target', async () => {
-  const [dashboard, firebaserc] = await Promise.all([
-    dashboardSourceAsync('uat'),
-    readRepositoryFile('.firebaserc'),
-  ]);
+test('root Firebase runtime is exact UAT for the UAT dashboard profile', async () => {
+  const dashboard = await dashboardSourceAsync('uat');
   const rootProject = dashboard.match(/projectId\s*:\s*['"]([^'"]+)['"]/)?.[1];
-  const configuredProjects = Object.values(JSON.parse(firebaserc).projects || {});
 
   assert.equal(rootProject === expectedUatProject, true, 'root Firebase runtime is not the exact UAT target');
+});
+
+// CONSOLIDATION NOTE: the original "deployment wiring has no non-UAT target" half of this test asserted that
+// .firebaserc names no project besides UAT and the local emulator. That is no longer the intended architecture:
+// the consolidated repository deploys to two environments, and .firebaserc deliberately also names the Production
+// project (see .firebaserc, tests/hosting-deploy-guard.test.mjs "keeps the safe demo default and adds exactly the
+// uat and prod aliases"). Replaced by explicit per-environment allowlists (tests/hosting-deploy-guard.test.mjs,
+// scripts/hosting-env.mjs HOSTING_TARGETS) rather than a single "must be UAT-only" assertion.
+const expectedProdProject = 'project-manager-dashboar-a067f';
+test('.firebaserc names only the UAT target, the Production target, and the local emulator project', async () => {
+  const firebaserc = await readRepositoryFile('.firebaserc');
+  const configuredProjects = Object.values(JSON.parse(firebaserc).projects || {});
+  const allowed = new Set([expectedUatProject, expectedProdProject, localEmulatorProject]);
+
   assert.equal(
-    configuredProjects.some(project => project !== expectedUatProject && project !== localEmulatorProject),
-    false,
-    'non-UAT target detected',
+    configuredProjects.every(project => allowed.has(project)),
+    true,
+    `.firebaserc names a project outside the allowlist: ${JSON.stringify(configuredProjects)}`,
   );
 });
 
