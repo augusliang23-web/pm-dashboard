@@ -1,0 +1,18 @@
+{
+  "environment": "uat",
+  "dashboardProfile": "uat",
+  "release": "v2.2T",
+  "baseCommit": "f0d6784",
+  "firebaseProjectId": "pm-dashboard-uat-20260820-a7f3",
+  "hostingSite": "pm-dashboard-uat-20260820-a7f3",
+  "hostingOrigin": "https://pm-dashboard-uat-20260820-a7f3.web.app",
+  "firebaseConfig": {
+    "apiKey": "AIzaSyBBLIBtuxKn4zmn_R-uWturgL1S-w0Nmak",
+    "authDomain": "pm-dashboard-uat-20260820-a7f3.firebaseapp.com",
+    "projectId": "pm-dashboard-uat-20260820-a7f3",
+    "storageBucket": "pm-dashboard-uat-20260820-a7f3.firebasestorage.app",
+    "messagingSenderId": "317352278230",
+    "appId": "1:317352278230:web:8cc08b9672db5481f4b177"
+  },
+  "pdfServiceUrl": null
+}

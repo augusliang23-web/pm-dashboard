@@ -1,0 +1,286 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasDashboardAccess() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+
+    function dashboardRole() {
+      return hasDashboardAccess()
+        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        : '';
+    }
+
+    function isAdmin() {
+      return dashboardRole() == 'admin';
+    }
+
+    function isExecutive() {
+      return dashboardRole() == 'executive';
+    }
+
+    function canReadDraftWeeks() {
+      return dashboardRole() in ['admin', 'pm'];
+    }
+
+    function hasBoundedString(data, key, maximumLength) {
+      return data.get(key, '') is string
+        && data.get(key, '').size() > 0
+        && data.get(key, '').size() <= maximumLength;
+    }
+
+    function hasValidAuditContext(context) {
+      return context is map
+        && context.keys().hasAll(['source'])
+        && context.keys().hasOnly(['source'])
+        && hasBoundedString(context, 'source', 64);
+    }
+
+    function hasBoundedUsageBuckets(data) {
+      return data.get('usageBuckets', {}) is map
+        && data.get('usageBuckets', {}).keys().size() <= 256;
+    }
+
+    function hasValidGanttTemplateList(values) {
+      return values is list
+        && values.size() >= 1
+        && values.size() <= 20
+        && values.toSet().size() == values.size()
+        && values.removeAll(['']).size() == values.size()
+        && values.join('').size() >= values.size()
+        && (values.size() < 1 || values[0].size() <= 128)
+        && (values.size() < 2 || values[1].size() <= 128)
+        && (values.size() < 3 || values[2].size() <= 128)
+        && (values.size() < 4 || values[3].size() <= 128)
+        && (values.size() < 5 || values[4].size() <= 128)
+        && (values.size() < 6 || values[5].size() <= 128)
+        && (values.size() < 7 || values[6].size() <= 128)
+        && (values.size() < 8 || values[7].size() <= 128)
+        && (values.size() < 9 || values[8].size() <= 128)
+        && (values.size() < 10 || values[9].size() <= 128)
+        && (values.size() < 11 || values[10].size() <= 128)
+        && (values.size() < 12 || values[11].size() <= 128)
+        && (values.size() < 13 || values[12].size() <= 128)
+        && (values.size() < 14 || values[13].size() <= 128)
+        && (values.size() < 15 || values[14].size() <= 128)
+        && (values.size() < 16 || values[15].size() <= 128)
+        && (values.size() < 17 || values[16].size() <= 128)
+        && (values.size() < 18 || values[17].size() <= 128)
+        && (values.size() < 19 || values[18].size() <= 128)
+        && (values.size() < 20 || values[19].size() <= 128);
+    }
+
+    function hasValidGanttTemplateEnvelope(data) {
+      return data.keys().hasAll([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ])
+        && hasValidGanttTemplateList(data.get('system', []))
+        && hasValidGanttTemplateList(data.get('hardware-module', []))
+        && data.revision is int
+        && data.revision >= 0
+        && data.updatedBy == request.auth.token.email
+        && data.updatedAt == request.time;
+    }
+
+    function hasValidGanttTemplateCreate() {
+      return request.resource.data.keys().hasOnly([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ])
+        && hasValidGanttTemplateEnvelope(request.resource.data);
+    }
+
+    function hasValidGanttTemplateUpdate() {
+      return hasValidGanttTemplateEnvelope(request.resource.data)
+        && resource.data.revision is int
+        && resource.data.revision >= 0
+        && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'system', 'hardware-module', 'revision', 'updatedBy', 'updatedAt'
+        ]);
+    }
+
+    function hasValidAuditLogEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && hasBoundedString(request.resource.data, 'eventType', 64)
+        && hasBoundedString(request.resource.data, 'actorUid', 128)
+        && hasBoundedString(request.resource.data, 'actorEmail', 320)
+        && hasBoundedString(request.resource.data, 'weekId', 128)
+        && hasBoundedString(request.resource.data, 'projectCode', 128)
+        && hasBoundedString(request.resource.data, 'message', 2000)
+        && hasValidAuditContext(request.resource.data.get('context', {}))
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actorEmail == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function hasOnlyPresenceFields(data) {
+      return data.keys().hasOnly([
+        'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+        'ownerUid', 'userKey'
+      ]);
+    }
+
+    function hasValidPresenceFieldTypes(data) {
+      return data.get('name', '') is string
+        && data.get('name', '').size() <= 128
+        && data.get('role', '') is string
+        && data.get('role', '').size() <= 64
+        && data.get('status', '') is string
+        && data.get('status', '').size() <= 64
+        && data.get('lastActive', 0) is number
+        && data.get('lastSeenAt', 0) is number
+        && hasBoundedUsageBuckets(data);
+    }
+
+    function hasValidNewPresenceEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+          'ownerUid', 'userKey'
+        ])
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data);
+    }
+
+    function hasMatchingPresenceIdentity(document) {
+      return hasDashboardAccess()
+        && document == request.auth.token.email
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email;
+    }
+
+    function keepsOrEstablishesPresenceIdentity() {
+      return resource.data.keys().hasAll(['ownerUid', 'userKey'])
+        ? resource.data.ownerUid == request.auth.uid
+          && resource.data.userKey == request.auth.token.email
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.userKey == resource.data.userKey
+        : !resource.data.keys().hasAny(['ownerUid', 'userKey']);
+    }
+
+    function canViewExecutiveSection(sectionId) {
+      return hasDashboardAccess()
+        && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
+        && dashboardRole() in get(/databases/$(database)/documents/executiveMilestoneConfig/timeline).data.sectionPolicies[sectionId].viewRoles;
+    }
+
+    function executiveTimelineUnchanged() {
+      return request.resource.data.get('strategyLayer', {}).get('executiveMilestoneTimeline', null)
+        == resource.data.get('strategyLayer', {}).get('executiveMilestoneTimeline', null);
+    }
+
+    match /users/{userId} {
+      allow read: if hasDashboardAccess();
+      allow write: if false;
+    }
+
+    match /weeks/{weekId} {
+      allow read: if hasDashboardAccess()
+        && (canReadDraftWeeks() || resource.data.isReleased == true);
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /uatProductionWeekSync/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /uatProductionWeekSyncRuns/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /executiveMilestoneConfig/{configId} {
+      allow read: if hasDashboardAccess();
+      allow write: if false;
+    }
+
+    match /executiveMilestoneState/{stateId} {
+      allow read: if hasDashboardAccess();
+      allow write: if false;
+    }
+
+    match /executiveMilestoneUpdates/{updateId} {
+      allow read: if hasDashboardAccess()
+        && canViewExecutiveSection(resource.data.sectionId);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneChangeRequests/{requestId} {
+      allow read: if isAdmin()
+        || isExecutive()
+        || (hasDashboardAccess() && resource.data.requesterEmail == request.auth.token.email);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneAudit/{auditId} {
+      allow read: if isAdmin() || isExecutive();
+      allow write: if false;
+    }
+
+    match /logs/{logId} {
+      allow create: if hasDashboardAccess() && hasValidAuditLogEnvelope();
+      allow read: if hasDashboardAccess();
+      allow update, delete: if false;
+    }
+
+    match /presence/{document} {
+      allow create: if hasMatchingPresenceIdentity(document)
+        && hasValidNewPresenceEnvelope();
+      allow update: if hasMatchingPresenceIdentity(document)
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data)
+        && keepsOrEstablishesPresenceIdentity();
+      allow read: if hasDashboardAccess();
+      allow delete: if false;
+    }
+
+    match /presenceSessions/{sessionId} {
+      allow create: if hasDashboardAccess()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email
+        && request.resource.data.sessionId == sessionId;
+
+      allow update: if hasDashboardAccess()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.userKey == resource.data.userKey
+        && request.resource.data.sessionId == resource.data.sessionId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastSeenAt',
+          'endedAt',
+          'activeMs',
+          'idleMs',
+          'state',
+          'endReason',
+          'updatedAt'
+        ]);
+
+      allow read: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /presenceDailyRollups/{rollupId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /dashboardSettings/team-2-portfolio {
+      allow read: if hasDashboardAccess();
+      allow create: if isAdmin() && hasValidGanttTemplateCreate();
+      allow update: if isAdmin() && hasValidGanttTemplateUpdate();
+      allow delete: if false;
+    }
+  }
+}

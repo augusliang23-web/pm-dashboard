@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "executiveMilestoneUpdates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "itemId", "order": "ASCENDING" },
+        { "fieldPath": "sectionId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

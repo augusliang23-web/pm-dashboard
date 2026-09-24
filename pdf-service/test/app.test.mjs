@@ -29,6 +29,24 @@ test('returns an attachment PDF without persistence when authorized', async () =
   assert.match(rendered, /PMS/);
 });
 
+test('a Production-shaped handler rejects project-brief/project-update and never renders the UAT section picker', async () => {
+  let rendered = '';
+  const handle = createReportHandler({
+    adapters,
+    renderPdf: async html => { rendered = html; return Buffer.from('%PDF'); },
+    features: { projectBriefUpdateSections: false }
+  });
+  const res = response();
+  await handle({
+    headers: { authorization: 'Bearer token' },
+    body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: ['project-brief'] }
+  }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(JSON.parse(res.body), { error: 'Unknown report section: project-brief.' });
+  assert.equal(rendered, '', 'renderPdf must never be reached for a rejected request');
+});
+
 test('returns an actionable error when generated output exceeds 8 MiB', async () => {
   const handle = createReportHandler({
     adapters,

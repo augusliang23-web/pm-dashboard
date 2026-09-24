@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const production = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const production = await dashboardSourceAsync('production');
 
 test('Production uses confirmed release state with a protected Callable write', () => {
   assert.match(

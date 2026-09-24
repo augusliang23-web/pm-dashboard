@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await dashboardSourceAsync('production');
 
 test('project detail places Gantt and quarterly milestones below the upper grid', () => {
   const gridStart = html.indexOf('<div class="detail-grid">');

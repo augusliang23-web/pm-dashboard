@@ -1,0 +1,632 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import * as productionSyncModule from '../js/uat-production-sync.mjs';
+import {
+  canUseProductionWeekSync,
+  createUatProductionSyncApi,
+  createUatProductionSyncController,
+  formatProductionSyncResult,
+  formatProductionSyncStatus,
+  getLatestSuccessfulOperation,
+  applyProductionSyncButtonState,
+  PRODUCTION_SYNC_CONFIRMATION,
+  ROLLED_BACK_MESSAGE,
+  ROLLBACK_FAILED_MESSAGE,
+  submitUatProductionSyncConfirmation,
+  submitUatProductionRestoreConfirmation,
+} from '../js/uat-production-sync.mjs';
+
+const SYNC_WARNING = 'This will replace every UAT reporting week and its projects with the current Production data. UAT-only weeks will be deleted. UAT users, permissions, settings, Executive workflow, and usage records will not be changed. A restorable UAT snapshot will be created first. Production is read-only.';
+
+test('production sync actions use direct event listeners for request and inline confirmation controls', async () => {
+  assert.equal(typeof productionSyncModule.bindProductionSyncActions, 'function');
+
+  const listeners = new Map();
+  const button = () => ({
+    addEventListener(type, listener) { listeners.set(this, { type, listener }); },
+  });
+  const syncButton = button();
+  const restoreButton = button();
+  const confirmSyncButton = button();
+  const cancelSyncButton = button();
+  const confirmRestoreButton = button();
+  const cancelRestoreButton = button();
+  const calls = [];
+  productionSyncModule.bindProductionSyncActions({
+    syncButton,
+    restoreButton,
+    requestSync: () => calls.push('sync'),
+    requestRestore: () => calls.push('restore'),
+    confirmSyncButton,
+    cancelSyncButton,
+    confirmSync: () => calls.push('confirm-sync'),
+    cancelSync: () => calls.push('cancel-sync'),
+    confirmRestoreButton,
+    cancelRestoreButton,
+    confirmRestore: () => calls.push('confirm-restore'),
+    cancelRestore: () => calls.push('cancel-restore'),
+  });
+
+  listeners.get(syncButton).listener({ preventDefault() {} });
+  listeners.get(restoreButton).listener({ preventDefault() {} });
+  for (const [element, registration] of listeners) {
+    if (element === syncButton || element === restoreButton) continue;
+    registration.listener({ preventDefault() {} });
+  }
+  assert.deepEqual(calls, [
+    'sync', 'restore', 'confirm-sync', 'cancel-sync', 'confirm-restore', 'cancel-restore',
+  ]);
+
+  const dashboard = await dashboardSourceAsync('uat');
+  assert.doesNotMatch(dashboard, /id="productionWeekSyncButton"[^>]*onclick=/);
+  assert.doesNotMatch(dashboard, /id="restoreUatWeekSnapshotButton"[^>]*onclick=/);
+  assert.match(dashboard, /bindProductionSyncActions\(\{/);
+});
+
+test('inline confirmation is shown and hidden without relying on a dialog', () => {
+  assert.equal(typeof productionSyncModule.showInlineProductionSyncConfirmation, 'function');
+  assert.equal(typeof productionSyncModule.hideInlineProductionSyncConfirmation, 'function');
+  const container = { hidden: true };
+  const messageNode = { textContent: '' };
+
+  productionSyncModule.showInlineProductionSyncConfirmation({
+    container,
+    messageNode,
+    message: SYNC_WARNING,
+  });
+  assert.equal(container.hidden, false);
+  assert.equal(messageNode.textContent, SYNC_WARNING);
+
+  productionSyncModule.hideInlineProductionSyncConfirmation(container);
+  assert.equal(container.hidden, true);
+});
+
+test('native details may own the first sync click while confirmation controls stay directly bound', () => {
+  const listeners = new Map();
+  const button = () => ({
+    addEventListener(type, listener) { listeners.set(this, { type, listener }); },
+  });
+  const restoreButton = button();
+  const confirmSyncButton = button();
+  const cancelSyncButton = button();
+  const confirmRestoreButton = button();
+  const cancelRestoreButton = button();
+  const calls = [];
+
+  assert.equal(productionSyncModule.bindProductionSyncActions({
+    restoreButton,
+    confirmSyncButton,
+    cancelSyncButton,
+    confirmRestoreButton,
+    cancelRestoreButton,
+    requestRestore: () => calls.push('restore'),
+    confirmSync: () => calls.push('confirm-sync'),
+    cancelSync: () => calls.push('cancel-sync'),
+    confirmRestore: () => calls.push('confirm-restore'),
+    cancelRestore: () => calls.push('cancel-restore'),
+  }), true);
+
+  for (const registration of listeners.values()) registration.listener({ preventDefault() {} });
+  assert.deepEqual(calls, [
+    'restore', 'confirm-sync', 'cancel-sync', 'confirm-restore', 'cancel-restore',
+  ]);
+});
+
+test('inline Confirm Sync establishes confirmation state before submitting exactly once', async () => {
+  const events = [];
+  const controller = {
+    requestSync() { events.push('request'); return true; },
+    confirmSync() { events.push('confirm'); return Promise.resolve(true); },
+  };
+
+  const result = productionSyncModule.submitInlineUatProductionSyncConfirmation({
+    controller,
+    close: () => events.push('close'),
+  });
+
+  assert.equal(await result, true);
+  assert.deepEqual(events, ['request', 'confirm', 'close']);
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function createView() {
+  const renders = [];
+  const confirmations = [];
+  return {
+    renders,
+    confirmations,
+    render(state) { renders.push(structuredClone(state)); },
+    confirm(details) { confirmations.push(details); },
+  };
+}
+
+test('browser API calls only the three closed callable contracts', async () => {
+  const calls = [];
+  const api = createUatProductionSyncApi({
+    functions: {},
+    httpsCallable: (_functions, name) => async data => {
+      calls.push({ name, data });
+      return { data: { ok: true } };
+    },
+  });
+
+  await api.sync();
+  await api.status();
+  await api.restore('run-1');
+
+  assert.deepEqual(calls, [
+    { name: 'syncProductionWeeksToUat', data: {} },
+    { name: 'getProductionWeekSyncStatus', data: {} },
+    { name: 'restoreUatWeeksSnapshot', data: { snapshotId: 'run-1' } },
+  ]);
+});
+
+test('Admin eligibility and server result labels are understandable', () => {
+  assert.equal(canUseProductionWeekSync(' Admin '), true);
+  assert.equal(canUseProductionWeekSync('pm'), false);
+  assert.equal(canUseProductionWeekSync(), false);
+  assert.equal(formatProductionSyncResult({ createdCount: 2, updatedCount: 3, deletedCount: 1 }), 'Production sync completed: 2 created, 3 updated, 1 deleted.');
+  assert.equal(formatProductionSyncStatus({ running: true, phase: 'applying' }), 'Sync in progress: applying.');
+  assert.equal(formatProductionSyncStatus({ running: false, latestRun: { phase: 'succeeded' } }), 'Last operation: succeeded.');
+  assert.equal(formatProductionSyncStatus({ running: false, latestCompletedRun: { phase: 'restored' } }), 'Last operation: restored.');
+  assert.equal(formatProductionSyncStatus({
+    recoveryRequired: true,
+    rollbackFailedRunId: 'failed-run',
+    latestRun: { phase: 'restoring', result: 'failed' },
+  }), ROLLBACK_FAILED_MESSAGE);
+  assert.equal(getLatestSuccessfulOperation({
+    latestRun: { phase: 'succeeded' },
+    latestCompletedRun: { phase: 'restoring' },
+  }), null);
+  assert.deepEqual(getLatestSuccessfulOperation({
+    latestRun: { phase: 'rollback_failed' },
+    latestCompletedRun: { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' },
+  }), { phase: 'restored', completedAt: '2026-09-12T06:00:00.000Z' });
+});
+
+test('an unloaded Production sync status has no successful operation', () => {
+  assert.equal(getLatestSuccessfulOperation(null), null);
+});
+
+test('a valid active operation takes precedence over an earlier historical failure', () => {
+  assert.equal(formatProductionSyncStatus({
+    running: true,
+    phase: 'applying',
+    latestRun: { phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
+  }), 'Sync in progress: applying.');
+  assert.equal(formatProductionSyncStatus({
+    running: true,
+    phase: 'verifying',
+    latestRun: { phase: 'rolled_back', completedAt: '2026-09-12T05:00:00.000Z' },
+  }), 'Sync in progress: verifying.');
+});
+
+test('opening Week Management refreshes status and disables both actions while the request runs', async () => {
+  const status = deferred();
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: { status: () => status.promise, sync: async () => ({}), restore: async () => ({}) },
+    getRole: () => 'admin',
+    view,
+  });
+
+  const opening = controller.open();
+  assert.equal(view.renders.at(-1).busy, true);
+  assert.equal(view.renders.at(-1).syncDisabled, true);
+  assert.equal(view.renders.at(-1).restoreDisabled, true);
+
+  status.resolve({ running: false, latestSnapshot: { snapshotId: 'latest-retained' } });
+  await opening;
+
+  assert.equal(view.renders.at(-1).busy, false);
+  assert.equal(view.renders.at(-1).restoreDisabled, false);
+  assert.equal(view.renders.at(-1).status.latestSnapshot.snapshotId, 'latest-retained');
+});
+
+test('a server-reported running operation keeps both actions disabled after status refresh', async () => {
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: true, phase: 'applying', latestSnapshot: { snapshotId: 'retained' } }),
+      sync: async () => ({}),
+      restore: async () => ({}),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  await controller.open();
+  assert.equal(view.renders.at(-1).busy, false);
+  assert.equal(view.renders.at(-1).operationBusy, true);
+  assert.equal(view.renders.at(-1).syncDisabled, true);
+  assert.equal(view.renders.at(-1).restoreDisabled, true);
+  assert.equal(view.renders.at(-1).statusText, 'Sync in progress: applying.');
+});
+
+test('server-reported operationBusy binds disabled and aria-busy together', () => {
+  const button = () => ({
+    disabled: false,
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  });
+  const syncButton = button();
+  const restoreButton = button();
+
+  applyProductionSyncButtonState({ syncButton, restoreButton }, {
+    isAdmin: true, operationBusy: true, syncDisabled: true, restoreDisabled: true,
+  });
+
+  assert.equal(syncButton.disabled, true);
+  assert.equal(restoreButton.disabled, true);
+  assert.equal(syncButton.attributes['aria-busy'], 'true');
+  assert.equal(restoreButton.attributes['aria-busy'], 'true');
+});
+
+test('a reloaded Admin sees the critical rollback failure before and after lease expiry', async () => {
+  for (const running of [true, false]) {
+    const view = createView();
+    const controller = createUatProductionSyncController({
+      api: {
+        status: async () => ({
+          running,
+          ...(running ? { phase: 'rollback_failed' } : {}),
+          latestRun: { phase: 'rollback_failed', completedAt: '2026-09-12T05:00:00.000Z' },
+        }),
+        sync: async () => ({}),
+        restore: async () => ({}),
+      },
+      getRole: () => 'admin',
+      view,
+    });
+
+    await controller.open();
+    assert.equal(view.renders.at(-1).statusText, ROLLBACK_FAILED_MESSAGE, `running=${running}`);
+  }
+});
+
+test('a reloaded Admin sees actionable copy for a recorded safe terminal failure', async () => {
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({
+        running: false,
+        latestRun: { phase: 'reading_source', result: 'failed', errorCode: 'production-source-empty' },
+      }),
+      sync: async () => ({}),
+      restore: async () => ({}),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  await controller.open();
+  assert.equal(view.renders.at(-1).statusText,
+    'Production returned no reporting weeks. No UAT data was changed; verify Production data before retrying.');
+});
+
+test('sync requires the exact destructive-data warning and rechecks Admin at confirmation time', async () => {
+  let role = 'admin';
+  const view = createView();
+  const calls = [];
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { calls.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => { calls.push('restore'); return {}; },
+    },
+    getRole: () => role,
+    view,
+  });
+
+  controller.requestSync();
+  assert.equal(view.confirmations.length, 1);
+  assert.equal(view.confirmations[0].message, SYNC_WARNING);
+  assert.equal(PRODUCTION_SYNC_CONFIRMATION, SYNC_WARNING);
+
+  role = 'pm';
+  await controller.confirmSync();
+  assert.deepEqual(calls, []);
+  assert.equal(view.renders.at(-1).isAdmin, false);
+});
+
+test('an accepted synchronous confirmation immediately submits Production sync', async () => {
+  const calls = [];
+  const view = createView();
+  view.confirm = details => {
+    view.confirmations.push(details);
+    return true;
+  };
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { calls.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  assert.equal(await controller.requestSync(), true);
+  assert.deepEqual(calls, ['sync']);
+  assert.equal(view.confirmations[0].message, SYNC_WARNING);
+});
+
+test('a rejected synchronous confirmation cancels without calling Production sync', async () => {
+  const calls = [];
+  let accepted = false;
+  const view = createView();
+  view.confirm = details => {
+    view.confirmations.push(details);
+    return accepted;
+  };
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { calls.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  assert.equal(await controller.requestSync(), false);
+  assert.deepEqual(calls, []);
+
+  accepted = true;
+  assert.equal(await controller.requestSync(), true);
+  assert.deepEqual(calls, ['sync']);
+});
+
+test('sync does not call a visible-week mutation callback', async () => {
+  const view = createView();
+  let mutated = false;
+  view.refreshWeeks = () => { mutated = true; };
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => ({ phase: 'succeeded' }),
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  controller.requestSync();
+  await controller.confirmSync();
+  assert.equal(mutated, false);
+});
+
+test('confirmed sync immediately reports that Production data is syncing', async () => {
+  const sync = deferred();
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: () => sync.promise,
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  controller.requestSync();
+  const operation = controller.confirmSync();
+
+  assert.equal(view.renders.at(-1).result, 'Syncing Production data…');
+  sync.resolve({ phase: 'succeeded' });
+  await operation;
+});
+
+test('sync animation state is active only while a confirmed sync is running', async () => {
+  const status = deferred();
+  const sync = deferred();
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: () => status.promise,
+      sync: () => sync.promise,
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  const opening = controller.open();
+  assert.equal(view.renders.at(-1).syncInProgress, false);
+  status.resolve({ running: false });
+  await opening;
+
+  controller.requestSync();
+  const operation = controller.confirmSync();
+  assert.equal(view.renders.at(-1).syncInProgress, true);
+
+  sync.resolve({ phase: 'succeeded' });
+  await operation;
+  assert.equal(view.renders.at(-1).syncInProgress, false);
+});
+
+test('sync result rendering shows and hides its progress animation', () => {
+  assert.equal(typeof productionSyncModule.applyProductionSyncResultState, 'function');
+  const resultNode = { textContent: '' };
+  const spinnerNode = { hidden: true };
+
+  productionSyncModule.applyProductionSyncResultState({ resultNode, spinnerNode }, {
+    result: 'Syncing Production data…',
+    syncInProgress: true,
+  });
+  assert.equal(resultNode.textContent, 'Syncing Production data…');
+  assert.equal(spinnerNode.hidden, false);
+
+  productionSyncModule.applyProductionSyncResultState({ resultNode, spinnerNode }, {
+    result: 'Production sync completed.',
+    syncInProgress: false,
+  });
+  assert.equal(resultNode.textContent, 'Production sync completed.');
+  assert.equal(spinnerNode.hidden, true);
+});
+
+test('sync blocks duplicate clicks, reports counts, and only asks the API boundary to refresh status', async () => {
+  const sync = deferred();
+  const view = createView();
+  const calls = [];
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => { calls.push('status'); return { running: false, latestSnapshot: { snapshotId: 'newest' } }; },
+      sync: () => { calls.push('sync'); return sync.promise; },
+      restore: async () => { calls.push('restore'); return {}; },
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  controller.requestSync();
+  const first = controller.confirmSync();
+  const second = controller.confirmSync();
+  assert.equal(view.renders.at(-1).busy, true);
+  assert.equal(view.renders.at(-1).syncDisabled, true);
+  assert.equal(view.renders.at(-1).restoreDisabled, true);
+  assert.deepEqual(calls, ['sync']);
+
+  sync.resolve({ phase: 'succeeded', createdCount: 2, updatedCount: 1, deletedCount: 3 });
+  await Promise.all([first, second]);
+
+  assert.deepEqual(calls, ['sync', 'status']);
+  assert.equal(view.renders.at(-1).result, 'Production sync completed: 2 created, 1 updated, 3 deleted.');
+  assert.equal(view.renders.at(-1).busy, false);
+});
+
+test('rolled-back and rollback-failed responses expose the specified safe recovery messages', async () => {
+  for (const [result, expected] of [
+    [{ phase: 'rolled_back' }, 'UAT sync failed safely; the original UAT weeks were restored.'],
+    [{ phase: 'rollback_failed' }, 'Critical: automatic rollback failed. Do not edit UAT weeks until the restore callable succeeds.'],
+  ]) {
+    const view = createView();
+    const controller = createUatProductionSyncController({
+      api: { status: async () => ({ running: false }), sync: async () => result, restore: async () => ({}) },
+      getRole: () => 'admin',
+      view,
+    });
+    controller.requestSync();
+    await controller.confirmSync();
+    assert.equal(view.renders.at(-1).result, expected);
+  }
+  assert.equal(ROLLED_BACK_MESSAGE, 'UAT sync failed safely; the original UAT weeks were restored.');
+  assert.equal(ROLLBACK_FAILED_MESSAGE, 'Critical: automatic rollback failed. Do not edit UAT weeks until the restore callable succeeds.');
+});
+
+test('safe callable reasons produce actionable UI copy without exposing server payloads', async () => {
+  const cases = [
+    ['operation-in-progress', 'Another UAT data operation is already running. Wait for it to finish, then refresh status.'],
+    ['production-source-empty', 'Production returned no reporting weeks. No UAT data was changed; verify Production data before retrying.'],
+    ['production-source-invalid', 'Production contains a reporting week value that cannot be copied safely. No UAT data was changed; correct the source data before retrying.'],
+    ['production-source-incomplete', 'The Production read could not be verified as complete. No UAT data was changed; retry after checking the source service.'],
+    ['snapshot-integrity-failed', 'The safety snapshot could not be verified. No UAT data was changed; contact an administrator.'],
+    ['snapshot-not-retained', 'The selected snapshot is no longer retained. Refresh status before trying restore again.'],
+    ['lease-lost', 'The operation stopped because its safety lease was lost. Refresh status before retrying.'],
+  ];
+  for (const [reason, expected] of cases) {
+    const view = createView();
+    const controller = createUatProductionSyncController({
+      api: {
+        status: async () => ({ running: false }),
+        sync: async () => { throw { details: { reason, secret: 'must-not-render' } }; },
+        restore: async () => ({}),
+      },
+      getRole: () => 'admin',
+      view,
+    });
+    controller.requestSync();
+    await controller.confirmSync();
+    assert.equal(view.renders.at(-1).result, expected, reason);
+    assert.equal(view.renders.at(-1).result.includes('must-not-render'), false, reason);
+  }
+});
+
+test('restore is confirmed and can restore only the latest backend-retained snapshot', async () => {
+  const view = createView();
+  const calls = [];
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false, latestSnapshot: { snapshotId: 'latest-retained' } }),
+      sync: async () => ({}),
+      restore: async snapshotId => { calls.push(snapshotId); return { phase: 'restored' }; },
+    },
+    getRole: () => 'admin',
+    view,
+  });
+
+  await controller.open();
+  controller.requestRestore();
+  assert.equal(view.confirmations[0].kind, 'restore');
+  assert.match(view.confirmations[0].message, /latest retained UAT snapshot/i);
+  await controller.confirmRestore();
+
+  assert.deepEqual(calls, ['latest-retained']);
+  assert.equal(view.renders.at(-1).result, 'UAT weeks were restored from the latest retained snapshot.');
+});
+
+test('sync submit starts the real controller before the modal close cancellation path', async () => {
+  let role = 'admin';
+  const events = [];
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false }),
+      sync: async () => { events.push('sync'); return { phase: 'succeeded' }; },
+      restore: async () => ({ phase: 'restored' }),
+    },
+    getRole: () => role,
+    view,
+  });
+
+  controller.requestSync();
+  const operation = submitUatProductionSyncConfirmation({
+    controller,
+    close: () => { events.push('close'); controller.cancelConfirmation(); },
+  });
+
+  assert.equal(view.renders.at(-1).busy, true);
+  assert.deepEqual(events, ['sync', 'close']);
+  assert.equal(await operation, true);
+  role = 'pm';
+});
+
+test('restore submit starts the real controller before close and rejects a role changed to non-Admin', async () => {
+  let role = 'admin';
+  const events = [];
+  const view = createView();
+  const controller = createUatProductionSyncController({
+    api: {
+      status: async () => ({ running: false, latestSnapshot: { snapshotId: 'retained' } }),
+      sync: async () => ({ phase: 'succeeded' }),
+      restore: async snapshotId => { events.push(`restore:${snapshotId}`); return { phase: 'restored' }; },
+    },
+    getRole: () => role,
+    view,
+  });
+
+  await controller.open();
+  controller.requestRestore();
+  const operation = submitUatProductionRestoreConfirmation({
+    controller,
+    close: () => { events.push('close'); controller.cancelConfirmation(); },
+  });
+  assert.deepEqual(events, ['restore:retained', 'close']);
+  assert.equal(await operation, true);
+
+  controller.requestRestore();
+  role = 'pm';
+  const rejected = submitUatProductionRestoreConfirmation({
+    controller,
+    close: () => { events.push('rejected-close'); controller.cancelConfirmation(); },
+  });
+  assert.equal(await rejected, false);
+  assert.deepEqual(events, ['restore:retained', 'close', 'rejected-close']);
+});

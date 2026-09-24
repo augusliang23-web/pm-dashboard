@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "demo-pm-dashboard-v22t",
+    "uat": "pm-dashboard-uat-20260820-a7f3",
+    "prod": "project-manager-dashboar-a067f"
+  }
+}

@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const sources = [await readFile(new URL('../index.html', import.meta.url), 'utf8')];
+const sources = [await dashboardSourceAsync('production')];
 
 for (const [index, source] of sources.entries()) {
   test(`dashboard ${index + 1} exposes the Weekly Summary validation panel`, () => {

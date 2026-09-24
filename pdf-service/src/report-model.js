@@ -377,12 +377,31 @@ function buildTrend(trendWeeks, scope) {
   });
 }
 
+const EXECUTIVE_SECTIONS = [
+  { sectionId: 'ioe-product-portfolio', label: 'IoE Product Portfolio' },
+  { sectionId: 'customer-engagements', label: 'Customer Engagements' },
+  { sectionId: 'investors-strategy', label: 'Investors & Strategy' }
+];
+const EXECUTIVE_SECTIONS_BY_VIEW = {
+  leadership: new Set(EXECUTIVE_SECTIONS.map(section => section.sectionId)),
+  'all-working-team': new Set(['ioe-product-portfolio']),
+  'pm-engineering': new Set(['ioe-product-portfolio']),
+  'business-product': new Set(EXECUTIVE_SECTIONS.map(section => section.sectionId)),
+  everyone: new Set(['ioe-product-portfolio'])
+};
 const EXECUTIVE_AUDIENCES_BY_VIEW = {
   leadership: new Set(['all-working-team', 'pm-engineering', 'business-product', 'leadership-only', 'everyone']),
   'all-working-team': new Set(['all-working-team', 'everyone']),
   'pm-engineering': new Set(['all-working-team', 'pm-engineering', 'everyone']),
   'business-product': new Set(['all-working-team', 'business-product', 'everyone']),
   everyone: new Set(['everyone'])
+};
+const LEGACY_EXECUTIVE_AUDIENCE_SECTIONS = {
+  'all-working-team': 'ioe-product-portfolio',
+  'pm-engineering': 'ioe-product-portfolio',
+  'business-product': 'customer-engagements',
+  'leadership-only': 'investors-strategy',
+  everyone: 'ioe-product-portfolio'
 };
 
 function executiveTimelineCell(cells, index) {
@@ -397,19 +416,48 @@ function executiveOutcomeText(value) {
 
 function normalizeExecutiveMilestones(week, executiveAudienceView) {
   const source = week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline;
-  const allowedAudiences = EXECUTIVE_AUDIENCES_BY_VIEW[executiveAudienceView] || new Set();
   const quarters = Array.from({ length: 4 }, (_, index) => String(source?.quarters?.[index] || `Q${index + 1}`));
   const phases = Array.from({ length: 4 }, (_, index) => String(source?.phases?.[index] || ''));
-  const rows = (Array.isArray(source?.rows) ? source.rows : []).map(row => ({
-    label: String(row?.label || '').trim(),
-    audience: String(row?.audience || 'leadership-only').trim(),
+  const rawRows = Array.isArray(source?.rows) ? source.rows : [];
+  const usesConfiguredSections = rawRows.some(row => EXECUTIVE_SECTIONS.some(section => section.sectionId === row?.sectionId));
+  if (!usesConfiguredSections) {
+    const allowedAudiences = EXECUTIVE_AUDIENCES_BY_VIEW[executiveAudienceView] || new Set();
+    const rows = rawRows.map(row => ({
+      label: String(row?.label || '').trim(),
+      audience: String(row?.audience || 'leadership-only').trim(),
+      cells: Array.from({ length: 4 }, (_, index) => {
+        const cell = executiveTimelineCell(row?.cells, index);
+        const values = Array.isArray(cell) ? cell : cell === undefined || cell === null ? [] : [cell];
+        return values.map(executiveOutcomeText).filter(Boolean);
+      })
+    })).filter(row => allowedAudiences.has(row.audience))
+      .filter(row => row.label || row.cells.some(cell => cell.length));
+    return {
+      title: String(source?.title || 'Executive Milestones').trim(),
+      quarters,
+      phases,
+      rows
+    };
+  }
+  const allowedSections = EXECUTIVE_SECTIONS_BY_VIEW[executiveAudienceView] || new Set();
+  const sourceRows = rawRows.map(row => ({
+    sectionId: EXECUTIVE_SECTIONS.some(section => section.sectionId === row?.sectionId)
+      ? row.sectionId
+      : LEGACY_EXECUTIVE_AUDIENCE_SECTIONS[String(row?.audience || 'leadership-only').trim()] || '',
     cells: Array.from({ length: 4 }, (_, index) => {
       const cell = executiveTimelineCell(row?.cells, index);
       const values = Array.isArray(cell) ? cell : cell === undefined || cell === null ? [] : [cell];
       return values.map(executiveOutcomeText).filter(Boolean);
     })
-  })).filter(row => allowedAudiences.has(row.audience))
-    .filter(row => row.label || row.cells.some(cell => cell.length));
+  }));
+  const rows = EXECUTIVE_SECTIONS.filter(section => allowedSections.has(section.sectionId)).map(section => {
+    const matches = sourceRows.filter(row => row.sectionId === section.sectionId);
+    return {
+      sectionId: section.sectionId,
+      label: section.label,
+      cells: Array.from({ length: 4 }, (_, index) => matches.flatMap(row => row.cells[index]))
+    };
+  }).filter(row => sourceRows.some(sourceRow => sourceRow.sectionId === row.sectionId));
   return {
     title: String(source?.title || 'Executive Milestones').trim(),
     quarters,

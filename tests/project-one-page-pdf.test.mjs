@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 
 test('project PDF uses an icon-only export control', () => {
   const button = dashboard.match(/<button[^>]+id="pd_one_page_pdf"[^>]*>[\s\S]*?<\/button>/)?.[0] || '';

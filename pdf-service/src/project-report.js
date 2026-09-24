@@ -1,10 +1,12 @@
 import { escapeHtml, reportDocument } from './report-html.js';
 import {
+  emptyState,
   metricCard,
+  progressBar,
   reportPage,
   statusBadge
 } from './report-components.js';
-import { buildProjectReportModel } from './report-model.js';
+import { buildProjectReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
 import { renderProjectOnePagerHtml } from './project-one-pager.js';
 
@@ -30,6 +32,52 @@ function statusPresentation(status) {
 
 function projectFlowItem(model, { kind, kicker, section, body, splittable = false }) {
   return `<div data-pdf-flow-item data-flow-kind="${escapeHtml(kind)}" data-page-title="${escapeHtml(model.name)}" data-page-kicker="${escapeHtml(kicker)}" data-page-section="${escapeHtml(section)}"${splittable ? ' data-pdf-splittable' : ''}>${body}</div>`;
+}
+
+// UAT project-brief / project-update section picker (Control Plane: preserved as a UAT-profile-only capability).
+// These render only when the request-validation layer (report-request.js, gated by target.features in server.js)
+// let 'project-brief'/'project-update' into model.sections in the first place; Production requests can never reach
+// this path, so renderProjectSummary below returns '' for every Production request and renderProjectReportHtml
+// falls through to the unconditional one-pager exactly as before.
+function reportList(items, emptyMessage) {
+  if (!items.length) return emptyState(emptyMessage);
+  return `<ul class="report-list">${items.map(item => `<li data-pdf-split-unit>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
+function sectionUpdateNote(model, section) { return `<div class="section-update-note">${escapeHtml(formatSectionUpdate(model, section))}</div>`; }
+
+function renderProjectBrief(model) {
+  const [tone, label] = statusPresentation(model.status);
+  return `<section class="project-brief-grid" data-section-unit="project-brief"><article class="card project-identity-card"><div class="report-kicker">Project brief</div><h2>${escapeHtml(model.name)}</h2><div class="project-code">${escapeHtml(model.projectLevel)} · ${escapeHtml(model.code || 'No project code')}</div>${statusBadge(tone, label)}${sectionUpdateNote(model, 'status')}</article><article class="card project-progress-card"><div class="metric-card-label">Delivery progress</div><div class="project-progress-value">${escapeHtml(model.progress)}%</div>${progressBar(model.progress, tone)}</article><dl class="card project-context-card"><div><dt>Owner</dt><dd>${escapeHtml(model.owner || 'Unassigned')}</dd></div><div><dt>Deputy</dt><dd>${escapeHtml(model.deputy || 'Unassigned')}</dd></div><div><dt>Customer</dt><dd>${escapeHtml(model.customer || 'Not specified')}</dd></div><div><dt>Location</dt><dd>${escapeHtml(model.location || 'Not specified')}</dd></div></dl></section>`;
+}
+
+function renderProjectUpdate(model) {
+  const cards = [
+    ['Highlight', model.highlights, 'No highlight reported.', ''],
+    ['Weekly actions', model.actions, 'No weekly action reported.', '']
+  ];
+  if (model.risks.length) cards.splice(1, 0, ['Risk / Blocker', model.risks, 'No risk or blocker reported.', 'risk']);
+  return cards.map(([title, items, emptyMessage, tone]) => projectFlowItem(model, {
+    kind: 'project-update-card',
+    kicker: 'Project report · Executive summary',
+    section: 'project-summary',
+    splittable: true,
+    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${reportList(items, emptyMessage)}</article>`
+  })).join('');
+}
+
+function renderProjectSummary(model, selected) {
+  const items = [];
+  if (selected.has('project-brief')) items.push(projectFlowItem(model, {
+    kind: 'project-brief',
+    kicker: 'Project report · Executive summary',
+    section: 'project-summary',
+    body: renderProjectBrief(model)
+  }));
+  if (selected.has('project-update')) items.push(renderProjectUpdate(model));
+  return items.length
+    ? `<section class="project-summary-flow"><div data-pdf-flow-items>${items.join('')}</div></section>`
+    : '';
 }
 
 function sortedMilestones(model) {
@@ -154,16 +202,27 @@ function renderBudget(model) {
 }
 
 /**
- * The one-page quadrant summary (Highlights / Action Items / Schedule Summary /
- * Risk & Required Action) is always the first page - it replaces the old
- * "project brief" and "project update" pages. Milestone timeline, Gantt Chart,
- * Team allocation, Discipline hours and Budget remain optional detail pages
- * appended after it, selected the same way they always were.
+ * The first page is the Production one-page quadrant summary (Highlights / Action Items / Schedule Summary /
+ * Risk & Required Action) UNLESS the request selected the UAT-profile-only 'project-brief' or 'project-update'
+ * sections, in which case that original section-picker page renders instead (Control Plane: this UAT capability
+ * must be preserved, UAT-profile-only). Which section names a request may even contain is decided upstream, in
+ * report-request.js's environment-gated validation -- this function only reacts to what is already in
+ * model.sections and never itself inspects an environment or profile. A Production request can never contain
+ * 'project-brief'/'project-update' (report-request.js rejects them there), so renderProjectSummary always returns
+ * '' for Production and this always falls through to the one-pager, unchanged from before this capability existed.
+ * Milestone timeline, Gantt Chart, Team allocation, Discipline hours and Budget remain optional detail pages
+ * appended after the first page either way, selected the same way they always were.
  */
 export function renderProjectReportHtml({ week, project, sections, ganttWindowSettings }) {
   const model = buildProjectReportModel({ week, project, sections, ganttWindowSettings });
   const selected = new Set(model.sections);
-  const pages = [renderProjectOnePagerHtml(model, model.period)];
+  const summary = renderProjectSummary(model, selected);
+  const pages = [summary
+    ? reportPage({
+      section: 'project-summary', title: model.name, kicker: 'Project report · Executive summary',
+      period: model.period, measuredFlow: 'project-summary', body: summary
+    })
+    : renderProjectOnePagerHtml(model, model.period)];
   const milestone = selected.has('milestone') ? renderMilestoneFlow(model) : '';
   if (milestone) pages.push(reportPage({
     section: 'milestone', title: model.name, kicker: 'Project report · Milestone timeline',

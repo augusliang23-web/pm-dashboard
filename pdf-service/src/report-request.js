@@ -1,10 +1,19 @@
-const PROJECT_SECTIONS = new Set([
+const CORE_PROJECT_SECTIONS = new Set([
   'milestone',
   'gantt',
   'team-allocation',
   'resources',
   'budget'
 ]);
+
+// The UAT project-brief / project-update section picker (Control Plane: "must be preserved", UAT-profile-only).
+// Kept as its own set so the capability switch below is a single, explicit addition/removal, never a scattered
+// per-branch check.
+const PROJECT_BRIEF_UPDATE_SECTIONS = new Set(['project-brief', 'project-update']);
+
+// Backward-compatible export: the full section vocabulary this module understands, independent of which
+// environment enables project-brief/project-update. Environment gating happens inside parseReportRequest.
+const PROJECT_SECTIONS = new Set([...CORE_PROJECT_SECTIONS, ...PROJECT_BRIEF_UPDATE_SECTIONS]);
 
 const OVERVIEW_SECTIONS = new Set([
   'health-focus',
@@ -41,10 +50,16 @@ function requiredText(value, field) {
   return normalized;
 }
 
-export function parseReportRequest(input) {
+// `features` is the same explicit, environment-resolved capability object server.js already threads through for
+// getLiveExecutiveTimeline (see src/environment.js's target.features): never inferred from hostname, repository
+// name, or any other fallback. It defaults to enabled because this function is also called directly, with no
+// second argument, by unit tests that port the original UAT behavior unmodified; the real server path never omits
+// it (asserted by a static test), so that default is unreachable in a deployed environment.
+export function parseReportRequest(input, features = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new ReportRequestError('Report request must be an object.');
   }
+  const allowProjectBriefUpdate = features.projectBriefUpdateSections !== false;
 
   const mode = requiredText(input.mode, 'mode');
   if (mode !== 'project' && mode !== 'overview') {
@@ -69,7 +84,9 @@ export function parseReportRequest(input) {
     throw new ReportRequestError('At least one report section is required.');
   }
 
-  const allowedSections = mode === 'project' ? PROJECT_SECTIONS : OVERVIEW_SECTIONS;
+  const allowedSections = mode === 'project'
+    ? (allowProjectBriefUpdate ? PROJECT_SECTIONS : CORE_PROJECT_SECTIONS)
+    : OVERVIEW_SECTIONS;
   const sections = input.sections.map(section => requiredText(section, 'section'));
   const uniqueSections = [...new Set(sections)];
   if (uniqueSections.length !== sections.length) {
@@ -113,4 +130,4 @@ export function parseReportRequest(input) {
   return request;
 }
 
-export { PROJECT_SECTIONS, OVERVIEW_SECTIONS, requiredText };
+export { PROJECT_SECTIONS, CORE_PROJECT_SECTIONS, PROJECT_BRIEF_UPDATE_SECTIONS, OVERVIEW_SECTIONS, requiredText };

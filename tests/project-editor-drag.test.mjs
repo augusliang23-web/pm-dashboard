@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 
 test('milestone reordering starts only from its dedicated handle', () => {
   const start = dashboard.indexOf('window.addMilestoneRow');

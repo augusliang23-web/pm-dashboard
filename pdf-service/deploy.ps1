@@ -1,3 +1,4 @@
+# Production-only Cloud Run deployment. UAT verification must not invoke this script.
 param(
   [string]$ProjectId = 'project-manager-dashboar-a067f',
   [string]$Region = 'asia-southeast1',

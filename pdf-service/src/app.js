@@ -16,7 +16,11 @@ function sendError(response, error) {
   response.end(JSON.stringify({ error: statusCode === 500 ? 'Unable to generate report.' : error.message }));
 }
 
-export function createReportHandler({ adapters, renderPdf }) {
+// `features` is the same explicit, environment-resolved capability object as src/environment.js's target.features
+// (never inferred from hostname/repository name). It defaults to permissive so tests that call this directly, with
+// no third argument, exercise the full section vocabulary; server.js is the only real caller and it always passes
+// the resolved target.features explicitly (see the "always threads target.features" test in test/app.test.mjs).
+export function createReportHandler({ adapters, renderPdf, features = {} }) {
   return async ({ headers = {}, body }, response) => {
     try {
       const authorization = String(headers.authorization || '');
@@ -25,7 +29,7 @@ export function createReportHandler({ adapters, renderPdf }) {
         error.statusCode = 401;
         throw error;
       }
-      const request = parseReportRequest(body);
+      const request = parseReportRequest(body, features);
       const report = await loadAuthorizedReport({ request, idToken: authorization.slice(7).trim(), adapters });
       const html = request.mode === 'project'
         ? renderProjectReportHtml(report)

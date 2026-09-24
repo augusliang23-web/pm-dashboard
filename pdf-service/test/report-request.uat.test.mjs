@@ -1,0 +1,130 @@
+// RESTORED (Codex independent review flagged the previous removal as a blocking regression): the UAT project-brief / project-update
+// PDF section-picker capability is preserved as a UAT-profile-only capability, gated by report-request.js's explicit,
+// registry-driven features.projectBriefUpdateSections switch (see test/project-brief-update-boundary.test.mjs for the Production/UAT
+// boundary). These tests call the pure functions directly, unmodified from the original UAT source, and always exercise the full
+// section vocabulary; only server.js's real request path is environment-gated.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ReportRequestError, parseReportRequest } from '../src/report-request.js';
+
+test('accepts an allow-listed project report request without report content', () => {
+  const request = parseReportRequest({
+    mode: 'project',
+    weekId: 'W28-2026',
+    projectCode: 'PMS-001',
+    sections: ['project-brief', 'milestone']
+  });
+
+  assert.deepEqual(request, {
+    mode: 'project',
+    weekId: 'W28-2026',
+    projectCode: 'PMS-001',
+    sections: ['project-brief', 'milestone']
+  });
+});
+
+test('rejects unknown report modes and sections', () => {
+  assert.throws(
+    () => parseReportRequest({ mode: 'portfolio', weekId: 'W28', sections: ['health-focus'] }),
+    ReportRequestError
+  );
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['secret-section'] }),
+    /Unknown report section/
+  );
+});
+
+test('rejects report content supplied by the browser', () => {
+  assert.throws(
+    () => parseReportRequest({
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['health-focus'],
+      reportHtml: '<h1>untrusted</h1>'
+    }),
+    /Unexpected report request field: reportHtml/
+  );
+});
+
+test('requires a project code for project reports and a nonempty section list', () => {
+  assert.throws(
+    () => parseReportRequest({ mode: 'project', weekId: 'W28', sections: ['milestone'] }),
+    /projectCode is required/
+  );
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: [] }),
+    /At least one report section is required/
+  );
+});
+
+test('accepts an Executive milestone audience view only with that section', () => {
+  assert.deepEqual(parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones', 'quarterly-roadmap'],
+    executiveAudienceView: 'business-product',
+    projectCodes: ['PMS-001']
+  }), {
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones', 'quarterly-roadmap'],
+    executiveAudienceView: 'business-product',
+    projectCodes: ['PMS-001']
+  });
+
+  assert.throws(() => parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['quarterly-roadmap'],
+    executiveAudienceView: 'leadership',
+    projectCodes: ['PMS-001']
+  }), /requires the Executive milestones section/);
+
+  assert.throws(() => parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones'],
+    executiveAudienceView: 'unrestricted',
+    projectCodes: ['PMS-001']
+  }), /Unsupported executiveAudienceView/);
+});
+
+test('accepts unique selected project codes for an Overview report', () => {
+  const request = parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['health-focus'],
+    projectCodes: ['PMS-001', 'MOD-002']
+  });
+
+  assert.deepEqual(request.projectCodes, ['PMS-001', 'MOD-002']);
+});
+
+test('accepts every Overview scope emitted by the dashboard', () => {
+  for (const overviewScope of ['system', 'hardware-module', 'software', 'all']) {
+    const request = parseReportRequest({
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['health-focus'],
+      overviewScope,
+      projectCodes: ['PMS-001']
+    });
+    assert.equal(request.overviewScope, overviewScope);
+  }
+});
+
+test('rejects invalid Overview project selections', () => {
+  for (const projectCodes of [[], ['PMS-001', 'PMS-001'], [' '], [42]]) {
+    assert.throws(
+      () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['health-focus'], projectCodes }),
+      ReportRequestError
+    );
+  }
+});
+
+test('requires project selections for every Overview request', () => {
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['health-focus'] }),
+    /At least one project selection is required/
+  );
+});

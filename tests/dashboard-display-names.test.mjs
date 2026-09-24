@@ -1,3 +1,4 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -5,7 +6,7 @@ import vm from 'node:vm';
 
 import { createDisplayNameDirectory } from '../js/display-name-directory.mjs';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 
 function sourceBetween(startText, endText) {
   const start = dashboard.indexOf(startText);

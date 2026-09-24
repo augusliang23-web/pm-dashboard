@@ -1,8 +1,9 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await dashboardSourceAsync('production');
 
 test('Admin-only Gantt window settings UI is an accessible trapped dialog', () => {
   assert.match(dashboard, /id="ganttWindowSettingsBtn"[^>]+admin-only/);

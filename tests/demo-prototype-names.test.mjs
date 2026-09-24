@@ -1,9 +1,10 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const dashboard = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = dashboardSource('production');
 
 function sourceBetween(startText, endText) {
   const start = dashboard.indexOf(startText);

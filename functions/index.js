@@ -5,7 +5,9 @@ const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestor
 initializeApp();
 
 const db = getFirestore();
+const executiveMilestones = require("./executive-milestones");
 const projectDashboardWrites = require("./project-dashboard-writes");
+const productionWeekSync = require("./production-week-sync");
 const SESSION_COLLECTION = "presenceSessions";
 const ROLLUP_COLLECTION = "presenceDailyRollups";
 const SESSION_TIMEOUT_MS = 12 * 60 * 1000;
@@ -128,6 +130,14 @@ exports.aggregatePresenceSessions = onSchedule({
   console.log(`Presence aggregation complete: ${aggregated} session(s).`);
 });
 
+exports.addExecutiveMilestoneUpdate = executiveMilestones.addExecutiveMilestoneUpdate;
+exports.createExecutiveMilestoneChangeRequest = executiveMilestones.createExecutiveMilestoneChangeRequest;
+exports.withdrawExecutiveMilestoneChangeRequest = executiveMilestones.withdrawExecutiveMilestoneChangeRequest;
+exports.decideExecutiveMilestoneChangeRequest = executiveMilestones.decideExecutiveMilestoneChangeRequest;
+exports.applyDirectExecutiveMilestoneChange = executiveMilestones.applyDirectExecutiveMilestoneChange;
+exports.initializeExecutiveMilestoneLiveTimeline = executiveMilestones.initializeExecutiveMilestoneLiveTimeline;
+exports.saveExecutiveMilestoneTimelineConfig = executiveMilestones.saveExecutiveMilestoneTimelineConfig;
+exports.setExecutiveRagOverride = executiveMilestones.setExecutiveRagOverride;
 exports.saveDashboardProject = projectDashboardWrites.saveDashboardProject;
 exports.deleteDashboardProject = projectDashboardWrites.deleteDashboardProject;
 exports.setDashboardProjectAttention = projectDashboardWrites.setDashboardProjectAttention;
@@ -136,3 +146,6 @@ exports.saveDashboardWeekFields = projectDashboardWrites.saveDashboardWeekFields
 exports.createDashboardWeek = projectDashboardWrites.createDashboardWeek;
 exports.saveDashboardGanttTemplateSettings = projectDashboardWrites.saveDashboardGanttTemplateSettings;
 exports.saveDashboardGanttWindowSettings = projectDashboardWrites.saveDashboardGanttWindowSettings;
+exports.syncProductionWeeksToUat = productionWeekSync.syncProductionWeeksToUat;
+exports.getProductionWeekSyncStatus = productionWeekSync.getProductionWeekSyncStatus;
+exports.restoreUatWeeksSnapshot = productionWeekSync.restoreUatWeeksSnapshot;

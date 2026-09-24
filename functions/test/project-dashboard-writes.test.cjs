@@ -362,3 +362,39 @@ test('week field saves are closed and week creation accepts only server-side car
     weekId: 'W33-2026', weekLabel: 'W33 2026', weekDate: 'Aug 10 - Aug 14', projects: [],
   }, admin, sourceWeek)), 'invalid-payload');
 });
+
+test('PDF summary lanes are accepted and update schedule metadata', () => {
+  const pdfSummaryLanes = [{ id: 'Design', label: 'Design', progress: 65, sortOrder: 0 }];
+  const week = { projects: [project], version: 1, isReleased: false };
+  const result = buildProjectPatch(week, {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...project, pdfSummaryLanes }, expectedRevision: projectRevisionFingerprint(project),
+  }, actor, '2026-09-10T00:00:00Z');
+  assert.deepEqual(result.committedProject.pdfSummaryLanes, pdfSummaryLanes);
+  assert.deepEqual(result.committedProject.sectionUpdatedAt.schedule, {
+    savedAt: '2026-09-10T00:00:00Z', editorName: 'Augus Liang',
+  });
+});
+
+test('large revisions save and unknown metadata survives while deleted rows stay deleted', () => {
+  const liveProject = {
+    code: 'ALPHA', owner: 'Augus Liang', highlight: 'h'.repeat(11000), weeklyActions: 'w'.repeat(11000),
+    budget: {
+      mode: 'manual', approvedBy: 'finance@example.com',
+      monthlyPlans: [
+        { id: 'keep', month: '2026-09', amount: 10, auditNote: 'reviewed' },
+        { id: 'remove', month: '2026-10', amount: 20, auditNote: 'remove me' },
+      ],
+    },
+  };
+  const week = { projects: [liveProject], version: 1, isReleased: false };
+  const expectedRevision = projectRevisionFingerprint(liveProject);
+  assert.ok(expectedRevision.length > 20000);
+  const result = buildProjectPatch(week, {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...liveProject, budget: { ...liveProject.budget, monthlyPlans: [liveProject.budget.monthlyPlans[0]] } },
+    expectedRevision,
+  }, actor, '2026-09-10T00:00:00Z');
+  assert.equal(result.committedProject.budget.approvedBy, 'finance@example.com');
+  assert.deepEqual(result.committedProject.budget.monthlyPlans, [liveProject.budget.monthlyPlans[0]]);
+});

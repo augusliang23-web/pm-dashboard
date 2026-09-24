@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const dashboard = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = dashboardSource('production');
 const deployedDashboards = [
-  ['root', readFileSync(new URL('../index.html', import.meta.url), 'utf8')],
+  ['root', dashboardSource('production')],
   ['team-2', dashboard],
 ];
 

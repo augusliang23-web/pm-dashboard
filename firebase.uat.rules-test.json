@@ -1,0 +1,12 @@
+{
+  "firestore": {
+    "rules": "firestore.uat.rules",
+    "indexes": "firestore.uat.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8081
+    },
+    "singleProjectMode": true
+  }
+}

@@ -1,10 +1,11 @@
+import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const dashboards = await Promise.all([
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
+  dashboardSourceAsync('production'),
+  dashboardSourceAsync('production'),
 ]);
 
 test('protects PM editor overlays from accidental close with unsaved changes', () => {
