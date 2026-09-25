@@ -164,13 +164,11 @@ so that a mistake in one is caught before the next gate compounds it.
   Any additional role for the build identity (for example `roles/iam.serviceAccountUser`) is not assumed; add it
   only if the retry's evidence or current official Cloud Run source-deploy requirements demonstrate it is needed.
   The known failed-attempt source zip in the `run-sources` bucket is residue, not deleted by this gate.
-  As of this runbook's last update, **PR #17 is the current implementation vehicle** for that guard — but PR #17
-  is cited here only as *where the guard currently lives*, not as *the requirement itself*. If PR #17 is
-  superseded, split, renumbered, or re-opened as a different PR, this prerequisite is unchanged and still applies
-  to whichever commit actually carries the guard; do not treat "PR #17 merged" as sufficient on its own without
-  re-confirming, at the time B5 is actually executed, that items 1–5 above hold against the literal commit being
-  deployed. See `docs/stage-b-pdf-readiness.md` for the current snapshot of PR #17's own state — that document's
-  snapshot can go stale the moment PR #17 gets another commit; this gate's prerequisite does not.
+  PR #17 introduced this deployment-hardening guard and has been merged, so the guard is now carried in the
+  `main` source lineage. That history is context only, not the requirement itself: the prerequisite does not
+  depend on any PR number. Do not treat "PR #17 merged" as sufficient on its own — re-confirm, at the time B5 is
+  actually executed, that items 1–5 above hold against the literal commit being deployed. See
+  `docs/stage-b-pdf-readiness.md` for the current state.
 - **Allowed state change:** run
   `node pdf-service/scripts/deploy-pdf.mjs --target uat` (no `--dry-run`). This is the single command that
   performs the build, push, service/revision creation, traffic assignment, and public-invoker grant — it is one
@@ -337,7 +335,7 @@ as proof of anything about authentication:
 **Do not mistake a `403` for an authentication failure** — it can only ever mean the Origin didn't match, which is
 tested and passed in isolation, before the Bearer token is even inspected.
 
-**The current CI container smoke test (in PR #17's `pdf-tests` job) proves only that the built container starts,
+**The current CI container smoke test (in the `pdf-tests` CI job) proves only that the built container starts,
 binds its port, and returns real HTTP responses (`403` on an unmatched-Origin preflight, `404` on an unregistered
 route) in the service's own documented local mode.** It does not exercise a real Firebase project, a real token,
 or Firestore, and must never be cited as evidence of authenticated PDF rendering. That evidence can only come from

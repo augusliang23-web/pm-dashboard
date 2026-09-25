@@ -52,7 +52,6 @@ another commit or another reviewer finding. What follows is the current durable 
 
 ## PENDING
 
-- This Stage B UAT PDF preflight pack's own review and merge
 - Dedicated build identity: source merge, provisioning, and fresh predeploy lock (B5 HOLD)
 - First UAT PDF Cloud Run deployment (Gate B5 retry)
 - Direct service acceptance (Gate B7)
@@ -112,5 +111,6 @@ Before this pack was proposed, the following failure modes were explicitly check
   unreviewed service URL cannot reach tracked source ahead of acceptance.
 - The Auth/CORS section explicitly warns against mistaking a `403` (CORS) for an auth failure, and against citing
   the current CI container smoke as proof of live authenticated rendering.
-- The runbook states in its own header that Stage B is not started by its existence, and the readiness document
-  above states the same; neither claims a soak has begun.
+- The runbook states in its own header that Stage B is IN PROGRESS (B1–B4 complete, first B5 attempt stopped, B5
+  retry on HOLD), and the readiness document above states the same; neither claims B5 has passed, and the soak
+  has NOT begun.
