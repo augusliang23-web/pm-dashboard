@@ -91,21 +91,144 @@ export async function defaultGitState(cwd) {
   return { dirty: status.stdout.trim() !== '', sha: head.stdout.trim() };
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// gcloud upload boundary guard.
+//
+// The dirty-tree guard above answers "is everything git knows about committed?" -- it does not answer "will
+// gcloud upload anything git doesn't know about?", and those are different questions. `gcloud run deploy
+// --source .` resolves its own upload file set using gcloud's `.gcloudignore` semantics, which are independent of
+// git's ignore configuration (root .gitignore, pdf-service/.gcloudignore, .git/info/exclude, and any global
+// excludesfile can all disagree with each other). A file can be git-ignored (so `git status --porcelain` reports
+// the tree as clean) while gcloud still decides to upload it -- for example a stray `tmp/local-only.txt` the root
+// .gitignore hides from git, that pdf-service/.gcloudignore never mentions and so gcloud still picks up. Keeping
+// .gitignore and .gcloudignore manually in sync is exactly the kind of brittle, driftable invariant this repo
+// has already been burned by once (the stale deploy.ps1 this PR replaced); this guard does not rely on that sync
+// at all.
+//
+// The required invariant is a subset relationship, checked with gcloud's own upload resolution rather than a
+// reimplemented .gcloudignore parser:
+//
+//     every file gcloud would actually upload MUST be a git-tracked file (upload set ⊆ tracked set)
+//
+// The upload set is expected to be a *strict* subset of the tracked set -- .gcloudignore deliberately excludes
+// tracked development files (test/, scripts/, README.md, deploy.ps1, ...) from the image. That is correct and
+// this guard never flags it. The only unsafe case is an upload candidate that is not tracked by git at all.
+export class UploadManifestError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UploadManifestError';
+  }
+}
+
+// A bare `\`, forward-slash normalization, and a stripped leading "./" so a Windows-style gcloud path
+// ("src\\server.js") and a git-reported POSIX path ("src/server.js") compare equal, and so "./src/server.js" and
+// "src/server.js" are treated as the same entry.
+export function normalizeUploadPath(rawPath) {
+  return String(rawPath).replace(/\\/g, '/').replace(/^\.\/+/, '').trim();
+}
+
+// Parses raw `gcloud meta list-files-for-upload` stdout into a list of non-blank, normalized paths. An entirely
+// blank result is treated as a parsing anomaly, not as "gcloud intends to upload zero files": a real pdf-service
+// source deploy always uploads at least package.json and src/*.js, so blank output almost certainly means the
+// command was run against the wrong directory or otherwise did not do what was intended, and silently treating
+// it as a vacuously-safe empty set would be exactly the kind of "silently ignore the anomaly" this guard exists
+// to avoid. Fails closed by throwing rather than returning an empty array.
+export function parseUploadManifestOutput(stdout) {
+  if (typeof stdout !== 'string') {
+    throw new UploadManifestError('gcloud upload manifest output was not text.');
+  }
+  const lines = stdout
+    .split(/\r\n|\r|\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+  if (lines.length === 0) {
+    throw new UploadManifestError(
+      'gcloud reported an empty source upload manifest; refusing to deploy without a verifiable file list.'
+    );
+  }
+  return lines;
+}
+
+export async function defaultGitTrackedFiles(cwd) {
+  const { stdout } = await execFileAsync('git', ['ls-files'], { cwd });
+  return stdout.split(/\r\n|\r|\n/).map(line => line.trim()).filter(line => line.length > 0);
+}
+
+export async function defaultUploadCandidates(cwd) {
+  const windows = process.platform === 'win32';
+  const { stdout } = await execFileAsync(windows ? 'gcloud.cmd' : 'gcloud', ['meta', 'list-files-for-upload'], { cwd });
+  return parseUploadManifestOutput(stdout);
+}
+
+// Pure comparison: every normalized upload candidate must appear in the normalized tracked set. Duplicate upload
+// candidates are deduplicated deterministically (a path reported twice is checked once); the returned list of
+// violations is sorted so the guard's error message and this function's own output are deterministic across runs.
+export function findUntrackedUploadCandidates(uploadCandidates, trackedFiles) {
+  const trackedSet = new Set(trackedFiles.map(normalizeUploadPath));
+  const seen = new Set();
+  const untracked = [];
+  for (const raw of uploadCandidates) {
+    const normalized = normalizeUploadPath(raw);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    if (!trackedSet.has(normalized)) untracked.push(normalized);
+  }
+  return untracked.sort();
+}
+
+// The deployment guard itself: resolves both sets and rejects before any real deploy invocation if gcloud would
+// upload anything git does not track. Enumeration failure on either side fails closed (the deploy is refused,
+// never silently allowed to proceed on partial information).
+export async function assertUploadWithinGitTrackedFiles(cwd, {
+  getTrackedFiles = defaultGitTrackedFiles,
+  getUploadCandidates = defaultUploadCandidates
+} = {}) {
+  let tracked;
+  try {
+    tracked = await getTrackedFiles(cwd);
+  } catch (error) {
+    throw new Error(`Refusing to deploy: could not determine the git-tracked file set (${error.message}).`);
+  }
+
+  let uploadCandidates;
+  try {
+    uploadCandidates = await getUploadCandidates(cwd);
+  } catch (error) {
+    throw new Error(`Refusing to deploy: could not determine gcloud's source upload file set (${error.message}).`);
+  }
+
+  const untracked = findUntrackedUploadCandidates(uploadCandidates, tracked);
+  if (untracked.length) {
+    throw new Error(
+      `Refusing to deploy: gcloud would upload ${untracked.length} file(s) that git does not track: ` +
+      `${untracked.join(', ')}. Every uploaded file must be a committed, tracked file -- untrack, .gcloudignore, ` +
+      'or delete these before deploying.'
+    );
+  }
+}
+
 export async function runPdfDeploy(argv, options = {}) {
   const {
     registry = loadTargetRegistry(),
     run = defaultRun,
     log = console.log,
     getGitState = defaultGitState,
+    getTrackedFiles = defaultGitTrackedFiles,
+    getUploadCandidates = defaultUploadCandidates,
     cwd = PDF_SERVICE_DIR,
     onEnvFile = () => {}
   } = options;
   const { target: name, dryRun, confirmProduction } = parseArguments(argv);
   const target = assertTargetIsDeployable(name, registry);
   if (!dryRun) {
+    // Order matters: target validity, then the Production confirmation gate, then the git-clean check, then the
+    // gcloud upload-boundary check -- all before the temp env file is even created, let alone gcloud invoked.
+    // None of this runs in --dry-run: a dry run must stay usable without gcloud installed at all (as this exact
+    // sandbox demonstrates), so it is deliberately never made to depend on gcloud's own tooling being present.
     if (name === 'production' && !confirmProduction) throw new Error('Deploying the production PDF service requires --confirm-production.');
     const git = await getGitState(cwd);
     if (git.dirty) throw new Error('Refusing to deploy: the working tree is not completely clean (modified, staged, deleted, renamed, or untracked files present).');
+    await assertUploadWithinGitTrackedFiles(cwd, { getTrackedFiles, getUploadCandidates });
   }
 
   const directory = await mkdtemp(join(tmpdir(), 'pdf-deploy-'));
