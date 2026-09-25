@@ -47,11 +47,13 @@ test('Risk and Required Action inputs resize vertically without escaping their g
 
 test('Project Editor labels explain visible list controls instead of hidden newline behavior', () => {
   assert.match(html, /<label class="fl">Highlight<\/label>/);
+  assert.match(html, /<label class="fl">Risk &amp; Mitigation Actions \(maps directly to Overview Risk Action Table\)<\/label>/);
   assert.doesNotMatch(html, /Highlight \(Press Enter for new bullet point\)/);
   assert.doesNotMatch(html, /Press Enter for new bullet point/);
 });
 
 test('Single Project preview renders paired Risk and Required Action rows', () => {
+  assert.match(html, /<div class="info-lbl"[^>]*>Risk &amp; Mitigation Actions<\/div>/);
   assert.match(html, /class="project-risk-table-wrap"/);
   assert.match(html, /<th>Risk \/ Blocker<\/th>/);
   assert.match(html, /<th>Required Action<\/th>/);

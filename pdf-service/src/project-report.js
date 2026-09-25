@@ -203,7 +203,7 @@ function renderBudget(model) {
 
 /**
  * The first page is the Production one-page quadrant summary (Highlights / Action Items / Schedule Summary /
- * Risk & Required Action) UNLESS the request selected the UAT-profile-only 'project-brief' or 'project-update'
+ * Risk & Mitigation Actions) UNLESS the request selected the UAT-profile-only 'project-brief' or 'project-update'
  * sections, in which case that original section-picker page renders instead (Control Plane: this UAT capability
  * must be preserved, UAT-profile-only). Which section names a request may even contain is decided upstream, in
  * report-request.js's environment-gated validation -- this function only reacts to what is already in
