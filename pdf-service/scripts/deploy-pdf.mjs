@@ -79,8 +79,14 @@ async function defaultRun(args, { cwd }) {
   return new Promise((done, fail) => { child.on('error', fail); child.on('close', code => done(code ?? 1)); });
 }
 
-async function defaultGitState(cwd) {
-  const status = await execFileAsync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd });
+// `gcloud run deploy --source .` uploads the working tree as gcloud finds it on disk -- tracked or not, committed
+// or not. A dirty-tree guard that only looks at tracked changes (the previous `--untracked-files=no`) lets an
+// untracked file ride along into the Cloud Run source upload, and potentially into the built image, without ever
+// being caught here. So this reads the *complete* working-tree state -- modified, staged, deleted, renamed, and
+// untracked files all surface in default (`--untracked-files=normal`) porcelain output -- while still leaving
+// .gitignore'd paths (node_modules, tmp/, ...) out of it, exactly as normal development expects.
+export async function defaultGitState(cwd) {
+  const status = await execFileAsync('git', ['status', '--porcelain'], { cwd });
   const head = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd });
   return { dirty: status.stdout.trim() !== '', sha: head.stdout.trim() };
 }
@@ -99,7 +105,7 @@ export async function runPdfDeploy(argv, options = {}) {
   if (!dryRun) {
     if (name === 'production' && !confirmProduction) throw new Error('Deploying the production PDF service requires --confirm-production.');
     const git = await getGitState(cwd);
-    if (git.dirty) throw new Error('Refusing to deploy: the working tree has uncommitted tracked changes.');
+    if (git.dirty) throw new Error('Refusing to deploy: the working tree is not completely clean (modified, staged, deleted, renamed, or untracked files present).');
   }
 
   const directory = await mkdtemp(join(tmpdir(), 'pdf-deploy-'));

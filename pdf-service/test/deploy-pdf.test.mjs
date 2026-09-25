@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import {
   assertTargetIsDeployable,
   buildEnvVarsYaml,
   buildGcloudArgs,
+  defaultGitState,
   runPdfDeploy
 } from '../scripts/deploy-pdf.mjs';
 import { PdfEnvironmentError, loadTargetRegistry } from '../src/environment.js';
+
+const execFileAsync = promisify(execFile);
 
 // The real, committed target registry -- these tests never invent a fake project/service pair to validate the
 // pure-function output against; they validate the actual UAT and Production targets this repository will deploy.
@@ -169,7 +177,23 @@ test('runPdfDeploy: a dirty working tree refuses to deploy before invoking gclou
       getGitState: async () => ({ dirty: true, sha: 'deadbee' }),
       log: () => {}
     }),
-    /uncommitted tracked changes/
+    /working tree is not completely clean/
+  );
+});
+
+test('runPdfDeploy: a working tree reported dirty only by an untracked file still refuses to deploy', async () => {
+  // Exercises the same runPdfDeploy control-flow guarantee as the test above (an untracked-only dirty report
+  // still blocks the deploy before gcloud runs), independent of *why* getGitState considers the tree dirty. The
+  // real-git proof that an actual untracked file is what makes defaultGitState report dirty:true lives in the
+  // "defaultGitState (real git)" tests below, against an isolated temporary repository.
+  await assert.rejects(
+    runPdfDeploy(['--target', 'uat'], {
+      registry,
+      run: neverCalled('run'),
+      getGitState: async () => ({ dirty: true, sha: 'abc1234' }),
+      log: () => {}
+    }),
+    /working tree is not completely clean/
   );
 });
 
@@ -215,4 +239,87 @@ test('runPdfDeploy: the temporary env-vars file is removed after the run, dry-ru
   assert.ok(capturedPath);
   const { existsSync } = await import('node:fs');
   assert.equal(existsSync(capturedPath), false);
+});
+
+// `defaultGitState` is exercised here against a real, isolated temporary git repository -- never this repository's
+// own working tree -- so these tests prove the actual `git status` invocation detects each case, not just that
+// runPdfDeploy's control flow reacts to an injected `{ dirty: true }` fixture (that control-flow guarantee is
+// covered separately above).
+const GIT_TEST_IDENTITY_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 'deploy-pdf test',
+  GIT_AUTHOR_EMAIL: 'deploy-pdf-test@example.invalid',
+  GIT_COMMITTER_NAME: 'deploy-pdf test',
+  GIT_COMMITTER_EMAIL: 'deploy-pdf-test@example.invalid'
+};
+
+async function runGit(cwd, args) {
+  return execFileAsync('git', args, { cwd, env: GIT_TEST_IDENTITY_ENV });
+}
+
+async function withTempGitRepo(exercise) {
+  const dir = await mkdtemp(join(tmpdir(), 'deploy-pdf-git-state-'));
+  try {
+    await runGit(dir, ['init', '--quiet']);
+    await writeFile(join(dir, 'tracked.txt'), 'committed content\n');
+    await runGit(dir, ['add', 'tracked.txt']);
+    await runGit(dir, ['commit', '--quiet', '-m', 'initial commit']);
+    await exercise(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+test('defaultGitState (real git): a freshly committed repository with nothing else is clean', async () => {
+  await withTempGitRepo(async dir => {
+    assert.equal((await defaultGitState(dir)).dirty, false);
+  });
+});
+
+test('defaultGitState (real git): a modified tracked file is reported dirty', async () => {
+  await withTempGitRepo(async dir => {
+    await writeFile(join(dir, 'tracked.txt'), 'modified content\n');
+    assert.equal((await defaultGitState(dir)).dirty, true);
+  });
+});
+
+test('defaultGitState (real git): a staged-but-uncommitted new file is reported dirty', async () => {
+  await withTempGitRepo(async dir => {
+    await writeFile(join(dir, 'staged.txt'), 'staged content\n');
+    await runGit(dir, ['add', 'staged.txt']);
+    assert.equal((await defaultGitState(dir)).dirty, true);
+  });
+});
+
+test('defaultGitState (real git): a deleted tracked file is reported dirty', async () => {
+  await withTempGitRepo(async dir => {
+    await rm(join(dir, 'tracked.txt'));
+    assert.equal((await defaultGitState(dir)).dirty, true);
+  });
+});
+
+test('defaultGitState (real git): a renamed tracked file is reported dirty', async () => {
+  await withTempGitRepo(async dir => {
+    await runGit(dir, ['mv', 'tracked.txt', 'renamed.txt']);
+    assert.equal((await defaultGitState(dir)).dirty, true);
+  });
+});
+
+test('defaultGitState (real git): an actual untracked file is reported dirty -- the regression this fix closes', async () => {
+  // Before this fix, defaultGitState ran `git status --porcelain --untracked-files=no`, which cannot see this
+  // file at all: an untracked file could ride along into `gcloud run deploy --source .`'s upload undetected.
+  await withTempGitRepo(async dir => {
+    await writeFile(join(dir, 'untracked.txt'), 'never added or committed\n');
+    assert.equal((await defaultGitState(dir)).dirty, true, 'an untracked file must make the working tree report dirty');
+  });
+});
+
+test('defaultGitState (real git): a git-ignored file does not trip the clean-tree guard', async () => {
+  await withTempGitRepo(async dir => {
+    await writeFile(join(dir, '.gitignore'), 'ignored.txt\n');
+    await runGit(dir, ['add', '.gitignore']);
+    await runGit(dir, ['commit', '--quiet', '-m', 'add gitignore']);
+    await writeFile(join(dir, 'ignored.txt'), 'must not trigger the guard\n');
+    assert.equal((await defaultGitState(dir)).dirty, false, 'a git-ignored file must not trip the clean-tree guard');
+  });
 });
