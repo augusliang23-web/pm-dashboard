@@ -305,14 +305,16 @@ export const EXPECTED_UAT_IDENTITY = Object.freeze({
   firebaseProjectId: 'pm-dashboard-uat-20260820-a7f3',
   region: 'asia-southeast1',
   serviceName: 'pm-dashboard-uat-pdf',
-  runtimeServiceAccount: 'pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com'
+  runtimeServiceAccount: 'pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com',
+  buildServiceAccount: 'pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com'
 });
 
 export const EXPECTED_PRODUCTION_IDENTITY = Object.freeze({
   firebaseProjectId: 'project-manager-dashboar-a067f',
   region: 'asia-southeast1',
   serviceName: 'pm-dashboard-pdf',
-  runtimeServiceAccount: 'pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com'
+  runtimeServiceAccount: 'pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com',
+  buildServiceAccount: 'pm-dashboard-pdf-build@project-manager-dashboar-a067f.iam.gserviceaccount.com'
 });
 
 function checkMatchesExpected(checkId, envLabel, fieldLabel, actual, expected) {
@@ -330,7 +332,8 @@ function buildAnchoredIdentityChecksFor(target, envLabel, idPrefix, expected) {
     checkMatchesExpected(`${idPrefix}-firebase-project-matches-expected`, envLabel, 'firebaseProjectId', target?.firebaseProjectId, expected.firebaseProjectId),
     checkMatchesExpected(`${idPrefix}-region-matches-expected`, envLabel, 'region', target?.region, expected.region),
     checkMatchesExpected(`${idPrefix}-service-name-matches-expected`, envLabel, 'serviceName', target?.serviceName, expected.serviceName),
-    checkMatchesExpected(`${idPrefix}-runtime-service-account-matches-expected`, envLabel, 'runtimeServiceAccount', target?.runtimeServiceAccount, expected.runtimeServiceAccount)
+    checkMatchesExpected(`${idPrefix}-runtime-service-account-matches-expected`, envLabel, 'runtimeServiceAccount', target?.runtimeServiceAccount, expected.runtimeServiceAccount),
+    checkMatchesExpected(`${idPrefix}-build-service-account-matches-expected`, envLabel, 'buildServiceAccount', target?.buildServiceAccount, expected.buildServiceAccount)
   ];
 }
 

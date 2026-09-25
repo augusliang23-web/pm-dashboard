@@ -17,11 +17,19 @@ export function assertTargetIsDeployable(name, registry) {
   if (!CLOUD_ENVIRONMENTS.includes(name)) throw new PdfEnvironmentError(`Unknown PDF deploy target "${name}".`);
   const target = registry.targets?.[name];
   if (!target || target.environment !== name) throw new PdfEnvironmentError(`Target "${name}" is not in the registry.`);
-  for (const key of ['firebaseProjectId', 'region', 'serviceName', 'runtimeServiceAccount']) {
+  for (const key of ['firebaseProjectId', 'region', 'serviceName', 'runtimeServiceAccount', 'buildServiceAccount']) {
     if (typeof target[key] !== 'string' || !target[key].trim()) throw new PdfEnvironmentError(`Target "${name}" has no ${key}.`);
   }
   if (!target.runtimeServiceAccount.endsWith(`@${target.firebaseProjectId}.iam.gserviceaccount.com`)) {
     throw new PdfEnvironmentError(`Target "${name}" runtime service account must belong to ${target.firebaseProjectId}.`);
+  }
+  // The build identity is an explicit, versioned registry value so `gcloud run deploy --source` never falls back to
+  // the project's shared default Compute Engine service account. It must be a distinct identity from the runtime one.
+  if (!target.buildServiceAccount.endsWith(`@${target.firebaseProjectId}.iam.gserviceaccount.com`)) {
+    throw new PdfEnvironmentError(`Target "${name}" build service account must belong to ${target.firebaseProjectId}.`);
+  }
+  if (target.buildServiceAccount === target.runtimeServiceAccount) {
+    throw new PdfEnvironmentError(`Target "${name}" build service account must be distinct from its runtime service account.`);
   }
   const origins = parseAllowedOrigins(target.allowedOrigins);
   if (!origins.length || origins.length !== target.allowedOrigins.length) {
@@ -54,6 +62,7 @@ export function buildGcloudArgs(target, envFile) {
     '--memory', '1Gi',
     '--timeout', '120',
     '--service-account', target.runtimeServiceAccount,
+    '--build-service-account', `projects/${target.firebaseProjectId}/serviceAccounts/${target.buildServiceAccount}`,
     '--env-vars-file', envFile,
     '--quiet'
   ];

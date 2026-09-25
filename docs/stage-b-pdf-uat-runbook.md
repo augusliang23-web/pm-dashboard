@@ -1,7 +1,7 @@
 # Stage B — First UAT PDF Cloud Run Deployment Runbook
 
-Status: **STAGE B NOT STARTED.** This document is a plan for future cloud work. It authorizes nothing by
-existing; each gate below still requires an explicit, separate Control Plane decision before its state change is
+Status: **STAGE B IN PROGRESS** (B1–B4 PASS; first B5 attempt stopped, retry on HOLD — see
+`docs/stage-b-pdf-readiness.md`). This document authorizes nothing by existing; each gate below still requires an explicit, separate Control Plane decision before its state change is
 executed.
 
 Scope: this runbook covers only the **UAT PDF Cloud Run service** (`pm-dashboard-uat-pdf`, project
@@ -151,6 +151,19 @@ so that a mistake in one is caught before the next gate compounds it.
      this closes);
   5. has its own **required CI check green** on that exact commit (not merely "was green once, on some earlier
      commit of the same branch").
+  **Dedicated build identity prerequisites (added after the first B5 attempt stopped on a default Compute build
+  identity lacking `storage.objects.get`):** an actual B5 retry additionally requires all of:
+  a. an explicit `buildServiceAccount` in the reviewed `registry.json` at the exact commit being deployed
+     (UAT: `pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`);
+  b. that build service account exists in the target project (verified read-only);
+  c. it holds exactly the approved build role, `roles/run.builder`, and is distinct from the runtime service
+     account, which keeps only `roles/datastore.viewer`;
+  d. the deploy command includes `--build-service-account projects/<project>/serviceAccounts/<build SA>`
+     (confirm in the `--dry-run` output);
+  e. a fresh `predeploy` lock at the exact commit, including this identity check.
+  Any additional role for the build identity (for example `roles/iam.serviceAccountUser`) is not assumed; add it
+  only if the retry's evidence or current official Cloud Run source-deploy requirements demonstrate it is needed.
+  The known failed-attempt source zip in the `run-sources` bucket is residue, not deleted by this gate.
   As of this runbook's last update, **PR #17 is the current implementation vehicle** for that guard — but PR #17
   is cited here only as *where the guard currently lives*, not as *the requirement itself*. If PR #17 is
   superseded, split, renumbered, or re-opened as a different PR, this prerequisite is unchanged and still applies
