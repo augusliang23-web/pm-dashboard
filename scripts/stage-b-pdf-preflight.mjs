@@ -91,6 +91,21 @@ function containsWildcard(raw) {
   return typeof raw === 'string' && raw.includes('*');
 }
 
+// A plain JSON object: excludes null, arrays, and every primitive type. Used as the explicit schema/shape
+// discriminator -- deliberately separate from "JSON.parse succeeded", which only proves the bytes were valid
+// JSON syntax and says nothing about the parsed value's type. Truthiness must never substitute for this check:
+// `false`, `0`, and `""` are all valid, successfully-parsed JSON values that are falsy but not objects, and must
+// fail here exactly like `null` and `[]` do.
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function describeJsonTopLevelType(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return typeof value; // 'boolean', 'number', 'string', or (unreachably here) 'object'/'undefined'
+}
+
 const SERVICE_ACCOUNT_PATTERN = /^[a-zA-Z0-9-]+@[a-zA-Z0-9.-]+\.iam\.gserviceaccount\.com$/;
 
 function isWellFormedServiceAccount(value) {
@@ -141,6 +156,21 @@ async function loadJsonFile(absolutePath, checkId, label) {
   } catch (error) {
     return { data: null, check: fail(checkId, `${label} is not valid JSON: ${error.message}`) };
   }
+}
+
+// Explicit schema/shape discriminator, deliberately distinct from "JSON.parse succeeded" above. Valid JSON whose
+// top-level value is null, false, 0, "", or an array parses successfully but has the wrong shape and must FAIL
+// here -- never be treated as passing by virtue of being merely truthy-agnostic. Returns the shape-checked data
+// (safe to pass to the object-shaped validators below) only when the check itself is PASS; otherwise returns
+// null so callers cannot accidentally read through a shape that was never confirmed.
+function requireObjectShape(loadResult, checkId, label, checks) {
+  if (loadResult.check.status !== 'PASS') return null; // Parse failure already reported; nothing further to check.
+  if (isPlainObject(loadResult.data)) {
+    checks.push(pass(checkId, `${label}'s top-level value is a JSON object, as required.`));
+    return loadResult.data;
+  }
+  checks.push(fail(checkId, `${label}'s top-level value must be a JSON object; found ${describeJsonTopLevelType(loadResult.data)}.`));
+  return null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -262,6 +292,62 @@ function buildIdentityChecks(registry) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Anchored identity -- the known, intended UAT and Production identity values. Internal-consistency checks alone
+// (buildIdentityChecks above) can be satisfied by two coordinated WRONG values, e.g. an entirely different UAT
+// project id paired with a service account that correctly belongs to that same wrong project -- every relative
+// check ("distinct from Production", "service account belongs to its own project") would pass while the whole
+// registry silently points Stage B at the wrong place. This release-safety gate anchors both environments'
+// identity to their known intended values, so a coherent-but-wrong pair fails here even though it is internally
+// self-consistent. Production is anchored as well as UAT, on the same reasoning: a coordinated wrong pair on the
+// Production side would defeat "distinct from UAT" exactly the same way, and anchoring both sides is a small,
+// static, source-only addition with no operational cost.
+export const EXPECTED_UAT_IDENTITY = Object.freeze({
+  firebaseProjectId: 'pm-dashboard-uat-20260820-a7f3',
+  region: 'asia-southeast1',
+  serviceName: 'pm-dashboard-uat-pdf',
+  runtimeServiceAccount: 'pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com'
+});
+
+export const EXPECTED_PRODUCTION_IDENTITY = Object.freeze({
+  firebaseProjectId: 'project-manager-dashboar-a067f',
+  region: 'asia-southeast1',
+  serviceName: 'pm-dashboard-pdf',
+  runtimeServiceAccount: 'pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com'
+});
+
+function checkMatchesExpected(checkId, envLabel, fieldLabel, actual, expected) {
+  if (!isNonEmptyString(actual)) {
+    return fail(checkId, `${envLabel} ${fieldLabel} is missing or empty; cannot match the anchored expected value "${expected}".`);
+  }
+  if (actual === expected) {
+    return pass(checkId, `${envLabel} ${fieldLabel} matches the anchored expected value.`);
+  }
+  return fail(checkId, `${envLabel} ${fieldLabel} "${actual}" does not match the anchored expected value "${expected}".`);
+}
+
+function buildAnchoredIdentityChecksFor(target, envLabel, idPrefix, expected) {
+  return [
+    checkMatchesExpected(`${idPrefix}-firebase-project-matches-expected`, envLabel, 'firebaseProjectId', target?.firebaseProjectId, expected.firebaseProjectId),
+    checkMatchesExpected(`${idPrefix}-region-matches-expected`, envLabel, 'region', target?.region, expected.region),
+    checkMatchesExpected(`${idPrefix}-service-name-matches-expected`, envLabel, 'serviceName', target?.serviceName, expected.serviceName),
+    checkMatchesExpected(`${idPrefix}-runtime-service-account-matches-expected`, envLabel, 'runtimeServiceAccount', target?.runtimeServiceAccount, expected.runtimeServiceAccount)
+  ];
+}
+
+// Anchored identity checks, plus the browser-Origin-is-not-the-boundary guard restated explicitly (not merely as
+// a code comment): a shared Origin between UAT and Production is expected and intentionally not treated as an
+// identity collision anywhere in this file -- the real boundary is the anchored Firebase project id / service
+// account pair above, verified independently of Origin.
+function buildExpectedIdentityChecks(registry) {
+  const uat = registry?.targets?.uat;
+  const production = registry?.targets?.production;
+  return [
+    ...buildAnchoredIdentityChecksFor(uat, 'UAT', 'uat', EXPECTED_UAT_IDENTITY),
+    ...buildAnchoredIdentityChecksFor(production, 'Production', 'production', EXPECTED_PRODUCTION_IDENTITY)
+  ];
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Phase-specific service-URL checks
 // ---------------------------------------------------------------------------------------------------------------
 function buildPredeployUrlChecks(registry, envUat) {
@@ -366,12 +452,25 @@ export async function runPreflight({ repo = process.cwd(), phase = 'predeploy', 
   );
   checks.push(envUatResult.check);
 
-  if (registryResult.data) {
-    checks.push(...buildIdentityChecks(registryResult.data));
+  // "JSON.parse succeeded" (registryResult.check / envUatResult.check above) is deliberately never used as the
+  // success discriminator for what follows. requireObjectShape is the explicit, separate schema/shape gate:
+  // valid JSON whose top-level value is null, false, 0, "", or an array parses fine but has the wrong shape, and
+  // must FAIL the shape check below rather than silently skip every downstream identity/URL validation by
+  // accident of being falsy or by being a non-object truthy value (an array).
+  const registryData = requireObjectShape(
+    registryResult, 'registry-shape-valid', 'pdf-service/src/targets/registry.json', checks
+  );
+  const envUatData = requireObjectShape(
+    envUatResult, 'env-uat-shape-valid', 'env/uat.json', checks
+  );
+
+  if (registryData) {
+    checks.push(...buildIdentityChecks(registryData));
+    checks.push(...buildExpectedIdentityChecks(registryData));
     if (phase === 'predeploy') {
-      checks.push(...buildPredeployUrlChecks(registryResult.data, envUatResult.data));
+      checks.push(...buildPredeployUrlChecks(registryData, envUatData));
     } else {
-      checks.push(...buildPostdeployUrlChecks(registryResult.data, envUatResult.data));
+      checks.push(...buildPostdeployUrlChecks(registryData, envUatData));
     }
   }
 

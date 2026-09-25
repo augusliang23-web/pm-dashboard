@@ -54,12 +54,29 @@ returns `OVERALL: PASS`, including:
 
 - `pdf-service/src/targets/registry.json`'s `targets.uat.serviceUrl` is `null`
 - `env/uat.json`'s `pdfServiceUrl` is `null`
+- both `registry.json` and `env/uat.json` parse as JSON **and** have the required top-level object shape — these
+  are checked as two distinct things (`registry-shape-valid`, `env-uat-shape-valid`), not inferred from
+  truthiness, so a syntactically valid but wrongly-typed top-level value (e.g. `null`, `false`, an array) fails
+  closed rather than silently skipping validation
 - UAT and Production identity (Firebase project, service name, runtime service account, allowed origins) are all
-  independently well-formed and mutually distinct where required
+  independently well-formed and mutually distinct where required, **and** each independently matches the known,
+  anchored expected identity for that environment (not merely "distinct from the other environment") — this
+  closes the gap where two coordinated wrong values could otherwise pass every relative check
 
 This is the expected state before Gate B5. If a future run of this same command reports either URL as non-null
 before Gate B5 has actually happened, that is configuration drift and must be investigated before proceeding —
 do not silently treat it as "someone must have deployed it already."
+
+## Gate B5's durable prerequisite vs. this document's snapshot
+
+`docs/stage-b-pdf-uat-runbook.md`'s Gate B5 requires the exact commit being deployed to carry an independently
+approved, merged deployment-hardening guard in `pdf-service/scripts/deploy-pdf.mjs` (clean-tree **and**
+upload-boundary enforcement, with its own CI green) — see that gate's Prerequisites for the full requirement.
+**PR #17 is the current implementation vehicle for that guard, not the requirement itself.** The PENDING list
+below and the PR #17 status paragraph above are a snapshot as of the commit named at the top of this document;
+they will go stale the moment PR #17 receives another commit or is superseded. Gate B5's own prerequisite text
+does not go stale the same way — re-check it directly against whatever commit is actually about to be deployed,
+rather than relying on this document's snapshot alone.
 
 ## Technical Debt Register
 

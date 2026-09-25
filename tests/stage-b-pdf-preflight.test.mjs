@@ -7,6 +7,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
+  EXPECTED_PRODUCTION_IDENTITY,
+  EXPECTED_UAT_IDENTITY,
   PreflightUsageError,
   SUPPORTED_FORMATS,
   SUPPORTED_PHASES,
@@ -32,19 +34,24 @@ async function runGit(cwd, args) {
   return execFileAsync('git', args, { cwd, env: GIT_TEST_IDENTITY_ENV });
 }
 
+// Fixtures deliberately use the real anchored UAT/Production identity (Blocker 2) rather than made-up demo
+// values, so that "a fully valid configuration" in these tests means the same thing the anchored checks mean:
+// matching the known intended identity, not merely being internally self-consistent.
 function validRegistry(overrides = {}) {
   const uat = {
-    firebaseProjectId: 'demo-uat-project',
-    region: 'asia-southeast1',
-    serviceName: 'demo-uat-pdf',
-    runtimeServiceAccount: 'demo-uat-pdf@demo-uat-project.iam.gserviceaccount.com',
+    firebaseProjectId: EXPECTED_UAT_IDENTITY.firebaseProjectId,
+    region: EXPECTED_UAT_IDENTITY.region,
+    serviceName: EXPECTED_UAT_IDENTITY.serviceName,
+    runtimeServiceAccount: EXPECTED_UAT_IDENTITY.runtimeServiceAccount,
     serviceUrl: null,
-    allowedOrigins: ['https://example.github.io', 'https://demo-uat-project.web.app'],
+    allowedOrigins: ['https://example.github.io', `https://${EXPECTED_UAT_IDENTITY.firebaseProjectId}.web.app`],
     ...(overrides.uat || {})
   };
   const production = {
-    firebaseProjectId: 'demo-prod-project',
-    serviceName: 'demo-prod-pdf',
+    firebaseProjectId: EXPECTED_PRODUCTION_IDENTITY.firebaseProjectId,
+    region: EXPECTED_PRODUCTION_IDENTITY.region,
+    serviceName: EXPECTED_PRODUCTION_IDENTITY.serviceName,
+    runtimeServiceAccount: EXPECTED_PRODUCTION_IDENTITY.runtimeServiceAccount,
     ...(overrides.production || {})
   };
   return { targets: { uat, production } };
@@ -237,7 +244,7 @@ test('14. fails when UAT serviceName is missing', async () => {
 });
 
 test('15. fails when UAT and Production serviceName are identical', async () => {
-  await withFixtureDir({ registry: validRegistry({ production: { serviceName: 'demo-uat-pdf' } }) }, async dir => {
+  await withFixtureDir({ registry: validRegistry({ production: { serviceName: EXPECTED_UAT_IDENTITY.serviceName } }) }, async dir => {
     const report = await runPreflight({ repo: dir, phase: 'predeploy' });
     assert.equal(report.overall, 'FAIL');
     assert.equal(findCheck(report, 'uat-production-service-names-distinct').status, 'FAIL');
@@ -253,7 +260,7 @@ test('16. fails when a Firebase project id is missing', async () => {
 });
 
 test('17. fails when UAT and Production Firebase project ids are identical', async () => {
-  await withFixtureDir({ registry: validRegistry({ production: { firebaseProjectId: 'demo-uat-project' } }) }, async dir => {
+  await withFixtureDir({ registry: validRegistry({ production: { firebaseProjectId: EXPECTED_UAT_IDENTITY.firebaseProjectId } }) }, async dir => {
     const report = await runPreflight({ repo: dir, phase: 'predeploy' });
     assert.equal(report.overall, 'FAIL');
     assert.equal(findCheck(report, 'uat-production-project-ids-distinct').status, 'FAIL');
@@ -352,6 +359,146 @@ test('26. fails when a config file is malformed JSON', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+// --------------------------------------------------------------------------------------------------------------
+// Blocker 1 regression: "JSON.parse succeeded" must never be conflated with "the parsed value has the required
+// shape". Truthiness is not the discriminator -- null, false, 0, and "" are all valid, successfully-parsed JSON
+// values that must fail exactly like an array or a malformed object does, never silently skip validation.
+// --------------------------------------------------------------------------------------------------------------
+async function withRawRegistry(rawTopLevelValue, exercise) {
+  const dir = await mkdtemp(join(tmpdir(), 'stage-b-preflight-'));
+  try {
+    await writeFixture(dir);
+    await writeFile(join(dir, 'pdf-service', 'src', 'targets', 'registry.json'), JSON.stringify(rawTopLevelValue));
+    return await exercise(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function withRawEnvUat(rawTopLevelValue, exercise) {
+  const dir = await mkdtemp(join(tmpdir(), 'stage-b-preflight-'));
+  try {
+    await writeFixture(dir);
+    await writeFile(join(dir, 'env', 'uat.json'), JSON.stringify(rawTopLevelValue));
+    return await exercise(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+for (const [label, value] of [['null', null], ['false', false], ['0', 0], ['empty string', ''], ['an array', []]]) {
+  test(`registry.json whose top-level value is ${label} produces overall FAIL, not a silent PASS`, async () => {
+    await withRawRegistry(value, async dir => {
+      const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+      assert.equal(report.overall, 'FAIL');
+      assert.equal(findCheck(report, 'registry-file-loads').status, 'PASS'); // it IS valid JSON
+      assert.equal(findCheck(report, 'registry-shape-valid').status, 'FAIL'); // but the wrong shape
+    });
+  });
+
+  test(`env/uat.json whose top-level value is ${label} produces overall FAIL, not a silent PASS`, async () => {
+    await withRawEnvUat(value, async dir => {
+      const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+      assert.equal(report.overall, 'FAIL');
+      assert.equal(findCheck(report, 'env-uat-file-loads').status, 'PASS');
+      assert.equal(findCheck(report, 'env-uat-shape-valid').status, 'FAIL');
+    });
+  });
+}
+
+test('registry.json with a wrong object shape (valid object, missing targets) fails via the identity checks', async () => {
+  await withRawRegistry({ notTargets: true }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'registry-shape-valid').status, 'PASS'); // it IS a plain object
+    assert.equal(findCheck(report, 'uat-target-exists').status, 'FAIL'); // but not the right one
+  });
+});
+
+test('env/uat.json with a wrong object shape (valid object, missing pdfServiceUrl) fails predeploy\'s null check', async () => {
+  await withRawEnvUat({ notPdfServiceUrl: true }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'env-uat-shape-valid').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-env-pdf-service-url-is-null').status, 'FAIL');
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------
+// Blocker 2 regression: internal consistency (distinct from Production, SA belongs to its own project) is not
+// enough -- the anchored expected UAT/Production identity must be checked directly, so a coherent-but-wrong pair
+// (a different project id, paired with a service account that correctly belongs to THAT wrong project) fails.
+// --------------------------------------------------------------------------------------------------------------
+test('a coherent but wrong UAT project id + matching wrong service account fails the anchored identity check', async () => {
+  const wrongProjectId = 'some-other-uat-project-9999';
+  await withFixtureDir({
+    registry: validRegistry({
+      uat: {
+        firebaseProjectId: wrongProjectId,
+        runtimeServiceAccount: `${EXPECTED_UAT_IDENTITY.serviceName}@${wrongProjectId}.iam.gserviceaccount.com`
+      }
+    })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    // Internal consistency checks are satisfied by this coordinated pair -- that is exactly the gap this
+    // anchored check closes, so both must be true simultaneously:
+    assert.equal(findCheck(report, 'uat-runtime-service-account-matches-project').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-production-project-ids-distinct').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-firebase-project-matches-expected').status, 'FAIL');
+    assert.equal(findCheck(report, 'uat-runtime-service-account-matches-expected').status, 'FAIL');
+  });
+});
+
+test('a wrong UAT serviceName fails the anchored identity check even though it is internally well-formed', async () => {
+  await withFixtureDir({
+    registry: validRegistry({ uat: { serviceName: 'wrong-uat-service-name' } })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'uat-service-name-present').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-service-name-matches-expected').status, 'FAIL');
+  });
+});
+
+test('a wrong UAT region fails the anchored identity check', async () => {
+  await withFixtureDir({
+    registry: validRegistry({ uat: { region: 'us-central1' } })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'uat-region-present').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-region-matches-expected').status, 'FAIL');
+  });
+});
+
+test('the anchored Production identity is also checked, independent of UAT/Production distinctness', async () => {
+  await withFixtureDir({
+    registry: validRegistry({ production: { serviceName: 'wrong-production-service-name' } })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    // Still distinct from UAT's serviceName, and still a well-formed value -- the anchor is what catches it.
+    assert.equal(findCheck(report, 'uat-production-service-names-distinct').status, 'PASS');
+    assert.equal(findCheck(report, 'production-service-name-matches-expected').status, 'FAIL');
+  });
+});
+
+test('the fully valid fixture (matching the anchored identity exactly) passes every anchored identity check', async () => {
+  await withGitFixtureDir({}, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'PASS');
+    for (const id of [
+      'uat-firebase-project-matches-expected', 'uat-region-matches-expected',
+      'uat-service-name-matches-expected', 'uat-runtime-service-account-matches-expected',
+      'production-firebase-project-matches-expected', 'production-region-matches-expected',
+      'production-service-name-matches-expected', 'production-runtime-service-account-matches-expected'
+    ]) {
+      assert.equal(findCheck(report, id).status, 'PASS', `expected ${id} to be PASS`);
+    }
+  });
 });
 
 // --------------------------------------------------------------------------------------------------------------

@@ -136,7 +136,28 @@ so that a mistake in one is caught before the next gate compounds it.
 - **Objective:** perform the actual first deployment.
 - **Prerequisites:** B1–B4 all PASS; `node scripts/stage-b-pdf-preflight.mjs --phase predeploy` returns
   `OVERALL: PASS` against the reviewed source at the exact commit being deployed; working tree clean (per
-  `pdf-service/scripts/deploy-pdf.mjs`'s own dirty-tree guard, which this gate relies on unchanged).
+  `pdf-service/scripts/deploy-pdf.mjs`'s own dirty-tree guard, which this gate relies on unchanged); **and**, as a
+  durable precondition independent of any single pull request number, the exact source commit being deployed
+  must demonstrably contain a `pdf-service/scripts/deploy-pdf.mjs` deployment-hardening guard that:
+  1. has been **independently reviewed and approved** (not merely authored) as its own change, separate from this
+     runbook and separate from this gate's own execution;
+  2. is **actually merged into the exact commit being deployed** — a guard that exists only on an unmerged branch,
+     or on `main` but not yet in the commit this gate is about to deploy, does not satisfy this requirement;
+  3. includes a **clean-tree guard**: the deploy refuses to run against a dirty working tree (tracked modified,
+     staged, deleted, renamed, *and* untracked paths — not merely tracked changes);
+  4. includes an **upload-boundary guard**: the set of files `gcloud run deploy --source .` will actually upload
+     is verified to be a subset of the git-tracked file set, so a git-ignored file cannot reach the built image
+     undetected by the clean-tree guard above (a `.gitignore`/`.gcloudignore` mismatch is exactly the failure mode
+     this closes);
+  5. has its own **required CI check green** on that exact commit (not merely "was green once, on some earlier
+     commit of the same branch").
+  As of this runbook's last update, **PR #17 is the current implementation vehicle** for that guard — but PR #17
+  is cited here only as *where the guard currently lives*, not as *the requirement itself*. If PR #17 is
+  superseded, split, renumbered, or re-opened as a different PR, this prerequisite is unchanged and still applies
+  to whichever commit actually carries the guard; do not treat "PR #17 merged" as sufficient on its own without
+  re-confirming, at the time B5 is actually executed, that items 1–5 above hold against the literal commit being
+  deployed. See `docs/stage-b-pdf-readiness.md` for the current snapshot of PR #17's own state — that document's
+  snapshot can go stale the moment PR #17 gets another commit; this gate's prerequisite does not.
 - **Allowed state change:** run
   `node pdf-service/scripts/deploy-pdf.mjs --target uat` (no `--dry-run`). This is the single command that
   performs the build, push, service/revision creation, traffic assignment, and public-invoker grant — it is one
@@ -149,13 +170,18 @@ so that a mistake in one is caught before the next gate compounds it.
 - **PASS condition:** service Ready with the correct identity, confirmed by the describe call (not merely the
   deploy command's own exit code).
 - **STOP condition:** the deploy command fails, or the resulting service does not show the expected runtime SA,
-  region, or env vars. Do not retry blindly — re-read the failure before a second attempt.
+  region, or env vars — do not retry blindly, re-read the failure before a second attempt; **or**, before the
+  deploy command is even run, the durable deployment-hardening evidence required above (items 1–5) is absent,
+  unmerged into the exact commit being deployed, or unverified. Absence of that evidence is itself a STOP: this
+  gate must not proceed to the actual first deployment while it is missing, whatever B1–B4's own state is.
 - **Rollback:** if this is genuinely the *first* revision, "rollback" means deleting the Cloud Run service
   entirely (there is no prior revision to fall back to) — `gcloud run services delete pm-dashboard-uat-pdf
   --project pm-dashboard-uat-20260820-a7f3 --region asia-southeast1`. On any *later* Stage-B-adjacent redeploy,
   Cloud Run's normal per-revision traffic rollback applies instead.
 - **Forbidden actions:** `--target production`; any manually-assembled `gcloud run deploy` command that bypasses
-  `deploy-pdf.mjs` (that bypass is exactly the historical failure mode `deploy.ps1` used to represent).
+  `deploy-pdf.mjs` (that bypass is exactly the historical failure mode `deploy.ps1` used to represent); running the
+  deploy command at all while the durable deployment-hardening evidence above is absent, regardless of how many
+  other gates have otherwise passed.
 
 ## Gate B6 — Read-only deployed-service verification
 
