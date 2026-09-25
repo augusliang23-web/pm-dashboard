@@ -2467,7 +2467,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="stext" id="pd_highlight"></div>
         <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions (for next week)</div>
         <div class="stext" id="pd_weekly_actions"></div>
-        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Required Action</div>
+        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Mitigation Actions</div>
         <div class="project-risk-table-wrap">
           <table class="project-risk-table">
             <thead><tr><th>Risk / Blocker</th><th>Required Action</th></tr></thead>
@@ -2535,7 +2535,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="overlay no-print" id="projectPdfSectionPicker" role="dialog" aria-modal="true" aria-labelledby="projectPdfSectionPickerTitle">
   <div class="modal project-pdf-picker-modal">
     <div class="modal-hdr"><h3 id="projectPdfSectionPickerTitle">Export project PDF</h3><button class="modal-x" type="button" aria-label="Close PDF section picker" onclick="closeModal('projectPdfSectionPicker')">×</button></div>
-    <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, risk &amp; required action) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
+    <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, Risk &amp; Mitigation Actions) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
     <div class="project-pdf-picker-list">
       <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-brief"><span>Project brief</span></label>
       <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-update"><span>Project update</span></label>
@@ -2587,7 +2587,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="fg"><label class="fl">Highlight</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Add accomplishments, decisions, or changes."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Add actions the team needs to execute next week."></textarea></div>
   <div class="fg">
-    <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
+    <label class="fl">Risk &amp; Mitigation Actions (maps directly to Overview Risk Action Table)</label>
     <div class="risk-pair-editor">
       <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Required Action so the table stays decision-oriented.</div>
       <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Required Action</span><span></span></div>

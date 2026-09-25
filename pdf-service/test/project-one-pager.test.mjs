@@ -31,6 +31,8 @@ test('renders highlights, action items and the primary risk / required action', 
   assert.match(html, /Pilot environment ready/);
   assert.match(html, /Confirm alternate supplier/);
   assert.match(html, /Vendor lead time/);
+  assert.match(html, /<h2>Risk &amp; Mitigation Actions<\/h2>/);
+  assert.doesNotMatch(html, /Risk &amp; Required Action/);
 });
 
 test('preserves a leading "-" or "N." in highlight/action text instead of stripping it as a bullet marker', () => {
