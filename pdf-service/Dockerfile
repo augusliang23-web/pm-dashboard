@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:24.21.0-bookworm-slim
 WORKDIR /app
 
 RUN apt-get update \
@@ -43,8 +43,8 @@ RUN apt-get update \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 RUN node --input-type=module -e "import puppeteer from 'puppeteer'; const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }); await browser.close();"
 COPY src ./src
 ENV NODE_ENV=production
