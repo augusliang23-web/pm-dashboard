@@ -58,6 +58,8 @@ test('every Overview report section has a selectable print identity', () => {
   ]) {
     assert.ok(dashboard.includes(`data-print-section="${section}"`), section);
   }
+  assert.match(dashboard, /<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/);
+  assert.doesNotMatch(dashboard, /<div class="exec-eyebrow">Risk Action Table<\/div>/);
 });
 
 test('Overview selection sends the validated two-step request and does not persist data', () => {

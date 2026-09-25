@@ -2587,7 +2587,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="fg"><label class="fl">Highlight</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Add accomplishments, decisions, or changes."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Add actions the team needs to execute next week."></textarea></div>
   <div class="fg">
-    <label class="fl">Risk &amp; Mitigation Actions (maps directly to Overview Risk Action Table)</label>
+    <label class="fl">Risk &amp; Mitigation Actions (shown in Overview)</label>
     <div class="risk-pair-editor">
       <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Required Action so the table stays decision-oriented.</div>
       <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Required Action</span><span></span></div>
@@ -10094,7 +10094,7 @@ function renderExec(projs, summary, allProjects = projs) {
     <div class="exec-decision-panel risk-action-panel" data-print-section="risk-actions">
       <div class="exec-decision-head">
         <div>
-          <div class="exec-eyebrow">Risk Action Table</div>
+          <div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>
           <div class="exec-decision-title">Decision-oriented risk list</div>
         </div>
         <div class="exec-panel-note">${editableDecisionView ? 'Manual include/exclude available below' : 'Manual risk-list overrides reflected'}</div>
