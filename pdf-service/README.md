@@ -13,25 +13,69 @@ The Cloud Run service uses public ingress so an authenticated GitHub Pages brows
 
 ## Current v2.1 deployment
 
-- Service: `pm-dashboard-pdf`
+- Service: `pm-dashboard-pdf` (Production, deployed) / `pm-dashboard-uat-pdf` (UAT, **not yet deployed** — see below)
 - Region: `asia-southeast1`
-- Allowed browser origin: `https://augusliang23-web.github.io`
-- Public service URL is defined in `../professional-pdf-config.js`; it is an endpoint, not a secret.
+- Allowed browser origins, runtime service account, and Firebase project per environment are the versioned
+  `src/targets/registry.json`, not this file. `../professional-pdf-config.js` and `../env/<env>.json` read the
+  deployed service's URL from that same registry; it is an endpoint, not a secret.
 
-Deploy updates with:
+### Authoritative deployment entrypoint
 
-```powershell
-./deploy.ps1
+Every deploy — UAT or Production — goes through `scripts/deploy-pdf.mjs`. It is the only script that derives
+`PDF_ENVIRONMENT`, `FIREBASE_PROJECT_ID`, and `ALLOWED_ORIGIN` from the target registry and writes them as a
+complete environment replacement, which is what `src/environment.js` requires at startup. Do not hand-build a
+`gcloud run deploy` command outside this script: a manually-assembled command is exactly how the registry and the
+running service's environment previously drifted apart.
+
+Always review a target with `--dry-run` first — it prints the exact `gcloud` command and environment file without
+starting `gcloud`:
+
+```sh
+node scripts/deploy-pdf.mjs --target uat --dry-run
+node scripts/deploy-pdf.mjs --target production --dry-run
 ```
 
-The deployer needs permission to deploy Cloud Run and update service IAM. The runtime account must already exist with the configured name and Firestore viewer role.
+Deploy UAT (the working tree must be clean; UAT needs no extra confirmation flag):
+
+```sh
+node scripts/deploy-pdf.mjs --target uat
+```
+
+Deploy Production (requires the explicit confirmation flag; without it the script refuses before touching `gcloud`):
+
+```sh
+node scripts/deploy-pdf.mjs --target production --confirm-production
+```
+
+The deployer needs permission to deploy Cloud Run and update service IAM. The runtime service account named in the
+registry for the target environment must already exist with the Firestore `roles/datastore.viewer` role — the
+script does not create service accounts or grant IAM.
+
+**UAT status:** `src/targets/registry.json`'s `uat.serviceUrl` and `../env/uat.json`'s `pdfServiceUrl` are both
+`null`. No UAT Cloud Run deployment has happened yet. The UAT dashboard build will show "NOT READY FOR RELEASE"
+for PDF export until a real UAT deploy completes and both files are updated to the same resulting URL.
+
+### Windows entrypoint
+
+`deploy.ps1` is a thin compatibility wrapper: it takes the same `-Target`, `-DryRun`, and `-ConfirmProduction`
+flags and delegates straight to `scripts/deploy-pdf.mjs`. It holds no project, service, or `gcloud` configuration
+of its own, so it cannot drift out of sync with the registry the way the old script did.
+
+```powershell
+./deploy.ps1 -Target uat -DryRun
+./deploy.ps1 -Target uat
+./deploy.ps1 -Target production -DryRun
+./deploy.ps1 -Target production -ConfirmProduction
+```
 
 ## Company GitHub migration
 
 Moving only the source code to a company GitHub repository is supported. The existing Cloud Run service and Firebase project continue to work as long as:
 
 1. `professional-pdf-config.js` keeps the current service URL.
-2. If the new GitHub Pages hostname changes, update Cloud Run `ALLOWED_ORIGIN` to the new origin (scheme + host only; no repository path), then redeploy or update the service environment variable.
+2. If the new GitHub Pages hostname changes, update the origin (scheme + host only; no repository path) in
+   `src/targets/registry.json` for the affected environment, then redeploy that environment with
+   `scripts/deploy-pdf.mjs` so the running service's `ALLOWED_ORIGIN` and the registry stay in agreement.
 3. Keep the Firebase project configuration and authorized sign-in domain aligned with the new site.
 
 No credentials, service-account keys, or generated PDFs are stored in this repository.

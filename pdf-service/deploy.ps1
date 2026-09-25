@@ -1,26 +1,27 @@
-# Production-only Cloud Run deployment. UAT verification must not invoke this script.
+# Windows convenience entrypoint only. Every actual deployment decision -- target validation, project/region/
+# service/runtime-service-account selection from the versioned target registry, Cloud Run configuration, the
+# dirty-working-tree guard, and the Production confirmation gate -- lives in scripts/deploy-pdf.mjs. This wrapper
+# duplicates none of it; it only translates familiar PowerShell flags into that script's arguments.
+#
+# Examples:
+#   ./deploy.ps1 -Target uat -DryRun
+#   ./deploy.ps1 -Target uat
+#   ./deploy.ps1 -Target production -DryRun
+#   ./deploy.ps1 -Target production -ConfirmProduction
 param(
-  [string]$ProjectId = 'project-manager-dashboar-a067f',
-  [string]$Region = 'asia-southeast1',
-  [string]$ServiceName = 'pm-dashboard-pdf',
-  [string]$AllowedOrigin = 'https://augusliang23-web.github.io',
-  [string]$ServiceAccount = 'pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com'
+  [Parameter(Mandatory = $true)]
+  [ValidateSet('uat', 'production')]
+  [string]$Target,
+  [switch]$DryRun,
+  [switch]$ConfirmProduction
 )
 
 $ErrorActionPreference = 'Stop'
 
-gcloud run deploy $ServiceName `
-  --source . `
-  --project $ProjectId `
-  --region $Region `
-  --allow-unauthenticated `
-  --ingress all `
-  --min-instances 0 `
-  --max-instances 1 `
-  --concurrency 1 `
-  --cpu 1 `
-  --memory 1Gi `
-  --timeout 120 `
-  --service-account $ServiceAccount `
-  --set-env-vars "ALLOWED_ORIGIN=$AllowedOrigin" `
-  --quiet
+$deployScript = Join-Path $PSScriptRoot 'scripts/deploy-pdf.mjs'
+$nodeArgs = @($deployScript, '--target', $Target)
+if ($DryRun) { $nodeArgs += '--dry-run' }
+if ($ConfirmProduction) { $nodeArgs += '--confirm-production' }
+
+node @nodeArgs
+exit $LASTEXITCODE
