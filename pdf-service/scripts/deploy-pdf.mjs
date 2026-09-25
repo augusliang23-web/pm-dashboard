@@ -73,9 +73,24 @@ function parseArguments(argv) {
   return parsed;
 }
 
+// On Windows, the gcloud CLI is installed as a `gcloud.cmd` shim, not a native executable. Windows' CreateProcess
+// cannot launch a .cmd/.bat file directly -- only a true native executable can bypass the shell -- so any Windows
+// invocation of gcloud (whether via `spawn` or `execFile`) needs `shell: true` to be resolved through `cmd.exe`.
+// This one helper is the single place that platform decision is made, so `defaultRun` (the real deploy
+// invocation) and `defaultUploadCandidates` (the upload-boundary preflight, added afterward) can never disagree
+// about it the way they briefly did: the preflight's `execFile` call originally omitted `shell: true`, so it
+// could pass on every platform except the one Windows actually needs to run gcloud through a shell on.
+// `execFile`/`spawn` with `shell: true` still take the command's arguments as a plain array -- Node quotes each
+// element before handing the assembled line to the shell -- so this never becomes string concatenation of
+// caller-controlled input.
+export function resolveGcloudExecutable(platform = process.platform) {
+  const windows = platform === 'win32';
+  return { command: windows ? 'gcloud.cmd' : 'gcloud', shell: windows };
+}
+
 async function defaultRun(args, { cwd }) {
-  const windows = process.platform === 'win32';
-  const child = spawn(windows ? 'gcloud.cmd' : 'gcloud', args, { cwd, stdio: 'inherit', shell: windows });
+  const { command, shell } = resolveGcloudExecutable();
+  const child = spawn(command, args, { cwd, stdio: 'inherit', shell });
   return new Promise((done, fail) => { child.on('error', fail); child.on('close', code => done(code ?? 1)); });
 }
 
@@ -154,9 +169,12 @@ export async function defaultGitTrackedFiles(cwd) {
   return stdout.split(/\r\n|\r|\n/).map(line => line.trim()).filter(line => line.length > 0);
 }
 
-export async function defaultUploadCandidates(cwd) {
-  const windows = process.platform === 'win32';
-  const { stdout } = await execFileAsync(windows ? 'gcloud.cmd' : 'gcloud', ['meta', 'list-files-for-upload'], { cwd });
+export async function defaultUploadCandidates(cwd, {
+  platform = process.platform,
+  execFileImpl = execFileAsync
+} = {}) {
+  const { command, shell } = resolveGcloudExecutable(platform);
+  const { stdout } = await execFileImpl(command, ['meta', 'list-files-for-upload'], { cwd, shell });
   return parseUploadManifestOutput(stdout);
 }
 

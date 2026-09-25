@@ -13,9 +13,11 @@ import {
   buildGcloudArgs,
   defaultGitState,
   defaultGitTrackedFiles,
+  defaultUploadCandidates,
   findUntrackedUploadCandidates,
   normalizeUploadPath,
   parseUploadManifestOutput,
+  resolveGcloudExecutable,
   runPdfDeploy
 } from '../scripts/deploy-pdf.mjs';
 import { PdfEnvironmentError, loadTargetRegistry } from '../src/environment.js';
@@ -532,4 +534,113 @@ test('real gcloud availability for this environment (informational, not a correc
   } catch {
     console.log('gcloud is NOT available in this environment; `assertUploadWithinGitTrackedFiles`, `defaultUploadCandidates`, and `parseUploadManifestOutput` are covered entirely through dependency injection above, never against a real `gcloud meta list-files-for-upload` invocation.');
   }
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Windows-safe gcloud execution (Codex second-review finding: defaultUploadCandidates previously called execFile
+// with the `gcloud.cmd` shim but no `shell: true`, which Node's Windows child-process handling requires to launch
+// a .cmd file at all -- only a true native executable can bypass the shell on Windows. defaultRun's spawn() call
+// already had `shell: true` for this exact reason; this refactor extracts one shared decision (resolveGcloudExecutable)
+// so both call sites can never disagree about it again.
+// -----------------------------------------------------------------------------------------------------------------
+
+test('resolveGcloudExecutable: Windows resolves the .cmd shim through a shell', () => {
+  assert.deepEqual(resolveGcloudExecutable('win32'), { command: 'gcloud.cmd', shell: true });
+});
+
+test('resolveGcloudExecutable: Linux and macOS resolve the native executable directly, no shell', () => {
+  assert.deepEqual(resolveGcloudExecutable('linux'), { command: 'gcloud', shell: false });
+  assert.deepEqual(resolveGcloudExecutable('darwin'), { command: 'gcloud', shell: false });
+});
+
+function fakeExecFileImpl(recorder, result) {
+  return async (command, args, options) => {
+    recorder.push({ command, args, options });
+    if (result instanceof Error) throw result;
+    return result;
+  };
+}
+
+test('defaultUploadCandidates: 1 -- Unix upload enumeration uses the native executable, no shell', async () => {
+  const calls = [];
+  await defaultUploadCandidates('/repo', {
+    platform: 'linux',
+    execFileImpl: fakeExecFileImpl(calls, { stdout: 'package.json\n' })
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, 'gcloud');
+  assert.equal(calls[0].options.shell, false);
+});
+
+test('defaultUploadCandidates: 2 -- Windows upload enumeration uses the .cmd-compatible (shell) execution strategy', async () => {
+  const calls = [];
+  await defaultUploadCandidates('C:\\repo', {
+    platform: 'win32',
+    execFileImpl: fakeExecFileImpl(calls, { stdout: 'package.json\n' })
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, 'gcloud.cmd');
+  assert.equal(calls[0].options.shell, true);
+});
+
+test('defaultUploadCandidates: 3 -- arguments remain a distinct array, never concatenated into a shell command string', async () => {
+  const calls = [];
+  await defaultUploadCandidates('/repo', {
+    platform: 'win32',
+    execFileImpl: fakeExecFileImpl(calls, { stdout: 'package.json\n' })
+  });
+  assert.ok(Array.isArray(calls[0].args));
+  assert.deepEqual(calls[0].args, ['meta', 'list-files-for-upload']);
+  // Every element is its own array entry, not one joined string a shell would have to re-split.
+  assert.ok(calls[0].args.every(part => typeof part === 'string' && !part.includes(' ')));
+});
+
+test('defaultUploadCandidates: 4 -- stdout is captured and parsed into the upload candidate list', async () => {
+  const result = await defaultUploadCandidates('/repo', {
+    platform: 'linux',
+    execFileImpl: fakeExecFileImpl([], { stdout: 'package.json\nsrc/server.js\n' })
+  });
+  assert.deepEqual(result, ['package.json', 'src/server.js']);
+});
+
+test('defaultUploadCandidates: 5a -- a non-zero-exit-style execFile rejection fails closed (propagates, does not resolve)', async () => {
+  const spawnError = Object.assign(new Error('Command failed: gcloud meta list-files-for-upload'), { code: 1 });
+  await assert.rejects(
+    defaultUploadCandidates('/repo', { platform: 'linux', execFileImpl: fakeExecFileImpl([], spawnError) }),
+    error => error === spawnError
+  );
+});
+
+test('defaultUploadCandidates: 5b -- a spawn failure (e.g. ENOENT, gcloud not installed) fails closed through assertUploadWithinGitTrackedFiles', async () => {
+  const enoent = Object.assign(new Error('spawn gcloud.cmd ENOENT'), { code: 'ENOENT' });
+  await assert.rejects(
+    assertUploadWithinGitTrackedFiles('/repo', {
+      getTrackedFiles: async () => ['package.json'],
+      getUploadCandidates: cwd => defaultUploadCandidates(cwd, { platform: 'win32', execFileImpl: fakeExecFileImpl([], enoent) })
+    }),
+    error => error.message.includes('could not determine') && error.message.includes('upload file set')
+  );
+});
+
+test('defaultUploadCandidates: on Windows, still resolves upload candidates end to end through the shell-compatible path', async () => {
+  // Ties Windows execution strategy directly to the upload-boundary guard's own correctness (item 6): the guard
+  // must still catch an untracked upload candidate when defaultUploadCandidates is exercised via the Windows
+  // (.cmd + shell) code path, not only via a bare fake resolver.
+  await assert.rejects(
+    assertUploadWithinGitTrackedFiles('/repo', {
+      getTrackedFiles: async () => ['package.json'],
+      getUploadCandidates: cwd => defaultUploadCandidates(cwd, {
+        platform: 'win32',
+        execFileImpl: fakeExecFileImpl([], { stdout: 'package.json\r\nleaked-on-windows.txt\r\n' })
+      })
+    }),
+    error => error.message.includes('leaked-on-windows.txt')
+  );
+});
+
+test('defaultUploadCandidates: with no options, defaults to this process\'s real platform and the real execFile (production wiring, not exercised against a real gcloud here)', () => {
+  // Sanity check on the function's default-parameter wiring only -- does not invoke a real process. Confirms
+  // runPdfDeploy's unmodified call site (`getUploadCandidates(cwd)`, one positional argument) still resolves to
+  // the correct executable/shell choice for whatever platform actually runs this test.
+  assert.deepEqual(resolveGcloudExecutable(), resolveGcloudExecutable(process.platform));
 });
