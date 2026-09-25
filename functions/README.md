@@ -32,6 +32,24 @@ The existing Executive milestone Callables and scheduled presence aggregator
 are deliberately outside this minimal deployment target and must not be
 deleted, redeployed, or otherwise changed by this patch.
 
+### Core Production Function governance
+
+`config/deployment-manifest.json` separates Functions into three explicit
+categories. **Managed** (`functionsAllowlist`) is the only set that a Core
+Production deployment may publish or update: the eight dashboard Callables and
+the presence scheduler. **Preserved** (`functionsPreserveExisting`) contains the
+eight Executive Functions already live in Production. They may remain live, but
+Core must not deploy, update, or delete them, and their presence is not drift.
+**Forbidden** (`functionsNeverDeploy`) contains the three UAT-only sync
+Functions. Any other live name is unknown and blocks deployment. Preserved
+Functions must never be included in a cleanup target list.
+
+The read-only inventory check and explicit `functions:name` selection in
+`scripts/deployment-manifest.mjs` enforce these distinct decisions. They do not
+perform deployment or deletion. Executive rollout remains a separate future
+release and security decision; preserving the existing runtime is not approval
+to release Executive code.
+
 ## Presence Session Aggregation
 
 The existing `aggregatePresenceSessions` scheduled function converts closed or

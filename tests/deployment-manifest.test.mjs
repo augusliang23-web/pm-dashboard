@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
-  DeploymentManifestError, ENVIRONMENTS, assertNoLiveFunctionOutsideAllowlist,
+  DeploymentManifestError, ENVIRONMENTS, assertLiveFunctionInventory,
   buildFunctionsOnlyFlag, functionsAllowlistFor, loadDeploymentManifest, validateManifestAgainstSource
 } from '../scripts/deployment-manifest.mjs';
 import { HOSTING_TARGETS } from '../scripts/hosting-env.mjs';
@@ -21,7 +21,7 @@ test('the manifest is fully consistent with functions/index.js, hosting targets,
   await assert.doesNotReject(validateManifestAgainstSource(repoRoot, manifest));
 });
 
-test('every function exported by functions/index.js is covered exactly once (allowlist xor never-deploy) per environment', async () => {
+test('every source Function has exactly one managed, preserved, or forbidden policy', async () => {
   const indexSource = await readFile(join(repoRoot, 'functions', 'index.js'), 'utf8');
   const sourceExports = [...indexSource.matchAll(/^exports\.([A-Za-z0-9_]+)\s*=/gm)].map(m => m[1]).sort();
   assert.equal(sourceExports.length, 20, 'sanity: functions/index.js export count changed; update this test deliberately');
@@ -29,15 +29,16 @@ test('every function exported by functions/index.js is covered exactly once (all
   for (const name of ENVIRONMENTS) {
     const env = manifest.environments[name];
     const allow = new Set(env.functionsAllowlist);
+    const preserved = new Set(env.functionsPreserveExisting || []);
     const never = new Set(Object.values(env.functionsNeverDeploy || {}).flat());
-    assert.deepEqual([...allow].filter(fn => never.has(fn)), [], `${name}: allowlist and never-deploy must not overlap`);
     for (const fn of sourceExports) {
-      assert.equal(allow.has(fn) !== never.has(fn), true, `${name}: "${fn}" must be in exactly one of allowlist/never-deploy`);
+      assert.equal(Number(allow.has(fn)) + Number(preserved.has(fn)) + Number(never.has(fn)), 1,
+        `${name}: "${fn}" must have exactly one policy`);
     }
   }
 });
 
-test('Production never deploys the Executive milestone Callables (Control Plane decision 2: UAT runtime only)', () => {
+test('Production preserves exactly the eight live Executive Callables outside Core deployment', () => {
   const prod = manifest.environments.prod;
   const executiveFunctions = [
     'addExecutiveMilestoneUpdate', 'createExecutiveMilestoneChangeRequest', 'withdrawExecutiveMilestoneChangeRequest',
@@ -46,9 +47,9 @@ test('Production never deploys the Executive milestone Callables (Control Plane 
   ];
   for (const fn of executiveFunctions) {
     assert.ok(!prod.functionsAllowlist.includes(fn), `Production allowlist must not include "${fn}"`);
-    assert.ok(prod.functionsNeverDeploy.executiveMilestone?.includes(fn), `Production functionsNeverDeploy.executiveMilestone must explicitly name "${fn}"`);
+    assert.ok(prod.functionsPreserveExisting?.includes(fn), `Production must explicitly preserve "${fn}"`);
   }
-  assert.deepEqual([...executiveFunctions].sort(), [...prod.functionsNeverDeploy.executiveMilestone].sort());
+  assert.deepEqual([...executiveFunctions].sort(), [...prod.functionsPreserveExisting].sort());
 });
 
 test('Production never deploys the Production-to-UAT sync Callables (Control Plane decision 3)', () => {
@@ -71,6 +72,7 @@ test('Production keeps exactly the eight-function dashboard write/Gantt contract
 
 test('UAT allows every function; nothing is silently excluded there', () => {
   assert.equal(functionsAllowlistFor(manifest, 'uat').length, 20);
+  assert.deepEqual(manifest.environments.uat.functionsPreserveExisting, []);
   assert.deepEqual(manifest.environments.uat.functionsNeverDeploy, {});
 });
 
@@ -84,13 +86,60 @@ test('buildFunctionsOnlyFlag names each function individually and never emits a 
   }
 });
 
-test('assertNoLiveFunctionOutsideAllowlist passes for a live list inside the allowlist and throws for one outside it', () => {
-  const allowed = functionsAllowlistFor(manifest, 'prod');
-  assert.doesNotThrow(() => assertNoLiveFunctionOutsideAllowlist(manifest, 'prod', allowed.slice(0, 2)));
-  assert.throws(
-    () => assertNoLiveFunctionOutsideAllowlist(manifest, 'prod', [...allowed, 'addExecutiveMilestoneUpdate']),
-    error => error instanceof DeploymentManifestError && error.message.includes('addExecutiveMilestoneUpdate')
-  );
+test('Production live inventory accepts Executive Functions without marking them as drift or cleanup candidates', () => {
+  const core = functionsAllowlistFor(manifest, 'prod');
+  const executive = manifest.environments.prod.functionsPreserveExisting;
+  const result = assertLiveFunctionInventory(manifest, 'prod', [...core, ...executive]);
+  assert.deepEqual(result.managed, core);
+  assert.deepEqual(result.preserved, executive);
+  assert.deepEqual(result.unexpected, []);
+});
+
+test('Production live inventory accepts core-only and UAT behavior stays unchanged', () => {
+  const core = functionsAllowlistFor(manifest, 'prod');
+  assert.deepEqual(assertLiveFunctionInventory(manifest, 'prod', core).preserved, []);
+  const uat = functionsAllowlistFor(manifest, 'uat');
+  assert.deepEqual(assertLiveFunctionInventory(manifest, 'uat', uat).managed, uat);
+});
+
+for (const [label, extra] of [
+  ['UAT sync', 'syncProductionWeeksToUat'],
+  ['unknown', 'randomUnknownFunction'],
+  ['Executive plus unknown', 'randomUnknownFunction'],
+  ['Executive lookalike', 'addExecutiveMilestoneUpdates']
+]) {
+  test(`Production live inventory rejects ${label}`, () => {
+    const core = functionsAllowlistFor(manifest, 'prod');
+    const live = label === 'Executive plus unknown'
+      ? [...core, 'addExecutiveMilestoneUpdate', extra] : [...core, extra];
+    assert.throws(() => assertLiveFunctionInventory(manifest, 'prod', live),
+      error => error instanceof DeploymentManifestError && error.message.includes(extra));
+  });
+}
+
+test('Core deploy selector accepts managed names but rejects Executive and UAT sync', () => {
+  assert.equal(buildFunctionsOnlyFlag(manifest, 'prod', ['saveDashboardProject']), 'functions:saveDashboardProject');
+  for (const denied of ['addExecutiveMilestoneUpdate', 'syncProductionWeeksToUat']) {
+    assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', [denied]),
+      error => error instanceof DeploymentManifestError && error.message.includes(denied));
+  }
+});
+
+test('generated Core deploy command excludes every preserved Executive Function', () => {
+  const command = buildFunctionsOnlyFlag(manifest, 'prod');
+  for (const name of manifest.environments.prod.functionsPreserveExisting) {
+    assert.ok(!command.split(',').includes(`functions:${name}`));
+  }
+});
+
+test('manifest validation rejects overlaps and missing Executive policy entries', async () => {
+  const overlap = structuredClone(manifest);
+  overlap.environments.prod.functionsPreserveExisting.push('saveDashboardProject');
+  await assert.rejects(validateManifestAgainstSource(repoRoot, overlap), DeploymentManifestError);
+
+  const missing = structuredClone(manifest);
+  missing.environments.prod.functionsPreserveExisting.pop();
+  await assert.rejects(validateManifestAgainstSource(repoRoot, missing), DeploymentManifestError);
 });
 
 test('each environment\'s hostingTarget and pdfTarget resolve to that environment\'s Firebase project', async () => {
