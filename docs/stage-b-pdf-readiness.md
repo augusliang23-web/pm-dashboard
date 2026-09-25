@@ -1,25 +1,28 @@
 # Stage B PDF Readiness — Current State
 
-Last updated against: `origin/main` at `472e102379934c516bebb9ebc7736dd3968c70d3` (PR #18 merge commit), with
-PR #17 open at head `67963c09ff9afeada7e9de538ef58e2cc13d030e`, and this Stage B UAT PDF preflight pack proposed
-as its own PR on branch `claude/stage-b-uat-pdf-preflight`.
+This document intentionally avoids pinning itself to any single PR #17 commit, reviewer verdict, or blocker
+description. PR #17 is under active, ongoing independent review; its exact head, its latest finding, and
+whether a given remediation is "pending" or "closed" all change between edits of this file. Recording any of
+that here would make this document require a new commit every time PR #17 receives another commit or another
+reviewer finding — so it doesn't. What follows is the durable, non-volatile state instead:
 
-**PR #17 IS OPEN / UNMERGED / CHANGES REQUIRED.** A Codex targeted independent re-review of PR #17's
-untracked-file dirty-tree-guard fix has completed, with verdict **CHANGES REQUIRED**:
-
-- The original blocker (an ordinary untracked file escaping the dirty-tree deploy guard) is **closed** — the
-  guard the re-review was targeting now correctly treats modified, staged, deleted, renamed, and untracked
-  tracked-tree changes as dirty.
-- A second, adjacent upload-boundary issue was found and remains **open**: a file can be git-ignored — so
-  `git status --porcelain` (and therefore the dirty-tree guard) reports the tree as clean — while gcloud's own
-  `.gcloudignore`-driven source upload for `gcloud run deploy --source .` still includes it, because nothing
-  ties git's ignore configuration to gcloud's. This document does not speculate about, or claim, any particular
-  fix for that issue — remediation is pending as its own PR #17 commit, to be followed by another targeted
-  Codex re-review before PR #17 can be considered ready.
-- PR #17 remains open and unmerged pending that remediation and the re-review that follows it.
-
-**STAGE B IS NOT STARTED.** No UAT PDF Cloud Run service exists. No cloud action of any kind has been taken by
-this document, the preflight tool, or the runbook it accompanies.
+1. **PR #17 is the current implementation vehicle for PDF deployment hardening** — the clean-tree and
+   upload-boundary guards in `pdf-service/scripts/deploy-pdf.mjs` that Gate B5 (below) depends on.
+2. **PR #17 remains OPEN / UNMERGED** until Control Plane explicitly closes its independent-review and merge
+   gates. This document does not claim PR #17 is approved, and does not claim it is merged.
+3. **The authoritative deployment prerequisite is Gate B5** in `docs/stage-b-pdf-uat-runbook.md`, not this
+   document's summary of PR #17's review state.
+4. **Before Gate B5 may run**, the exact source commit being deployed must: contain independently reviewed
+   deployment hardening; have that hardening actually merged into the exact commit being deployed (not merely
+   present on some other branch or an earlier commit); enforce clean-tree protection (tracked and untracked
+   changes alike); enforce that gcloud's actual source-upload file set is a subset of the git-tracked file set;
+   and have its own required CI green on that exact commit. See Gate B5's Prerequisites for the full, current
+   wording of this requirement.
+5. **Operators must verify live GitHub/PR state at execution time** — PR #17's actual current head, its actual
+   current review status, and whether any remediation is actually merged — rather than relying on this document
+   for that information. This document's own snapshot can be, and will become, stale between reviewer cycles.
+6. **Stage B remains NOT STARTED.** No UAT PDF Cloud Run service exists. No cloud action of any kind has been
+   taken by this document, the preflight tool, or the runbook it accompanies.
 
 ## CLOSED
 
@@ -34,10 +37,8 @@ this document, the preflight tool, or the runbook it accompanies.
 
 ## PENDING
 
-- PR #17 upload-boundary remediation (gcloud's actual source-upload file set must be a subset of the git-tracked
-  file set; a git-ignored file must not be able to reach the upload undetected)
-- Another targeted Codex independent re-review of PR #17, after that remediation lands
-- PR #17 merge
+- PR #17's independent review and merge (whatever findings and remediation that review currently requires —
+  see the live PR for the actual, current state; this document does not track it commit-by-commit)
 - This Stage B UAT PDF preflight pack's own review and merge
 - Stage B cloud preflight (Gates B1–B4 in `docs/stage-b-pdf-uat-runbook.md`)
 - First UAT PDF Cloud Run deployment (Gate B5)
@@ -49,7 +50,7 @@ this document, the preflight tool, or the runbook it accompanies.
 
 ## Current source-of-truth state (verified, not asserted)
 
-Running `node scripts/stage-b-pdf-preflight.mjs --phase predeploy` against this repository at the commit above
+Running `node scripts/stage-b-pdf-preflight.mjs --phase predeploy` against this repository's current source
 returns `OVERALL: PASS`, including:
 
 - `pdf-service/src/targets/registry.json`'s `targets.uat.serviceUrl` is `null`
@@ -66,17 +67,6 @@ returns `OVERALL: PASS`, including:
 This is the expected state before Gate B5. If a future run of this same command reports either URL as non-null
 before Gate B5 has actually happened, that is configuration drift and must be investigated before proceeding —
 do not silently treat it as "someone must have deployed it already."
-
-## Gate B5's durable prerequisite vs. this document's snapshot
-
-`docs/stage-b-pdf-uat-runbook.md`'s Gate B5 requires the exact commit being deployed to carry an independently
-approved, merged deployment-hardening guard in `pdf-service/scripts/deploy-pdf.mjs` (clean-tree **and**
-upload-boundary enforcement, with its own CI green) — see that gate's Prerequisites for the full requirement.
-**PR #17 is the current implementation vehicle for that guard, not the requirement itself.** The PENDING list
-below and the PR #17 status paragraph above are a snapshot as of the commit named at the top of this document;
-they will go stale the moment PR #17 receives another commit or is superseded. Gate B5's own prerequisite text
-does not go stale the same way — re-check it directly against whatever commit is actually about to be deployed,
-rather than relying on this document's snapshot alone.
 
 ## Technical Debt Register
 
