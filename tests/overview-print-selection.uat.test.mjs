@@ -54,6 +54,9 @@ test('every Overview report section has a selectable print identity', () => {
   }
   assert.match(dashboard, /<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/);
   assert.doesNotMatch(dashboard, /<div class="exec-eyebrow">Risk Action Table<\/div>/);
+  const riskTableRenderer = dashboard.match(/function renderRiskActionTable\([\s\S]*?\n\}/)?.[0] || '';
+  assert.match(riskTableRenderer, /<th>Mitigation Actions<\/th>/);
+  assert.doesNotMatch(riskTableRenderer, /<th>Required Action<\/th>/);
 });
 
 test('Overview selection sends the validated two-step request and does not persist data', () => {

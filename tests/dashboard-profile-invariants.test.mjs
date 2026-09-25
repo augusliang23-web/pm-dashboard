@@ -8,6 +8,7 @@ import { dashboardSource, environmentFor, functionInventory, rawDashboardSource 
 import { renderEnvConfig } from '../scripts/env-config.mjs';
 
 const baselines = JSON.parse(readFileSync(new URL('./fixtures/dashboard-baselines.json', import.meta.url), 'utf8'));
+const literalCount = (source, literal) => source.split(literal).length - 1;
 
 function assertModuleParses(profile) {
   const source = dashboardSource(profile);
@@ -42,7 +43,23 @@ test('the Production profile runs every Production e1f0e5c function byte-for-byt
   const overviewRiskHeading = '<div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>';
   assert.equal((productionSource.match(/<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/g) || []).length, 1);
   // Normalize only the approved Overview copy change before checking the function's existing behavior hash.
-  const view = functionInventory(productionSource.replace(overviewRiskHeading, '<div class="exec-eyebrow">Risk Action Table</div>'));
+  let normalizedProductionSource = productionSource.replace(overviewRiskHeading, '<div class="exec-eyebrow">Risk Action Table</div>');
+  const newRiskTableRow = '<table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Mitigation Actions</th><th>Checkpoint</th></tr></thead><tbody>';
+  const oldRiskTableRow = '<table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>';
+  assert.equal(literalCount(normalizedProductionSource, newRiskTableRow), 1);
+  normalizedProductionSource = normalizedProductionSource.replace(newRiskTableRow, oldRiskTableRow);
+
+  const approvedRowLabelPairs = [
+    ['data-list-label="Mitigation Actions"', 'data-list-label="Required Action"'],
+    ['placeholder="Mitigation Actions shown in Overview"', 'placeholder="Required Action shown in Overview"'],
+    ['aria-label="Mitigation actions"', 'aria-label="Required action"']
+  ];
+  for (const [newLiteral, baselineLiteral] of approvedRowLabelPairs) {
+    assert.equal(literalCount(normalizedProductionSource, newLiteral), 1);
+    normalizedProductionSource = normalizedProductionSource.replace(newLiteral, baselineLiteral);
+  }
+
+  const view = functionInventory(normalizedProductionSource);
   const changed = Object.entries(baselines.productionFunctions)
     .filter(([name, hash]) => view[name] !== hash)
     .map(([name]) => name);

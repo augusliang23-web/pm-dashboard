@@ -2470,7 +2470,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Mitigation Actions</div>
         <div class="project-risk-table-wrap">
           <table class="project-risk-table">
-            <thead><tr><th>Risk / Blocker</th><th>Required Action</th></tr></thead>
+            <thead><tr><th>Risk / Blocker</th><th>Mitigation Actions</th></tr></thead>
             <tbody id="pd_risk_action_rows"></tbody>
           </table>
         </div>
@@ -2589,8 +2589,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="fg">
     <label class="fl">Risk &amp; Mitigation Actions (shown in Overview)</label>
     <div class="risk-pair-editor">
-      <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Required Action so the table stays decision-oriented.</div>
-      <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Required Action</span><span></span></div>
+      <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Mitigation Actions entry so the table stays decision-oriented.</div>
+      <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Mitigation Actions</span><span></span></div>
       <div id="riskActionPairContainer"></div>
       <button class="btn btn-ghost" onclick="addRiskActionPairRow()" style="width:100%;">+ Add Risk / Action Pair</button>
     </div>
@@ -8842,7 +8842,7 @@ function renderRiskActionTable(projs, editable) {
   }
   const rows = projs.filter(shouldIncludeRisk);
   return `<div class="risk-rule"><b>Rule:</b> projects are included when they are At Risk/Critical, need executive action or close monitoring, contain blocker text, or have a milestone marked at risk. Only the Primary risk/action pair is shown in this executive list.</div>
-  <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>
+  <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Mitigation Actions</th><th>Checkpoint</th></tr></thead><tbody>
     ${rows.map(p => {
       const primary = getPrimaryRiskActionPair(p);
       return `<tr><td><b>${escHtml(p.name)}${overviewProjectBadge(p)}</b><br><span class="proj-code">${escHtml(p.code)}</span></td>
@@ -11540,7 +11540,7 @@ window.addRiskActionPairRow = (item = {}) => {
   row.innerHTML = `
     <label class="risk-primary-control"><input type="radio" name="riskActionPrimary" class="rap-primary" ${primary || isFirst ? 'checked' : ''}> Primary</label>
     <div class="risk-list-cell" data-list-label="Risk / Blocker"><textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview" aria-label="Risk or blocker"></textarea></div>
-    <div class="risk-list-cell" data-list-label="Required Action"><textarea class="ft rap-action" rows="2" placeholder="Required Action shown in Overview" aria-label="Required action"></textarea></div>
+    <div class="risk-list-cell" data-list-label="Mitigation Actions"><textarea class="ft rap-action" rows="2" placeholder="Mitigation Actions shown in Overview" aria-label="Mitigation actions"></textarea></div>
     <button type="button" class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair" aria-label="Delete risk/action pair">&#128465;&#65039;</button>
   `;
   container.appendChild(row);

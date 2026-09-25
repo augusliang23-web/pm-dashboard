@@ -46,7 +46,7 @@ test('budget rule inputs shrink within their grid instead of overlapping budget 
 test('dynamic Project Editor inputs have explicit accessible names and units', () => {
   for (const label of [
     'Risk or blocker',
-    'Required action',
+    'Mitigation actions',
     'Milestone name',
     'Milestone date',
     'Milestone status',

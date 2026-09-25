@@ -120,6 +120,24 @@ test('keeps overview signals together while giving Executive Summary dedicated p
   assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 1);
   assert.match(html, /data-report-section="overview-management"[\s\S]*data-section-unit="attention-matrix"[\s\S]*data-section-unit="risk-actions"/);
   assert.match(html, /<h2 class="pdf-continuation-label">Risk &amp; Mitigation Actions<\/h2>/);
+  assert.match(html, /<th>Mitigation Actions<\/th>/);
+});
+
+test('labels project portfolio mitigation actions and uses its matching empty state', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [{
+    ...fixture.week.projects[0],
+    riskActions: [{ risk: 'Vendor lead time', action: '' }]
+  }];
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.match(html, /Risk &amp; Mitigation Actions/);
+  assert.match(html, /<span>Mitigation Actions<\/span>/);
+  assert.match(html, /No mitigation action reported\./);
+  assert.doesNotMatch(html, /<span>Required action<\/span>/);
+  assert.doesNotMatch(html, /No required action reported\./);
 });
 
 test('uses one measured source flow per project portfolio', () => {
