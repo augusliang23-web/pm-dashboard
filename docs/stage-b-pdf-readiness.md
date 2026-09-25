@@ -4,7 +4,19 @@ Last updated against: `origin/main` at `472e102379934c516bebb9ebc7736dd3968c70d3
 PR #17 open at head `67963c09ff9afeada7e9de538ef58e2cc13d030e`, and this Stage B UAT PDF preflight pack proposed
 as its own PR on branch `claude/stage-b-uat-pdf-preflight`.
 
-**PR #17 IS OPEN / UNMERGED.**
+**PR #17 IS OPEN / UNMERGED / CHANGES REQUIRED.** A Codex targeted independent re-review of PR #17's
+untracked-file dirty-tree-guard fix has completed, with verdict **CHANGES REQUIRED**:
+
+- The original blocker (an ordinary untracked file escaping the dirty-tree deploy guard) is **closed** — the
+  guard the re-review was targeting now correctly treats modified, staged, deleted, renamed, and untracked
+  tracked-tree changes as dirty.
+- A second, adjacent upload-boundary issue was found and remains **open**: a file can be git-ignored — so
+  `git status --porcelain` (and therefore the dirty-tree guard) reports the tree as clean — while gcloud's own
+  `.gcloudignore`-driven source upload for `gcloud run deploy --source .` still includes it, because nothing
+  ties git's ignore configuration to gcloud's. This document does not speculate about, or claim, any particular
+  fix for that issue — remediation is pending as its own PR #17 commit, to be followed by another targeted
+  Codex re-review before PR #17 can be considered ready.
+- PR #17 remains open and unmerged pending that remediation and the re-review that follows it.
 
 **STAGE B IS NOT STARTED.** No UAT PDF Cloud Run service exists. No cloud action of any kind has been taken by
 this document, the preflight tool, or the runbook it accompanies.
@@ -22,7 +34,9 @@ this document, the preflight tool, or the runbook it accompanies.
 
 ## PENDING
 
-- PR #17 independent targeted re-review (Codex re-review of the untracked-file dirty-tree-guard fix)
+- PR #17 upload-boundary remediation (gcloud's actual source-upload file set must be a subset of the git-tracked
+  file set; a git-ignored file must not be able to reach the upload undetected)
+- Another targeted Codex independent re-review of PR #17, after that remediation lands
 - PR #17 merge
 - This Stage B UAT PDF preflight pack's own review and merge
 - Stage B cloud preflight (Gates B1–B4 in `docs/stage-b-pdf-uat-runbook.md`)
