@@ -61,12 +61,25 @@ for PDF export until a real UAT deploy completes and both files are updated to t
 flags and delegates straight to `scripts/deploy-pdf.mjs`. It holds no project, service, or `gcloud` configuration
 of its own, so it cannot drift out of sync with the registry the way the old script did.
 
+**Real PDF deployment on Windows is not supported by this release.** Running `gcloud` on Windows requires
+launching its `gcloud.cmd` shim through a shell, and Node's `shell: true` option does not individually escape or
+quote arguments the way this project previously and incorrectly documented — real Windows execution of gcloud has
+therefore never actually been proven safe or exercised here. `scripts/deploy-pdf.mjs` refuses any real deploy
+(UAT or Production) with a clear error the moment it detects it is running on Windows, before it touches git or
+gcloud at all. This check follows the operating system the Node process actually runs on, so `deploy.ps1` launched
+under PowerShell Core on macOS/Linux is unaffected — only real Windows execution is blocked.
+
+`-DryRun` remains fully supported on every platform, including native Windows, since it never invokes `gcloud`:
+
 ```powershell
 ./deploy.ps1 -Target uat -DryRun
-./deploy.ps1 -Target uat
 ./deploy.ps1 -Target production -DryRun
-./deploy.ps1 -Target production -ConfirmProduction
 ```
+
+A real deploy (`-Target uat` or `-Target production -ConfirmProduction`, without `-DryRun`) only succeeds when run
+on macOS or Linux — use the validated macOS/Linux deployment path there, or from CI. A future, dedicated
+Windows-support PR may implement and prove real Windows deployment safely; this release deliberately does not
+attempt it.
 
 ## Company GitHub migration
 

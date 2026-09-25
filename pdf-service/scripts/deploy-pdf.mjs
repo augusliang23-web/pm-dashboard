@@ -74,18 +74,42 @@ function parseArguments(argv) {
 }
 
 // On Windows, the gcloud CLI is installed as a `gcloud.cmd` shim, not a native executable. Windows' CreateProcess
-// cannot launch a .cmd/.bat file directly -- only a true native executable can bypass the shell -- so any Windows
-// invocation of gcloud (whether via `spawn` or `execFile`) needs `shell: true` to be resolved through `cmd.exe`.
-// This one helper is the single place that platform decision is made, so `defaultRun` (the real deploy
-// invocation) and `defaultUploadCandidates` (the upload-boundary preflight, added afterward) can never disagree
-// about it the way they briefly did: the preflight's `execFile` call originally omitted `shell: true`, so it
-// could pass on every platform except the one Windows actually needs to run gcloud through a shell on.
-// `execFile`/`spawn` with `shell: true` still take the command's arguments as a plain array -- Node quotes each
-// element before handing the assembled line to the shell -- so this never becomes string concatenation of
-// caller-controlled input.
+// cannot launch a .cmd/.bat file directly -- only a true native executable can bypass a shell there -- so any
+// Windows invocation of gcloud needs `shell: true` just to start the process at all.
+//
+// That option is not a safety guarantee, and this comment previously and incorrectly claimed it was one: Node's
+// own DEP0190 deprecation notice is explicit that with `shell: true`, the argument array is NOT individually
+// quoted or escaped -- it is joined with spaces before being handed to cmd.exe, exactly like a hand-built command
+// string would be. Every argument this module passes to gcloud today is a fixed literal or comes from the
+// versioned target registry, never unsanitized external input, so this has not been exploitable in practice --
+// but "not exploitable in practice today" is a different, much weaker claim than "safely escaped," and this code
+// makes no attempt at ad-hoc quoting to bridge that gap. Real Windows execution of gcloud has therefore also never
+// actually been exercised against a real `gcloud.cmd` shim in this project.
+//
+// Given that, real PDF deployment on Windows is not supported by this release at all (see
+// assertPlatformSupportsRealDeploy below, which fails every real deploy closed before any of this is reached).
+// This helper and the `shell: true` branch remain defined only so `resolveGcloudExecutable` and
+// `defaultUploadCandidates` stay directly unit-testable, and so a future, dedicated Windows-support PR that
+// implements and proves safe real Windows execution (e.g. by invoking a native launcher instead of a shell, or by
+// quoting arguments correctly) has something to build on. No supported code path in this module reaches the
+// Windows branch of this helper today.
 export function resolveGcloudExecutable(platform = process.platform) {
   const windows = platform === 'win32';
   return { command: windows ? 'gcloud.cmd' : 'gcloud', shell: windows };
+}
+
+// Control Plane decision: real PDF deployment (UAT or Production) is supported only on the validated macOS/Linux
+// path. --dry-run remains supported on every platform, including Windows, because it never invokes gcloud at all
+// -- it only logs the command that would run. This check runs before the Production confirmation gate, the
+// git-clean check, the upload-manifest boundary check, and the temporary env file, so a Windows caller never
+// reaches any of that, let alone gcloud.
+export function assertPlatformSupportsRealDeploy(platform = process.platform) {
+  if (platform === 'win32') {
+    throw new Error(
+      'Real PDF deployment on Windows is not supported by this release. Use the validated macOS/Linux deployment ' +
+      'path (Windows may still use --dry-run, which works on every platform and never invokes gcloud).'
+    );
+  }
 }
 
 async function defaultRun(args, { cwd }) {
@@ -233,16 +257,19 @@ export async function runPdfDeploy(argv, options = {}) {
     getGitState = defaultGitState,
     getTrackedFiles = defaultGitTrackedFiles,
     getUploadCandidates = defaultUploadCandidates,
+    platform = process.platform,
     cwd = PDF_SERVICE_DIR,
     onEnvFile = () => {}
   } = options;
   const { target: name, dryRun, confirmProduction } = parseArguments(argv);
   const target = assertTargetIsDeployable(name, registry);
   if (!dryRun) {
-    // Order matters: target validity, then the Production confirmation gate, then the git-clean check, then the
+    // Order matters: platform support, then the Production confirmation gate, then the git-clean check, then the
     // gcloud upload-boundary check -- all before the temp env file is even created, let alone gcloud invoked.
-    // None of this runs in --dry-run: a dry run must stay usable without gcloud installed at all (as this exact
-    // sandbox demonstrates), so it is deliberately never made to depend on gcloud's own tooling being present.
+    // None of this runs in --dry-run: a dry run must stay usable on every platform, including Windows, and
+    // without gcloud installed at all (as this exact sandbox demonstrates), so it is deliberately never made to
+    // depend on gcloud's own tooling being present.
+    assertPlatformSupportsRealDeploy(platform);
     if (name === 'production' && !confirmProduction) throw new Error('Deploying the production PDF service requires --confirm-production.');
     const git = await getGitState(cwd);
     if (git.dirty) throw new Error('Refusing to deploy: the working tree is not completely clean (modified, staged, deleted, renamed, or untracked files present).');

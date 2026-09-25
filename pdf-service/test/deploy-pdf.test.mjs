@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import {
   UploadManifestError,
+  assertPlatformSupportsRealDeploy,
   assertTargetIsDeployable,
   assertUploadWithinGitTrackedFiles,
   buildEnvVarsYaml,
@@ -643,4 +644,148 @@ test('defaultUploadCandidates: with no options, defaults to this process\'s real
   // runPdfDeploy's unmodified call site (`getUploadCandidates(cwd)`, one positional argument) still resolves to
   // the correct executable/shell choice for whatever platform actually runs this test.
   assert.deepEqual(resolveGcloudExecutable(), resolveGcloudExecutable(process.platform));
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Windows fail-closed policy (Control Plane decision: real PDF deployment is supported only on the validated
+// macOS/Linux path; Windows real deployment has never been exercised against a real gcloud.cmd shim and
+// shell:true does not safely escape arguments -- see assertPlatformSupportsRealDeploy's own comment). --dry-run
+// remains supported on every platform, since it never invokes gcloud at all.
+// -----------------------------------------------------------------------------------------------------------------
+
+test('assertPlatformSupportsRealDeploy: rejects win32 with an actionable message', () => {
+  assert.throws(
+    () => assertPlatformSupportsRealDeploy('win32'),
+    error => error.message.includes('Windows') && error.message.includes('not supported') && error.message.includes('macOS/Linux')
+  );
+});
+
+test('assertPlatformSupportsRealDeploy: does not throw for linux or darwin', () => {
+  assert.doesNotThrow(() => assertPlatformSupportsRealDeploy('linux'));
+  assert.doesNotThrow(() => assertPlatformSupportsRealDeploy('darwin'));
+});
+
+test('1. runPdfDeploy: a real Windows UAT deploy fails closed before git or upload-manifest enumeration', async () => {
+  await assert.rejects(
+    runPdfDeploy(['--target', 'uat'], {
+      registry,
+      platform: 'win32',
+      run: neverCalled('run'),
+      getGitState: neverCalled('getGitState'),
+      getTrackedFiles: neverCalled('getTrackedFiles'),
+      getUploadCandidates: neverCalled('getUploadCandidates'),
+      log: () => {}
+    }),
+    error => error.message.includes('Windows') && error.message.includes('not supported')
+  );
+});
+
+test('2. runPdfDeploy: a real Windows Production deploy fails closed before the Production confirmation check and before gcloud', async () => {
+  // Deliberately omits --confirm-production too: platform support is checked first, so the error names the
+  // Windows policy, not the missing confirmation flag -- proving the platform gate really runs first.
+  await assert.rejects(
+    runPdfDeploy(['--target', 'production'], {
+      registry,
+      platform: 'win32',
+      run: neverCalled('run'),
+      getGitState: neverCalled('getGitState'),
+      getTrackedFiles: neverCalled('getTrackedFiles'),
+      getUploadCandidates: neverCalled('getUploadCandidates'),
+      log: () => {}
+    }),
+    error => error.message.includes('Windows') && error.message.includes('not supported')
+  );
+});
+
+test('3. runPdfDeploy: a Windows dry-run remains safe -- succeeds, never touches git, gcloud, or the upload manifest', async () => {
+  const logs = [];
+  const code = await runPdfDeploy(['--target', 'uat', '--dry-run'], {
+    registry,
+    platform: 'win32',
+    run: neverCalled('run'),
+    getGitState: neverCalled('getGitState'),
+    getTrackedFiles: neverCalled('getTrackedFiles'),
+    getUploadCandidates: neverCalled('getUploadCandidates'),
+    log: message => logs.push(message),
+    onEnvFile: () => {}
+  });
+  assert.equal(code, 0);
+  assert.ok(logs.some(line => line.includes('Dry run: gcloud was not started.')));
+});
+
+test('3b. runPdfDeploy: a Windows Production dry-run also remains safe and does not require --confirm-production', async () => {
+  const code = await runPdfDeploy(['--target', 'production', '--dry-run'], {
+    registry,
+    platform: 'win32',
+    run: neverCalled('run'),
+    getGitState: neverCalled('getGitState'),
+    getTrackedFiles: neverCalled('getTrackedFiles'),
+    getUploadCandidates: neverCalled('getUploadCandidates'),
+    log: () => {}
+  });
+  assert.equal(code, 0);
+});
+
+test('4. runPdfDeploy: the Unix/macOS/Linux real deploy path is unchanged (proceeds past the platform check)', async () => {
+  for (const platform of ['linux', 'darwin']) {
+    const runCalls = [];
+    const code = await runPdfDeploy(['--target', 'uat'], {
+      registry,
+      platform,
+      run: async (args, options) => { runCalls.push({ args, options }); return 0; },
+      getGitState: async () => ({ dirty: false, sha: 'abc1234' }),
+      getTrackedFiles: async () => ['package.json', 'src/server.js'],
+      getUploadCandidates: async () => ['package.json', 'src/server.js'],
+      log: () => {},
+      onEnvFile: () => {}
+    });
+    assert.equal(code, 0, `expected ${platform} to deploy successfully`);
+    assert.equal(runCalls.length, 1, `expected ${platform} to invoke gcloud exactly once`);
+  }
+});
+
+test('5. runPdfDeploy: the upload-boundary guard remains intact on a supported platform (linux)', async () => {
+  await assert.rejects(
+    runPdfDeploy(['--target', 'uat'], {
+      registry,
+      platform: 'linux',
+      run: neverCalled('run'),
+      getGitState: async () => ({ dirty: false, sha: 'abc1234' }),
+      getTrackedFiles: async () => ['package.json'],
+      getUploadCandidates: async () => ['package.json', 'tmp/local-only.txt'],
+      log: () => {}
+    }),
+    error => error.message.includes('tmp/local-only.txt')
+  );
+});
+
+test('6. runPdfDeploy: the Production confirmation gate remains intact on a supported platform (linux)', async () => {
+  await assert.rejects(
+    runPdfDeploy(['--target', 'production'], {
+      registry,
+      platform: 'linux',
+      run: neverCalled('run'),
+      getGitState: neverCalled('getGitState'),
+      getTrackedFiles: neverCalled('getTrackedFiles'),
+      getUploadCandidates: neverCalled('getUploadCandidates'),
+      log: () => {}
+    }),
+    /--confirm-production/
+  );
+});
+
+test('7. no source comment or test in this module claims shell:true safely escapes or quotes arguments', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../scripts/deploy-pdf.mjs', import.meta.url), 'utf8');
+  // These are the exact phrasings the original (incorrect) comment used to assert that shell:true safely quotes
+  // each argument. A bare "safely escap" check would also flag this test's own corrected comment, which
+  // legitimately names "safely escaped" only to say that is NOT what shell:true does -- so match the specific
+  // affirmative claim shape instead of the words in isolation.
+  assert.doesNotMatch(source, /(is|are|Node)\s+(individually\s+)?(safely\s+)?(quot(es|ed)|escap(es|ed))\s+each/i);
+  assert.doesNotMatch(source, /never becomes string concatenation/i);
+  // The corrected comment must instead say plainly that shell:true does NOT individually escape/quote arguments
+  // (checked as two separate facts rather than one regex spanning a line break, since the comment wraps across
+  // multiple `//`-prefixed lines).
+  assert.match(source, /NOT individually/);
+  assert.match(source, /joined with spaces/i);
 });
