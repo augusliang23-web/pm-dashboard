@@ -1,28 +1,27 @@
 # Stage B PDF Readiness — Current State
 
-This document intentionally avoids pinning itself to any single PR #17 commit, reviewer verdict, or blocker
-description. PR #17 is under active, ongoing independent review; its exact head, its latest finding, and
-whether a given remediation is "pending" or "closed" all change between edits of this file. Recording any of
-that here would make this document require a new commit every time PR #17 receives another commit or another
-reviewer finding — so it doesn't. What follows is the durable, non-volatile state instead:
+This document intentionally avoids pinning itself to any single PR's commit, reviewer verdict, or blocker
+description for anything still in flight, so it does not require a new commit every time an open PR receives
+another commit or another reviewer finding. What follows is the current durable state:
 
-1. **PR #17 is the current implementation vehicle for PDF deployment hardening** — the clean-tree and
-   upload-boundary guards in `pdf-service/scripts/deploy-pdf.mjs` that Gate B5 (below) depends on.
-2. **PR #17 remains OPEN / UNMERGED** until Control Plane explicitly closes its independent-review and merge
-   gates. This document does not claim PR #17 is approved, and does not claim it is merged.
-3. **The authoritative deployment prerequisite is Gate B5** in `docs/stage-b-pdf-uat-runbook.md`, not this
-   document's summary of PR #17's review state.
-4. **Before Gate B5 may run**, the exact source commit being deployed must: contain independently reviewed
-   deployment hardening; have that hardening actually merged into the exact commit being deployed (not merely
-   present on some other branch or an earlier commit); enforce clean-tree protection (tracked and untracked
-   changes alike); enforce that gcloud's actual source-upload file set is a subset of the git-tracked file set;
-   and have its own required CI green on that exact commit. See Gate B5's Prerequisites for the full, current
-   wording of this requirement.
-5. **Operators must verify live GitHub/PR state at execution time** — PR #17's actual current head, its actual
-   current review status, and whether any remediation is actually merged — rather than relying on this document
-   for that information. This document's own snapshot can be, and will become, stale between reviewer cycles.
-6. **Stage B remains NOT STARTED.** No UAT PDF Cloud Run service exists. No cloud action of any kind has been
-   taken by this document, the preflight tool, or the runbook it accompanies.
+1. **PR #17's PDF deployment hardening (the clean-tree and upload-boundary guards in
+   `pdf-service/scripts/deploy-pdf.mjs` that Gate B5 depends on) has been independently reviewed and approved,
+   and PR #17 has been merged into `main`.** That hardening is now part of the current source lineage this
+   branch is built on — see CLOSED below.
+2. **The authoritative deployment prerequisite remains Gate B5** in `docs/stage-b-pdf-uat-runbook.md`, not this
+   document's summary of PR #17's history.
+3. **Gate B5's own verification requirement is unchanged by PR #17's merge**: before Gate B5 may run, the exact
+   source commit actually being deployed must still be verified, at execution time, to contain that
+   independently reviewed deployment hardening merged in, enforcing clean-tree protection (tracked and untracked
+   changes alike) and that gcloud's actual source-upload file set is a subset of the git-tracked file set, with
+   its own required CI green on that exact commit. "PR #17 merged into `main` at some point in the past" does
+   not by itself satisfy this — the commit actually being deployed still has to be checked. See Gate B5's
+   Prerequisites for the full, current wording.
+4. **Operators must verify live GitHub/branch state at execution time** — which commit is actually about to be
+   deployed, and whether it still carries this hardening unmodified — rather than relying on this document.
+5. **Stage B remains NOT STARTED.** No UAT PDF Cloud Run service exists. Gate B5 has not run and has not
+   passed. No cloud action of any kind has been taken by this document, the preflight tool, or the runbook it
+   accompanies.
 
 ## CLOSED
 
@@ -34,11 +33,12 @@ reviewer finding — so it doesn't. What follows is the durable, non-volatile st
 - A2C Function alignment
 - Stage A.5 Gantt Callables
 - Production Executive governance (PR #18, merged as `472e102`)
+- PDF deployment source hardening (PR #17: clean-tree and gcloud-upload-boundary guards in
+  `pdf-service/scripts/deploy-pdf.mjs`, plus the Windows real-deploy fail-closed / dry-run-still-supported
+  behavior) — independently reviewed, approved, and merged into `main`
 
 ## PENDING
 
-- PR #17's independent review and merge (whatever findings and remediation that review currently requires —
-  see the live PR for the actual, current state; this document does not track it commit-by-commit)
 - This Stage B UAT PDF preflight pack's own review and merge
 - Stage B cloud preflight (Gates B1–B4 in `docs/stage-b-pdf-uat-runbook.md`)
 - First UAT PDF Cloud Run deployment (Gate B5)
