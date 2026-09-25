@@ -52,7 +52,7 @@ function renderRiskActions(model) {
   const pairs = model.rawRiskActionPairs.length ? model.rawRiskActionPairs : model.riskActions;
   if (!pairs.length) return '<p class="one-pager-empty">No material risk reported.</p>';
   const dense = pairs.length > RISK_DENSE_THRESHOLD ? ' dense' : '';
-  return `<div class="one-pager-risk-stack${dense}">${pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk.trim() || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Required</strong><p>${escapeHtml(pair.action.trim() || 'No required action reported.')}</p></div></div>`).join('')}</div>`;
+  return `<div class="one-pager-risk-stack${dense}">${pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk.trim() || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Mitigation Actions</strong><p>${escapeHtml(pair.action.trim() || 'No mitigation action reported.')}</p></div></div>`).join('')}</div>`;
 }
 
 function laneRange(lanes) {

@@ -48,15 +48,24 @@ test('Project Editor preserves native textarea values when loading and saving', 
 test('Project Editor labels explain visible list controls instead of hidden newline behavior', () => {
   assert.match(html, /<label class="fl">Highlight<\/label>/);
   assert.match(html, /<label class="fl">Risk &amp; Mitigation Actions \(shown in Overview\)<\/label>/);
+  assert.match(html, /Each Risk \/ Blocker must have its own Mitigation Actions entry/);
+  assert.match(html, /<span>Mitigation Actions<\/span>/);
+  assert.match(html, /data-list-label="Mitigation Actions"/);
+  assert.match(html, /placeholder="Mitigation Actions shown in Overview"/);
+  assert.match(html, /aria-label="Mitigation actions"/);
+  assert.doesNotMatch(html, /data-list-label="Required Action"/);
+  assert.doesNotMatch(html, /placeholder="Required Action shown in Overview"/);
+  assert.doesNotMatch(html, /aria-label="Required action"/);
   assert.doesNotMatch(html, /Highlight \(Press Enter for new bullet point\)/);
   assert.doesNotMatch(html, /Press Enter for new bullet point/);
 });
 
-test('Single Project preview renders paired Risk and Required Action rows', () => {
+test('Single Project preview renders paired Risk and Mitigation Actions rows', () => {
   assert.match(html, /<div class="info-lbl"[^>]*>Risk &amp; Mitigation Actions<\/div>/);
   assert.match(html, /class="project-risk-table-wrap"/);
-  assert.match(html, /<th>Risk \/ Blocker<\/th>/);
-  assert.match(html, /<th>Required Action<\/th>/);
+  const riskTable = html.match(/<table class="project-risk-table">[\s\S]*?<\/table>/)?.[0] || '';
+  assert.match(riskTable, /<th>Risk \/ Blocker<\/th><th>Mitigation Actions<\/th>/);
+  assert.doesNotMatch(riskTable, /Required Action/);
   assert.match(html, /id="pd_risk_action_rows"/);
   assert.match(html, /function renderProjectRiskActionTable\(project\)/);
   assert.match(html, /class="project-risk-primary">Primary</);
@@ -78,5 +87,5 @@ test('Risk/Action editors stack inside their grid cells on phone widths', () => 
   );
   assert.match(html, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.risk-list-cell\s*\{[^}]*grid-column:\s*1/s);
   assert.match(html, /class="risk-list-cell" data-list-label="Risk \/ Blocker"/);
-  assert.match(html, /class="risk-list-cell" data-list-label="Required Action"/);
+  assert.match(html, /class="risk-list-cell" data-list-label="Mitigation Actions"/);
 });
