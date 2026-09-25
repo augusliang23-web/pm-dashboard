@@ -13,6 +13,19 @@ const PDF_SERVICE_DIR = resolve(fileURLToPath(new URL('..', import.meta.url)));
 // Every Cloud Run deploy of the PDF service is built here from the versioned target registry. Environment variables
 // travel in a temporary --env-vars-file (a complete replacement of the service's variables), never in an inline
 // --set-env-vars string, so no shell-specific escaping is involved.
+// One shared definition of a valid Google-managed service account address for a project:
+// <ACCOUNT_ID>@<PROJECT_ID>.iam.gserviceaccount.com, where ACCOUNT_ID is 6-30 characters of lowercase letters,
+// digits, and hyphens, starting with a letter and ending with a letter or digit. A bare endsWith() check would
+// accept an empty, over-long, or illegal-character account id, so both service identities go through this.
+const SERVICE_ACCOUNT_ID_PATTERN = /^[a-z][-a-z0-9]{4,28}[a-z0-9]$/;
+
+export function isValidServiceAccountEmail(email, projectId) {
+  if (typeof email !== 'string' || typeof projectId !== 'string' || !projectId) return false;
+  const suffix = `@${projectId}.iam.gserviceaccount.com`;
+  if (!email.endsWith(suffix)) return false;
+  return SERVICE_ACCOUNT_ID_PATTERN.test(email.slice(0, -suffix.length));
+}
+
 export function assertTargetIsDeployable(name, registry) {
   if (!CLOUD_ENVIRONMENTS.includes(name)) throw new PdfEnvironmentError(`Unknown PDF deploy target "${name}".`);
   const target = registry.targets?.[name];
@@ -20,13 +33,13 @@ export function assertTargetIsDeployable(name, registry) {
   for (const key of ['firebaseProjectId', 'region', 'serviceName', 'runtimeServiceAccount', 'buildServiceAccount']) {
     if (typeof target[key] !== 'string' || !target[key].trim()) throw new PdfEnvironmentError(`Target "${name}" has no ${key}.`);
   }
-  if (!target.runtimeServiceAccount.endsWith(`@${target.firebaseProjectId}.iam.gserviceaccount.com`)) {
-    throw new PdfEnvironmentError(`Target "${name}" runtime service account must belong to ${target.firebaseProjectId}.`);
+  if (!isValidServiceAccountEmail(target.runtimeServiceAccount, target.firebaseProjectId)) {
+    throw new PdfEnvironmentError(`Target "${name}" runtime service account must be a valid <account-id>@${target.firebaseProjectId}.iam.gserviceaccount.com address.`);
   }
   // The build identity is an explicit, versioned registry value so `gcloud run deploy --source` never falls back to
   // the project's shared default Compute Engine service account. It must be a distinct identity from the runtime one.
-  if (!target.buildServiceAccount.endsWith(`@${target.firebaseProjectId}.iam.gserviceaccount.com`)) {
-    throw new PdfEnvironmentError(`Target "${name}" build service account must belong to ${target.firebaseProjectId}.`);
+  if (!isValidServiceAccountEmail(target.buildServiceAccount, target.firebaseProjectId)) {
+    throw new PdfEnvironmentError(`Target "${name}" build service account must be a valid <account-id>@${target.firebaseProjectId}.iam.gserviceaccount.com address.`);
   }
   if (target.buildServiceAccount === target.runtimeServiceAccount) {
     throw new PdfEnvironmentError(`Target "${name}" build service account must be distinct from its runtime service account.`);

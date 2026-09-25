@@ -161,6 +161,39 @@ test('assertTargetIsDeployable: a build service account equal to the runtime ser
   assert.throws(() => assertTargetIsDeployable('uat', same), /distinct/);
 });
 
+const UAT_SA_DOMAIN = '@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com';
+
+test('assertTargetIsDeployable: malformed same-project buildServiceAccount values fail closed', () => {
+  const malformedIds = {
+    'empty account id': '',
+    'illegal character (underscore)': 'bad_name',
+    'starts with a hyphen': '-bad-name',
+    'ends with a hyphen': 'bad-name-',
+    'starts with a digit': '1bad-name',
+    'uppercase letters': 'Bad-Name',
+    'fewer than 6 characters': 'abcde',
+    'more than 30 characters': 'a'.repeat(31)
+  };
+  for (const [label, id] of Object.entries(malformedIds)) {
+    const bad = { targets: { uat: { ...registry.targets.uat, buildServiceAccount: `${id}${UAT_SA_DOMAIN}` } } };
+    assert.throws(() => assertTargetIsDeployable('uat', bad), PdfEnvironmentError, label);
+  }
+});
+
+test('assertTargetIsDeployable: account ids at the 6 and 30 character bounds are accepted', () => {
+  for (const id of ['abcdef', 'a'.repeat(29) + 'b', 'a'.repeat(30)]) {
+    const ok = { targets: { uat: { ...registry.targets.uat, buildServiceAccount: `${id}${UAT_SA_DOMAIN}` } } };
+    assert.equal(assertTargetIsDeployable('uat', ok).buildServiceAccount, `${id}${UAT_SA_DOMAIN}`);
+  }
+});
+
+test('assertTargetIsDeployable: malformed same-project runtimeServiceAccount values fail closed too', () => {
+  for (const id of ['', 'bad_name', '-bad-name', 'bad-name-', 'abcde', 'a'.repeat(31)]) {
+    const bad = { targets: { uat: { ...registry.targets.uat, runtimeServiceAccount: `${id}${UAT_SA_DOMAIN}` } } };
+    assert.throws(() => assertTargetIsDeployable('uat', bad), PdfEnvironmentError, `runtime id "${id}"`);
+  }
+});
+
 test('assertTargetIsDeployable: rejects non-canonical allowed origins', () => {
   const badOriginRegistry = {
     targets: {
