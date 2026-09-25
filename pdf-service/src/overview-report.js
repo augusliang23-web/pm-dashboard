@@ -202,7 +202,7 @@ function renderRiskActions(model) {
     pageKicker: 'Overview report · Decision view',
     pageSection: 'overview-management',
     splittable: true,
-    body: `<section class="overview-unit risk-actions" data-section-unit="risk-actions"><div class="overview-unit-head"><div><div class="report-kicker">Risk action table</div><h2 class="pdf-continuation-label">Risk Actions</h2></div><span class="overview-note">Primary risk and action pair</span></div>${table}</section>`
+    body: `<section class="overview-unit risk-actions" data-section-unit="risk-actions"><div class="overview-unit-head"><div><div class="report-kicker">Risk action table</div><h2 class="pdf-continuation-label">Risk &amp; Mitigation Actions</h2></div><span class="overview-note">Primary risk and action pair</span></div>${table}</section>`
   });
 }
 
@@ -261,7 +261,7 @@ function renderProjectPortfolioFlow(project) {
   const rawRiskActions = project.rawRiskActionPairs.length
     ? project.rawRiskActionPairs
     : project.riskActions;
-  rawRiskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : sectionHeading('Risks & required actions', 'riskActions')}<article class="portfolio-risk-row card"><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span>${rawTextBlock(pair.risk)}</div><div><span>Required action</span>${rawTextBlock(pair.action, 'No required action reported.')}</div></article>`)));
+  rawRiskActions.forEach((pair, index) => blocks.push(portfolioFlowItem(project, 'project-risk-action', `${index ? '' : sectionHeading('Risk & Mitigation Actions', 'riskActions')}<article class="portfolio-risk-row card"><div><span>Risk / Blocker${pair.primary ? ' · Primary' : ''}</span>${rawTextBlock(pair.risk)}</div><div><span>Required action</span>${rawTextBlock(pair.action, 'No required action reported.')}</div></article>`)));
 
   blocks.push(portfolioFlowItem(project, 'project-snapshot', `<div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span>${updateNote('milestones')}<strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span>${updateNote('teamAllocation', 'Team allocation')}${updateNote('disciplineHours', 'Discipline hours')}<strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span>${updateNote('budgetPlan', 'Budget plan')}${updateNote('actualSpend', 'Actual spend')}<strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div>`));
 

@@ -39,7 +39,7 @@ const GANTT_DENSE_THRESHOLD = 8;
  * Past a per-quadrant item count, a "dense" modifier shrinks the font and
  * spacing so more content keeps fitting on the fixed-size quadrant instead
  * of silently clipping - the same protective sizing pattern applies to
- * Highlights, Action Items, Risk & Required Action, and the Gantt summary.
+ * Highlights, Action Items, Risk & Mitigation Actions, and the Gantt summary.
  */
 function rawBulletList(rawLines, { tone = '', emptyMessage } = {}) {
   const items = rawLines.map(line => line.trim()).filter(Boolean);
@@ -121,7 +121,7 @@ export function renderProjectOnePagerHtml(model, period = model.period || '') {
       <article class="one-pager-quadrant green"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Progress made</div><h2>Highlights</h2></div><span class="one-pager-chip">Last week</span></div>${rawBulletList(model.rawHighlightLines, { emptyMessage: 'No highlight reported.' })}</article>
       <article class="one-pager-quadrant blue"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Delivery focus</div><h2>Action Items</h2></div><span class="one-pager-chip">Next week</span></div>${rawBulletList(model.rawActionLines, { tone: 'blue', emptyMessage: 'No action reported.' })}</article>
       <article class="one-pager-quadrant schedule"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Plan and progress</div><h2>Schedule Summary</h2></div></div>${renderSummaryGantt(model.summaryLanes)}${lowConfidenceNote}${windowNote}</article>
-      <article class="one-pager-quadrant risk"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Management attention</div><h2>Risk &amp; Required Action</h2></div><span class="one-pager-chip">Action needed</span></div>${renderRiskActions(model)}</article>
+      <article class="one-pager-quadrant risk"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Management attention</div><h2>Risk &amp; Mitigation Actions</h2></div><span class="one-pager-chip">Action needed</span></div>${renderRiskActions(model)}</article>
     </section>
     <footer class="one-pager-footer"><span>LITEON Project Dashboard</span><span>${escapeHtml(period)}</span></footer>
   </section>`;
