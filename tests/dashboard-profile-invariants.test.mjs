@@ -38,7 +38,11 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
 ]);
 
 test('the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions', () => {
-  const view = functionInventory(dashboardSource('production'));
+  const productionSource = dashboardSource('production');
+  const overviewRiskHeading = '<div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>';
+  assert.equal((productionSource.match(/<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/g) || []).length, 1);
+  // Normalize only the approved Overview copy change before checking the function's existing behavior hash.
+  const view = functionInventory(productionSource.replace(overviewRiskHeading, '<div class="exec-eyebrow">Risk Action Table</div>'));
   const changed = Object.entries(baselines.productionFunctions)
     .filter(([name, hash]) => view[name] !== hash)
     .map(([name]) => name);
