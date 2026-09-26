@@ -119,6 +119,10 @@ test('keeps overview signals together while giving Executive Summary dedicated p
   );
   assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 1);
   assert.match(html, /data-report-section="overview-management"[\s\S]*data-section-unit="attention-matrix"[\s\S]*data-section-unit="risk-actions"/);
+  assert.match(html, /<h2 class="pdf-continuation-label">Risk &amp; Mitigation Actions<\/h2>/);
+  assert.match(html, /<th>Mitigation Actions<\/th>/);
+  assert.doesNotMatch(html, /Risk Actions</);
+  assert.doesNotMatch(html, /<th>Required action<\/th>/);
 });
 
 test('uses one measured source flow per project portfolio', () => {
@@ -173,8 +177,8 @@ test('places project portfolio update records with their matching sections', () 
   assert.doesNotMatch(html, /Section updates/);
   assertBetween('Updated · 1 Aug 2026 · STATUS-EDITOR', 'portfolio-project-status', 'Highlights');
   assertBetween('Updated · 2 Aug 2026 · HIGHLIGHTS-EDITOR', 'Highlights', 'Weekly Key Actions');
-  assertBetween('Updated · 3 Aug 2026 · ACTIONS-EDITOR', 'Weekly Key Actions', 'Risks &amp; required actions');
-  assertBetween('Updated · 4 Aug 2026 · RISKS-EDITOR', 'Risks &amp; required actions', 'portfolio-snapshot-grid');
+  assertBetween('Updated · 3 Aug 2026 · ACTIONS-EDITOR', 'Weekly Key Actions', 'Risk &amp; Mitigation Actions');
+  assertBetween('Updated · 4 Aug 2026 · RISKS-EDITOR', 'Risk &amp; Mitigation Actions', 'portfolio-snapshot-grid');
   for (const marker of [
     'Updated · 5 Aug 2026 · MILESTONE-EDITOR',
     'Updated · 6 Aug 2026 · ALLOCATION-EDITOR',
@@ -183,6 +187,23 @@ test('places project portfolio update records with their matching sections', () 
     'Updated · 9 Aug 2026 · SPEND-EDITOR'
   ]) assertBetween(marker, 'portfolio-snapshot-grid', 'Gantt schedule');
   assertBetween('Updated · 10 Aug 2026 · SCHEDULE-EDITOR', 'Gantt schedule', 'gantt-axis');
+});
+
+test('labels project portfolio mitigation actions and uses its matching empty state', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['project-portfolio'];
+  fixture.week.projects = [{
+    ...fixture.week.projects[0],
+    riskActions: [{ risk: 'Vendor lead time', action: '' }]
+  }];
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.match(html, /Risk &amp; Mitigation Actions/);
+  assert.match(html, /<span>Mitigation Actions<\/span>/);
+  assert.match(html, /No mitigation action reported\./);
+  assert.doesNotMatch(html, /<span>Required action<\/span>/);
+  assert.doesNotMatch(html, /No required action reported\./);
 });
 
 test('renders complete project highlights, risk actions, and Gantt workstreams', () => {

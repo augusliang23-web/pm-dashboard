@@ -31,6 +31,20 @@ test('renders highlights, action items and the primary risk / required action', 
   assert.match(html, /Pilot environment ready/);
   assert.match(html, /Confirm alternate supplier/);
   assert.match(html, /Vendor lead time/);
+  assert.match(html, /<h2>Risk &amp; Mitigation Actions<\/h2>/);
+  assert.match(html, /<strong>Mitigation Actions<\/strong>/);
+  assert.doesNotMatch(html, /Risk &amp; Required Action/);
+  assert.doesNotMatch(html, /<strong>Required<\/strong>/);
+});
+
+test('shows the mitigation empty state when a risk has no action text', () => {
+  const model = buildModel({
+    riskActions: [{ risk: 'Vendor lead time', action: '', primary: true }]
+  });
+  const html = renderProjectOnePagerHtml(model, model.period);
+
+  assert.match(html, /No mitigation action reported\./);
+  assert.doesNotMatch(html, /No required action reported\./);
 });
 
 test('preserves a leading "-" or "N." in highlight/action text instead of stripping it as a bullet marker', () => {

@@ -155,7 +155,7 @@ function renderBudget(model) {
 
 /**
  * The one-page quadrant summary (Highlights / Action Items / Schedule Summary /
- * Risk & Required Action) is always the first page - it replaces the old
+ * Risk & Mitigation Actions) is always the first page - it replaces the old
  * "project brief" and "project update" pages. Milestone timeline, Gantt Chart,
  * Team allocation, Discipline hours and Budget remain optional detail pages
  * appended after it, selected the same way they always were.
