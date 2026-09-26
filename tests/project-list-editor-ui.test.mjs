@@ -23,7 +23,7 @@ test('Project Editor leaves risk and action fields as ordinary textareas', () =>
   assert.match(html, /action: row\.querySelector\('\.rap-action'\)\?\.value \|\| ''/);
 });
 
-test('Risk and Required Action inputs resize vertically without escaping their grid cells', () => {
+test('Risk and Mitigation Actions inputs resize vertically without escaping their grid cells', () => {
   assert.match(html, /\.risk-list-cell\s*\{[^}]*min-width:\s*0/s);
   assert.match(
     html,
@@ -50,10 +50,10 @@ test('Project Editor labels explain visible list controls instead of hidden newl
   assert.doesNotMatch(html, /Press Enter for new bullet point/);
 });
 
-test('Single Project preview renders paired Risk and Required Action rows', () => {
+test('Single Project preview renders paired Risk and Mitigation Actions rows', () => {
   assert.match(html, /class="project-risk-table-wrap"/);
   assert.match(html, /<th>Risk \/ Blocker<\/th>/);
-  assert.match(html, /<th>Required Action<\/th>/);
+  assert.match(html, /<th>Mitigation Actions<\/th>/);
   assert.match(html, /id="pd_risk_action_rows"/);
   assert.match(html, /function renderProjectRiskActionTable\(project\)/);
   assert.match(html, /class="project-risk-primary">Primary</);
@@ -75,5 +75,5 @@ test('Risk/Action editors stack inside their grid cells on phone widths', () => 
   );
   assert.match(html, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.risk-list-cell\s*\{[^}]*grid-column:\s*1/s);
   assert.match(html, /class="risk-list-cell" data-list-label="Risk \/ Blocker"/);
-  assert.match(html, /class="risk-list-cell" data-list-label="Required Action"/);
+  assert.match(html, /class="risk-list-cell" data-list-label="Mitigation Actions"/);
 });
