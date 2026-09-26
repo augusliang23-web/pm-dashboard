@@ -202,7 +202,7 @@ function renderRiskActions(model) {
     pageKicker: 'Overview report · Decision view',
     pageSection: 'overview-management',
     splittable: true,
-    body: `<section class="overview-unit risk-actions" data-section-unit="risk-actions"><div class="overview-unit-head"><div><div class="report-kicker">Risk action table</div><h2 class="pdf-continuation-label">Risk &amp; Mitigation Actions</h2></div><span class="overview-note">Primary risk and action pair</span></div>${table}</section>`
+    body: `<section class="overview-unit risk-actions" data-section-unit="risk-actions"><div class="overview-unit-head"><div><div class="report-kicker">Risk &amp; Mitigation Actions</div><h2 class="pdf-continuation-label">Risk &amp; Mitigation Actions</h2></div><span class="overview-note">Primary risk and action pair</span></div>${table}</section>`
   });
 }
 

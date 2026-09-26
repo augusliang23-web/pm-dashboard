@@ -22,6 +22,26 @@ test.after(async () => {
   await renderPdfBuffer.close();
 });
 
+test('printed Overview risk section uses mitigation terminology without the legacy kicker', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['risk-actions'];
+  const html = renderOverviewReportHtml(fixture);
+  const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const printedText = await page.evaluate(() => document.body.innerText);
+    assert.match(printedText, /Risk & Mitigation Actions/);
+    assert.doesNotMatch(printedText, /Risk action table/i);
+    const pdf = await renderPdfBuffer(html);
+    assert.ok(pdf.byteLength > 1000);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
 test('a nine-project budget overview fits one landscape page without a trailing page', { timeout: 60000 }, async () => {
   const fixture = completeOverviewReportFixture();
   const baseProject = fixture.week.projects[0];
