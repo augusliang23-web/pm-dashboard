@@ -176,7 +176,12 @@ test('role/access denial from a decoded, valid token remains 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-test('the one-pager preview handler applies the same auth-error semantics as the report handler', async () => {
+// This proves the one-pager preview handler classifies a *surfaced* revoked-token error the same way the report
+// handler does -- not that the live server actively detects revocation. server.js calls
+// `auth.verifyIdToken(token)` without `checkRevoked: true`, so today's live path does not itself query for
+// revocation; this synthetic adapter only stands in for the case where the verification layer surfaces that
+// documented Firebase Auth error some other way.
+test('the one-pager preview handler classifies a surfaced revoked-token error the same way the report handler does', async () => {
   const rejectingAdapters = { ...adapters, verifyIdToken: async () => { throw firebaseAuthError('auth/id-token-revoked', 'revoked'); } };
   const handle = createOnePagerPreviewHandler({ adapters: rejectingAdapters });
   const res = response();

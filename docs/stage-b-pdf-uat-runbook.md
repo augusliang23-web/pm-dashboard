@@ -335,7 +335,7 @@ rather than assume:
 |---|---|---|---|
 | Bad or missing `Origin` header | CORS (before auth ever runs) | `403` | CORS is enforcing an exact allow-list; says nothing about auth |
 | Allowed UAT `Origin` + missing `Authorization` header | Auth | `401` | The auth path is reached and correctly rejects a missing token |
-| Allowed UAT `Origin` + invalid/expired/revoked token | Auth | `401` (see `pdf-service/src/auth-error.js`'s narrow, allowlisted classification) | `verifyIdToken` is actually being called and a bad-credential error is correctly classified as 401, not a generic 500 |
+| Allowed UAT `Origin` + invalid or expired token | Auth | `401` (see `pdf-service/src/auth-error.js`'s narrow, allowlisted classification) | `verifyIdToken` is actually being called and a bad-credential error is correctly classified as 401, not a generic 500 |
 | Allowed UAT `Origin` + valid token, but the caller's dashboard role/week-release state is denied | Application authorization (past auth, inside `report-access.js`) | `403` | The request reached and was correctly evaluated by role/week-release authorization — this is a *different* `403` than the CORS one above, produced at a later stage against an already-authenticated caller |
 | Allowed UAT `Origin` + valid UAT-project token, authorized role | Auth + authorization | `200` with a PDF (or HTML for the preview route) | The full authenticated, authorized path works end-to-end |
 
@@ -346,6 +346,15 @@ evidence of a correctly-*working* role/access check, not a CORS problem — trea
 misdiagnose a legitimate access denial. B7 evidence for every `403` observed must record: the `Origin` sent,
 whether a token was sent and whether it was one `verifyIdToken` would accept, and the response body's error
 category where it is safe to record (never the raw Firebase/internal error text).
+
+**A revoked ID token is not a live B7 requirement.** `auth-error.js` allowlists `auth/id-token-revoked` alongside
+the invalid/expired codes, so IF the verification layer ever surfaces that documented Firebase Auth error, it is
+correctly classified as 401. But the live server calls `auth.verifyIdToken(token)` in `server.js` **without**
+`checkRevoked: true`, so Firebase Admin's default verification path does not itself query for revocation and will
+not surface `auth/id-token-revoked` today. B7 must not require, and must not claim to prove, "revoked token → 401"
+against the live deployed service under the current implementation. Enabling active revocation checking
+(`checkRevoked: true`) is a separate, out-of-scope decision requiring its own review — it is not made by this
+document and is not assumed here.
 
 **The current CI container smoke test (in the `pdf-tests` CI job) proves only that the built container starts,
 binds its port, and returns real HTTP responses (`403` on an unmatched-Origin preflight, `404` on an unregistered
@@ -363,7 +372,8 @@ Gate B7, against the real deployed service.
 | 4 | Env vars (`PDF_ENVIRONMENT`, `FIREBASE_PROJECT_ID`, `ALLOWED_ORIGIN`) match the registry exactly | `gcloud run services describe --format` on the env section, or Cloud Logging startup line |
 | 5 | Wrong/missing Origin → `403` (CORS stage, before auth) | direct HTTP probe |
 | 6 | Allowed Origin + missing Bearer token → `401` | direct HTTP probe |
-| 7 | Allowed Origin + invalid/expired/revoked token → `401` (not a generic `500`) | direct HTTP probe with a deliberately invalid token; confirms `auth-error.js`'s classification is live, not just unit-tested |
+| 7 | Allowed Origin + invalid token → `401` (not a generic `500`) | direct HTTP probe with a deliberately invalid token; confirms `auth-error.js`'s classification is live, not just unit-tested |
+| 7b | Allowed Origin + expired token → `401` (not a generic `500`) | direct HTTP probe with a deliberately expired token |
 | 7a | Allowed Origin + valid token, but role/week-release denies access → `403` (application-authorization stage, distinct from row 5's CORS `403`) | direct HTTP probe with a valid token against a role/state the access rules deny |
 | 8 | Allowed Origin + valid token, authorized role → `200` | requires a real UAT login |
 | 9 | Project report generation succeeds | same, `/v1/reports/project` |

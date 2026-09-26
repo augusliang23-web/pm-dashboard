@@ -42,9 +42,12 @@ another commit or another reviewer finding. What follows is the current durable 
    - **B6 (read-only deployed-service verification) has PASSED**, independently confirming the above against live
      Cloud Run/Cloud Build/IAM state.
    - **B7 (direct UAT service acceptance) is HOLD**, not because of infrastructure/IAM readiness (B5/B6 both
-     PASS), but pending a source-level fix identified during B7-PREP: invalid/expired/revoked Firebase ID tokens
-     could fall through to a generic `500` instead of `401` (see `pdf-service/src/auth-error.js`). That source
-     fix, once reviewed and merged, still requires a **separately authorized UAT PDF redeploy** and an
+     PASS), but pending a source-level fix identified during B7-PREP: invalid or expired Firebase ID tokens could
+     fall through to a generic `500` instead of `401` (see `pdf-service/src/auth-error.js`). That fix also
+     allowlists `auth/id-token-revoked` defensively, so that error is classified 401 *if the verification layer
+     ever surfaces it* — but the live server calls `verifyIdToken` without `checkRevoked: true`, so revocation is
+     not actively checked today and live revoked-token detection is explicitly **not** a B7 requirement.
+     That source fix, once reviewed and merged, still requires a **separately authorized UAT PDF redeploy** and an
      **independent B6-equivalent re-verification of the new revision** before B7 may begin — merging the source
      fix alone does not satisfy this. **SOURCE FIX MERGED ≠ LIVE FIX DEPLOYED.**
 

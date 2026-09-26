@@ -13,8 +13,19 @@ test('passes through the decoded token on success', async () => {
   assert.deepEqual(decoded, { email: 'pm@example.com' });
 });
 
-for (const code of ['auth/id-token-expired', 'auth/id-token-revoked', 'auth/invalid-id-token', 'auth/argument-error']) {
-  test(`maps Firebase Auth error code "${code}" to a 401 AuthenticationError`, async () => {
+// Descriptions are worded per-code so the revoked-token case doesn't imply the current live verifyIdToken call
+// (see server.js: `auth.verifyIdToken(token)`, no `checkRevoked: true`) actively detects revocation -- it does
+// not. This case only proves that IF the verification layer ever surfaces this documented Firebase Auth error
+// code, verifyBearerToken correctly classifies it as 401 rather than an unexpected 500.
+const CODE_DESCRIPTIONS = {
+  'auth/id-token-expired': 'maps an expired-token Firebase Auth error to 401',
+  'auth/id-token-revoked': 'maps a surfaced revoked-token Firebase Auth error to 401 (defensive only -- the current live verifyIdToken call does not itself perform revocation checking)',
+  'auth/invalid-id-token': 'maps an invalid-token Firebase Auth error to 401',
+  'auth/argument-error': 'maps a malformed-token-argument Firebase Auth error to 401'
+};
+
+for (const [code, description] of Object.entries(CODE_DESCRIPTIONS)) {
+  test(description, async () => {
     const adapters = { verifyIdToken: async () => { throw firebaseAuthError(code, `internal detail for ${code}`); } };
     await assert.rejects(() => verifyBearerToken(adapters, 'token'), AuthenticationError);
     try {
