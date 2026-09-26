@@ -1,6 +1,7 @@
 # Stage B — First UAT PDF Cloud Run Deployment Runbook
 
-Status: **STAGE B IN PROGRESS** (B1–B4 PASS; first B5 attempt stopped, retry on HOLD — see
+Status: **STAGE B IN PROGRESS** (B1–B6 PASS; B7 HOLD pending the B7-PREP source remediation below and a
+subsequent, separately authorized UAT PDF redeploy and independent re-verification — see
 `docs/stage-b-pdf-readiness.md`). This document authorizes nothing by existing; each gate below still requires an explicit, separate Control Plane decision before its state change is
 executed.
 
@@ -218,7 +219,10 @@ so that a mistake in one is caught before the next gate compounds it.
 - **Objective:** prove the live service behaves correctly against real HTTP requests, before any dashboard code
   is pointed at it. See the acceptance matrix in the Auth/CORS and B7 sections below. This gate requires a human
   with a real UAT Firebase login — it cannot be scripted end-to-end from a CI runner.
-- **Prerequisites:** B6 PASS.
+- **Prerequisites:** B6 PASS; the B7-PREP auth-error-boundary source fix (see `pdf-service/src/auth-error.js`) is
+  merged into the exact commit being deployed, **and** a separately authorized UAT PDF redeploy carrying that fix
+  has completed and been independently re-verified (a fresh B6-equivalent pass) — a source fix alone, unmerged
+  into a live deployment, does not satisfy this prerequisite. **SOURCE FIX MERGED ≠ LIVE FIX DEPLOYED.**
 - **Allowed state change:** none against the service's configuration. The requests themselves are read-heavy
   (PDF generation reads Firestore) but do not write.
 - **Exact evidence required:** every row of the B7 acceptance matrix below, each with its actual observed HTTP
@@ -227,9 +231,11 @@ so that a mistake in one is caught before the next gate compounds it.
 - **STOP condition:** any row does not match — do not proceed to source integration with a partially-working
   service.
 - **Rollback:** not applicable (no state changed).
-- **Forbidden actions:** using a Production Firebase ID token against this service, or vice versa (should be
-  structurally impossible per `verifyIdToken`'s project binding, but the acceptance matrix explicitly tests this
-  rather than assuming it).
+- **Forbidden actions:** obtaining, holding, or sending a Production Firebase ID token against this service, or a
+  UAT-issued token against the Production service, at any point during B7 — full stop, no exception. This is a
+  hard boundary this gate protects, not something the acceptance matrix demonstrates by actually doing it: see
+  "Cross-environment isolation evidence" (item 16 detail, below) for how cross-environment isolation is evidenced
+  *without* ever exercising a real cross-environment token.
 
 ## Gate B8 — Source integration of the UAT service URL
 
@@ -299,41 +305,61 @@ so that a mistake in one is caught before the next gate compounds it.
 - **Forbidden actions:** declaring closure while any earlier gate's STOP condition was worked around rather than
   resolved.
 
-## Expected UAT PDF Cloud Run configuration (target, not yet live)
+## Approved UAT PDF Cloud Run configuration — verified live by B6
 
-| Setting | Expected value |
-|---|---|
-| Firebase/GCP project | `pm-dashboard-uat-20260820-a7f3` |
-| Service | `pm-dashboard-uat-pdf` |
-| Region | `asia-southeast1` |
-| CPU | 1 |
-| Memory | 1 GiB |
-| Timeout | 120s |
-| Concurrency | 1 |
-| Min instances | 0 |
-| Max instances | 1 |
-| Ingress | all |
-| Authentication | public Cloud Run endpoint (`--allow-unauthenticated`) + application-level Firebase ID-token verification |
+| Setting | Approved value | B6 status |
+|---|---|---|
+| Firebase/GCP project | `pm-dashboard-uat-20260820-a7f3` | verified live |
+| Service | `pm-dashboard-uat-pdf` | verified live |
+| Region | `asia-southeast1` | verified live |
+| CPU | 1 | verified live |
+| Memory | 1 GiB | verified live |
+| Timeout | 120s | verified live |
+| Concurrency | 1 | verified live |
+| Min instances | 0 | verified live |
+| Max instances | 1 | verified live |
+| Ingress | all | verified live |
+| Authentication | public Cloud Run endpoint (`--allow-unauthenticated`) + application-level Firebase ID-token verification | verified live (invoker binding only — B6 does not verify authenticated behavior; that is B7's job) |
 
-These are **expected deployment targets** derived from `pdf-service/src/targets/registry.json` and
-`pdf-service/scripts/deploy-pdf.mjs`'s current source. None of them are live yet. Do not present this table as
-evidence of a live service — Gate B6 is what produces that evidence.
+These values originate from `pdf-service/src/targets/registry.json` and `pdf-service/scripts/deploy-pdf.mjs`'s
+source, and B5 has deployed and B6 has independently re-confirmed them against the live Cloud Run service
+(`pm-dashboard-uat-pdf`, revision `pm-dashboard-uat-pdf-00001-7cv`, 100% traffic). This table is a reference for
+the *approved configuration*, not a new source of truth beyond what B6 actually verified — do not cite it in
+place of B6's own recorded evidence, and do not treat it as proof of anything B6 did not check (in particular, it
+proves nothing about authenticated request handling; see Gate B7 for that).
 
 ## Auth / CORS acceptance semantics
 
 The deployed service's own middleware order (`pdf-service/src/server.js`) is: CORS check first, then the
-Bearer-token/auth check. This runbook's acceptance testing must respect that order rather than treating a `403`
-as proof of anything about authentication:
+Bearer-token/auth check. This runbook's acceptance testing must respect that order, and must not treat every
+`403` as proof of anything about CORS specifically — **`403` is not unique to CORS**. Two structurally different
+things can both return `403`, at different stages, and B7 evidence must distinguish which one actually happened
+rather than assume:
 
-| Request | Expected result | What it proves |
-|---|---|---|
-| Bad or missing `Origin` header | `403` (from CORS, before auth ever runs) | CORS is enforcing an exact allow-list; says nothing about auth |
-| Allowed UAT `Origin` + missing `Authorization` header | `401` | The auth path is reached and correctly rejects a missing token |
-| Allowed UAT `Origin` + invalid/expired token | rejected (auth failure, not `200`) | `verifyIdToken` is actually being called and actually rejects a bad token |
-| Allowed UAT `Origin` + valid UAT-project token, authorized role | `200` with a PDF (or HTML for the preview route) | The full authenticated path works end-to-end |
+| Request | Stage | Expected result | What it proves |
+|---|---|---|---|
+| Bad or missing `Origin` header | CORS (before auth ever runs) | `403` | CORS is enforcing an exact allow-list; says nothing about auth |
+| Allowed UAT `Origin` + missing `Authorization` header | Auth | `401` | The auth path is reached and correctly rejects a missing token |
+| Allowed UAT `Origin` + invalid or expired token | Auth | `401` (see `pdf-service/src/auth-error.js`'s narrow, allowlisted classification) | `verifyIdToken` is actually being called and a bad-credential error is correctly classified as 401, not a generic 500 |
+| Allowed UAT `Origin` + valid token, but the caller's dashboard role/week-release state is denied | Application authorization (past auth, inside `report-access.js`) | `403` | The request reached and was correctly evaluated by role/week-release authorization — this is a *different* `403` than the CORS one above, produced at a later stage against an already-authenticated caller |
+| Allowed UAT `Origin` + valid UAT-project token, authorized role | Auth + authorization | `200` with a PDF (or HTML for the preview route) | The full authenticated, authorized path works end-to-end |
 
-**Do not mistake a `403` for an authentication failure** — it can only ever mean the Origin didn't match, which is
-tested and passed in isolation, before the Bearer token is even inspected.
+**Do not claim a `403` proves CORS rejection without also recording which stage produced it.** A `403` before any
+`Authorization` header was even read is the CORS case above. A `403` returned to a request that *did* carry a
+valid, accepted token is the application-authorization case (`ReportAccessError`'s default status), and is
+evidence of a correctly-*working* role/access check, not a CORS problem — treating it as "must be CORS" would
+misdiagnose a legitimate access denial. B7 evidence for every `403` observed must record: the `Origin` sent,
+whether a token was sent and whether it was one `verifyIdToken` would accept, and the response body's error
+category where it is safe to record (never the raw Firebase/internal error text).
+
+**A revoked ID token is not a live B7 requirement.** `auth-error.js` allowlists `auth/id-token-revoked` alongside
+the invalid/expired codes, so IF the verification layer ever surfaces that documented Firebase Auth error, it is
+correctly classified as 401. But the live server calls `auth.verifyIdToken(token)` in `server.js` **without**
+`checkRevoked: true`, so Firebase Admin's default verification path does not itself query for revocation and will
+not surface `auth/id-token-revoked` today. B7 must not require, and must not claim to prove, "revoked token → 401"
+against the live deployed service under the current implementation. Enabling active revocation checking
+(`checkRevoked: true`) is a separate, out-of-scope decision requiring its own review — it is not made by this
+document and is not assumed here.
 
 **The current CI container smoke test (in the `pdf-tests` CI job) proves only that the built container starts,
 binds its port, and returns real HTTP responses (`403` on an unmatched-Origin preflight, `404` on an unregistered
@@ -349,18 +375,50 @@ Gate B7, against the real deployed service.
 | 2 | Expected revision is serving 100% traffic | same |
 | 3 | Runtime service account matches B2 | same |
 | 4 | Env vars (`PDF_ENVIRONMENT`, `FIREBASE_PROJECT_ID`, `ALLOWED_ORIGIN`) match the registry exactly | `gcloud run services describe --format` on the env section, or Cloud Logging startup line |
-| 5 | Wrong/missing Origin → `403` | direct HTTP probe |
+| 5 | Wrong/missing Origin → `403` (CORS stage, before auth) | direct HTTP probe |
 | 6 | Allowed Origin + missing Bearer token → `401` | direct HTTP probe |
-| 7 | Allowed Origin + invalid token → rejected | direct HTTP probe with a deliberately invalid token |
-| 8 | Allowed Origin + valid token, authorized role → `200` | requires a real UAT login |
-| 9 | Project report generation succeeds | same, `/v1/reports/project` |
-| 10 | Overview report generation succeeds | same, `/v1/reports/overview` |
-| 11 | One-pager HTML preview endpoint succeeds | same, `/v1/reports/one-pager-preview` |
-| 12 | Firestore access is read-only in practice (no write side effect observed) | inspect the returned data and Firestore state before/after |
-| 13 | No Production project is reachable from this service's identity | attempt (in a controlled way) to confirm the runtime SA has no Production IAM binding, per B2's evidence |
-| 14 | No cross-environment identity acceptance | a Production-issued token against this UAT URL is rejected (structurally guaranteed by `verifyIdToken`'s project binding, but tested here rather than assumed) |
+| 7 | Allowed Origin + invalid token → `401` (not a generic `500`) | direct HTTP probe with a deliberately invalid token; confirms `auth-error.js`'s classification is live, not just unit-tested |
+| 8 | Allowed Origin + expired token → `401` (not a generic `500`) | direct HTTP probe with a deliberately expired token |
+| 9 | Allowed Origin + valid token, but role/week-release denies access → `403` (application-authorization stage, distinct from row 5's CORS `403`) | direct HTTP probe with a valid token against a role/state the access rules deny |
+| 10 | Allowed Origin + valid token, authorized role → `200` | requires a real UAT login |
+| 11 | Project report generation succeeds | same, `/v1/reports/project` |
+| 12 | Overview report generation succeeds | same, `/v1/reports/overview` |
+| 13 | One-pager HTML preview endpoint succeeds | same, `/v1/reports/one-pager-preview` |
+| 14 | Firestore access is read-only in practice (no write side effect observed) | inspect the returned data and Firestore state before/after |
+| 15 | No Production project is reachable from this service's identity | read-only confirmation, via GCP IAM policy inspection (not a live HTTP probe against Production), that the UAT runtime SA holds no Production IAM binding, per B2's evidence and the B7-PREP isolation model below |
+| 16 | Cross-environment identity isolation | proved WITHOUT sending a Production-issued token to UAT (that action is explicitly forbidden — see "Cross-environment isolation evidence" below); evidence is the combination of B6's confirmed UAT project/runtime identity, this repository's own source/tests proving that identity binding, the separate (uncited-in-detail) Firebase Admin SDK audience/project contract, and item 15's IAM confirmation |
 
-Items 8–11 require a human with UAT login credentials; they cannot be scripted from an unattended session.
+Items 10–13 require a human with UAT login credentials; they cannot be scripted from an unattended session.
+
+### Cross-environment isolation evidence (item 16 detail — replaces sending a Production token to UAT)
+
+Stage B's own hard requirements forbid ever sending a Production-issued Firebase ID token to the UAT service (and
+the reverse) — Production credentials must never be exercised against a non-Production target, full stop. Item 16
+must therefore never be satisfied by actually obtaining and sending a real Production token; that would violate
+the very isolation this runbook exists to protect, for the sake of testing it. Instead, item 16's required
+evidence is the conjunction of distinct evidence sources, each cited for exactly what it does and does not prove:
+
+- **What this repository's own tests prove (source/test evidence, verified by us):** `resolveRuntimeTarget`
+  (`pdf-service/src/environment.js`, exercised by `pdf-service/test/project-brief-update-boundary.test.mjs`)
+  requires `FIREBASE_PROJECT_ID` and `K_SERVICE` to match the UAT registry entry exactly and fails closed
+  otherwise; `initializeFirebaseAdmin` re-checks the resulting Firebase Admin app's own `projectId` against the
+  registry after `initializeApp` runs. Together these prove the *application is configured and wired* to the UAT
+  Firebase project, and B6 independently confirmed this against the live deployed service (its env vars and
+  `K_SERVICE`, per the Approved Configuration table above). This is evidence about **our own configuration
+  binding**, not about token cryptography.
+- **What Firebase Admin SDK's own contract provides (external, not reimplemented or unit-tested by this
+  repository):** `verifyIdToken`'s project/audience validation — that a token issued for one Firebase project is
+  cryptographically rejected by `verifyIdToken` running against a different project — is a documented behavior of
+  the Firebase Admin SDK itself. This repository does not reimplement that check, does not cryptographically
+  unit-test it, and does not claim to have independently verified it; it is cited here as an external dependency
+  this isolation argument relies on, not as something B7 or this repo's test suite proves.
+- Item 15's read-only IAM confirmation that the UAT runtime service account has no Production IAM binding.
+- No Production credential or token is obtained, held, or transmitted at any point during B7.
+
+This proves the isolation property the original item 16 wording was reaching for, without ever requiring a
+Production credential to be produced or sent anywhere, and without overstating what this repository's own tests
+versus the external Firebase Admin SDK contract each actually establish — the isolation requirement itself is not
+weakened, only the unsafe means of demonstrating it is replaced.
 
 ## Future URL integration (Gate B8 detail)
 

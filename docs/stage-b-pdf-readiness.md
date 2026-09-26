@@ -21,20 +21,35 @@ another commit or another reviewer finding. What follows is the current durable 
    deployed, and whether it still carries this hardening unmodified — rather than relying on this document.
 5. **Stage B is IN PROGRESS.** Recorded state:
    - B1 PASS, B2 PASS, B3 PASS, B4 PASS.
-   - The first B5 attempt STOPPED. Reason: the default Compute Engine build identity
-     (`317352278230-compute@developer.gserviceaccount.com`) lacked `storage.objects.get` on the uploaded source
-     object, so Cloud Build rejected the request at submission.
-   - No Cloud Run service or revision was created. No Artifact Registry image was pushed.
-   - One known failed-attempt source zip remains in the auto-created `run-sources` bucket:
+   - **History (preserved as-is, not current state):** the first B5 attempt STOPPED. Reason: the default Compute
+     Engine build identity (`317352278230-compute@developer.gserviceaccount.com`) lacked `storage.objects.get` on
+     the uploaded source object, so Cloud Build rejected the request at submission. No Cloud Run service or
+     revision was created on that first attempt. No Artifact Registry image was pushed on that first attempt. One
+     known failed-attempt source zip remains in the auto-created `run-sources` bucket, as known residue only:
      `gs://run-sources-pm-dashboard-uat-20260820-a7f3-asia-southeast1/services/pm-dashboard-uat-pdf/1790372081.858716-5fec0be009b6460eba9482076842fd4b.zip`.
-     It is known B5 failed-attempt residue only; cleanup is a later, separately authorized decision.
-   - **B5 retry is HOLD** pending dedicated build identity remediation. B5 has not passed, and the UAT PDF
-     Cloud Run service does not exist.
-   - The intended UAT build identity is `pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`
-     with `roles/run.builder`. This is recorded in reviewed source only; the service account is not yet
-     provisioned. It remains separate from the runtime identity
-     `pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`, which holds
-     `roles/datastore.viewer` only and must receive no build permissions.
+     Cleanup of that residue remains a later, separately authorized decision, unaffected by anything below.
+   - **History (preserved as-is, not current state):** the dedicated UAT build identity
+     `pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com` (`roles/run.builder`,
+     distinct from the runtime identity) was recorded in reviewed source ahead of being provisioned, exactly as
+     `pdf-service/scripts/deploy-pdf.mjs`'s `assertTargetIsDeployable` and Gate B5's prerequisites required.
+   - **Current state:** the B5 retry, using that dedicated build identity, has **PASSED**. The UAT PDF Cloud Run
+     service (`pm-dashboard-uat-pdf`) exists, is Ready, and is serving 100% traffic on revision
+     `pm-dashboard-uat-pdf-00001-7cv`. The successful-attempt source object is
+     `gs://run-sources-pm-dashboard-uat-20260820-a7f3-asia-southeast1/services/pm-dashboard-uat-pdf/1790387540.588248-7478efbb375c4b169977d3d0583f9c9a.zip`.
+     The runtime identity `pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com` holds
+     `roles/datastore.viewer` only and has received no build permissions; the build identity holds
+     `roles/run.builder` only and is distinct from the runtime identity, as required.
+   - **B6 (read-only deployed-service verification) has PASSED**, independently confirming the above against live
+     Cloud Run/Cloud Build/IAM state.
+   - **B7 (direct UAT service acceptance) is HOLD**, not because of infrastructure/IAM readiness (B5/B6 both
+     PASS), but pending a source-level fix identified during B7-PREP: invalid or expired Firebase ID tokens could
+     fall through to a generic `500` instead of `401` (see `pdf-service/src/auth-error.js`). That fix also
+     allowlists `auth/id-token-revoked` defensively, so that error is classified 401 *if the verification layer
+     ever surfaces it* — but the live server calls `verifyIdToken` without `checkRevoked: true`, so revocation is
+     not actively checked today and live revoked-token detection is explicitly **not** a B7 requirement.
+     That source fix, once reviewed and merged, still requires a **separately authorized UAT PDF redeploy** and an
+     **independent B6-equivalent re-verification of the new revision** before B7 may begin — merging the source
+     fix alone does not satisfy this. **SOURCE FIX MERGED ≠ LIVE FIX DEPLOYED.**
 
 ## CLOSED
 
@@ -49,12 +64,17 @@ another commit or another reviewer finding. What follows is the current durable 
 - PDF deployment source hardening (PR #17: clean-tree and gcloud-upload-boundary guards in
   `pdf-service/scripts/deploy-pdf.mjs`, plus the Windows real-deploy fail-closed / dry-run-still-supported
   behavior) — independently reviewed, approved, and merged into `main`
+- Dedicated build identity: source merge, provisioning, and fresh predeploy lock (Gate B5 prerequisite)
+- First UAT PDF Cloud Run deployment (Gate B5) — **PASS**
+- Read-only deployed-service verification (Gate B6) — **PASS**
 
 ## PENDING
 
-- Dedicated build identity: source merge, provisioning, and fresh predeploy lock (B5 HOLD)
-- First UAT PDF Cloud Run deployment (Gate B5 retry)
-- Direct service acceptance (Gate B7)
+- B7-PREP auth-error-boundary source remediation (this document's companion PR) — review and merge only; no
+  deployment
+- A separately authorized UAT PDF redeploy carrying the B7-PREP fix, followed by an independent B6-equivalent
+  re-verification of the new revision
+- Direct service acceptance (Gate B7) — HOLD until the above two items are both complete
 - Source URL integration (Gate B8)
 - Second UAT Hosting release (Gate B9)
 - 36–48 hour soak (Gate B10)
@@ -109,8 +129,10 @@ Before this pack was proposed, the following failure modes were explicitly check
   so an operator cannot combine them into one large, harder-to-audit step.
 - The runbook explicitly states that Gate B8 (URL integration) never happens before Gate B7 (acceptance) — an
   unreviewed service URL cannot reach tracked source ahead of acceptance.
-- The Auth/CORS section explicitly warns against mistaking a `403` (CORS) for an auth failure, and against citing
-  the current CI container smoke as proof of live authenticated rendering.
-- The runbook states in its own header that Stage B is IN PROGRESS (B1–B4 complete, first B5 attempt stopped, B5
-  retry on HOLD), and the readiness document above states the same; neither claims B5 has passed, and the soak
-  has NOT begun.
+- The Auth/CORS section explicitly warns against conflating CORS's `403` with application-authorization's `403`,
+  and against citing the current CI container smoke as proof of live authenticated rendering.
+- **(Historical, at the time this self-review record was written)** the runbook stated in its own header that
+  Stage B was IN PROGRESS (B1–B4 complete, first B5 attempt stopped, B5 retry on HOLD); neither claimed B5 had
+  passed, and the soak had NOT begun. **This is no longer the current state** — see the current-state section
+  above, which now records B5 PASS, B6 PASS, and B7 HOLD pending the B7-PREP auth-error-boundary source fix and
+  its subsequent deployment/re-verification. The soak (B10) still has NOT begun.
