@@ -126,3 +126,60 @@ test('one-pager preview reports a 404 for a project that no longer exists', asyn
   await handle({ headers: { authorization: 'Bearer token' }, body: { weekId: 'W28', projectCode: 'MISSING' } }, res);
   assert.equal(res.statusCode, 404);
 });
+
+// --- Auth error classification (B7-PREP) ---------------------------------------------------------------------
+// These prove the auth-error boundary (src/auth-error.js) is actually wired through both handlers via
+// loadAuthorizedReport, not merely unit-tested in isolation. Synthetic errors only; no real Firebase token, no
+// network or cloud call.
+
+function firebaseAuthError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+test('an invalid Firebase ID token yields 401, not the generic 500 fallback', async () => {
+  const rejectingAdapters = { ...adapters, verifyIdToken: async () => { throw firebaseAuthError('auth/invalid-id-token', 'malformed token detail'); } };
+  const handle = createReportHandler({ adapters: rejectingAdapters, renderPdf: async () => Buffer.from('%PDF') });
+  const res = response();
+  await handle({ headers: { authorization: 'Bearer bad-token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: [] } }, res);
+  assert.equal(res.statusCode, 401);
+  assert.equal(JSON.parse(res.body).error.includes('malformed token detail'), false);
+});
+
+test('an expired Firebase ID token yields 401', async () => {
+  const rejectingAdapters = { ...adapters, verifyIdToken: async () => { throw firebaseAuthError('auth/id-token-expired', 'expired'); } };
+  const handle = createReportHandler({ adapters: rejectingAdapters, renderPdf: async () => Buffer.from('%PDF') });
+  const res = response();
+  await handle({ headers: { authorization: 'Bearer expired-token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: [] } }, res);
+  assert.equal(res.statusCode, 401);
+});
+
+test('an unrecognized Firebase Admin/internal auth failure remains a generic 500 and leaks no internal detail', async () => {
+  const rejectingAdapters = { ...adapters, verifyIdToken: async () => { throw firebaseAuthError('auth/internal-error', 'a secret stack trace detail'); } };
+  const handle = createReportHandler({ adapters: rejectingAdapters, renderPdf: async () => Buffer.from('%PDF') });
+  const res = response();
+  await handle({ headers: { authorization: 'Bearer token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: [] } }, res);
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(JSON.parse(res.body), { error: 'Unable to generate report.' });
+});
+
+test('role/access denial from a decoded, valid token remains 403', async () => {
+  const deniedAdapters = {
+    ...adapters,
+    verifyIdToken: async () => ({ email: 'nobody@example.com' }),
+    getUserByEmail: async () => ({ role: 'unknown-role' })
+  };
+  const handle = createReportHandler({ adapters: deniedAdapters, renderPdf: async () => Buffer.from('%PDF') });
+  const res = response();
+  await handle({ headers: { authorization: 'Bearer token' }, body: { mode: 'project', weekId: 'W28', projectCode: 'PMS-001', sections: [] } }, res);
+  assert.equal(res.statusCode, 403);
+});
+
+test('the one-pager preview handler applies the same auth-error semantics as the report handler', async () => {
+  const rejectingAdapters = { ...adapters, verifyIdToken: async () => { throw firebaseAuthError('auth/id-token-revoked', 'revoked'); } };
+  const handle = createOnePagerPreviewHandler({ adapters: rejectingAdapters });
+  const res = response();
+  await handle({ headers: { authorization: 'Bearer revoked-token' }, body: { weekId: 'W28', projectCode: 'PMS-001' } }, res);
+  assert.equal(res.statusCode, 401);
+});

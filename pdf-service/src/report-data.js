@@ -5,6 +5,7 @@ import {
 } from './report-access.js';
 import { validateExecutiveSummaryForPdf } from './executive-summary-brief.js';
 import { resolveGanttWindowSettings, sanitizeDraftGanttWindowSettings } from './gantt-window.js';
+import { verifyBearerToken } from './auth-error.js';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -75,7 +76,7 @@ function executiveTimelineForReport(week, liveState) {
 }
 
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
-  const decodedToken = await adapters.verifyIdToken(idToken);
+  const decodedToken = await verifyBearerToken(adapters, idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
   if (!email) throw new ReportAccessError('The authentication token does not include an email address.', 401);
   const user = await adapters.getUserByEmail(email);
