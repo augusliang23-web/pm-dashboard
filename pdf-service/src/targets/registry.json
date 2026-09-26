@@ -7,6 +7,7 @@
       "region": "asia-southeast1",
       "serviceName": "pm-dashboard-uat-pdf",
       "runtimeServiceAccount": "pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "buildServiceAccount": "pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
       "serviceUrl": null,
       "allowedOrigins": [
         "https://augusliang23-web.github.io",
@@ -20,6 +21,7 @@
       "region": "asia-southeast1",
       "serviceName": "pm-dashboard-pdf",
       "runtimeServiceAccount": "pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com",
+      "buildServiceAccount": "pm-dashboard-pdf-build@project-manager-dashboar-a067f.iam.gserviceaccount.com",
       "serviceUrl": "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app",
       "allowedOrigins": [
         "https://augusliang23-web.github.io",

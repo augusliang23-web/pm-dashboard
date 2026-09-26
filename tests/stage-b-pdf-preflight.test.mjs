@@ -43,6 +43,7 @@ function validRegistry(overrides = {}) {
     region: EXPECTED_UAT_IDENTITY.region,
     serviceName: EXPECTED_UAT_IDENTITY.serviceName,
     runtimeServiceAccount: EXPECTED_UAT_IDENTITY.runtimeServiceAccount,
+    buildServiceAccount: EXPECTED_UAT_IDENTITY.buildServiceAccount,
     serviceUrl: null,
     allowedOrigins: ['https://example.github.io', `https://${EXPECTED_UAT_IDENTITY.firebaseProjectId}.web.app`],
     ...(overrides.uat || {})
@@ -52,6 +53,7 @@ function validRegistry(overrides = {}) {
     region: EXPECTED_PRODUCTION_IDENTITY.region,
     serviceName: EXPECTED_PRODUCTION_IDENTITY.serviceName,
     runtimeServiceAccount: EXPECTED_PRODUCTION_IDENTITY.runtimeServiceAccount,
+    buildServiceAccount: EXPECTED_PRODUCTION_IDENTITY.buildServiceAccount,
     ...(overrides.production || {})
   };
   return { targets: { uat, production } };
@@ -492,12 +494,50 @@ test('the fully valid fixture (matching the anchored identity exactly) passes ev
     assert.equal(report.overall, 'PASS');
     for (const id of [
       'uat-firebase-project-matches-expected', 'uat-region-matches-expected',
-      'uat-service-name-matches-expected', 'uat-runtime-service-account-matches-expected',
+      'uat-service-name-matches-expected', 'uat-runtime-service-account-matches-expected', 'uat-build-service-account-matches-expected',
       'production-firebase-project-matches-expected', 'production-region-matches-expected',
-      'production-service-name-matches-expected', 'production-runtime-service-account-matches-expected'
+      'production-service-name-matches-expected', 'production-runtime-service-account-matches-expected', 'production-build-service-account-matches-expected'
     ]) {
       assert.equal(findCheck(report, id).status, 'PASS', `expected ${id} to be PASS`);
     }
+  });
+});
+
+test('UAT preflight anchors the exact expected build service account', async () => {
+  await withGitFixtureDir({}, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(findCheck(report, 'uat-build-service-account-matches-expected').status, 'PASS');
+  });
+});
+
+test('a wrong-project UAT build service account fails preflight', async () => {
+  await withFixtureDir({
+    registry: validRegistry({ uat: { buildServiceAccount: 'pm-dashboard-uat-pdf-build@some-other-project.iam.gserviceaccount.com' } })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'uat-build-service-account-matches-expected').status, 'FAIL');
+  });
+});
+
+test('a missing UAT build service account fails preflight', async () => {
+  await withFixtureDir({ registry: validRegistry({ uat: { buildServiceAccount: '' } }) }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(report.overall, 'FAIL');
+    assert.equal(findCheck(report, 'uat-build-service-account-matches-expected').status, 'FAIL');
+  });
+});
+
+test('Production preflight anchors its exact expected build service account, and rejects the default Compute identity', async () => {
+  await withGitFixtureDir({}, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(findCheck(report, 'production-build-service-account-matches-expected').status, 'PASS');
+  });
+  await withFixtureDir({
+    registry: validRegistry({ production: { buildServiceAccount: '317352278230-compute@developer.gserviceaccount.com' } })
+  }, async dir => {
+    const report = await runPreflight({ repo: dir, phase: 'predeploy' });
+    assert.equal(findCheck(report, 'production-build-service-account-matches-expected').status, 'FAIL');
   });
 });
 
