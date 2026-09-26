@@ -2467,10 +2467,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="stext" id="pd_highlight"></div>
         <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions (for next week)</div>
         <div class="stext" id="pd_weekly_actions"></div>
-        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Required Action</div>
+        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Mitigation Actions</div>
         <div class="project-risk-table-wrap">
           <table class="project-risk-table">
-            <thead><tr><th>Risk / Blocker</th><th>Required Action</th></tr></thead>
+            <thead><tr><th>Risk / Blocker</th><th>Mitigation Actions</th></tr></thead>
             <tbody id="pd_risk_action_rows"></tbody>
           </table>
         </div>
@@ -2535,7 +2535,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="overlay no-print" id="projectPdfSectionPicker" role="dialog" aria-modal="true" aria-labelledby="projectPdfSectionPickerTitle">
   <div class="modal project-pdf-picker-modal">
     <div class="modal-hdr"><h3 id="projectPdfSectionPickerTitle">Export project PDF</h3><button class="modal-x" type="button" aria-label="Close PDF section picker" onclick="closeModal('projectPdfSectionPicker')">×</button></div>
-    <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, risk &amp; required action) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
+    <p class="project-pdf-picker-note">The one-page summary (highlights, action items, schedule summary, Risk &amp; Mitigation Actions) is always included as the first page. Choose any additional detail sections to append after it; each is placed on a clean A4 landscape page and long tables continue only between complete rows.</p>
     <div class="project-pdf-picker-list">
       <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-brief"><span>Project brief</span></label>
       <label class="project-pdf-picker-option" data-profile-only="uat"><input type="checkbox" data-pdf-section="project-update"><span>Project update</span></label>
@@ -2587,10 +2587,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="fg"><label class="fl">Highlight</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Add accomplishments, decisions, or changes."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Add actions the team needs to execute next week."></textarea></div>
   <div class="fg">
-    <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
+    <label class="fl">Risk &amp; Mitigation Actions (shown in Overview)</label>
     <div class="risk-pair-editor">
-      <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Required Action so the table stays decision-oriented.</div>
-      <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Required Action</span><span></span></div>
+      <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Mitigation Actions entry so the table stays decision-oriented.</div>
+      <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Mitigation Actions</span><span></span></div>
       <div id="riskActionPairContainer"></div>
       <button class="btn btn-ghost" onclick="addRiskActionPairRow()" style="width:100%;">+ Add Risk / Action Pair</button>
     </div>
@@ -8842,7 +8842,7 @@ function renderRiskActionTable(projs, editable) {
   }
   const rows = projs.filter(shouldIncludeRisk);
   return `<div class="risk-rule"><b>Rule:</b> projects are included when they are At Risk/Critical, need executive action or close monitoring, contain blocker text, or have a milestone marked at risk. Only the Primary risk/action pair is shown in this executive list.</div>
-  <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>
+  <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Mitigation Actions</th><th>Checkpoint</th></tr></thead><tbody>
     ${rows.map(p => {
       const primary = getPrimaryRiskActionPair(p);
       return `<tr><td><b>${escHtml(p.name)}${overviewProjectBadge(p)}</b><br><span class="proj-code">${escHtml(p.code)}</span></td>
@@ -10094,7 +10094,7 @@ function renderExec(projs, summary, allProjects = projs) {
     <div class="exec-decision-panel risk-action-panel" data-print-section="risk-actions">
       <div class="exec-decision-head">
         <div>
-          <div class="exec-eyebrow">Risk Action Table</div>
+          <div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>
           <div class="exec-decision-title">Decision-oriented risk list</div>
         </div>
         <div class="exec-panel-note">${editableDecisionView ? 'Manual include/exclude available below' : 'Manual risk-list overrides reflected'}</div>
@@ -11540,7 +11540,7 @@ window.addRiskActionPairRow = (item = {}) => {
   row.innerHTML = `
     <label class="risk-primary-control"><input type="radio" name="riskActionPrimary" class="rap-primary" ${primary || isFirst ? 'checked' : ''}> Primary</label>
     <div class="risk-list-cell" data-list-label="Risk / Blocker"><textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview" aria-label="Risk or blocker"></textarea></div>
-    <div class="risk-list-cell" data-list-label="Required Action"><textarea class="ft rap-action" rows="2" placeholder="Required Action shown in Overview" aria-label="Required action"></textarea></div>
+    <div class="risk-list-cell" data-list-label="Mitigation Actions"><textarea class="ft rap-action" rows="2" placeholder="Mitigation Actions shown in Overview" aria-label="Mitigation actions"></textarea></div>
     <button type="button" class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair" aria-label="Delete risk/action pair">&#128465;&#65039;</button>
   `;
   container.appendChild(row);
