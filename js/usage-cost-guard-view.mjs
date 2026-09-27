@@ -12,6 +12,7 @@ import {
   FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE,
   calculateSpendCap,
   normalizeSpendCapConfig,
+  toPacificDateKey,
 } from './usage-cost-guard.mjs';
 
 // Control Plane precedence (UCG-V2-2B section 9): a known critical condition outranks an unknown
@@ -121,4 +122,48 @@ export function buildUsageCostGuardOverview({
     cloudRun,
     cloudRunFunctions,
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tracked Daily Writes history window (UCG-V2-2C-R1)
+// ---------------------------------------------------------------------------------------------
+//
+// UCG-V2-2C-R1 remediation: the "Last 30 days" / "Available history (up to 60 days)" window
+// must be anchored to the CURRENT America/Los_Angeles calendar date, never to the latest
+// observed row's date -- anchoring to the latest observation lets stale data masquerade as
+// current (e.g. a dashboard left unopened for a week would show its most recent tracked day as
+// "today"). `now` is deliberately an explicit parameter (a Date or epoch-ms number, defaulting
+// to Date.now() only at the call site) rather than a hidden Date.now() call buried in this pure
+// function, so the window boundary is deterministic and testable.
+//
+// Reuses toPacificDateKey (the same Intl/IANA-timezone-aware America/Los_Angeles conversion the
+// foundation already uses for aggregateObservedBucketsByPacificStartDate) for the anchor, and the
+// same UTC-midnight-of-a-date-key arithmetic calculateRollingWindow already uses for the day-count
+// walk-back -- this is calendar-date arithmetic on already-Pacific-attributed date keys, not a
+// second, inconsistent timezone model.
+export function buildTrackedDailyHistoryWindow(rows = [], { days = 30, now = Date.now() } = {}) {
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  const anchorDateKey = toPacificDateKey(nowMs);
+  if (!anchorDateKey || !Number.isInteger(days) || days <= 0) {
+    return { anchorDateKey: null, windowStartDateKey: null, rows: [] };
+  }
+  const anchorMs = Date.parse(`${anchorDateKey}T00:00:00Z`);
+  const windowStartMs = anchorMs - (days - 1) * 86_400_000;
+  const windowed = rows.filter((row) => {
+    const ms = Date.parse(`${row?.date}T00:00:00Z`);
+    return Number.isFinite(ms) && ms >= windowStartMs && ms <= anchorMs;
+  });
+  // windowStartMs was built by subtracting whole 24h steps from anchorMs (itself a UTC-midnight
+  // instant, per the `${anchorDateKey}T00:00:00Z` parse above) -- it is already the UTC-midnight
+  // instant of the correct calendar date. Re-running it through toPacificDateKey (a timezone
+  // CONVERSION) here would be wrong: it would interpret this UTC-midnight instant as a moment in
+  // Pacific time, which lands on the *previous* calendar day (Pacific is behind UTC), shifting
+  // the reported window start back by one day. Format it directly as the UTC calendar date it
+  // already represents instead.
+  const windowStartDateKey = new Date(windowStartMs).toISOString().slice(0, 10);
+  return {
+    anchorDateKey,
+    windowStartDateKey,
+    rows: windowed,
+  };
 }

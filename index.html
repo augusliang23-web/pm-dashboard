@@ -3068,7 +3068,7 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes } from "./js/presence-usage.mjs";
 import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate, toPacificDateKey } from "./js/usage-cost-guard.mjs";
-import { buildUsageCostGuardOverview } from "./js/usage-cost-guard-view.mjs";
+import { buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4773,13 +4773,14 @@ function renderTrackedDailyWritesHistory() {
     return;
   }
 
-  const anchor = allRows[allRows.length - 1].date;
-  const anchorMs = Date.parse(`${anchor}T00:00:00Z`);
-  const windowStartMs = anchorMs - (windowDays - 1) * 86_400_000;
-  const rows = allRows.filter(row => {
-    const ms = Date.parse(`${row.date}T00:00:00Z`);
-    return ms >= windowStartMs && ms <= anchorMs;
+  // UCG-V2-2C-R1: the window is anchored to the CURRENT America/Los_Angeles calendar date
+  // (Date.now(), converted via the same toPacificDateKey the foundation already uses), never to
+  // the latest observed row -- anchoring to stale data would let it masquerade as "today".
+  const { windowStartDateKey, rows } = buildTrackedDailyHistoryWindow(allRows, {
+    days: windowDays,
+    now: Date.now(),
   });
+  const windowStartMs = Date.parse(`${windowStartDateKey}T00:00:00Z`);
 
   if (!rows.length) {
     chart.innerHTML = '<div class="usage-chart-empty">No tracked writes were observed in this window.</div>';

@@ -6,6 +6,7 @@ import {
 import {
   buildFirestoreCardViewModel,
   buildSpendCapCardViewModel,
+  buildTrackedDailyHistoryWindow,
   buildUsageCostGuardOverview,
   combineOverallStatus,
   describeOverallStatus,
@@ -218,4 +219,78 @@ test('buildUsageCostGuardOverview: TEST-ONLY all-available-and-safe fixture comp
   // math itself instead, directly, to prove all-SAFE composes to SAFE.
   assert.equal(combineOverallStatus([overview.cloudRun.status, overview.cloudRunFunctions.status]), STATUS.SAFE);
   assert.equal(overview.overallStatus, STATUS.UNKNOWN, 'Firestore UNKNOWN must still keep the real overall status UNKNOWN, never SAFE');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Tracked Daily Writes history window (UCG-V2-2C-R1): anchored to the CURRENT Pacific date,
+// never to the latest observed row -- stale data must never masquerade as "today".
+// ---------------------------------------------------------------------------------------------
+
+const ROWS_ENDING_STALE = [
+  { date: '2026-08-01', writes: 10, observationCount: 1 },
+  { date: '2026-08-02', writes: 20, observationCount: 1 },
+  { date: '2026-08-03', writes: 30, observationCount: 1 }, // stalest/latest observed row
+];
+
+test('buildTrackedDailyHistoryWindow anchors to `now`, not the latest observed row', () => {
+  // `now` is three weeks after the latest observation -- if the window anchored to the latest
+  // row (2026-08-03) instead of `now`, all three rows would incorrectly appear inside a "last 30
+  // days" window dated as if they were recent.
+  const now = Date.parse('2026-08-24T12:00:00-07:00'); // noon Pacific, well past the last row
+  const result = buildTrackedDailyHistoryWindow(ROWS_ENDING_STALE, { days: 30, now });
+  assert.equal(result.anchorDateKey, '2026-08-24');
+  assert.equal(result.windowStartDateKey, '2026-07-26');
+  // All three stale rows still fall inside a 30-day lookback from 2026-08-24, so they remain
+  // visible, but critically dated against the window boundary the UI actually shows the admin
+  // ("Last 30 days" ending 2026-08-24), not silently against the stale data's own end date.
+  assert.deepEqual(result.rows.map(r => r.date), ['2026-08-01', '2026-08-02', '2026-08-03']);
+});
+
+test('buildTrackedDailyHistoryWindow excludes rows older than the current-date window even when they are the only data', () => {
+  // `now` is far enough past the data that a 30-day window anchored correctly to `now` excludes
+  // every row -- this is the exact regression the R1 fix targets: an implementation that
+  // (incorrectly) anchors to the latest observed row would instead show all three rows as if
+  // they were within the last 30 days of "today".
+  const now = Date.parse('2026-12-01T12:00:00-08:00');
+  const result = buildTrackedDailyHistoryWindow(ROWS_ENDING_STALE, { days: 30, now });
+  assert.equal(result.anchorDateKey, '2026-12-01');
+  assert.deepEqual(result.rows, []);
+});
+
+test('buildTrackedDailyHistoryWindow: 60-day window uses America/Los_Angeles, not a fixed UTC offset', () => {
+  // 2026-01-15 12:00 UTC is 2026-01-15 04:00 PST (UTC-8) -- a fixed UTC-8 offset and the real
+  // IANA tz both agree here, so this pins the anchor to the correct Pacific date under standard
+  // time specifically (a DST-naive UTC-7 assumption would misdate it).
+  const now = Date.parse('2026-01-15T12:00:00Z');
+  const result = buildTrackedDailyHistoryWindow([], { days: 60, now });
+  assert.equal(result.anchorDateKey, '2026-01-15');
+  assert.equal(result.windowStartDateKey, '2025-11-17');
+});
+
+test('buildTrackedDailyHistoryWindow: window boundary shifts correctly across a DST transition', () => {
+  // 2026-03-08 is the US spring-forward DST transition (PST -> PDT). A window anchored the day
+  // after must still walk back exactly `days` Pacific calendar dates, not `days` fixed 24h steps
+  // miscounted by the missing hour.
+  const now = Date.parse('2026-03-09T12:00:00-07:00'); // noon PDT
+  const result = buildTrackedDailyHistoryWindow([], { days: 10, now });
+  assert.equal(result.anchorDateKey, '2026-03-09');
+  assert.equal(result.windowStartDateKey, '2026-02-28');
+});
+
+test('buildTrackedDailyHistoryWindow: invalid `now` or `days` fails closed instead of guessing', () => {
+  assert.deepEqual(buildTrackedDailyHistoryWindow(ROWS_ENDING_STALE, { days: 30, now: NaN }),
+    { anchorDateKey: null, windowStartDateKey: null, rows: [] });
+  assert.deepEqual(buildTrackedDailyHistoryWindow(ROWS_ENDING_STALE, { days: 0, now: Date.now() }),
+    { anchorDateKey: null, windowStartDateKey: null, rows: [] });
+  assert.deepEqual(buildTrackedDailyHistoryWindow(ROWS_ENDING_STALE, { days: -5, now: Date.now() }),
+    { anchorDateKey: null, windowStartDateKey: null, rows: [] });
+});
+
+test('buildTrackedDailyHistoryWindow: a row with a malformed date is dropped, never crashes the window filter', () => {
+  const now = Date.parse('2026-08-24T12:00:00-07:00');
+  const result = buildTrackedDailyHistoryWindow(
+    [...ROWS_ENDING_STALE, { date: 'not-a-date', writes: 5, observationCount: 1 }, { date: null, writes: 5, observationCount: 1 }],
+    { days: 30, now },
+  );
+  assert.deepEqual(result.rows.map(r => r.date), ['2026-08-01', '2026-08-02', '2026-08-03']);
 });

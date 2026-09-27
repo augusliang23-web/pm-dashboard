@@ -60,14 +60,19 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
     assert.match(html, /ucgTrackedDailyWritesRows = buildObservedPresenceWriteRows\(presenceDocs\);/);
   });
 
-  test(`${label}: renderTrackedDailyWritesHistory filters to the window and never fills missing days as zero`, () => {
+  test(`${label}: renderTrackedDailyWritesHistory filters to the window (anchored to now, not the latest row) and never fills missing days as zero`, () => {
     assert.match(html, /function renderTrackedDailyWritesHistory\(\)/);
-    // The window filter only keeps rows that already exist (allRows.filter), it never
-    // synthesizes a row for a date with no observation.
+    // UCG-V2-2C-R1: the window is built by the shared, unit-tested buildTrackedDailyHistoryWindow
+    // helper (js/usage-cost-guard-view.mjs), anchored to Date.now() -- never to the latest
+    // observed row -- so stale data can never masquerade as "today". The helper's own window-
+    // filter behavior (rows.filter, never zero-filling a missing date) is covered by
+    // tests/usage-cost-guard-view.test.mjs; this only checks index.html wires it correctly.
     assert.match(
       html,
-      /const rows = allRows\.filter\(row => \{\s*\n\s*const ms = Date\.parse\(`\$\{row\.date\}T00:00:00Z`\);\s*\n\s*return ms >= windowStartMs && ms <= anchorMs;\s*\n\s*\}\);/,
+      /const \{ windowStartDateKey, rows \} = buildTrackedDailyHistoryWindow\(allRows, \{\s*\n\s*days: windowDays,\s*\n\s*now: Date\.now\(\),\s*\n\s*\}\);/,
     );
+    assert.doesNotMatch(html, /const anchor = allRows\[allRows\.length - 1\]\.date;/,
+      'the window must not anchor to the latest observed row');
     assert.match(html, /missing days are gaps, not zero writes/);
   });
 
