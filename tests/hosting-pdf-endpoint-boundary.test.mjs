@@ -11,7 +11,7 @@
 // files and asserts they currently agree -- useful, but it does not prove the *build* fails closed when they
 // don't; that is what this file adds).
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -169,8 +169,13 @@ test('a missing registry file fails the build instead of silently accepting any 
 test('the real repository env files still agree with the real registry (build-time check, not just a same-value assertion)', async () => {
   const { fileURLToPath } = await import('node:url');
   const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+  const registry = JSON.parse(await readFile(join(repoRoot, 'pdf-service', 'src', 'targets', 'registry.json'), 'utf8'));
   const prod = await loadHostingEnv(repoRoot, 'prod');
   const uat = await loadHostingEnv(repoRoot, 'uat');
+  assert.equal(prod.pdfServiceUrl, registry.targets.production.serviceUrl);
+  assert.equal(uat.pdfServiceUrl, registry.targets.uat.serviceUrl);
   assert.equal(prod.pdfReleaseReady, true);
-  assert.equal(uat.pdfReleaseReady, false);
+  // Transition-safe across both legitimate Stage B states: UAT readiness is derived from whether the registry
+  // has a registered UAT serviceUrl, never hardcoded to the pre-B8 (null) state.
+  assert.equal(uat.pdfReleaseReady, registry.targets.uat.serviceUrl !== null);
 });
