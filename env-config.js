@@ -11,6 +11,23 @@ window.PM_DASHBOARD_ENV = Object.freeze({
   // null until this environment's dedicated PDF Cloud Run service is deployed and verified; professional-pdf-config.js
   // refuses cleanly (never falls back to another environment's service) when this is null.
   pdfServiceUrl: "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app",
+  // Non-sensitive Usage & Cost Guard configuration only (UCG-V2-2B): configured cap + manualConfig
+  // provenance per service. No spend data, no Billing account id, no credentials -- see
+  // normalizeCapConfig above for the exact field allowlist.
+  usageCostGuard: Object.freeze({
+    cloudRun: Object.freeze({
+      configuredCapSgd: 2,
+      source: "dashboard-config",
+      trustLevel: "manualConfig",
+      verifiedAt: "2026-09-26"
+    }),
+    cloudRunFunctions: Object.freeze({
+      configuredCapSgd: 2,
+      source: "dashboard-config",
+      trustLevel: "manualConfig",
+      verifiedAt: "2026-09-26"
+    })
+  }),
   firebaseConfig: Object.freeze({
     apiKey: "AIzaSyBke6_lXZwcS1UCGYpS15hLgfSbC6xGEFI",
     authDomain: "project-manager-dashboar-a067f.firebaseapp.com",

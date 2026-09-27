@@ -16,6 +16,7 @@ const IS_UAT_PROFILE = PM_ENV.dashboardProfile === 'uat';
 const FIREBASE_CONFIG = PM_ENV.firebaseConfig;
 const DASHBOARD_RELEASE = PM_ENV.release;
 const DASHBOARD_BASE_COMMIT = PM_ENV.baseCommit;
+const DASHBOARD_USAGE_COST_GUARD_CONFIG = PM_ENV.usageCostGuard;
 window.addEventListener('DOMContentLoaded', () => {
   const versionLabel = document.querySelector('.hdr-version');
   if (versionLabel) versionLabel.textContent = DASHBOARD_RELEASE;
@@ -469,6 +470,24 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .usage-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--text-light); }
 .usage-table td.num { font-family:'IBM Plex Mono', monospace; color:var(--text); text-align:right; }
 .usage-empty { padding:18px; text-align:center; color:var(--muted); background:var(--s2); border:1px dashed var(--border2); border-radius:8px; }
+.ucg-overall { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 16px; border-radius:10px; border:1px solid var(--border); background:var(--s2); margin-bottom:16px; }
+.ucg-overall-explanation { font-size:11px; color:var(--text-light); }
+.ucg-cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:6px; }
+.ucg-card { background:var(--s2); border:1px solid var(--border); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:7px; }
+.ucg-card-title { font-size:12px; font-weight:800; color:var(--text); }
+.ucg-status-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; width:fit-content; }
+.ucg-status-pill.status-safe { background:rgba(136,201,172,.3); color:#2f6b4f; }
+.ucg-status-pill.status-watch { background:rgba(228,204,143,.4); color:#7a5b12; }
+.ucg-status-pill.status-high { background:rgba(227,154,154,.4); color:#8a2f2f; }
+.ucg-status-pill.status-limit { background:rgba(227,154,154,.65); color:#5c1818; }
+.ucg-status-pill.status-unknown { background:var(--s3); color:var(--text-light); border:1px dashed var(--border2); }
+.ucg-metric-line { font-size:11px; color:var(--text-light); }
+.ucg-metric-value { font-family:'IBM Plex Mono', monospace; font-weight:800; color:var(--text); }
+.ucg-badge-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:1px; }
+.ucg-badge { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:5px; background:var(--s3); color:var(--muted); border:1px solid var(--border2); }
+.ucg-card-note { font-size:10px; color:var(--muted); line-height:1.4; margin-top:1px; }
+@media (max-width:900px) { .ucg-cards { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:600px) { .ucg-cards { grid-template-columns:1fr; } .ucg-overall { flex-direction:column; align-items:flex-start; } }
 .session-history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:2px 0 10px; }
 .session-range-select { min-width:92px; border:1px solid var(--border2); border-radius:6px; background:#fff; color:var(--text); padding:6px 9px; font-size:11px; font-weight:700; }
 .session-table-wrap { max-height:280px; overflow:auto; margin-bottom:18px; border:1px solid var(--border); border-radius:8px; }
@@ -2357,7 +2376,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
 
-      <button class="btn-icon" id="presenceUsageBtn" style="display:none;" onclick="openPresenceUsage()" title="Presence Usage">
+      <button class="btn-icon" id="presenceUsageBtn" style="display:none;" onclick="openPresenceUsage()" title="Usage &amp; Cost Guard" aria-label="Usage &amp; Cost Guard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
       </button>
       
@@ -2862,9 +2881,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="overlay" id="presenceUsageOverlay">
 <div class="modal" style="width:980px">
   <div class="modal-hdr">
-    <h3>Presence Usage Counter</h3>
-    <button class="modal-x" onclick="closeModal('presenceUsageOverlay')">×</button>
+    <h3>Usage &amp; Cost Guard <span class="hdr-version" id="usageCostGuardEnvBadge"></span></h3>
+    <button class="modal-x" onclick="closeModal('presenceUsageOverlay')" aria-label="Close Usage &amp; Cost Guard">×</button>
   </div>
+  <div class="ucg-overall" role="status" id="usageCostGuardOverall"></div>
+  <div class="ucg-cards" id="usageCostGuardCards"></div>
+  <div class="usage-section-title" style="margin-top:8px;">Usage details</div>
   <div class="usage-section-title">Firestore actual usage · Past 6 weeks</div>
   <div class="usage-summary-grid" id="firestoreHistoricalSummary"></div>
   <div class="usage-history-note" id="firestoreHistoricalNote"></div>
@@ -3010,6 +3032,8 @@ import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValu
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
+import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate } from "./js/usage-cost-guard.mjs";
+import { buildUsageCostGuardOverview } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4582,6 +4606,89 @@ function fmtUsageNumber(value) {
   return Math.round(Number(value || 0)).toLocaleString();
 }
 
+// ── USAGE & COST GUARD — first-screen safety cards (UCG-V2-2B) ──
+// Rendering only lives here; all status/remaining/spend-cap/provenance math comes from the
+// approved js/usage-cost-guard.mjs foundation via js/usage-cost-guard-view.mjs's pure view models.
+function fmtSgd(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? `S$${value.toFixed(2)}` : '—';
+}
+
+function ucgStatusPillHtml(status) {
+  return `<span class="ucg-status-pill status-${status.toLowerCase()}">${escHtml(status)}</span>`;
+}
+
+function renderUsageCostGuardFirestoreCardHtml(firestore) {
+  const trackedLine = firestore.trackedWrites === null
+    ? 'Tracked writes: unavailable'
+    : `Tracked writes: <span class="ucg-metric-value">${fmtUsageNumber(firestore.trackedWrites)}</span>`;
+  return `
+    <section class="ucg-card" aria-labelledby="ucgFirestoreCardTitle">
+      <div class="ucg-card-title" id="ucgFirestoreCardTitle">Firestore Free Tier</div>
+      ${ucgStatusPillHtml(firestore.status)}
+      <div class="ucg-metric-line">${trackedLine}</div>
+      <div class="ucg-badge-row"><span class="ucg-badge">Observed</span><span class="ucg-badge">Partial</span></div>
+      <div class="ucg-card-note">Project-wide total usage unavailable · Reference: ${fmtUsageNumber(firestore.referenceQuotaWrites)} ${escHtml(firestore.referenceQuotaUnit)} (reference only, not calculated from tracked writes)</div>
+    </section>`;
+}
+
+function renderUsageCostGuardSpendCapCardHtml(title, cardId, spendCap) {
+  const spendLine = spendCap.currentSpendAvailable
+    ? `Remaining: <span class="ucg-metric-value">${fmtSgd(spendCap.remainingAmount)}</span> (${spendCap.remainingPercentage.toFixed(0)}% left)`
+    : 'Current spend unavailable';
+  const verified = spendCap.verifiedAt ? `Verified: ${escHtml(spendCap.verifiedAt)}` : 'Verified: —';
+  return `
+    <section class="ucg-card" aria-labelledby="${cardId}">
+      <div class="ucg-card-title" id="${cardId}">${escHtml(title)}</div>
+      ${ucgStatusPillHtml(spendCap.status)}
+      <div class="ucg-metric-line">Configured cap: <span class="ucg-metric-value">${fmtSgd(spendCap.configuredCapValue)}</span></div>
+      <div class="ucg-metric-line">${spendLine}</div>
+      <div class="ucg-badge-row"><span class="ucg-badge">Manual config</span></div>
+      <div class="ucg-card-note">Source: Dashboard configuration · ${verified}</div>
+    </section>`;
+}
+
+function renderUsageCostGuardOverview(overview, environmentLabel) {
+  document.getElementById('usageCostGuardEnvBadge').textContent = environmentLabel;
+  document.getElementById('usageCostGuardOverall').innerHTML = `
+    ${ucgStatusPillHtml(overview.overallStatus)}
+    <span class="ucg-overall-explanation">${escHtml(overview.overallStatusExplanation)}</span>`;
+  document.getElementById('usageCostGuardCards').innerHTML =
+    renderUsageCostGuardFirestoreCardHtml(overview.firestore) +
+    renderUsageCostGuardSpendCapCardHtml('Cloud Run', 'ucgCloudRunCardTitle', overview.cloudRun) +
+    renderUsageCostGuardSpendCapCardHtml('Cloud Run Functions', 'ucgCloudRunFunctionsCardTitle', overview.cloudRunFunctions);
+}
+
+// Renders the first-screen cards. `trackedFirestoreWrites` is optional: called once immediately
+// (null -- no Presence data fetched yet) so the safety section appears instantly, then again once
+// loadPresenceUsageStats has real tracked-write data.
+function refreshUsageCostGuardOverview(trackedFirestoreWrites = null) {
+  const overview = buildUsageCostGuardOverview({
+    trackedFirestoreWrites,
+    // Current spend model for this phase is explicitly "unavailable" (Control Plane decision,
+    // UCG-V2-2B section 23) -- there is no trustworthy live Cloud Run / Functions spend source
+    // yet, so this must never be replaced with 0 or a sample value here.
+    currentCloudRunSpend: null,
+    currentCloudRunFunctionsSpend: null,
+    usageCostGuardConfig: DASHBOARD_USAGE_COST_GUARD_CONFIG,
+    environment: PM_ENV.environment,
+  });
+  renderUsageCostGuardOverview(overview, IS_UAT_PROFILE ? 'UAT' : 'Production');
+}
+
+// Uses the approved Presence bucket adapter + Pacific aggregation from js/usage-cost-guard.mjs
+// (identity-preserving, so the exact same persisted bucket is never double-counted) to produce a
+// single "tracked writes" total for the Firestore card. Returns null (never 0) when the
+// observations conflict or none are available, so the UI never shows a fabricated tracked count.
+function calculateTrackedFirestoreWrites(presenceDocs) {
+  const observations = presenceDocs.flatMap(({ id, data }) =>
+    Object.values(data.usageBuckets || {})
+      .map(bucket => adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: id }))
+      .filter(Boolean));
+  const aggregated = aggregateObservedBucketsByPacificStartDate(observations);
+  if (!aggregated.available) return null;
+  return aggregated.rows.reduce((sum, row) => sum + row.writes, 0);
+}
+
 function renderFirestoreHistoricalSummary() {
   const data = FIRESTORE_SIX_WEEK_BASELINE;
   const usedPct = (data.writes / data.freeWriteQuota) * 100;
@@ -4941,6 +5048,7 @@ window.loadPresenceUsageStats = async () => {
       id: presenceDoc.id,
       data: presenceDoc.data()
     }));
+    refreshUsageCostGuardOverview(calculateTrackedFirestoreWrites(presenceDocs));
     snap.docs.forEach(presenceDoc => {
       Object.values(presenceDoc.data().usageBuckets || {}).forEach(row => {
         if (!row?.bucketId) return;
@@ -4997,6 +5105,7 @@ window.loadPresenceUsageStats = async () => {
 window.openPresenceUsage = async () => {
   if (currentRole !== 'admin') return;
   document.getElementById('presenceUsageOverlay').classList.add('open');
+  refreshUsageCostGuardOverview(null);
   renderFirestoreHistoricalSummary();
   await loadPresenceUsageStats();
 };

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { normalizeUsageCostGuardConfig } from '../../scripts/env-config.mjs';
 
 // index.html is one environment-profiled source: every function, constant or statement that differs between
 // Production and UAT is emitted as name__prod + name__uat behind a dispatcher (see the @profile markers).
@@ -11,7 +12,7 @@ export const PROFILES = ['production', 'uat'];
 const GROUP = /^\/\/ @profile-group begin (fn|win|const) (\S+)\n\/\/ @profile-variant prod\n([\s\S]*?)\n\/\/ @profile-variant uat\n([\s\S]*?)\n\/\/ @profile-dispatcher\n[^\n]*\n\/\/ @profile-group end \2$/gm;
 const STATEMENT = /^\/\/ @profile-stmt begin\nif \(IS_UAT_PROFILE\) \{\n\/\/ @profile-variant uat\n([\s\S]*?)\n\} else \{\n\/\/ @profile-variant prod\n([\s\S]*?)\n\}\n\/\/ @profile-stmt end$/gm;
 const LET = /^let (\w+) = IS_UAT_PROFILE \? \((.*)\) : \((.*)\);$/gm;
-const ENV_BLOCK = /const PM_ENV = window\.PM_DASHBOARD_ENV;\n[\s\S]*?const DASHBOARD_BASE_COMMIT = PM_ENV\.baseCommit;\n/;
+const ENV_BLOCK = /const PM_ENV = window\.PM_DASHBOARD_ENV;\n[\s\S]*?const DASHBOARD_USAGE_COST_GUARD_CONFIG = PM_ENV\.usageCostGuard;\n/;
 
 function restoreName(kind, name, text, suffix) {
   const escaped = name.replace(/\$/g, '\\$');
@@ -32,7 +33,8 @@ function legacyEnvConstants(env, uat) {
   const config = Object.entries(env.firebaseConfig).map(([key, value]) => `  ${key}: ${JSON.stringify(value)}`).join(',\n');
   return `const IS_UAT_PROFILE = ${uat};\nconst FIREBASE_CONFIG = {\n${config}\n};\n` +
     `const DASHBOARD_RELEASE = ${JSON.stringify(env.release).replace(/"/g, "'")};\n` +
-    `const DASHBOARD_BASE_COMMIT = ${JSON.stringify(env.baseCommit).replace(/"/g, "'")};\n`;
+    `const DASHBOARD_BASE_COMMIT = ${JSON.stringify(env.baseCommit).replace(/"/g, "'")};\n` +
+    `const DASHBOARD_USAGE_COST_GUARD_CONFIG = ${JSON.stringify(normalizeUsageCostGuardConfig(env.usageCostGuard))};\n`;
 }
 
 export function renderProfile(html, profile, env) {

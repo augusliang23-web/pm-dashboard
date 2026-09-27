@@ -28,15 +28,28 @@ function assertModuleParses(profile) {
 // reference and a companion test elsewhere in this file proving Production's *behavior* -- not just its source
 // text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
 // name here is a deliberate, auditable act, not a way to silence an unexpected difference.
-const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
-  // UAT PDF picker UI remediation (project-brief/project-update section picker restored as UAT-profile-only).
-  // Both functions now read the shared #projectPdfSectionPicker markup, which grew two UAT-only checkboxes; they
-  // gained an isProfileVisible() filter so Production's *checked/submitted* set is unchanged (see 'the two
-  // deliberate Production exceptions never check or submit project-brief/project-update' below, and the
-  // dedicated VM-level tests in tests/project-pdf-sections.uat.test.mjs).
-  'openProjectPdfSectionPicker',
-  'confirmProjectPdfExport'
-]);
+// UAT PDF picker UI remediation (project-brief/project-update section picker restored as UAT-profile-only).
+// Both functions now read the shared #projectPdfSectionPicker markup, which grew two UAT-only checkboxes; they
+// gained an isProfileVisible() filter so Production's *checked/submitted* set is unchanged (see 'the two
+// deliberate Production exceptions never check or submit project-brief/project-update' below, and the
+// dedicated VM-level tests in tests/project-pdf-sections.uat.test.mjs).
+const PDF_SECTION_PICKER_EXCEPTIONS = new Set(['openProjectPdfSectionPicker', 'confirmProjectPdfExport']);
+
+// UCG-V2-2B: Usage & Cost Guard first-screen safety cards. openPresenceUsage now renders the cards
+// immediately (refreshUsageCostGuardOverview(null)) before its existing Firestore historical
+// summary and Presence load; loadPresenceUsageStats now also computes a tracked-write total
+// (calculateTrackedFirestoreWrites, reusing the approved js/usage-cost-guard.mjs adapter/
+// aggregation) and refreshes the cards with it. Both functions' pre-existing behavior -- fetching,
+// aggregating and rendering the legacy Presence diagnostics -- is otherwise unchanged; see
+// tests/usage-cost-guard-view.test.mjs and tests/usage-cost-guard-runtime-config.test.mjs for the
+// new behavior's own coverage.
+const USAGE_COST_GUARD_EXCEPTIONS = new Set(['loadPresenceUsageStats', 'openPresenceUsage']);
+
+// Named, reviewed exceptions to the byte-for-byte guarantee below. Each entry needs a Control Plane remediation
+// reference and a companion test elsewhere in this file proving Production's *behavior* -- not just its source
+// text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
+// name here is a deliberate, auditable act, not a way to silence an unexpected difference.
+const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([...PDF_SECTION_PICKER_EXCEPTIONS, ...USAGE_COST_GUARD_EXCEPTIONS]);
 
 test('the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions', () => {
   const productionSource = dashboardSource('production');
@@ -72,7 +85,7 @@ test('the Production profile runs every Production e1f0e5c function byte-for-byt
 
 test('the two deliberate Production exceptions never check or submit project-brief/project-update', () => {
   const production = dashboardSource('production');
-  for (const name of DELIBERATE_PRODUCTION_EXCEPTIONS) {
+  for (const name of PDF_SECTION_PICKER_EXCEPTIONS) {
     const start = production.indexOf(`function ${name}(`);
     assert.ok(start >= 0, `${name} must exist in the Production view`);
     const bodyStart = production.slice(Math.max(0, start - 6), start) === 'async ' ? start - 6 : start;
@@ -83,6 +96,22 @@ test('the two deliberate Production exceptions never check or submit project-bri
     // body may unconditionally check or read them -- every reference must go through isProfileVisible().
     assert.match(body, /isProfileVisible/, `${name} must gate through isProfileVisible()`);
   }
+});
+
+test('the two Usage & Cost Guard exceptions still do their pre-existing job unconditionally, alongside the new cards', () => {
+  const production = dashboardSource('production');
+  const openBody = production.slice(production.indexOf('window.openPresenceUsage = async () => {'));
+  assert.match(openBody, /refreshUsageCostGuardOverview\(null\)/, 'openPresenceUsage must render the first-screen cards immediately');
+  assert.match(openBody, /renderFirestoreHistoricalSummary\(\)/, 'openPresenceUsage must still render the pre-existing historical summary');
+  assert.match(openBody, /await loadPresenceUsageStats\(\)/, 'openPresenceUsage must still load Presence usage stats');
+
+  const loadBody = production.slice(
+    production.indexOf('window.loadPresenceUsageStats = async () => {'),
+    production.indexOf('window.openPresenceUsage'),
+  );
+  assert.match(loadBody, /getDocs\(collection\(db, "presence"\)\)/, 'loadPresenceUsageStats must still fetch presence docs');
+  assert.match(loadBody, /refreshUsageCostGuardOverview\(calculateTrackedFirestoreWrites\(presenceDocs\)\)/, 'loadPresenceUsageStats must refresh the cards with a real tracked-write total');
+  assert.match(loadBody, /renderPresenceUsageStats\(rows, sessions, rangeDays, estimatedActivities, lastSeenActivities\)/, 'loadPresenceUsageStats must still render the pre-existing legacy diagnostics');
 });
 
 test('the UAT profile still exposes every UAT a04c0c1 function name', () => {
