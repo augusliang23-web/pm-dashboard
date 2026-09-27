@@ -8,7 +8,7 @@
       "serviceName": "pm-dashboard-uat-pdf",
       "runtimeServiceAccount": "pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
       "buildServiceAccount": "pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
-      "serviceUrl": null,
+      "serviceUrl": "https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app",
       "allowedOrigins": [
         "https://augusliang23-web.github.io",
         "https://pm-dashboard-uat-20260820-a7f3.web.app"
