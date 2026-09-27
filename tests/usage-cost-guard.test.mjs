@@ -4,11 +4,13 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE,
+  PRESENCE_BUCKET_DURATION_MS,
   PRESENCE_TRACKED_WRITE_PROVENANCE,
   STATUS,
   TRUST_LEVELS,
   adaptPresenceBucketToObservedWrite,
   aggregateObservedBucketsByPacificStartDate,
+  aggregateRowsByDate,
   attachProvenance,
   calculateHeadroom,
   calculateQuotaStatus,
@@ -16,10 +18,10 @@ import {
   calculateRollingWindow,
   calculateSpendCap,
   createMetric,
+  dedupeObservationsById,
   forecastLinear,
   isMetricAvailable,
   isMetricTrustworthy,
-  mergeDuplicateDailyRows,
   normalizeSpendCapConfig,
   selectStatus,
   toPacificDateKey,
@@ -373,6 +375,18 @@ test('toPacificDateKey: fall-back DST transition (2026-11-01, PDT -> PST)', () =
   assert.equal(toPacificDateKey(Date.UTC(2026, 10, 1, 9, 0, 0)), '2026-11-01');
 });
 
+// Minimal identity-bearing observation fixture for tests that only care about date/aggregation
+// logic, not full adapter validation (see the adapter section below for that).
+function observation(overrides = {}) {
+  return {
+    observationId: 'userA::bucket-default',
+    bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0),
+    bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0),
+    writes: 1,
+    ...overrides,
+  };
+}
+
 test('aggregateObservedBucketsByPacificStartDate: a bucket crossing Pacific midnight is attributed by bucketStart, and is explicitly approximate', () => {
   // A 12-hour bucket [2026-06-01 20:00 UTC, 2026-06-02 08:00 UTC) crosses Pacific midnight
   // (2026-06-01 17:00 PDT start; Pacific midnight is 2026-06-02 07:00 UTC). The BLOCKER finding:
@@ -381,43 +395,56 @@ test('aggregateObservedBucketsByPacificStartDate: a bucket crossing Pacific midn
   // an exact reconstruction, and every row says so explicitly.
   const bucketStart = Date.UTC(2026, 5, 1, 20, 0, 0);
   const bucketEnd = Date.UTC(2026, 5, 2, 8, 0, 0);
-  const rows = [{ bucketStart, bucketEnd, writes: 42 }];
-  const result = aggregateObservedBucketsByPacificStartDate(rows);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].date, toPacificDateKey(bucketStart));
-  assert.equal(result[0].date, '2026-06-01');
-  assert.equal(result[0].writes, 42);
+  const observations = [observation({ observationId: 'userA::b1', bucketStart, bucketEnd, writes: 42 })];
+  const result = aggregateObservedBucketsByPacificStartDate(observations);
+  assert.equal(result.available, true);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].date, toPacificDateKey(bucketStart));
+  assert.equal(result.rows[0].date, '2026-06-01');
+  assert.equal(result.rows[0].writes, 42);
   // Machine-readable disclosure that this is not exact daily quota usage.
-  assert.equal(result[0].trustLevel, 'observed');
-  assert.equal(result[0].source, 'tracked-presence-writes');
-  assert.equal(result[0].coverage, 'partial');
-  assert.equal(result[0].isEstimate, true);
-  assert.equal(result[0].aggregationMethod, 'bucket-start-date');
-  assert.equal(result[0].boundaryAccuracy, 'approximate');
+  assert.equal(result.rows[0].trustLevel, 'observed');
+  assert.equal(result.rows[0].source, 'tracked-presence-writes');
+  assert.equal(result.rows[0].coverage, 'partial');
+  assert.equal(result.rows[0].isEstimate, true);
+  assert.equal(result.rows[0].aggregationMethod, 'bucket-start-date');
+  assert.equal(result.rows[0].boundaryAccuracy, 'approximate');
 });
 
-test('aggregateObservedBucketsByPacificStartDate: multiple buckets on the same Pacific day sum correctly', () => {
+test('aggregateObservedBucketsByPacificStartDate: distinct observations on the same Pacific day sum correctly', () => {
   const day = Date.UTC(2026, 5, 1, 8, 0, 0); // 2026-06-01 01:00 PDT
-  const rows = [
-    { bucketStart: day, bucketEnd: day + 43_200_000, writes: 10 },
-    { bucketStart: day + 43_200_000, bucketEnd: day + 86_400_000, writes: 5 },
+  const observations = [
+    observation({ observationId: 'userA::b1', bucketStart: day, bucketEnd: day + 43_200_000, writes: 10 }),
+    observation({ observationId: 'userA::b2', bucketStart: day + 43_200_000, bucketEnd: day + 86_400_000, writes: 5 }),
   ];
-  const result = aggregateObservedBucketsByPacificStartDate(rows);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].writes, 15);
-  assert.equal(result[0].bucketCount, 2);
+  const result = aggregateObservedBucketsByPacificStartDate(observations);
+  assert.equal(result.available, true);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].writes, 15);
+  assert.equal(result.rows[0].observationCount, 2);
 });
 
 test('aggregateObservedBucketsByPacificStartDate: ignores rows with missing bucketStart/writes rather than crashing', () => {
-  const result = aggregateObservedBucketsByPacificStartDate([{ bucketStart: null, writes: 5 }, { bucketStart: 1, writes: null }, {}]);
-  assert.deepEqual(result, []);
+  const result = aggregateObservedBucketsByPacificStartDate([
+    observation({ observationId: 'a::1', bucketStart: null, writes: 5 }),
+    observation({ observationId: 'a::2', bucketStart: 1, writes: null }),
+    { observationId: 'a::3' },
+  ]);
+  assert.equal(result.available, true);
+  assert.deepEqual(result.rows, []);
+});
+
+test('aggregateObservedBucketsByPacificStartDate: entries without a usable observationId are silently ignored, not guessed at', () => {
+  const result = aggregateObservedBucketsByPacificStartDate([{ bucketStart: Date.UTC(2026, 5, 1), writes: 5 }, null, {}]);
+  assert.equal(result.available, true);
+  assert.deepEqual(result.rows, []);
 });
 
 test('the function name and result never imply exact Pacific daily usage', async () => {
   const source = await readFile(new URL('../js/usage-cost-guard.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /export function \w*[Ee]xact\w*(Pacific|Daily)/, 'no exported function name may claim exact daily/Pacific reconstruction');
-  const result = aggregateObservedBucketsByPacificStartDate([{ bucketStart: Date.UTC(2026, 5, 1), writes: 1 }]);
-  assert.equal(result[0].isEstimate, true, 'aggregated day rows must self-identify as an estimate, never as exact');
+  const result = aggregateObservedBucketsByPacificStartDate([observation({ observationId: 'userA::b1' })]);
+  assert.equal(result.rows[0].isEstimate, true, 'aggregated day rows must self-identify as an estimate, never as exact');
 });
 
 test('aggregated daily writes must not be used to compute an exact Firestore quota-remaining figure directly', () => {
@@ -425,7 +452,7 @@ test('aggregated daily writes must not be used to compute an exact Firestore quo
   // reference quota exists, feeding an aggregated (observed, partial, approximate) day straight
   // into calculateHeadroom produces a number that still carries -- once provenance is attached --
   // "observed"/"partial"/estimate metadata, never "authoritative" project-wide truth.
-  const dayRow = aggregateObservedBucketsByPacificStartDate([{ bucketStart: Date.UTC(2026, 5, 1), writes: 500 }])[0];
+  const dayRow = aggregateObservedBucketsByPacificStartDate([observation({ observationId: 'userA::b1', writes: 500 })]).rows[0];
   const headroom = calculateHeadroom(dayRow.writes, FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.value);
   const withProvenance = attachProvenance(headroom, PRESENCE_TRACKED_WRITE_PROVENANCE);
   assert.equal(withProvenance.trustLevel, 'observed');
@@ -450,7 +477,7 @@ test('Pacific daily aggregation does not change with host/local timezone (proof)
 });
 
 // ---------------------------------------------------------------------------------------------
-// MAJOR: Presence bucket source adapter (realistic persisted bucket shapes)
+// MAJOR remediation: Presence bucket source adapter (identity-preserving + validating)
 // ---------------------------------------------------------------------------------------------
 
 function realisticPresenceBucket(overrides = {}) {
@@ -471,57 +498,208 @@ function realisticPresenceBucket(overrides = {}) {
   };
 }
 
+// The owning Presence doc id (getEmailKey(owner), e.g. an all-lowercase email) -- only available
+// from the outer `presence` collection loop in index.html, never from the bucket row itself.
+const USER_A_DOC_ID = 'usera@example.com';
+const USER_B_DOC_ID = 'userb@example.com';
+
 test('adaptPresenceBucketToObservedWrite: valid existing Presence bucket uses counterFlushWrites, not totalPresenceWrites', () => {
   const bucket = realisticPresenceBucket();
-  const result = adaptPresenceBucketToObservedWrite(bucket);
+  const result = adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: USER_A_DOC_ID });
   assert.ok(result);
   assert.equal(result.writes, 4, 'must use counterFlushWrites (actual Firestore document writes), not totalPresenceWrites (activity ticks)');
   assert.equal(result.bucketStart, bucket.bucketStart);
   assert.equal(result.bucketEnd, bucket.bucketEnd);
   assert.equal(result.trustLevel, 'observed');
   assert.equal(result.isEstimate, true);
+  assert.equal(result.sourceDocumentId, USER_A_DOC_ID);
+  assert.equal(result.sourceBucketId, bucket.bucketId);
+  assert.equal(result.observationId, `${USER_A_DOC_ID}::${bucket.bucketId}`);
 });
 
 test('adaptPresenceBucketToObservedWrite: does not double-count by summing totalPresenceWrites and counterFlushWrites', () => {
   const bucket = realisticPresenceBucket({ totalPresenceWrites: 16, counterFlushWrites: 4 });
-  const result = adaptPresenceBucketToObservedWrite(bucket);
+  const result = adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: USER_A_DOC_ID });
   assert.equal(result.writes, 4);
   assert.notEqual(result.writes, 20, 'must never equal totalPresenceWrites + counterFlushWrites');
+});
+
+// -- identity: missing / malformed identity fails closed, never manufactured --
+
+test('adaptPresenceBucketToObservedWrite: missing sourceDocumentId fails closed (identity cannot be derived from the row alone)', () => {
+  const bucket = realisticPresenceBucket();
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, {}), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: null }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: '' }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: '   ' }), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: missing/malformed bucketId (sourceBucketId) fails closed', () => {
+  const bucket = realisticPresenceBucket({ bucketId: undefined });
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketId: '' }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket(), { sourceDocumentId: USER_A_DOC_ID, sourceBucketId: '' }), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: an explicit sourceBucketId override still forms a valid identity', () => {
+  const bucket = realisticPresenceBucket();
+  const result = adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: USER_A_DOC_ID, sourceBucketId: 'override-id' });
+  assert.equal(result.observationId, `${USER_A_DOC_ID}::override-id`);
+});
+
+// -- malformed bucket interval validation --
+
+test('adaptPresenceBucketToObservedWrite: valid exact 12-hour bucket is accepted', () => {
+  assert.equal(PRESENCE_BUCKET_DURATION_MS, 12 * 60 * 60 * 1000);
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket(), { sourceDocumentId: USER_A_DOC_ID });
+  assert.ok(result);
+});
+
+test('adaptPresenceBucketToObservedWrite: inverted time interval (end before start) is rejected', () => {
+  const start = Date.UTC(2026, 5, 1, 12, 0, 0);
+  const end = Date.UTC(2026, 5, 1, 0, 0, 0);
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: start, bucketEnd: end }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(result, null);
+});
+
+test('adaptPresenceBucketToObservedWrite: equal start/end (zero-length interval) is rejected', () => {
+  const t = Date.UTC(2026, 5, 1, 0, 0, 0);
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: t, bucketEnd: t }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(result, null);
+});
+
+test('adaptPresenceBucketToObservedWrite: a non-12-hour duration (wrong invariant) is rejected', () => {
+  const start = Date.UTC(2026, 5, 1, 0, 0, 0);
+  const sixHourEnd = start + 6 * 60 * 60 * 1000;
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: start, bucketEnd: sixHourEnd }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(result, null);
+});
+
+test('adaptPresenceBucketToObservedWrite: invalid (non-finite) bucketStart/bucketEnd is rejected', () => {
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: null }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketEnd: undefined }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: NaN }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketEnd: Infinity }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(null, { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(undefined, { sourceDocumentId: USER_A_DOC_ID }), null);
+});
+
+// -- write counter type/range validation --
+
+test('adaptPresenceBucketToObservedWrite: invalid (negative / non-numeric) counter is rejected', () => {
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: -1 }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 'four' }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: NaN }), { sourceDocumentId: USER_A_DOC_ID }), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: Infinity }), { sourceDocumentId: USER_A_DOC_ID }), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: fractional write count is rejected', () => {
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 2.5 }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(result, null);
 });
 
 test('adaptPresenceBucketToObservedWrite: missing counterFlushWrites is unavailable, not silently 0', () => {
   const bucket = realisticPresenceBucket();
   delete bucket.counterFlushWrites;
-  assert.equal(adaptPresenceBucketToObservedWrite(bucket), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: USER_A_DOC_ID }), null);
 });
 
-test('adaptPresenceBucketToObservedWrite: invalid (negative / non-numeric) counter is rejected', () => {
-  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: -1 })), null);
-  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 'four' })), null);
-  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: NaN })), null);
+test('adaptPresenceBucketToObservedWrite: zero writes is rejected -- a genuinely persisted bucket can never have counterFlushWrites: 0', () => {
+  // flushDuePresenceUsage only calls updateDoc (which increments counterFlushWrites by 1) when
+  // totalPresenceWrites > 0, so a real Firestore-persisted bucket document always has
+  // counterFlushWrites >= 1 from its very first flush. A value of 0 cannot come from that write
+  // path and is therefore treated as a malformed/unreachable state, not a legitimate observation.
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 0 }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(result, null);
 });
 
-test('adaptPresenceBucketToObservedWrite: missing bucketStart/bucketEnd is rejected rather than guessed', () => {
-  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: null })), null);
-  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketEnd: undefined })), null);
-  assert.equal(adaptPresenceBucketToObservedWrite(null), null);
-  assert.equal(adaptPresenceBucketToObservedWrite(undefined), null);
+test('adaptPresenceBucketToObservedWrite: a valid minimum count of 1 is accepted', () => {
+  const result = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 1 }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.ok(result);
+  assert.equal(result.writes, 1);
 });
 
-test('adaptPresenceBucketToObservedWrite: multiple buckets adapt and feed straight into aggregation', () => {
-  // Both bucketStarts fall on Pacific date 2026-06-01 (01:00 PDT and 13:00 PDT respectively).
-  const bucketA = realisticPresenceBucket({
-    bucketId: '2026-06-01-H1', bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0), counterFlushWrites: 4,
-  });
-  const bucketB = realisticPresenceBucket({
-    bucketId: '2026-06-01-H2', bucketStart: Date.UTC(2026, 5, 1, 20, 0, 0), bucketEnd: Date.UTC(2026, 5, 2, 8, 0, 0), counterFlushWrites: 6,
-  });
-  const adapted = [bucketA, bucketB].map(adaptPresenceBucketToObservedWrite).filter(Boolean);
-  assert.equal(adapted.length, 2);
-  const daily = aggregateObservedBucketsByPacificStartDate(adapted);
-  assert.equal(daily.length, 1);
-  assert.equal(daily[0].date, '2026-06-01');
-  assert.equal(daily[0].writes, 10); // 4 + 6, never 16+16 or any totalPresenceWrites-derived figure
+// ---------------------------------------------------------------------------------------------
+// KEY R2 ACCEPTANCE TEST: source observation identity prevents double-counting, while
+// distinct users/buckets covering the same UTC interval are still summed
+// ---------------------------------------------------------------------------------------------
+
+test('dedupeObservationsById: an exact duplicate observation (same user, same bucket, same counter) is counted once', () => {
+  const bucket = realisticPresenceBucket();
+  const observedTwice = [bucket, bucket] // e.g. the same Firestore doc read twice into one calculation input
+    .map((b) => adaptPresenceBucketToObservedWrite(b, { sourceDocumentId: USER_A_DOC_ID }));
+  const result = dedupeObservationsById(observedTwice);
+  assert.equal(result.available, true);
+  assert.equal(result.observations.length, 1, 'same observationId + identical content must collapse to one observation');
+  assert.equal(result.observations[0].writes, 4, 'never 8 -- the duplicate must not be summed');
+});
+
+test('dedupeObservationsById: same UTC interval, different users, both count (not deduped)', () => {
+  const bucketA = realisticPresenceBucket({ counterFlushWrites: 4 });
+  const bucketB = realisticPresenceBucket({ counterFlushWrites: 3 }); // identical bucketId/time, different user
+  const observations = [
+    adaptPresenceBucketToObservedWrite(bucketA, { sourceDocumentId: USER_A_DOC_ID }),
+    adaptPresenceBucketToObservedWrite(bucketB, { sourceDocumentId: USER_B_DOC_ID }),
+  ];
+  assert.notEqual(observations[0].observationId, observations[1].observationId, 'different owning docs must produce different observation identities even with the same bucketId');
+  const result = dedupeObservationsById(observations);
+  assert.equal(result.available, true);
+  assert.equal(result.observations.length, 2, 'distinct users must both be kept, never collapsed');
+});
+
+test('dedupeObservationsById: conflicting duplicate identity (same id, different counter) fails closed rather than summing or guessing', () => {
+  const firstCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 4 }), { sourceDocumentId: USER_A_DOC_ID });
+  const secondCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 7 }), { sourceDocumentId: USER_A_DOC_ID });
+  assert.equal(firstCopy.observationId, secondCopy.observationId, 'sanity: both copies must share the same identity for this to be a real conflict');
+  const result = dedupeObservationsById([firstCopy, secondCopy]);
+  assert.equal(result.available, false);
+  assert.equal(result.reason, 'conflicting_duplicate_observation');
+  assert.equal(result.observationId, firstCopy.observationId);
+  assert.equal(result.observations, null, 'must not return a guessed/partial observation list on conflict');
+});
+
+test('dedupeObservationsById: conflicting duplicate must not silently sum to 11', () => {
+  const firstCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 4 }), { sourceDocumentId: USER_A_DOC_ID });
+  const secondCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 7 }), { sourceDocumentId: USER_A_DOC_ID });
+  const result = dedupeObservationsById([firstCopy, secondCopy]);
+  assert.notEqual(result.observations?.[0]?.writes, 11);
+});
+
+test('aggregateObservedBucketsByPacificStartDate: propagates a conflicting-duplicate-observation failure closed, with no rows', () => {
+  const firstCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 4 }), { sourceDocumentId: USER_A_DOC_ID });
+  const secondCopy = adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 7 }), { sourceDocumentId: USER_A_DOC_ID });
+  const result = aggregateObservedBucketsByPacificStartDate([firstCopy, secondCopy]);
+  assert.equal(result.available, false);
+  assert.equal(result.reason, 'conflicting_duplicate_observation');
+  assert.deepEqual(result.rows, []);
+});
+
+test('R2 acceptance: realistic multi-user fixture -- same persisted bucket duplicated counts once; different user, same UTC interval, both counted', () => {
+  // Two users' Presence docs both have activity in the same 12-hour UTC bucket (same bucketId,
+  // same bucketStart/bucketEnd) -- a legitimate real-world case per index.html's own admin view,
+  // which aggregates usageBuckets ACROSS users by bucketId.
+  const sharedInterval = { bucketId: '2026-06-01-H1', bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0) };
+  const userABucket = realisticPresenceBucket({ ...sharedInterval, counterFlushWrites: 4 });
+  const userBBucket = realisticPresenceBucket({ ...sharedInterval, counterFlushWrites: 3 });
+
+  // Simulate the same persisted userA bucket being read twice into one calculation input
+  // (e.g. an overlapping refresh / retry), plus userB's distinct observation for the same interval.
+  const observations = [
+    adaptPresenceBucketToObservedWrite(userABucket, { sourceDocumentId: USER_A_DOC_ID }),
+    adaptPresenceBucketToObservedWrite(userABucket, { sourceDocumentId: USER_A_DOC_ID }), // duplicate read of the same bucket
+    adaptPresenceBucketToObservedWrite(userBBucket, { sourceDocumentId: USER_B_DOC_ID }),
+  ].filter(Boolean);
+  assert.equal(observations.length, 3, 'sanity: adapter accepted all three inputs');
+
+  const result = aggregateObservedBucketsByPacificStartDate(observations);
+  assert.equal(result.available, true);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].date, '2026-06-01');
+  // userA counted once (4) + userB counted once (3) = 7, never 4+4+3=11 and never 4+3=7 by luck --
+  // this is the key proof that same-bucket duplication collapses while distinct users sum.
+  assert.equal(result.rows[0].writes, 7);
+  assert.equal(result.rows[0].observationCount, 2, 'exactly two DISTINCT observations contributed (userA once, userB once)');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -604,21 +782,23 @@ test('calculateRollingWindow: invalid window size', () => {
 });
 
 // -- MAJOR remediation: duplicate daily entries must not inflate daysObserved/isPartial --
+// (aggregateRowsByDate combines already-distinct observations sharing one attributed date; it
+// does NOT perform source-identity deduplication -- see dedupeObservationsById for that.)
 
-test('mergeDuplicateDailyRows: sums writes for duplicate date keys and yields one row per date', () => {
-  const merged = mergeDuplicateDailyRows([
+test('aggregateRowsByDate: sums writes for duplicate date keys and yields one row per date, counting contributors', () => {
+  const merged = aggregateRowsByDate([
     { date: '2026-06-01', writes: 10 },
     { date: '2026-06-01', writes: 5 },
     { date: '2026-06-02', writes: 7 },
   ]);
   assert.deepEqual(merged, [
-    { date: '2026-06-01', writes: 15 },
-    { date: '2026-06-02', writes: 7 },
+    { date: '2026-06-01', writes: 15, observationCount: 2 },
+    { date: '2026-06-02', writes: 7, observationCount: 1 },
   ]);
 });
 
-test('mergeDuplicateDailyRows: drops invalid rows without guessing', () => {
-  const merged = mergeDuplicateDailyRows([{ date: null, writes: 5 }, { date: '2026-06-01', writes: null }, {}]);
+test('aggregateRowsByDate: drops invalid rows without guessing', () => {
+  const merged = aggregateRowsByDate([{ date: null, writes: 5 }, { date: '2026-06-01', writes: null }, {}]);
   assert.deepEqual(merged, []);
 });
 
@@ -771,16 +951,18 @@ test('generic pure-math helpers (rolling/headroom/forecast) stay trust-neutral o
   }
 });
 
-test('end-to-end: observed tracked Presence writes never emerge as authoritative Firestore totals through adapt -> aggregate -> rolling -> headroom -> forecast', () => {
+test('end-to-end: observed tracked Presence writes never emerge as authoritative Firestore totals through adapt -> dedupe -> aggregate -> rolling -> headroom -> forecast', () => {
   const buckets = [
-    realisticPresenceBucket({ bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0), counterFlushWrites: 40 }),
-    realisticPresenceBucket({ bucketStart: Date.UTC(2026, 5, 2, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 2, 20, 0, 0), counterFlushWrites: 60 }),
+    realisticPresenceBucket({ bucketId: '2026-06-01-H1', bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0), counterFlushWrites: 40 }),
+    realisticPresenceBucket({ bucketId: '2026-06-02-H1', bucketStart: Date.UTC(2026, 5, 2, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 2, 20, 0, 0), counterFlushWrites: 60 }),
   ];
 
-  const adapted = buckets.map(adaptPresenceBucketToObservedWrite).filter(Boolean);
+  const adapted = buckets.map((b) => adaptPresenceBucketToObservedWrite(b, { sourceDocumentId: USER_A_DOC_ID })).filter(Boolean);
   assert.ok(adapted.every((row) => row.trustLevel === 'observed'));
 
-  const daily = aggregateObservedBucketsByPacificStartDate(adapted);
+  const aggregated = aggregateObservedBucketsByPacificStartDate(adapted);
+  assert.equal(aggregated.available, true);
+  const daily = aggregated.rows;
   assert.ok(daily.every((row) => row.trustLevel === 'observed' && row.coverage === 'partial' && row.isEstimate === true));
 
   const rolling = calculateRollingWindow(daily, 7, '2026-06-02');

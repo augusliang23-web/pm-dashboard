@@ -1,12 +1,16 @@
 // Usage & Cost Guard V2 -- pure data-truth + calculation layer (UCG-V2-2A, remediated in
 // UCG-V2-2A-R1 after independent review found the original Pacific daily aggregation implied
 // exact-day reconstruction the source data cannot support -- see PRESENCE_TRACKED_WRITE_PROVENANCE
-// and aggregateObservedBucketsByPacificStartDate below).
+// and aggregateObservedBucketsByPacificStartDate below -- and remediated again in UCG-V2-2A-R2
+// after review found the Presence adapter had no stable source-observation identity, so a
+// persisted bucket read twice could double-count and malformed/inverted buckets could pass
+// through unvalidated -- see the "Presence bucket source adapter" section and
+// dedupeObservationsById below).
 //
 // This module contains ONLY pure functions: metric normalization, remaining/status math,
-// spend-cap math, an adapter from the persisted Presence bucket shape plus approximate
-// Pacific-timezone bucket-to-day aggregation, rolling metrics, headroom, and linear forecasting.
-// It does not fetch data, read Firestore, call any Cloud API, or render UI.
+// spend-cap math, an identity-preserving + validating adapter from the persisted Presence bucket
+// shape plus approximate Pacific-timezone bucket-to-day aggregation, rolling metrics, headroom,
+// and linear forecasting. It does not fetch data, read Firestore, call any Cloud API, or render UI.
 //
 // Data-truth rule enforced throughout: a metric's `trustLevel` and `source` describe how
 // trustworthy its *origin* is, and no function in this module is allowed to upgrade that
@@ -347,76 +351,191 @@ export function toPacificDateKey(epochMs) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Presence bucket source adapter
+// Presence bucket source adapter (R2: identity-preserving + validating)
 // ---------------------------------------------------------------------------------------------
 //
-// The persisted Firestore shape (presence/<user>.usageBuckets.<bucketId>, written by
-// queuePresenceUsage/flushDuePresenceUsage in index.html) carries several counters that are NOT
-// interchangeable:
-//   - activeWrites / idleWrites / logoutWrites: client-side activity ticks, one increment per
-//     user-visible presence event.
-//   - totalPresenceWrites: activeWrites + idleWrites + logoutWrites for that bucket. This is an
-//     APPLICATION ACTIVITY count -- how many presence events the client observed -- not a count
-//     of Firestore document writes. Many activity ticks are buffered client-side and flushed in
-//     a single Firestore updateDoc() call, so totalPresenceWrites can be far larger than the
-//     number of actual Firestore writes that bucket caused.
-//   - counterFlushWrites: incremented by exactly 1 inside flushDuePresenceUsage's updateDoc()
-//     call, once per flush. Each flush is exactly one Firestore document-write operation against
-//     that bucket's presence doc. This is the field that corresponds to actual Firestore write
-//     consumption (the thing the 20,000-writes/day quota counts), so it is the metric this
-//     module treats as "tracked Firestore writes" for a bucket.
+// Source identity, verified against index.html rather than assumed:
+//   - The Presence doc id IS the user identity: `doc(db, "presence", getEmailKey(owner))`
+//     (index.html:4432, 4150, 4180, ...), where getEmailKey (index.html:4248-4251) normalizes an
+//     email to a lowercase, trimmed string. One Firestore doc per user; its doc id is stable.
+//   - One `usageBuckets` entry is identified by its `bucketId` (e.g. "2026-06-01-H1", built by
+//     getPresenceUsageBucket at index.html:4390-4397 and written back as the row's own
+//     `bucketId` field at index.html:4433 as well as the outer map key). bucketId is a function
+//     of DATE + HALF only -- it carries no user information.
+//   - Consequently bucketId is NOT globally unique: two different users' Presence docs
+//     legitimately produce the identical bucketId for the same 12-hour period (confirmed by
+//     index.html's own admin aggregation at index.html:4944-4965, which groups usageBuckets
+//     ACROSS all users by bucketId to build a global totals view -- i.e. the existing code
+//     already relies on multiple users sharing one bucketId and summing their counters).
+//   - Therefore a stable, non-colliding observation identity requires BOTH the owning Presence
+//     doc id and the bucketId: `${sourceDocumentId}::${sourceBucketId}`. bucketId alone is not
+//     safe to dedupe by (it would incorrectly collapse two different users' distinct writes);
+//     date/bucketStart/bucketEnd alone is even less safe, for the same reason.
+//   - The bucketId is available on the row itself once usageBuckets is flattened (see
+//     index.html:4945-4947, `row.bucketId`), but the owning doc id is only available from the
+//     outer loop over `presence` collection docs (`presenceDoc.id`) -- it is NOT part of the row.
+//     The adapter therefore requires sourceDocumentId to be supplied by the caller; it never
+//     invents one, and fails closed (returns null) when it is missing.
 //
-// totalPresenceWrites does NOT include counterFlushWrites (they are separate counters
-// incremented in the same updateDoc call, not one derived from the other), and the two must
-// never be summed: doing so would add an application-activity count to a document-write count,
-// producing a number that corresponds to neither quantity.
-export function adaptPresenceBucketToObservedWrite(bucket) {
+// Counter semantics (unchanged from R1, still correct on re-inspection):
+//   - activeWrites / idleWrites / logoutWrites: client-side activity ticks.
+//   - totalPresenceWrites: activeWrites + idleWrites + logoutWrites -- an APPLICATION ACTIVITY
+//     count, not a Firestore document-write count.
+//   - counterFlushWrites: incremented by exactly 1 inside flushDuePresenceUsage's single
+//     updateDoc() call per flush (index.html:4441) -- exactly one Firestore document-write
+//     operation per increment. This is the metric this module treats as "tracked Firestore
+//     writes" for a bucket. totalPresenceWrites and counterFlushWrites are never summed.
+//
+// Bucket validity (verified, not assumed):
+//   - PRESENCE_USAGE_FLUSH_MS is 12 hours exactly (index.html:4107), and getPresenceUsageBucket
+//     always derives bucketEnd as bucketStart + PRESENCE_USAGE_FLUSH_MS (index.html:4391-4392),
+//     so every genuinely persisted bucket has bucketEnd - bucketStart === PRESENCE_BUCKET_DURATION_MS
+//     exactly. A different duration (including an inverted or zero-length interval) cannot come
+//     from this write path and is rejected as malformed.
+//   - flushDuePresenceUsage only ever calls updateDoc (the only place counterFlushWrites is
+//     written) when `item.totalPresenceWrites > 0` (index.html:4427); every write of
+//     counterFlushWrites is paired with `increment(1)` (index.html:4441) in that same call. A
+//     genuinely persisted bucket document can therefore never have been written with
+//     counterFlushWrites: 0 -- the first (and every) flush that creates/updates it adds at least
+//     1. counterFlushWrites: 0 is accordingly rejected here as not a reachable persisted state,
+//     not merely "unlikely". (Negative, fractional, NaN, and infinite counts are separately and
+//     always invalid regardless of this decision.)
+export const PRESENCE_BUCKET_DURATION_MS = 12 * 60 * 60 * 1000;
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Builds a stable, non-colliding observation identity for one persisted Presence bucket. Needs
+ * BOTH the owning Presence doc id (sourceDocumentId) and the bucket's own id (sourceBucketId),
+ * since bucketId alone can collide across different users' documents (see notes above). Returns
+ * null -- never a manufactured identity -- when either half is not a usable, non-empty string.
+ */
+function buildObservationId(sourceDocumentId, sourceBucketId) {
+  if (!isNonEmptyString(sourceDocumentId) || !isNonEmptyString(sourceBucketId)) return null;
+  return `${sourceDocumentId}::${sourceBucketId}`;
+}
+
+/**
+ * Adapts one persisted Presence bucket row into a UCG observation carrying a stable source
+ * identity (observationId/sourceDocumentId/sourceBucketId), so that (a) the exact same persisted
+ * bucket can never be double-counted just because it appears twice in a calculation input, and
+ * (b) two different users' distinct observations for the same UTC interval are never mistaken
+ * for the same thing.
+ *
+ * `context.sourceDocumentId` MUST be supplied by the caller (the owning Presence doc id -- see
+ * notes above for why it cannot be derived from the row itself); `context.sourceBucketId`
+ * defaults to `bucket.bucketId`, which the real persisted row shape always carries. Returns null
+ * -- never a best-effort guess -- for any missing identity or any bucket that fails validation:
+ *   - bucketStart / bucketEnd must be finite numbers, with bucketEnd - bucketStart exactly
+ *     PRESENCE_BUCKET_DURATION_MS (see "Bucket validity" above; this alone also rejects any
+ *     inverted or zero-length interval).
+ *   - writes (from counterFlushWrites) must be a finite integer >= 1 (see "Bucket validity"
+ *     above for why 0 is rejected as an unreachable persisted state; negative/fractional/
+ *     non-finite are always invalid).
+ */
+export function adaptPresenceBucketToObservedWrite(bucket, context = {}) {
+  const sourceDocumentId = context.sourceDocumentId ?? null;
+  const sourceBucketId = context.sourceBucketId ?? bucket?.bucketId ?? null;
+  const observationId = buildObservationId(sourceDocumentId, sourceBucketId);
+  if (!observationId) return null;
+
   const bucketStart = bucket?.bucketStart;
   const bucketEnd = bucket?.bucketEnd;
   const writes = bucket?.counterFlushWrites;
 
-  if (!isFiniteNumber(bucketStart) || !isFiniteNumber(bucketEnd) || !isFiniteNumber(writes) || writes < 0) {
-    return null;
-  }
+  if (!isFiniteNumber(bucketStart) || !isFiniteNumber(bucketEnd)) return null;
+  if (bucketEnd - bucketStart !== PRESENCE_BUCKET_DURATION_MS) return null;
+  if (!isFiniteNumber(writes) || !Number.isInteger(writes) || writes < 1) return null;
 
-  return Object.freeze({ bucketStart, bucketEnd, writes, ...PRESENCE_TRACKED_WRITE_PROVENANCE });
+  return Object.freeze({
+    observationId,
+    sourceDocumentId,
+    sourceBucketId,
+    bucketStart,
+    bucketEnd,
+    writes,
+    ...PRESENCE_TRACKED_WRITE_PROVENANCE,
+  });
 }
 
 /**
- * Aggregates already-adapted Presence write observations (each { bucketStart, bucketEnd, writes
- * }, epoch ms -- see adaptPresenceBucketToObservedWrite) into an APPROXIMATE, bucket-attributed
- * count per Pacific calendar day.
+ * Deduplicates adapted observations (see adaptPresenceBucketToObservedWrite) by observationId.
+ * Three cases:
+ *   - A single observationId appearing once: kept as-is.
+ *   - The exact same observationId appearing more than once with IDENTICAL content (same
+ *     writes/bucketStart/bucketEnd): treated as the same observation seen twice (e.g. the same
+ *     Firestore doc read twice into one calculation input) and counted ONCE, never summed.
+ *   - The same observationId appearing more than once with DIFFERING content (different writes
+ *     and/or interval): this is a data-integrity conflict, not a legitimate duplicate or two
+ *     independent observations, so this fails closed with `available: false,
+ *     reason: "conflicting_duplicate_observation"` rather than silently summing or guessing
+ *     which copy is correct.
+ * Distinct observationIds (different users, or the same user's different buckets) are never
+ * merged here -- they are legitimately independent and are summed only later, by attributed
+ * date, in aggregateObservedBucketsByPacificStartDate.
+ */
+export function dedupeObservationsById(observations = []) {
+  const byId = new Map();
+  for (const obs of observations) {
+    if (!obs || !isNonEmptyString(obs.observationId)) continue;
+    const existing = byId.get(obs.observationId);
+    if (!existing) {
+      byId.set(obs.observationId, obs);
+      continue;
+    }
+    const identical =
+      existing.writes === obs.writes &&
+      existing.bucketStart === obs.bucketStart &&
+      existing.bucketEnd === obs.bucketEnd;
+    if (!identical) {
+      return { available: false, reason: "conflicting_duplicate_observation", observationId: obs.observationId, observations: null };
+    }
+    // Identical repeat of the same observation: drop the copy, count once.
+  }
+  return { available: true, reason: null, observationId: null, observations: [...byId.values()] };
+}
+
+/**
+ * Aggregates adapted, identity-bearing Presence write observations (see
+ * adaptPresenceBucketToObservedWrite) into an APPROXIMATE, bucket-attributed count per Pacific
+ * calendar day. The pipeline is: dedupe by observation identity FIRST (see
+ * dedupeObservationsById -- the exact same persisted bucket can never be double-counted, and a
+ * conflicting duplicate identity fails the whole call closed), THEN sum the remaining, genuinely
+ * distinct observations by their attributed Pacific date (different users' or different buckets'
+ * observations covering the same date are legitimately independent and are summed).
  *
- * IMPORTANT -- this is deliberately NOT named/advertised as exact Pacific daily usage:
- * the source data is a 12-hour aggregate counter, not per-write timestamps, so a bucket that
- * spans Pacific midnight (which happens for both the PST and PDT halves of the day, since the
- * bucket boundaries are fixed UTC 00:00/12:00, not Pacific-aligned) cannot be split across the
- * two Pacific days it actually covers. This function attributes the WHOLE bucket to the Pacific
+ * IMPORTANT -- this is deliberately NOT named/advertised as exact Pacific daily usage: the
+ * source data is a 12-hour aggregate counter, not per-write timestamps, so a bucket that spans
+ * Pacific midnight (which happens for both the PST and PDT halves of the day, since the bucket
+ * boundaries are fixed UTC 00:00/12:00, not Pacific-aligned) cannot be split across the two
+ * Pacific days it actually covers. This function attributes the WHOLE bucket to the Pacific
  * calendar day of its bucketStart, which is a bucket-attributed approximation, not a
  * reconstruction of exact per-day usage. Every row this function returns carries
  * PRESENCE_TRACKED_WRITE_PROVENANCE (source/trustLevel/coverage/isEstimate/aggregationMethod/
  * boundaryAccuracy) so downstream code can tell it apart from an authoritative, exact daily
  * Firestore total. It must never be used to compute an exact "Firestore daily quota remaining".
  *
- * Duplicate bucketStart/bucketEnd pairs for the same date are summed (they represent additional
- * non-overlapping observed writes, not competing measurements of the same thing).
+ * Returns `{ available: false, reason: "conflicting_duplicate_observation", observationId, rows:
+ * [] }` when dedupe fails closed; otherwise `{ available: true, reason: null, observationId:
+ * null, rows: [...] }`.
  */
-export function aggregateObservedBucketsByPacificStartDate(rows = []) {
-  const byDate = new Map();
-  for (const row of rows) {
-    const bucketStart = row?.bucketStart;
-    const writes = row?.writes;
-    if (!isFiniteNumber(bucketStart) || !isFiniteNumber(writes)) continue;
-    const dateKey = toPacificDateKey(bucketStart);
-    if (!dateKey) continue;
-    const existing = byDate.get(dateKey) || { date: dateKey, writes: 0, bucketCount: 0 };
-    existing.writes += writes;
-    existing.bucketCount += 1;
-    byDate.set(dateKey, existing);
+export function aggregateObservedBucketsByPacificStartDate(observations = []) {
+  const deduped = dedupeObservationsById(observations);
+  if (!deduped.available) {
+    return { available: false, reason: deduped.reason, observationId: deduped.observationId, rows: [] };
   }
-  return [...byDate.values()]
-    .map((row) => ({ ...row, ...PRESENCE_TRACKED_WRITE_PROVENANCE }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const dateRows = deduped.observations
+    .map((obs) => {
+      const dateKey = toPacificDateKey(obs.bucketStart);
+      return dateKey ? { date: dateKey, writes: obs.writes } : null;
+    })
+    .filter(Boolean);
+
+  const rows = aggregateRowsByDate(dateRows).map((row) => ({ ...row, ...PRESENCE_TRACKED_WRITE_PROVENANCE }));
+  return { available: true, reason: null, observationId: null, rows };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -424,29 +543,38 @@ export function aggregateObservedBucketsByPacificStartDate(rows = []) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Merges dailyRows that share the same `date` key by summing their `writes`, so that two
- * separately-observed rows for the same calendar day (e.g. two source buckets attributed to the
- * same Pacific date) become exactly one day of data, not two. Unrecognized/invalid rows (missing
- * date, non-finite writes) are dropped rather than guessed at. Returned rows are sorted
- * ascending by date; each unique date appears exactly once.
+ * Aggregates dailyRows that share the same `date` key by summing their `writes`, counting how
+ * many distinct rows contributed to that date (`observationCount`). This does NOT perform
+ * source-identity deduplication (see dedupeObservationsById for that, which must run first in
+ * the Presence pipeline) -- it assumes its input rows are already-distinct observations, and its
+ * job is only to combine multiple genuinely distinct observations that share one attributed
+ * calendar day (e.g. different users', or different buckets', writes landing on the same Pacific
+ * date) into a single day-level total. Unrecognized/invalid rows (missing date, non-finite
+ * writes) are dropped rather than guessed at. Returned rows are sorted ascending by date; each
+ * unique date appears exactly once.
  */
-export function mergeDuplicateDailyRows(dailyRows = []) {
+export function aggregateRowsByDate(dailyRows = []) {
   const byDate = new Map();
   for (const row of dailyRows) {
     if (!row || typeof row.date !== "string" || !isFiniteNumber(row.writes)) continue;
     const existing = byDate.get(row.date);
-    byDate.set(row.date, existing ? existing + row.writes : row.writes);
+    if (existing) {
+      existing.writes += row.writes;
+      existing.observationCount += 1;
+    } else {
+      byDate.set(row.date, { date: row.date, writes: row.writes, observationCount: 1 });
+    }
   }
-  return [...byDate.entries()]
-    .map(([date, writes]) => ({ date, writes }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
- * dailyRows: array of { date: "YYYY-MM-DD", writes: number }, ascending or unordered. Two rows
- * sharing the same date are summed (via mergeDuplicateDailyRows) before anything else runs, so a
- * duplicate date can never inflate `daysObserved` or silently skew the average/peak by being
- * counted as two separate days.
+ * dailyRows: array of { date: "YYYY-MM-DD", writes: number }, ascending or unordered. Rows
+ * sharing the same date are combined (via aggregateRowsByDate) before anything else runs, so a
+ * repeated date label can never inflate `daysObserved` or silently skew the average/peak by being
+ * counted as two separate days -- this is date-level combination of distinct observations, not
+ * source-identity deduplication (that already happened upstream for Presence data; see
+ * dedupeObservationsById).
  * windowDays: e.g. 7 or 30.
  * `asOfDate` (optional "YYYY-MM-DD") anchors the window; defaults to the latest date present.
  *
@@ -460,7 +588,7 @@ export function calculateRollingWindow(dailyRows = [], windowDays, asOfDate = nu
   if (!Number.isInteger(windowDays) || windowDays <= 0) {
     return { available: false, reason: "invalid_window", daysObserved: 0, average: null, peak: null };
   }
-  const sorted = mergeDuplicateDailyRows(dailyRows);
+  const sorted = aggregateRowsByDate(dailyRows);
 
   if (sorted.length === 0) {
     return { available: false, reason: "no_data", daysObserved: 0, average: null, peak: null };
