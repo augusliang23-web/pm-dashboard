@@ -13,6 +13,8 @@ import {
   calculateSpendCap,
   normalizeSpendCapConfig,
   toPacificDateKey,
+  calculateRollingWindow,
+  forecastLinear,
 } from './usage-cost-guard.mjs';
 
 // Control Plane precedence (UCG-V2-2B section 9): a known critical condition outranks an unknown
@@ -166,4 +168,69 @@ export function buildTrackedDailyHistoryWindow(rows = [], { days = 30, now = Dat
     windowStartDateKey,
     rows: windowed,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Capacity Outlook + Growth Scenario (UCG-V2-2D)
+// ---------------------------------------------------------------------------------------------
+//
+// Forecast / planning aid ONLY -- this is explicitly not, and must never be presented as, an
+// authoritative Firestore project capacity figure. It answers "if observed usage grew Nx, how
+// far off is the 20,000 writes/day reference" using nothing but the already-approved Tracked
+// Presence write pipeline (js/usage-cost-guard.mjs's calculateRollingWindow/forecastLinear) --
+// no new Firestore query and no second aggregation pipeline.
+//
+// Continues the UCG-V2-2C-R1 data-truth rules this module already enforces elsewhere:
+//   - The 30-day window is anchored to the CURRENT America/Los_Angeles calendar date (via
+//     toPacificDateKey), never to the latest observed row -- see buildTrackedDailyHistoryWindow's
+//     rationale above, which applies identically here.
+//   - Missing days are never treated as zero: calculateRollingWindow's average/peak divide by
+//     `daysObserved` (the count of days that actually have a row), not by `windowDays`.
+//   - No valid observed rows in the window -> `available: false` (rendered as "Unavailable" by
+//     the caller), never a fabricated 0.
+export const CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS = Object.freeze([1, 2, 5, 10]);
+
+export function buildCapacityOutlookViewModel(rows = [], { multiplier = 1, windowDays = 30, now = Date.now() } = {}) {
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  const anchorDateKey = toPacificDateKey(nowMs);
+  const rolling = anchorDateKey ? calculateRollingWindow(rows, windowDays, anchorDateKey) : { available: false };
+
+  if (!rolling.available) {
+    return Object.freeze({
+      available: false,
+      windowDays,
+      multiplier,
+      daysObserved: 0,
+      observedAverage: null,
+      observedPeak: null,
+      projectedAverage: null,
+      projectedPeak: null,
+      referenceQuotaWrites: FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.value,
+      referenceQuotaUnit: FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.unit,
+      coverage: 'partial',
+      isEstimate: true,
+    });
+  }
+
+  const projectedAverage = forecastLinear(rolling.average, multiplier);
+  const projectedPeak = forecastLinear(rolling.peak, multiplier);
+
+  return Object.freeze({
+    available: true,
+    windowDays,
+    multiplier,
+    daysObserved: rolling.daysObserved,
+    observedAverage: rolling.average,
+    observedPeak: rolling.peak,
+    // forecastLinear itself fails closed (available: false) on an invalid multiplier/baseline;
+    // this only ever happens here if `multiplier` is not a positive finite number, which the UI
+    // never passes (it is always one of CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS) -- still, null (not
+    // a silently-wrong number) is the correct fallback rather than assuming it always succeeds.
+    projectedAverage: projectedAverage.available ? projectedAverage.forecastedDailyWrites : null,
+    projectedPeak: projectedPeak.available ? projectedPeak.forecastedDailyWrites : null,
+    referenceQuotaWrites: FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.value,
+    referenceQuotaUnit: FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.unit,
+    coverage: 'partial',
+    isEstimate: true,
+  });
 }

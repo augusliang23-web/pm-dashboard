@@ -4,10 +4,12 @@ import {
   STATUS,
 } from '../js/usage-cost-guard.mjs';
 import {
+  buildCapacityOutlookViewModel,
   buildFirestoreCardViewModel,
   buildSpendCapCardViewModel,
   buildTrackedDailyHistoryWindow,
   buildUsageCostGuardOverview,
+  CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS,
   combineOverallStatus,
   describeOverallStatus,
 } from '../js/usage-cost-guard-view.mjs';
@@ -293,4 +295,81 @@ test('buildTrackedDailyHistoryWindow: a row with a malformed date is dropped, ne
     { days: 30, now },
   );
   assert.deepEqual(result.rows.map(r => r.date), ['2026-08-01', '2026-08-02', '2026-08-03']);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Capacity Outlook + Growth Scenario (UCG-V2-2D): forecast/planning aid, never authoritative
+// capacity, missing days never treated as zero, anchored to the CURRENT Pacific date.
+// ---------------------------------------------------------------------------------------------
+
+// 18 observed days inside the window (all other days in the 30-day window are gaps, not zero).
+// 17 days at 100 writes + 1 day at 500 writes -> average (17*100+500)/18, peak 500.
+const CAPACITY_ROWS_18_OBSERVED = [
+  ...Array.from({ length: 17 }, (_, i) => ({
+    date: `2026-08-${String(i + 1).padStart(2, '0')}`,
+    writes: 100,
+  })),
+  { date: '2026-08-18', writes: 500 },
+];
+const CAPACITY_NOW = Date.parse('2026-08-24T12:00:00-07:00'); // noon Pacific
+
+test('buildCapacityOutlookViewModel: averages/peaks over observed days only, denominator is daysObserved not windowDays', () => {
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 1, windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.available, true);
+  assert.equal(vm.daysObserved, 18);
+  assert.equal(vm.observedAverage, (17 * 100 + 500) / 18);
+  assert.equal(vm.observedPeak, 500);
+});
+
+test('buildCapacityOutlookViewModel: growth scenario is a straight linear multiplier of the observed baseline', () => {
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 5, windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.multiplier, 5);
+  assert.equal(vm.projectedAverage, vm.observedAverage * 5);
+  assert.equal(vm.projectedPeak, vm.observedPeak * 5);
+});
+
+test('buildCapacityOutlookViewModel: 1x scenario projects to exactly the observed baseline', () => {
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 1, windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.projectedAverage, vm.observedAverage);
+  assert.equal(vm.projectedPeak, vm.observedPeak);
+});
+
+test('buildCapacityOutlookViewModel: reference is the 20,000 writes/day Firestore constant, exposed as reference only', () => {
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 1, windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.referenceQuotaWrites, 20_000);
+  assert.equal(vm.referenceQuotaUnit, 'writes/day');
+  assert.equal(vm.coverage, 'partial');
+  assert.equal(vm.isEstimate, true);
+});
+
+test('buildCapacityOutlookViewModel: no observed rows in the window -> available: false, never a fabricated 0', () => {
+  const vm = buildCapacityOutlookViewModel([], { multiplier: 1, windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.available, false);
+  assert.equal(vm.observedAverage, null);
+  assert.equal(vm.observedPeak, null);
+  assert.equal(vm.projectedAverage, null);
+  assert.equal(vm.projectedPeak, null);
+  assert.equal(vm.daysObserved, 0);
+});
+
+test('buildCapacityOutlookViewModel: rows entirely outside the current-date window are excluded, never counted as recent', () => {
+  // Anchored far in the future relative to the fixture rows -- a correct implementation excludes
+  // all of them from the 30-day window (same regression class as buildTrackedDailyHistoryWindow's
+  // R1 fix: never let stale data masquerade as "today").
+  const farFuture = Date.parse('2027-06-01T12:00:00-07:00');
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 1, windowDays: 30, now: farFuture });
+  assert.equal(vm.available, false);
+});
+
+test('buildCapacityOutlookViewModel: exposes CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS as exactly 1x/2x/5x/10x, default 1x', () => {
+  assert.deepEqual(CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS, [1, 2, 5, 10]);
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { windowDays: 30, now: CAPACITY_NOW });
+  assert.equal(vm.multiplier, 1, 'multiplier must default to 1x Current when not supplied');
+});
+
+test('buildCapacityOutlookViewModel: never exposes a quota-remaining/percentage/status field', () => {
+  const vm = buildCapacityOutlookViewModel(CAPACITY_ROWS_18_OBSERVED, { multiplier: 1, windowDays: 30, now: CAPACITY_NOW });
+  assert.ok(!('remaining' in vm));
+  assert.ok(!('remainingPercentage' in vm));
+  assert.ok(!('status' in vm));
 });

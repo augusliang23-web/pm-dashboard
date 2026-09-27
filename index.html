@@ -495,6 +495,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .ucg-history-chart { position:relative; min-height:150px; padding:10px; background:var(--s2); border:1px solid var(--border); border-radius:8px; overflow-x:auto; overflow-y:hidden; }
 .ucg-history-chart svg { display:block; }
 .ucg-history-note { font-size:10px; color:var(--muted); line-height:1.5; margin:8px 0 4px; }
+.ucg-capacity-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:10px; margin:20px 0 4px; }
+.ucg-capacity-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:10px 0 6px; }
+.ucg-capacity-note { font-size:10px; color:var(--muted); line-height:1.5; margin:8px 0 4px; }
+@media (max-width:600px) { .ucg-capacity-grid { grid-template-columns:1fr; } }
 .ucg-diagnostics { margin-top:20px; border-top:1px solid var(--border); padding-top:14px; }
 .ucg-diagnostics > summary { cursor:pointer; font-size:12px; font-weight:800; color:var(--text); list-style:none; display:flex; align-items:center; gap:6px; }
 .ucg-diagnostics > summary::-webkit-details-marker { display:none; }
@@ -2918,6 +2922,25 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="ucg-history-chart" id="ucgHistoryChart" role="img" aria-label="Tracked daily Firestore writes, observed and approximate"></div>
   <div class="ucg-history-note" id="ucgHistoryNote"></div>
 
+  <div class="ucg-capacity-head">
+    <div class="ucg-history-title-wrap">
+      <div class="ucg-history-title">Capacity Outlook</div>
+      <div class="ucg-history-subtitle">Forecast / planning aid · not an authoritative Firestore project capacity figure</div>
+    </div>
+    <label class="ucg-history-title-wrap" style="gap:4px;">
+      <span class="usage-history-note" style="margin:0;" id="ucgCapacityScenarioLabel">Growth scenario</span>
+      <select class="session-range-select" id="ucgCapacityScenarioMultiplier" onchange="renderCapacityOutlook()" aria-labelledby="ucgCapacityScenarioLabel">
+        <option value="1" selected>1× Current</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+      </select>
+    </label>
+  </div>
+  <div class="ucg-history-badge-row"><span class="ucg-badge">Observed</span><span class="ucg-badge">Partial</span></div>
+  <div class="ucg-capacity-grid" id="ucgCapacityGrid"></div>
+  <div class="ucg-capacity-note" id="ucgCapacityNote"></div>
+
   <details class="ucg-diagnostics" id="usageCostGuardDiagnostics">
     <summary>Diagnostics</summary>
     <div class="ucg-diagnostics-body">
@@ -3068,7 +3091,7 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes } from "./js/presence-usage.mjs";
 import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate, toPacificDateKey } from "./js/usage-cost-guard.mjs";
-import { buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow } from "./js/usage-cost-guard-view.mjs";
+import { buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow, buildCapacityOutlookViewModel } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4834,6 +4857,49 @@ function renderTrackedDailyWritesHistory() {
 }
 window.renderTrackedDailyWritesHistory = renderTrackedDailyWritesHistory;
 
+// ── CAPACITY OUTLOOK + GROWTH SCENARIO (UCG-V2-2D) ──
+// Forecast / planning aid only -- reuses the same ucgTrackedDailyWritesRows the Tracked Daily
+// Writes chart already holds (no new Firestore query, no second aggregation pipeline) via the
+// approved js/usage-cost-guard-view.mjs buildCapacityOutlookViewModel, which itself composes the
+// already-approved calculateRollingWindow/forecastLinear from js/usage-cost-guard.mjs. Renders
+// "Unavailable" (never 0) when there is no valid observed data in the window.
+function renderCapacityOutlook() {
+  const grid = document.getElementById('ucgCapacityGrid');
+  const note = document.getElementById('ucgCapacityNote');
+  if (!grid || !note) return;
+
+  if (!ucgTrackedDailyWritesRows.available) {
+    grid.innerHTML = '<div class="usage-card"><div class="usage-card-label">Capacity Outlook</div><div class="usage-card-value">Unavailable</div><div class="usage-card-note">Conflicting tracked-write observations were found.</div></div>';
+    note.textContent = 'Data quality: unavailable · a data-integrity conflict was detected in the underlying Presence observations.';
+    return;
+  }
+
+  const multiplier = Number(document.getElementById('ucgCapacityScenarioMultiplier')?.value || 1);
+  const vm = buildCapacityOutlookViewModel(ucgTrackedDailyWritesRows.rows, { multiplier, windowDays: 30, now: Date.now() });
+
+  if (!vm.available) {
+    grid.innerHTML = `
+      <div class="usage-card"><div class="usage-card-label">Observed 30-day average</div><div class="usage-card-value">Unavailable</div></div>
+      <div class="usage-card"><div class="usage-card-label">Observed 30-day peak</div><div class="usage-card-value">Unavailable</div></div>
+      <div class="usage-card"><div class="usage-card-label">Reference</div><div class="usage-card-value">${fmtUsageNumber(vm.referenceQuotaWrites)}</div><div class="usage-card-note">${escHtml(vm.referenceQuotaUnit)} · reference only</div></div>`;
+    note.textContent = 'Observed · Partial — no tracked writes were observed in the last 30 days, so no capacity outlook can be shown.';
+    return;
+  }
+
+  const projectedAverageLine = vm.projectedAverage === null ? 'Unavailable' : fmtUsageNumber(vm.projectedAverage);
+  const projectedPeakLine = vm.projectedPeak === null ? 'Unavailable' : fmtUsageNumber(vm.projectedPeak);
+
+  grid.innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Observed 30-day average</div><div class="usage-card-value">${fmtUsageNumber(vm.observedAverage)}</div><div class="usage-card-note">Projected at ${vm.multiplier}×: ${projectedAverageLine} writes/day</div></div>
+    <div class="usage-card"><div class="usage-card-label">Observed 30-day peak</div><div class="usage-card-value">${fmtUsageNumber(vm.observedPeak)}</div><div class="usage-card-note">Projected at ${vm.multiplier}×: ${projectedPeakLine} writes/day</div></div>
+    <div class="usage-card"><div class="usage-card-label">Reference</div><div class="usage-card-value">${fmtUsageNumber(vm.referenceQuotaWrites)}</div><div class="usage-card-note">${escHtml(vm.referenceQuotaUnit)} · reference only, not a quota-remaining calculation</div></div>`;
+
+  note.textContent = `Observed · Partial — based on ${vm.daysObserved} of ${vm.windowDays} observed day${vm.daysObserved === 1 ? '' : 's'} of Presence-tracked Firestore writes (missing days are gaps, not zero writes). ` +
+    `Growth scenario is a linear projection (observed × ${vm.multiplier}) of this partial-coverage data, not a prediction, and the 20,000 writes/day figure is a Firestore reference constant only -- ` +
+    `it is not project-wide current usage, quota remaining, or guaranteed free headroom.`;
+}
+window.renderCapacityOutlook = renderCapacityOutlook;
+
 function renderFirestoreHistoricalSummary() {
   const data = FIRESTORE_SIX_WEEK_BASELINE;
   document.getElementById('firestoreHistoricalSummary').innerHTML = `
@@ -5196,6 +5262,7 @@ window.loadPresenceUsageStats = async () => {
     refreshUsageCostGuardOverview(calculateTrackedFirestoreWrites(presenceDocs));
     ucgTrackedDailyWritesRows = buildObservedPresenceWriteRows(presenceDocs);
     renderTrackedDailyWritesHistory();
+    renderCapacityOutlook();
     snap.docs.forEach(presenceDoc => {
       Object.values(presenceDoc.data().usageBuckets || {}).forEach(row => {
         if (!row?.bucketId) return;
