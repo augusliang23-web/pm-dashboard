@@ -464,7 +464,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .usage-chart-nav .btn { width:30px; height:28px; padding:0; font-size:16px; }
 .usage-chart-key { display:inline-flex; align-items:center; gap:5px; }
 .usage-chart-swatch { width:14px; height:3px; background:var(--accent); }
-.usage-chart-swatch.warning { background:#d14343; border-top:1px dashed #d14343; }
 .usage-table { width:100%; border-collapse:collapse; font-size:11px; }
 .usage-table th { text-align:left; padding:9px 8px; background:var(--s2); color:var(--text-light); font-size:9px; text-transform:uppercase; letter-spacing:.05em; }
 .usage-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--text-light); }
@@ -2904,7 +2903,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="usage-chart-toolbar">
     <div class="usage-chart-legend">
       <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour tracked flush writes</span>
-      <span class="usage-chart-key"><span class="usage-chart-swatch warning"></span>20% attention line · 80% shown when reached</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#78B395;"></span>Online session</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#AAB7C4;"></span>Timed out</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#D8B76A; opacity:.65;"></span>Activity detected (time unknown)</span>
@@ -3031,7 +3029,7 @@ import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverview
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
-import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
+import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes } from "./js/presence-usage.mjs";
 import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate } from "./js/usage-cost-guard.mjs";
 import { buildUsageCostGuardOverview } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -4134,7 +4132,6 @@ const PRESENCE_SESSION_COLLECTION = 'presenceSessions';
 const PRESENCE_ROLLUP_COLLECTION = 'presenceDailyRollups';
 const PRESENCE_SESSION_RETENTION_DAYS = 90;
 const FIRESTORE_FREE_WRITES_PER_DAY = 20000;
-const FIRESTORE_FREE_WRITES_PER_12H = FIRESTORE_FREE_WRITES_PER_DAY / 2;
 // Historical reference only (UCG-V2-2B-R1): this period's writes/reads are a fixed historical
 // total, not compared against any cumulative multi-day quota pool -- the Firestore free-tier
 // write quota resets daily (FIRESTORE_FREE_WRITES_PER_DAY), so a 42-day total has no cumulative
@@ -4769,10 +4766,9 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   const chart = document.getElementById('presenceDailyChart');
   const now = Date.now();
   const rangeStart = now - rangeDays * 24 * 60 * 60 * 1000;
-  // UCG-V2-2B-R1: charted against the 12-hour reference lines below, so this must be actual
-  // tracked Firestore flush writes (counterFlushWrites) only -- never combined with
-  // totalPresenceWrites (an activity/event tick count, not a Firestore write count; see
-  // renderPresenceUsageStats above for the same distinction).
+  // UCG-V2-2B-R1: this must be actual tracked Firestore flush writes (counterFlushWrites) only --
+  // never combined with totalPresenceWrites (an activity/event tick count, not a Firestore write
+  // count; see renderPresenceUsageStats above for the same distinction).
   const points = rows
     .map(row => ({
       label: row.bucketLabel || row.bucketId || '-',
@@ -4807,14 +4803,19 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   const margin = { top: 12, right: 16, bottom: 28, left: 118 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = upperHeight - margin.top;
-  const scale = selectPresenceWriteScale(points, FIRESTORE_FREE_WRITES_PER_12H);
-  const maxWrites = scale.maxWrites;
-  const warningWrites = FIRESTORE_FREE_WRITES_PER_12H * 0.8;
+  // UCG-V2-2B-R2: the y-axis autoscales to the observed tracked-flush-write peak only (20%
+  // headroom above it) -- it does not reference FIRESTORE_FREE_WRITES_PER_DAY or any other
+  // Firestore quota figure, so the chart cannot visually imply proximity to the project-wide
+  // quota. Partial, tracked-only Presence data cannot support that comparison (see
+  // js/usage-cost-guard.mjs's PRESENCE_TRACKED_WRITE_PROVENANCE).
+  const peakWrites = points.reduce((max, item) => Math.max(max, item.writes), 0);
+  const maxWrites = Math.max(1, peakWrites * 1.2);
+  const gridValues = [0, 0.25, 0.5, 0.75, 1].map(ratio => maxWrites * ratio);
   const yFor = value => upperHeight - (Math.min(value, maxWrites) / maxWrites) * plotHeight;
   const xFor = value => margin.left + ((Math.min(now, Math.max(rangeStart, value)) - rangeStart) / (now - rangeStart)) * plotWidth;
   const barWidth = Math.max(3, Math.min(18, plotWidth / Math.max(1, rangeDays * 2) * 0.62));
 
-  const grid = scale.gridValues.map(value => {
+  const grid = gridValues.map(value => {
     const y = yFor(value);
     return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="var(--border)" stroke-width="1"/>
       <text x="${margin.left - 8}" y="${y + 3}" text-anchor="end" fill="var(--muted)" font-size="9">${value === 0 ? '0' : `${value / 1000}k`}</text>`;
@@ -4824,18 +4825,11 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
     const x = xFor(item.bucketStart + PRESENCE_USAGE_FLUSH_MS / 2) - barWidth / 2;
     const y = yFor(item.writes);
     const barHeight = Math.max(item.writes ? 1 : 0, upperHeight - y);
-    const color = item.writes >= warningWrites ? '#d14343' : 'var(--accent)';
-    return `<rect x="${x}" y="${upperHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="2" fill="${color}">
+    return `<rect x="${x}" y="${upperHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="2" fill="var(--accent)">
         <title>${item.label}: ${fmtUsageNumber(item.writes)} tracked flush writes</title>
       </rect>`;
   }).join('');
 
-  const referenceLines = scale.referenceLines.map(line => {
-    const y = yFor(line.value);
-    const color = line.kind === 'warning' ? '#d14343' : '#D09A28';
-    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="${color}" stroke-width="2" stroke-dasharray="6 5"/>
-      <text x="${width - margin.right}" y="${y - 5}" text-anchor="end" fill="${color}" font-size="9" font-weight="700">${escHtml(line.label)}</text>`;
-  }).join('');
   const dayMs = 24 * 60 * 60 * 1000;
   const dateGrid = Array.from({ length: rangeDays + 1 }, (_, index) => {
     const timestamp = rangeStart + index * dayMs;
@@ -4886,7 +4880,6 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   chart.innerHTML = `<div class="usage-chart-canvas" style="width:${width}px;height:${height}px;">
     <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Firestore writes and user login timeline">
       ${grid}
-      ${referenceLines}
       ${bars}
       <text x="${margin.left}" y="${upperHeight + 8}" fill="var(--text)" font-size="10" font-weight="800">USER ACCESS TIMELINE</text>
       ${dateGrid}
@@ -4983,7 +4976,7 @@ function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimated
 
   // UCG-V2-2B-R1: activity/event counters (active/idle/logout/presence) and tracked Firestore
   // flush writes (counterFlushWrites) are kept as distinct, separately labeled figures here --
-  // never summed together, and never compared against FIRESTORE_FREE_WRITES_PER_12H/DAY to
+  // never summed together, and never compared against FIRESTORE_FREE_WRITES_PER_DAY to
   // produce a "quota used %" or "writes remaining" claim (see js/usage-cost-guard.mjs's
   // adaptPresenceBucketToObservedWrite for why only counterFlushWrites represents actual
   // Firestore document writes).

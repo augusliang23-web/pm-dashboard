@@ -139,10 +139,15 @@ test("uses last-seen only when a user has no session or estimated activity", () 
   );
 });
 
-test("dashboard wires dynamic scale, timeline lanes, and last-seen fallback", async () => {
+test("dashboard wires timeline lanes and last-seen fallback", async () => {
   const source = await dashboardSourceAsync('production');
 
-  assert.match(source, /selectPresenceWriteScale/);
+  // UCG-V2-2B-R2: the dashboard no longer wires selectPresenceWriteScale -- its quota-derived
+  // 20%/80% reference lines were removed as a misleading Firestore-quota interpretation (see
+  // tests/dashboard-profile-invariants.test.mjs's chart-cleanup test). selectPresenceWriteScale
+  // itself remains a tested, exported utility in js/presence-usage.mjs (see the two scale tests
+  // above); it is simply no longer used by index.html.
+  assert.doesNotMatch(source, /selectPresenceWriteScale/, 'the dashboard must not reintroduce the quota-derived chart scale');
   assert.match(source, /buildLastSeenPresenceActivities/);
   assert.match(source, /buildPresenceTimelineLanes/);
   assert.match(source, /lastSeenAt:\s*now/);

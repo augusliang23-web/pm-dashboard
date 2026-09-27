@@ -174,6 +174,34 @@ test('UCG-V2-2B-R1: no misleading cumulative/per-bucket Firestore quota interpre
   assert.doesNotMatch(chartBody, /% of quota/i);
 });
 
+test('UCG-V2-2B-R2: the Presence chart no longer draws quota-derived reference lines', () => {
+  const production = dashboardSource('production');
+
+  // The 20%/80% quota-attention reference lines, their legend text, and the code that computed
+  // them must all be gone.
+  assert.doesNotMatch(production, /20% attention line/i);
+  assert.doesNotMatch(production, /80% shown when reached/i);
+  assert.doesNotMatch(production, /selectPresenceWriteScale/, 'the dashboard must not wire the quota-derived scale helper');
+  assert.doesNotMatch(production, /\bwarningWrites\b/);
+  assert.doesNotMatch(production, /referenceLines/);
+  assert.doesNotMatch(production, /usage-chart-swatch\.warning/, 'the now-unused warning-swatch style must be removed, not left dangling');
+  assert.doesNotMatch(production, /\bscale\.gridValues\b|\bscale\.maxWrites\b/);
+  // No replacement percentage/SAFE/WATCH/HIGH threshold marker may have been introduced either.
+  assert.doesNotMatch(production, /(?:SAFE|WATCH|HIGH)[- ]?threshold/i);
+
+  const chartBody = production.slice(
+    production.indexOf('function renderPresenceUsageChart('),
+    production.indexOf('function renderPresenceUsageStats('),
+  );
+  // The chart must still autoscale sensibly and still plot the tracked-flush-write series and
+  // its bucket/time labels -- this is removal of the quota interpretation, not a redesign.
+  assert.match(chartBody, /const peakWrites = points\.reduce/, 'a non-quota peak-based autoscale must replace the quota-derived scale');
+  assert.match(chartBody, /const maxWrites = Math\.max\(1, peakWrites \* 1\.2\)/);
+  assert.match(chartBody, /gridValues\.map/, 'the y-axis grid must still render');
+  assert.match(chartBody, /tracked flush writes<\/title>/, 'the per-bucket tooltip must still show the tracked-flush-write value');
+  assert.match(chartBody, /USER ACCESS TIMELINE/, 'the existing timeline section must remain intact');
+});
+
 test('the UAT profile still exposes every UAT a04c0c1 function name', () => {
   const view = functionInventory(dashboardSource('uat'));
   const missing = baselines.uatFunctionNames.filter(name => !(name in view));
