@@ -14,5 +14,19 @@
     "messagingSenderId": "317352278230",
     "appId": "1:317352278230:web:8cc08b9672db5481f4b177"
   },
-  "pdfServiceUrl": "https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app"
+  "pdfServiceUrl": "https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app",
+  "usageCostGuard": {
+    "cloudRun": {
+      "configuredCapSgd": 2,
+      "source": "dashboard-config",
+      "trustLevel": "manualConfig",
+      "verifiedAt": "2026-09-26"
+    },
+    "cloudRunFunctions": {
+      "configuredCapSgd": 2,
+      "source": "dashboard-config",
+      "trustLevel": "manualConfig",
+      "verifiedAt": "2026-09-26"
+    }
+  }
 }
