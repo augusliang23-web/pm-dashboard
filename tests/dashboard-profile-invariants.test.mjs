@@ -170,7 +170,10 @@ test('UCG-V2-2B-R1: no misleading cumulative/per-bucket Firestore quota interpre
   );
   assert.doesNotMatch(chartBody, /totalPresenceWrites.*\+.*counterFlushWrites|counterFlushWrites.*\+.*totalPresenceWrites/,
     'the chart must not sum activity events with tracked flush writes');
-  assert.match(chartBody, /writes:\s*Number\(row\.counterFlushWrites \|\| 0\)/);
+  // UCG-V2-2C: a malformed/non-numeric counterFlushWrites must be dropped, not coerced to 0
+  // (which would previously have let a non-numeric value reach Number() as NaN).
+  assert.match(chartBody, /const writes = Number\(row\.counterFlushWrites\);/);
+  assert.match(chartBody, /if \(!Number\.isFinite\(bucketStart\) \|\| !Number\.isFinite\(writes\) \|\| writes < 0\) return null;/);
   assert.doesNotMatch(chartBody, /% of quota/i);
 });
 

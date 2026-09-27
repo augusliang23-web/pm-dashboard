@@ -487,6 +487,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .ucg-card-note { font-size:10px; color:var(--muted); line-height:1.4; margin-top:1px; }
 @media (max-width:900px) { .ucg-cards { grid-template-columns:repeat(2, 1fr); } }
 @media (max-width:600px) { .ucg-cards { grid-template-columns:1fr; } .ucg-overall { flex-direction:column; align-items:flex-start; } }
+.ucg-history-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:10px; margin:14px 0 4px; }
+.ucg-history-title-wrap { display:flex; flex-direction:column; gap:2px; }
+.ucg-history-title { font-size:13px; font-weight:800; color:var(--text); }
+.ucg-history-subtitle { font-size:10px; color:var(--muted); }
+.ucg-history-badge-row { display:flex; gap:6px; margin:2px 0 10px; }
+.ucg-history-chart { position:relative; min-height:150px; padding:10px; background:var(--s2); border:1px solid var(--border); border-radius:8px; overflow-x:auto; overflow-y:hidden; }
+.ucg-history-chart svg { display:block; }
+.ucg-history-note { font-size:10px; color:var(--muted); line-height:1.5; margin:8px 0 4px; }
+.ucg-diagnostics { margin-top:20px; border-top:1px solid var(--border); padding-top:14px; }
+.ucg-diagnostics > summary { cursor:pointer; font-size:12px; font-weight:800; color:var(--text); list-style:none; display:flex; align-items:center; gap:6px; }
+.ucg-diagnostics > summary::-webkit-details-marker { display:none; }
+.ucg-diagnostics > summary::before { content:'▸'; display:inline-block; transition:transform .15s ease; color:var(--muted); }
+.ucg-diagnostics[open] > summary::before { transform:rotate(90deg); }
+.ucg-diagnostics > summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.ucg-diagnostics-body { margin-top:14px; }
 .session-history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:2px 0 10px; }
 .session-range-select { min-width:92px; border:1px solid var(--border2); border-radius:6px; background:#fff; color:var(--text); padding:6px 9px; font-size:11px; font-weight:700; }
 .session-table-wrap { max-height:280px; overflow:auto; margin-bottom:18px; border:1px solid var(--border); border-radius:8px; }
@@ -2885,43 +2900,65 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
   <div class="ucg-overall" role="status" id="usageCostGuardOverall"></div>
   <div class="ucg-cards" id="usageCostGuardCards"></div>
-  <div class="usage-section-title" style="margin-top:8px;">Usage details</div>
-  <div class="usage-section-title">Firestore actual usage · Past 6 weeks</div>
-  <div class="usage-summary-grid" id="firestoreHistoricalSummary" style="grid-template-columns:repeat(2, 1fr);"></div>
-  <div class="usage-history-note" id="firestoreHistoricalNote"></div>
-  <div class="usage-section-title">Presence writes recorded after counter activation</div>
-  <div class="usage-summary-grid" id="presenceUsageSummary"></div>
-  <div class="session-history-head">
-    <div class="usage-section-title" style="margin:0;">Firestore writes and user access timeline</div>
-    <select class="session-range-select" id="presenceRangeDays" onchange="loadPresenceUsageStats()">
-      <option value="7">Last 7 days</option>
-      <option value="30">Last 30 days</option>
-      <option value="56" selected>Last 56 days</option>
-    </select>
-  </div>
-  <div class="usage-summary-grid" id="presenceSessionSummary"></div>
-  <div class="usage-chart-toolbar">
-    <div class="usage-chart-legend">
-      <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour tracked flush writes</span>
-      <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#78B395;"></span>Online session</span>
-      <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#AAB7C4;"></span>Timed out</span>
-      <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#D8B76A; opacity:.65;"></span>Activity detected (time unknown)</span>
-      <span class="usage-chart-key"><span class="usage-chart-swatch" style="width:8px; height:8px; border-radius:50%; background:#7EAAC8;"></span>Last seen</span>
+
+  <div class="ucg-history-head">
+    <div class="ucg-history-title-wrap">
+      <div class="ucg-history-title" id="ucgHistoryTitle">Tracked Daily Writes</div>
+      <div class="ucg-history-subtitle">Presence-tracked Firestore writes · approximate day attribution</div>
     </div>
-    <div class="usage-chart-nav">
-      <button class="btn btn-ghost" title="View older usage" onclick="scrollPresenceChart(-1)" aria-label="View older usage">←</button>
-      <button class="btn btn-ghost" title="View newer usage" onclick="scrollPresenceChart(1)" aria-label="View newer usage">→</button>
+    <label class="ucg-history-title-wrap" style="gap:4px;">
+      <span class="usage-history-note" style="margin:0;" id="ucgHistoryRangeLabel">History window</span>
+      <select class="session-range-select" id="ucgHistoryRangeDays" onchange="renderTrackedDailyWritesHistory()" aria-labelledby="ucgHistoryRangeLabel">
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Available history (up to 60 days)</option>
+      </select>
+    </label>
+  </div>
+  <div class="ucg-history-badge-row"><span class="ucg-badge">Observed</span><span class="ucg-badge">Partial</span><span class="ucg-badge">Approximate</span></div>
+  <div class="ucg-history-chart" id="ucgHistoryChart" role="img" aria-label="Tracked daily Firestore writes, observed and approximate"></div>
+  <div class="ucg-history-note" id="ucgHistoryNote"></div>
+
+  <details class="ucg-diagnostics" id="usageCostGuardDiagnostics">
+    <summary>Diagnostics</summary>
+    <div class="ucg-diagnostics-body">
+      <div class="usage-section-title" style="margin-top:8px;">Firestore actual usage · Past 6 weeks</div>
+      <div class="usage-summary-grid" id="firestoreHistoricalSummary" style="grid-template-columns:repeat(2, 1fr);"></div>
+      <div class="usage-history-note" id="firestoreHistoricalNote"></div>
+      <div class="usage-section-title">Presence writes recorded after counter activation</div>
+      <div class="usage-summary-grid" id="presenceUsageSummary"></div>
+      <div class="session-history-head">
+        <div class="usage-section-title" style="margin:0;">Firestore writes and user access timeline</div>
+        <select class="session-range-select" id="presenceRangeDays" onchange="loadPresenceUsageStats()">
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="56" selected>Last 56 days</option>
+        </select>
+      </div>
+      <div class="usage-summary-grid" id="presenceSessionSummary"></div>
+      <div class="usage-chart-toolbar">
+        <div class="usage-chart-legend">
+          <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour tracked flush writes</span>
+          <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#78B395;"></span>Online session</span>
+          <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#AAB7C4;"></span>Timed out</span>
+          <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#D8B76A; opacity:.65;"></span>Activity detected (time unknown)</span>
+          <span class="usage-chart-key"><span class="usage-chart-swatch" style="width:8px; height:8px; border-radius:50%; background:#7EAAC8;"></span>Last seen</span>
+        </div>
+        <div class="usage-chart-nav">
+          <button class="btn btn-ghost" title="View older usage" onclick="scrollPresenceChart(-1)" aria-label="View older usage">←</button>
+          <button class="btn btn-ghost" title="View newer usage" onclick="scrollPresenceChart(1)" aria-label="View newer usage">→</button>
+        </div>
+      </div>
+      <div class="usage-chart" id="presenceDailyChart"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+        <div style="font-size:11px; color:var(--muted); line-height:1.45;">The upper chart shows 12-hour tracked Firestore flush writes (not activity/event counts). Green and gray blocks are recorded sessions. Gold blocks mean activity was detected within that 12-hour bucket—not that the user stayed online for 12 hours. Blue dots are last-seen fallbacks; neither gold blocks nor blue dots infer login time or duration.</div>
+        <button class="btn btn-ghost" onclick="loadPresenceUsageStats()">Refresh</button>
+      </div>
+      <div class="usage-section-title">Session history</div>
+      <div id="presenceSessionTable"></div>
+      <div class="usage-section-title">12-hour write details</div>
+      <div id="presenceUsageTable"></div>
     </div>
-  </div>
-  <div class="usage-chart" id="presenceDailyChart"></div>
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
-    <div style="font-size:11px; color:var(--muted); line-height:1.45;">The upper chart shows 12-hour tracked Firestore flush writes (not activity/event counts). Green and gray blocks are recorded sessions. Gold blocks mean activity was detected within that 12-hour bucket—not that the user stayed online for 12 hours. Blue dots are last-seen fallbacks; neither gold blocks nor blue dots infer login time or duration.</div>
-    <button class="btn btn-ghost" onclick="loadPresenceUsageStats()">Refresh</button>
-  </div>
-  <div class="usage-section-title">Session history</div>
-  <div id="presenceSessionTable"></div>
-  <div class="usage-section-title">12-hour write details</div>
-  <div id="presenceUsageTable"></div>
+  </details>
 </div>
 </div>
 
@@ -3030,7 +3067,7 @@ import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValu
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes } from "./js/presence-usage.mjs";
-import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate } from "./js/usage-cost-guard.mjs";
+import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate, toPacificDateKey } from "./js/usage-cost-guard.mjs";
 import { buildUsageCostGuardOverview } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -4675,19 +4712,126 @@ function refreshUsageCostGuardOverview(trackedFirestoreWrites = null) {
   renderUsageCostGuardOverview(overview, IS_UAT_PROFILE ? 'UAT' : 'Production');
 }
 
+// Shared by the Firestore card total and the Tracked Daily Writes history: adapts every
+// persisted Presence bucket into an identity-bearing observation (see
+// adaptPresenceBucketToObservedWrite) and aggregates by attributed Pacific start date. This is
+// the ONLY place index.html builds this pipeline, so both consumers see identical dedupe/
+// conflict behavior from js/usage-cost-guard.mjs.
+function buildObservedPresenceWriteRows(presenceDocs) {
+  const observations = presenceDocs.flatMap(({ id, data }) =>
+    Object.values(data.usageBuckets || {})
+      .map(bucket => adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: id }))
+      .filter(Boolean));
+  return aggregateObservedBucketsByPacificStartDate(observations);
+}
+
 // Uses the approved Presence bucket adapter + Pacific aggregation from js/usage-cost-guard.mjs
 // (identity-preserving, so the exact same persisted bucket is never double-counted) to produce a
 // single "tracked writes" total for the Firestore card. Returns null (never 0) when the
 // observations conflict or none are available, so the UI never shows a fabricated tracked count.
 function calculateTrackedFirestoreWrites(presenceDocs) {
-  const observations = presenceDocs.flatMap(({ id, data }) =>
-    Object.values(data.usageBuckets || {})
-      .map(bucket => adaptPresenceBucketToObservedWrite(bucket, { sourceDocumentId: id }))
-      .filter(Boolean));
-  const aggregated = aggregateObservedBucketsByPacificStartDate(observations);
+  const aggregated = buildObservedPresenceWriteRows(presenceDocs);
   if (!aggregated.available) return null;
   return aggregated.rows.reduce((sum, row) => sum + row.writes, 0);
 }
+
+// ── TRACKED DAILY WRITES — Daily History (UCG-V2-2C) ──
+// `ucgTrackedDailyWritesRows` holds the last loaded, already-deduped/aggregated observation rows
+// (see buildObservedPresenceWriteRows) so the 30/60-day range control can re-render client-side
+// without refetching Firestore. Each row already carries PRESENCE_TRACKED_WRITE_PROVENANCE
+// (observed/partial/approximate) from the foundation -- this module never upgrades that.
+let ucgTrackedDailyWritesRows = { available: true, reason: null, rows: [] };
+
+function fmtUcgHistoryDate(dateKey) {
+  const parsed = new Date(`${dateKey}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime())
+    ? parsed.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    : dateKey;
+}
+
+// Renders the Tracked Daily Writes bar chart for the selected window (30 or "available history,
+// up to 60 days"). Only dates that actually have an observed row are plotted -- a calendar day
+// with no row is left as a visible gap, never synthesized as a zero-height bar (missing day !=
+// zero writes; see aggregateObservedBucketsByPacificStartDate's contract). No quota, %, or
+// SAFE/WATCH/HIGH derivation happens here: the chart is purely observed-data-driven.
+function renderTrackedDailyWritesHistory() {
+  const chart = document.getElementById('ucgHistoryChart');
+  const note = document.getElementById('ucgHistoryNote');
+  if (!chart || !note) return;
+  const windowDays = Number(document.getElementById('ucgHistoryRangeDays')?.value || 30);
+
+  if (!ucgTrackedDailyWritesRows.available) {
+    chart.innerHTML = '<div class="usage-chart-empty">Tracked daily writes are unavailable: conflicting observations were found for the same tracked bucket.</div>';
+    note.textContent = 'Data quality: unavailable · a data-integrity conflict was detected in the underlying Presence observations.';
+    return;
+  }
+
+  const allRows = ucgTrackedDailyWritesRows.rows;
+  if (!allRows.length) {
+    chart.innerHTML = '<div class="usage-chart-empty">Tracked daily writes will appear after Presence activity is recorded.</div>';
+    note.textContent = 'Observed · Partial · Approximate — presence-tracked Firestore writes, bucket-start-date attribution.';
+    return;
+  }
+
+  const anchor = allRows[allRows.length - 1].date;
+  const anchorMs = Date.parse(`${anchor}T00:00:00Z`);
+  const windowStartMs = anchorMs - (windowDays - 1) * 86_400_000;
+  const rows = allRows.filter(row => {
+    const ms = Date.parse(`${row.date}T00:00:00Z`);
+    return ms >= windowStartMs && ms <= anchorMs;
+  });
+
+  if (!rows.length) {
+    chart.innerHTML = '<div class="usage-chart-empty">No tracked writes were observed in this window.</div>';
+    note.textContent = 'Observed · Partial · Approximate — presence-tracked Firestore writes, bucket-start-date attribution.';
+    return;
+  }
+
+  const width = Math.max(560, windowDays * 20 + 60);
+  const height = 130;
+  const margin = { top: 10, right: 12, bottom: 24, left: 42 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const peak = rows.reduce((max, row) => Math.max(max, row.writes), 0);
+  const maxWrites = Math.max(1, peak * 1.15);
+  const dayMs = 86_400_000;
+  const xFor = dateKey => margin.left + ((Date.parse(`${dateKey}T00:00:00Z`) - windowStartMs) / dayMs) * (plotWidth / windowDays);
+  const barWidth = Math.max(3, Math.min(16, (plotWidth / windowDays) * 0.7));
+  const yFor = value => margin.top + plotHeight - (Math.min(value, maxWrites) / maxWrites) * plotHeight;
+
+  const gridValues = [0, 0.5, 1].map(ratio => maxWrites * ratio);
+  const grid = gridValues.map(value => {
+    const y = yFor(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="var(--border)" stroke-width="1"/>
+      <text x="${margin.left - 6}" y="${y + 3}" text-anchor="end" fill="var(--muted)" font-size="9">${fmtUsageNumber(value)}</text>`;
+  }).join('');
+
+  const bars = rows.map(row => {
+    const x = xFor(row.date) + (plotWidth / windowDays) / 2 - barWidth / 2;
+    const y = yFor(row.writes);
+    const barHeight = Math.max(row.writes ? 1 : 0, margin.top + plotHeight - y);
+    return `<rect x="${x}" y="${margin.top + plotHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="2" fill="var(--accent)">
+        <title>${fmtUcgHistoryDate(row.date)}: ${fmtUsageNumber(row.writes)} tracked writes · ${row.observationCount} observed bucket${row.observationCount === 1 ? '' : 's'} · Observed · Partial · Approximate</title>
+      </rect>`;
+  }).join('');
+
+  const labelStep = windowDays <= 30 ? 5 : 10;
+  const labels = rows.filter((_, index) => index % labelStep === 0 || index === rows.length - 1).map(row => {
+    const x = xFor(row.date) + (plotWidth / windowDays) / 2;
+    return `<text x="${x}" y="${height - 6}" text-anchor="middle" fill="var(--muted)" font-size="8">${fmtUcgHistoryDate(row.date)}</text>`;
+  }).join('');
+
+  chart.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Tracked daily Firestore writes, observed and approximate">
+    ${grid}
+    ${bars}
+    ${labels}
+  </svg>`;
+
+  const daysWithData = rows.length;
+  note.textContent = `Observed · Partial · Approximate — presence-tracked Firestore writes only, bucket-start-date attribution (not exact Pacific calendar-day reconstruction). ` +
+    `${daysWithData} of ${windowDays} day${windowDays === 1 ? '' : 's'} in this window have observed data; missing days are gaps, not zero writes.`;
+}
+window.renderTrackedDailyWritesHistory = renderTrackedDailyWritesHistory;
 
 function renderFirestoreHistoricalSummary() {
   const data = FIRESTORE_SIX_WEEK_BASELINE;
@@ -4769,12 +4913,18 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   // UCG-V2-2B-R1: this must be actual tracked Firestore flush writes (counterFlushWrites) only --
   // never combined with totalPresenceWrites (an activity/event tick count, not a Firestore write
   // count; see renderPresenceUsageStats above for the same distinction).
+  // UCG-V2-2C: a malformed/non-numeric persisted counterFlushWrites (or bucketStart) must never
+  // reach the SVG scale/coordinate math below as NaN/Infinity, and must never be silently
+  // reinterpreted as a trustworthy 0 -- rows that fail to parse to a finite, non-negative number
+  // are dropped from the chart entirely rather than plotted as a fabricated zero-height bar.
   const points = rows
-    .map(row => ({
-      label: row.bucketLabel || row.bucketId || '-',
-      bucketStart: Number(row.bucketStart || 0),
-      writes: Number(row.counterFlushWrites || 0)
-    }))
+    .map(row => {
+      const bucketStart = Number(row.bucketStart);
+      const writes = Number(row.counterFlushWrites);
+      if (!Number.isFinite(bucketStart) || !Number.isFinite(writes) || writes < 0) return null;
+      return { label: row.bucketLabel || row.bucketId || '-', bucketStart, writes };
+    })
+    .filter(Boolean)
     .sort((a, b) => a.bucketStart - b.bucketStart)
     .filter(point => point.bucketStart >= rangeStart)
     .slice(-(rangeDays * 2));
@@ -5043,6 +5193,8 @@ window.loadPresenceUsageStats = async () => {
       data: presenceDoc.data()
     }));
     refreshUsageCostGuardOverview(calculateTrackedFirestoreWrites(presenceDocs));
+    ucgTrackedDailyWritesRows = buildObservedPresenceWriteRows(presenceDocs);
+    renderTrackedDailyWritesHistory();
     snap.docs.forEach(presenceDoc => {
       Object.values(presenceDoc.data().usageBuckets || {}).forEach(row => {
         if (!row?.bucketId) return;
