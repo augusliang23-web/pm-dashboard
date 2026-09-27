@@ -3,9 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
+  FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE,
+  PRESENCE_TRACKED_WRITE_PROVENANCE,
   STATUS,
   TRUST_LEVELS,
-  aggregateDailyPacificWrites,
+  adaptPresenceBucketToObservedWrite,
+  aggregateObservedBucketsByPacificStartDate,
+  attachProvenance,
   calculateHeadroom,
   calculateQuotaStatus,
   calculateRemaining,
@@ -15,6 +19,7 @@ import {
   forecastLinear,
   isMetricAvailable,
   isMetricTrustworthy,
+  mergeDuplicateDailyRows,
   normalizeSpendCapConfig,
   selectStatus,
   toPacificDateKey,
@@ -368,41 +373,70 @@ test('toPacificDateKey: fall-back DST transition (2026-11-01, PDT -> PST)', () =
   assert.equal(toPacificDateKey(Date.UTC(2026, 10, 1, 9, 0, 0)), '2026-11-01');
 });
 
-test('aggregateDailyPacificWrites: a bucket crossing Pacific midnight is attributed by bucketStart', () => {
+test('aggregateObservedBucketsByPacificStartDate: a bucket crossing Pacific midnight is attributed by bucketStart, and is explicitly approximate', () => {
   // A 12-hour bucket [2026-06-01 20:00 UTC, 2026-06-02 08:00 UTC) crosses Pacific midnight
-  // (2026-06-01 17:00 PDT start; Pacific midnight is 2026-06-02 07:00 UTC). It is attributed
-  // to the Pacific day of its bucketStart, not its bucketEnd.
+  // (2026-06-01 17:00 PDT start; Pacific midnight is 2026-06-02 07:00 UTC). The BLOCKER finding:
+  // the source counter cannot be split across the two Pacific days it actually spans, so the
+  // whole bucket is attributed to the Pacific day of its bucketStart -- an approximation, never
+  // an exact reconstruction, and every row says so explicitly.
   const bucketStart = Date.UTC(2026, 5, 1, 20, 0, 0);
   const bucketEnd = Date.UTC(2026, 5, 2, 8, 0, 0);
   const rows = [{ bucketStart, bucketEnd, writes: 42 }];
-  const result = aggregateDailyPacificWrites(rows);
+  const result = aggregateObservedBucketsByPacificStartDate(rows);
   assert.equal(result.length, 1);
   assert.equal(result[0].date, toPacificDateKey(bucketStart));
   assert.equal(result[0].date, '2026-06-01');
   assert.equal(result[0].writes, 42);
+  // Machine-readable disclosure that this is not exact daily quota usage.
+  assert.equal(result[0].trustLevel, 'observed');
+  assert.equal(result[0].source, 'tracked-presence-writes');
+  assert.equal(result[0].coverage, 'partial');
+  assert.equal(result[0].isEstimate, true);
+  assert.equal(result[0].aggregationMethod, 'bucket-start-date');
+  assert.equal(result[0].boundaryAccuracy, 'approximate');
 });
 
-test('aggregateDailyPacificWrites: multiple buckets on the same Pacific day sum correctly', () => {
+test('aggregateObservedBucketsByPacificStartDate: multiple buckets on the same Pacific day sum correctly', () => {
   const day = Date.UTC(2026, 5, 1, 8, 0, 0); // 2026-06-01 01:00 PDT
   const rows = [
     { bucketStart: day, bucketEnd: day + 43_200_000, writes: 10 },
     { bucketStart: day + 43_200_000, bucketEnd: day + 86_400_000, writes: 5 },
   ];
-  const result = aggregateDailyPacificWrites(rows);
+  const result = aggregateObservedBucketsByPacificStartDate(rows);
   assert.equal(result.length, 1);
   assert.equal(result[0].writes, 15);
   assert.equal(result[0].bucketCount, 2);
 });
 
-test('aggregateDailyPacificWrites: ignores rows with missing bucketStart/writes rather than crashing', () => {
-  const result = aggregateDailyPacificWrites([{ bucketStart: null, writes: 5 }, { bucketStart: 1, writes: null }, {}]);
+test('aggregateObservedBucketsByPacificStartDate: ignores rows with missing bucketStart/writes rather than crashing', () => {
+  const result = aggregateObservedBucketsByPacificStartDate([{ bucketStart: null, writes: 5 }, { bucketStart: 1, writes: null }, {}]);
   assert.deepEqual(result, []);
 });
 
+test('the function name and result never imply exact Pacific daily usage', async () => {
+  const source = await readFile(new URL('../js/usage-cost-guard.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /export function \w*[Ee]xact\w*(Pacific|Daily)/, 'no exported function name may claim exact daily/Pacific reconstruction');
+  const result = aggregateObservedBucketsByPacificStartDate([{ bucketStart: Date.UTC(2026, 5, 1), writes: 1 }]);
+  assert.equal(result[0].isEstimate, true, 'aggregated day rows must self-identify as an estimate, never as exact');
+});
+
+test('aggregated daily writes must not be used to compute an exact Firestore quota-remaining figure directly', () => {
+  // Demonstrates the guardrail from the Control Plane's item 6: even though the official
+  // reference quota exists, feeding an aggregated (observed, partial, approximate) day straight
+  // into calculateHeadroom produces a number that still carries -- once provenance is attached --
+  // "observed"/"partial"/estimate metadata, never "authoritative" project-wide truth.
+  const dayRow = aggregateObservedBucketsByPacificStartDate([{ bucketStart: Date.UTC(2026, 5, 1), writes: 500 }])[0];
+  const headroom = calculateHeadroom(dayRow.writes, FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.value);
+  const withProvenance = attachProvenance(headroom, PRESENCE_TRACKED_WRITE_PROVENANCE);
+  assert.equal(withProvenance.trustLevel, 'observed');
+  assert.notEqual(withProvenance.trustLevel, 'authoritative');
+  assert.equal(withProvenance.coverage, 'partial');
+});
+
 test('Pacific daily aggregation does not change with host/local timezone (proof)', () => {
-  // toPacificDateKey/aggregateDailyPacificWrites use Intl with an explicit IANA zone, so they
-  // must be independent of any ambient TZ. We assert directly against explicit UTC inputs
-  // (equivalent to running this same assertion under any process TZ) rather than mutating
+  // toPacificDateKey/aggregateObservedBucketsByPacificStartDate use Intl with an explicit IANA
+  // zone, so they must be independent of any ambient TZ. We assert directly against explicit UTC
+  // inputs (equivalent to running this same assertion under any process TZ) rather than mutating
   // process.env.TZ, since the Intl formatter is cached at module load in some engines.
   const epochMs = Date.UTC(2026, 5, 15, 6, 59, 59); // ambiguous near Pacific midnight
   const singaporeDateKey = new Intl.DateTimeFormat('en-CA', {
@@ -413,6 +447,81 @@ test('Pacific daily aggregation does not change with host/local timezone (proof)
   // the function must not be silently reusing Singapore or any browser-local timezone.
   assert.equal(singaporeDateKey, '2026-06-15');
   assert.equal(pacificDateKey, '2026-06-14');
+});
+
+// ---------------------------------------------------------------------------------------------
+// MAJOR: Presence bucket source adapter (realistic persisted bucket shapes)
+// ---------------------------------------------------------------------------------------------
+
+function realisticPresenceBucket(overrides = {}) {
+  // Shape exactly as persisted by flushDuePresenceUsage in index.html:
+  // presence/<user>.usageBuckets.<bucketId> = { bucketId, bucketLabel, bucketStart, bucketEnd,
+  // activeWrites, idleWrites, logoutWrites, totalPresenceWrites, counterFlushWrites, updatedAt }.
+  return {
+    bucketId: '2026-06-01-H1',
+    bucketLabel: '2026-06-01 H1',
+    bucketStart: Date.UTC(2026, 5, 1, 0, 0, 0),
+    bucketEnd: Date.UTC(2026, 5, 1, 12, 0, 0),
+    activeWrites: 12,
+    idleWrites: 3,
+    logoutWrites: 1,
+    totalPresenceWrites: 16, // activeWrites + idleWrites + logoutWrites
+    counterFlushWrites: 4,   // number of updateDoc() flush calls -- actual Firestore writes
+    ...overrides,
+  };
+}
+
+test('adaptPresenceBucketToObservedWrite: valid existing Presence bucket uses counterFlushWrites, not totalPresenceWrites', () => {
+  const bucket = realisticPresenceBucket();
+  const result = adaptPresenceBucketToObservedWrite(bucket);
+  assert.ok(result);
+  assert.equal(result.writes, 4, 'must use counterFlushWrites (actual Firestore document writes), not totalPresenceWrites (activity ticks)');
+  assert.equal(result.bucketStart, bucket.bucketStart);
+  assert.equal(result.bucketEnd, bucket.bucketEnd);
+  assert.equal(result.trustLevel, 'observed');
+  assert.equal(result.isEstimate, true);
+});
+
+test('adaptPresenceBucketToObservedWrite: does not double-count by summing totalPresenceWrites and counterFlushWrites', () => {
+  const bucket = realisticPresenceBucket({ totalPresenceWrites: 16, counterFlushWrites: 4 });
+  const result = adaptPresenceBucketToObservedWrite(bucket);
+  assert.equal(result.writes, 4);
+  assert.notEqual(result.writes, 20, 'must never equal totalPresenceWrites + counterFlushWrites');
+});
+
+test('adaptPresenceBucketToObservedWrite: missing counterFlushWrites is unavailable, not silently 0', () => {
+  const bucket = realisticPresenceBucket();
+  delete bucket.counterFlushWrites;
+  assert.equal(adaptPresenceBucketToObservedWrite(bucket), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: invalid (negative / non-numeric) counter is rejected', () => {
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: -1 })), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: 'four' })), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ counterFlushWrites: NaN })), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: missing bucketStart/bucketEnd is rejected rather than guessed', () => {
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketStart: null })), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(realisticPresenceBucket({ bucketEnd: undefined })), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(null), null);
+  assert.equal(adaptPresenceBucketToObservedWrite(undefined), null);
+});
+
+test('adaptPresenceBucketToObservedWrite: multiple buckets adapt and feed straight into aggregation', () => {
+  // Both bucketStarts fall on Pacific date 2026-06-01 (01:00 PDT and 13:00 PDT respectively).
+  const bucketA = realisticPresenceBucket({
+    bucketId: '2026-06-01-H1', bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0), counterFlushWrites: 4,
+  });
+  const bucketB = realisticPresenceBucket({
+    bucketId: '2026-06-01-H2', bucketStart: Date.UTC(2026, 5, 1, 20, 0, 0), bucketEnd: Date.UTC(2026, 5, 2, 8, 0, 0), counterFlushWrites: 6,
+  });
+  const adapted = [bucketA, bucketB].map(adaptPresenceBucketToObservedWrite).filter(Boolean);
+  assert.equal(adapted.length, 2);
+  const daily = aggregateObservedBucketsByPacificStartDate(adapted);
+  assert.equal(daily.length, 1);
+  assert.equal(daily[0].date, '2026-06-01');
+  assert.equal(daily[0].writes, 10); // 4 + 6, never 16+16 or any totalPresenceWrites-derived figure
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -494,6 +603,74 @@ test('calculateRollingWindow: invalid window size', () => {
   assert.equal(calculateRollingWindow(rows, 1.5).available, false);
 });
 
+// -- MAJOR remediation: duplicate daily entries must not inflate daysObserved/isPartial --
+
+test('mergeDuplicateDailyRows: sums writes for duplicate date keys and yields one row per date', () => {
+  const merged = mergeDuplicateDailyRows([
+    { date: '2026-06-01', writes: 10 },
+    { date: '2026-06-01', writes: 5 },
+    { date: '2026-06-02', writes: 7 },
+  ]);
+  assert.deepEqual(merged, [
+    { date: '2026-06-01', writes: 15 },
+    { date: '2026-06-02', writes: 7 },
+  ]);
+});
+
+test('mergeDuplicateDailyRows: drops invalid rows without guessing', () => {
+  const merged = mergeDuplicateDailyRows([{ date: null, writes: 5 }, { date: '2026-06-01', writes: null }, {}]);
+  assert.deepEqual(merged, []);
+});
+
+test('calculateRollingWindow: two records with the same date must NOT become daysObserved: 2', () => {
+  const rows = [
+    { date: '2026-06-01', writes: 10 },
+    { date: '2026-06-01', writes: 20 }, // duplicate date -- e.g. two source buckets attributed here
+  ];
+  const result = calculateRollingWindow(rows, 7, '2026-06-01');
+  assert.equal(result.daysObserved, 1, 'duplicate date must count as exactly one observed day');
+  assert.equal(result.average, 30, 'duplicate-date writes are summed into that single day, not averaged as two days');
+  assert.equal(result.peak, 30);
+});
+
+test('calculateRollingWindow: a duplicate date must not falsely turn a genuinely partial window into isPartial: false', () => {
+  // 2 unique dates supplied as 4 rows (2 duplicated) inside a 7-day window: still only 2 days observed.
+  const rows = [
+    { date: '2026-06-05', writes: 10 },
+    { date: '2026-06-05', writes: 5 },
+    { date: '2026-06-06', writes: 1 },
+    { date: '2026-06-06', writes: 1 },
+  ];
+  const result = calculateRollingWindow(rows, 7, '2026-06-07');
+  assert.equal(result.daysObserved, 2);
+  assert.equal(result.isPartial, true);
+});
+
+// -- missing-day semantics: explicit zero is observed data; absence is not --
+
+test('calculateRollingWindow: an explicit observed zero counts as an observed day, not a gap', () => {
+  const rows = [
+    { date: '2026-06-01', writes: 0 },
+    { date: '2026-06-02', writes: 0 },
+    { date: '2026-06-03', writes: 0 },
+  ];
+  const result = calculateRollingWindow(rows, 3, '2026-06-03');
+  assert.equal(result.available, true);
+  assert.equal(result.daysObserved, 3);
+  assert.equal(result.isPartial, false);
+  assert.equal(result.average, 0);
+});
+
+test('calculateRollingWindow: a day with no row at all is excluded, and stays distinguishable from an explicit zero', () => {
+  const withGap = calculateRollingWindow([{ date: '2026-06-01', writes: 100 }, { date: '2026-06-03', writes: 100 }], 3, '2026-06-03');
+  const withExplicitZero = calculateRollingWindow([{ date: '2026-06-01', writes: 100 }, { date: '2026-06-02', writes: 0 }, { date: '2026-06-03', writes: 100 }], 3, '2026-06-03');
+  assert.equal(withGap.daysObserved, 2);
+  assert.equal(withGap.isPartial, true);
+  assert.equal(withExplicitZero.daysObserved, 3);
+  assert.equal(withExplicitZero.isPartial, false);
+  assert.notEqual(withGap.average, withExplicitZero.average);
+});
+
 // ---------------------------------------------------------------------------------------------
 // G. Headroom helper
 // ---------------------------------------------------------------------------------------------
@@ -554,6 +731,80 @@ test('forecastLinear: invalid multiplier', () => {
   assert.equal(forecastLinear(100, 0).available, false);
   assert.equal(forecastLinear(100, -1).available, false);
   assert.equal(forecastLinear(100, NaN).available, false);
+});
+
+test('forecastLinear: negative baseline usage is invalid, never returns a negative projected write count', () => {
+  const r = forecastLinear(-10, 2);
+  assert.equal(r.available, false);
+  assert.equal(r.reason, 'invalid_baseline');
+  assert.equal(r.forecastedDailyWrites, null);
+  assert.equal(r.isEstimate, true);
+});
+
+// ---------------------------------------------------------------------------------------------
+// MAJOR remediation: data-truth propagation across the full pipeline
+// ---------------------------------------------------------------------------------------------
+
+test('attachProvenance merges source/trustLevel/coverage/isEstimate without upgrading them', () => {
+  const mathResult = calculateHeadroom(500, 20000);
+  const withProvenance = attachProvenance(mathResult, PRESENCE_TRACKED_WRITE_PROVENANCE);
+  assert.equal(withProvenance.headroom, 19500);
+  assert.equal(withProvenance.trustLevel, 'observed');
+  assert.equal(withProvenance.source, 'tracked-presence-writes');
+  assert.equal(withProvenance.coverage, 'partial');
+  assert.equal(withProvenance.isEstimate, true);
+});
+
+test('attachProvenance never fabricates trustLevel when no provenance is given', () => {
+  const mathResult = calculateHeadroom(500, 20000);
+  assert.strictEqual(attachProvenance(mathResult, null), mathResult);
+  assert.ok(!('trustLevel' in mathResult));
+});
+
+test('generic pure-math helpers (rolling/headroom/forecast) stay trust-neutral on their own -- no automatic trustLevel field', () => {
+  const rolling = calculateRollingWindow(daysFrom('2026-06-01', [1, 2, 3, 4, 5, 6, 7]), 7, '2026-06-07');
+  const headroom = calculateHeadroom(100, 200);
+  const forecast = forecastLinear(100, 2);
+  for (const result of [rolling, headroom, forecast]) {
+    assert.ok(!('trustLevel' in result), 'pure math must not claim a trust level on its own');
+    assert.ok(!('source' in result), 'pure math must not claim a source on its own');
+  }
+});
+
+test('end-to-end: observed tracked Presence writes never emerge as authoritative Firestore totals through adapt -> aggregate -> rolling -> headroom -> forecast', () => {
+  const buckets = [
+    realisticPresenceBucket({ bucketStart: Date.UTC(2026, 5, 1, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 1, 20, 0, 0), counterFlushWrites: 40 }),
+    realisticPresenceBucket({ bucketStart: Date.UTC(2026, 5, 2, 8, 0, 0), bucketEnd: Date.UTC(2026, 5, 2, 20, 0, 0), counterFlushWrites: 60 }),
+  ];
+
+  const adapted = buckets.map(adaptPresenceBucketToObservedWrite).filter(Boolean);
+  assert.ok(adapted.every((row) => row.trustLevel === 'observed'));
+
+  const daily = aggregateObservedBucketsByPacificStartDate(adapted);
+  assert.ok(daily.every((row) => row.trustLevel === 'observed' && row.coverage === 'partial' && row.isEstimate === true));
+
+  const rolling = calculateRollingWindow(daily, 7, '2026-06-02');
+  const rollingWithProvenance = attachProvenance(rolling, PRESENCE_TRACKED_WRITE_PROVENANCE);
+  assert.equal(rollingWithProvenance.trustLevel, 'observed');
+
+  const headroom = calculateHeadroom(rolling.peak, FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE.value);
+  const headroomWithProvenance = attachProvenance(headroom, PRESENCE_TRACKED_WRITE_PROVENANCE);
+  assert.equal(headroomWithProvenance.trustLevel, 'observed');
+  assert.notEqual(headroomWithProvenance.trustLevel, 'authoritative');
+
+  const forecast = forecastLinear(rolling.average, 5);
+  const forecastWithProvenance = attachProvenance(forecast, PRESENCE_TRACKED_WRITE_PROVENANCE);
+  assert.equal(forecastWithProvenance.trustLevel, 'observed');
+  assert.equal(forecastWithProvenance.isEstimate, true);
+  assert.notEqual(forecastWithProvenance.trustLevel, 'authoritative');
+});
+
+test('a manualConfig spend cap never becomes live authoritative through attachProvenance either', () => {
+  const capMetric = normalizeSpendCapConfig({ configuredCapSgd: 2, source: 'dashboard-config', trustLevel: 'manualConfig', verifiedAt: '2026-09-26' }, { environment: 'prod', service: 'cloudRun' });
+  const spendCap = calculateSpendCap(0.5, capMetric.value);
+  const withProvenance = attachProvenance(spendCap, { source: capMetric.source, trustLevel: capMetric.trustLevel, coverage: null, isEstimate: capMetric.isEstimate });
+  assert.equal(withProvenance.trustLevel, 'manualConfig');
+  assert.notEqual(withProvenance.trustLevel, 'authoritative');
 });
 
 // ---------------------------------------------------------------------------------------------

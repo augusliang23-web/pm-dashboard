@@ -1,15 +1,22 @@
-// Usage & Cost Guard V2 -- pure data-truth + calculation layer (UCG-V2-2A).
+// Usage & Cost Guard V2 -- pure data-truth + calculation layer (UCG-V2-2A, remediated in
+// UCG-V2-2A-R1 after independent review found the original Pacific daily aggregation implied
+// exact-day reconstruction the source data cannot support -- see PRESENCE_TRACKED_WRITE_PROVENANCE
+// and aggregateObservedBucketsByPacificStartDate below).
 //
 // This module contains ONLY pure functions: metric normalization, remaining/status math,
-// spend-cap math, Pacific-timezone daily aggregation, rolling metrics, headroom, and linear
-// forecasting. It does not fetch data, read Firestore, call any Cloud API, or render UI.
+// spend-cap math, an adapter from the persisted Presence bucket shape plus approximate
+// Pacific-timezone bucket-to-day aggregation, rolling metrics, headroom, and linear forecasting.
+// It does not fetch data, read Firestore, call any Cloud API, or render UI.
 //
 // Data-truth rule enforced throughout: a metric's `trustLevel` and `source` describe how
 // trustworthy its *origin* is, and no function in this module is allowed to upgrade that
 // trust level. Observed Presence writes stay `observed` (never become `authoritative`
 // Firestore project totals); a `manualConfig` spend cap stays `manualConfig` (never becomes
 // a live Google Cloud read). Missing/unavailable inputs must surface as UNKNOWN or
-// `unavailable`, never silently coerced to 0 or to a false "fully safe" reading.
+// `unavailable`, never silently coerced to 0 or to a false "fully safe" reading. Generic
+// pure-math helpers (calculateRollingWindow, calculateHeadroom, forecastLinear) return
+// trust-neutral plain numbers on their own; callers who need the result to keep carrying its
+// origin's provenance attach it explicitly via attachProvenance().
 
 export const TRUST_LEVELS = Object.freeze([
   "authoritative",
@@ -29,6 +36,43 @@ export const STATUS = Object.freeze({
 });
 
 const PACIFIC_TIME_ZONE = "America/Los_Angeles";
+
+/**
+ * Provenance metadata for the tracked-Presence-write pipeline (adapter -> bucket aggregation).
+ * This is intentionally the ONLY place these five values are declared together, so every
+ * consumer of the Presence write pipeline gets the identical, unambiguous disclosure:
+ *   - source / trustLevel: this is observed application telemetry, not a live Firestore read.
+ *   - coverage: "partial" -- only Presence-tracked writes are counted, not the whole project.
+ *   - isEstimate: true -- bucket-to-day attribution is an approximation (see boundaryAccuracy).
+ *   - aggregationMethod / boundaryAccuracy: a 12-hour bucket is attributed to the Pacific
+ *     calendar day of its bucketStart; a bucket that straddles Pacific midnight is NOT split,
+ *     so day boundaries are approximate, not exact. See aggregateObservedBucketsByPacificStartDate.
+ */
+export const PRESENCE_TRACKED_WRITE_PROVENANCE = Object.freeze({
+  source: "tracked-presence-writes",
+  trustLevel: "observed",
+  coverage: "partial",
+  isEstimate: true,
+  aggregationMethod: "bucket-start-date",
+  boundaryAccuracy: "approximate",
+});
+
+/**
+ * The official Firestore free-tier daily write quota, kept as a hardcoded reference constant
+ * only (Control Plane decision 4.4). This is NOT a live Google Cloud read, and it must never be
+ * combined with PRESENCE_TRACKED_WRITE_PROVENANCE data (or anything carrying that provenance) to
+ * produce a claimed "Firestore daily quota remaining", an exact "% LEFT", or a project-level
+ * SAFE status: tracked Presence writes are partial-coverage observed telemetry, not total
+ * project Firestore usage, and no calculation in this module treats the two as interchangeable.
+ */
+export const FIRESTORE_DAILY_WRITE_QUOTA_REFERENCE = Object.freeze({
+  value: 20_000,
+  unit: "writes/day",
+  source: "firestore-official-reference",
+  trustLevel: "hardcoded",
+  coverage: "project-wide-reference-only",
+  isEstimate: false,
+});
 
 // ---------------------------------------------------------------------------------------------
 // A. Metric normalization
@@ -77,6 +121,21 @@ export function isMetricAvailable(metric) {
 export function isMetricTrustworthy(metric, allowedTrustLevels) {
   if (!isMetricAvailable(metric)) return false;
   return allowedTrustLevels.includes(metric.trustLevel);
+}
+
+/**
+ * Deliberately merges provenance (source/trustLevel/coverage/isEstimate/...) onto the plain
+ * numeric result of a generic pure-math helper (calculateRollingWindow, calculateHeadroom,
+ * forecastLinear, ...). Those helpers stay trust-neutral on their own -- they never claim a
+ * trust level for numbers they didn't originate -- so a caller who WANTS the result to keep
+ * carrying its origin's provenance must attach it explicitly here. This function only copies
+ * the given provenance fields onto the result; it never invents, upgrades, or infers a
+ * trustLevel (e.g. it will not turn "observed" into "authoritative" no matter what math ran).
+ */
+export function attachProvenance(result, provenance) {
+  if (!provenance) return result;
+  const { source = null, trustLevel = "unavailable", coverage = null, isEstimate = false } = provenance;
+  return Object.freeze({ ...result, source, trustLevel, coverage, isEstimate });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -275,9 +334,11 @@ function pacificDateFormatter() {
 }
 
 /**
- * Returns the Pacific calendar date ("YYYY-MM-DD") for a given epoch-ms timestamp, using
+ * Returns the Pacific calendar date ("YYYY-MM-DD") for a single epoch-ms POINT IN TIME, using
  * Intl's IANA tz database (so PST/PDT and DST transitions are handled correctly) rather than a
- * fixed UTC offset. Independent of the host/browser's local timezone.
+ * fixed UTC offset. Independent of the host/browser's local timezone. This conversion itself is
+ * exact for a single instant; the approximation problem below comes from attributing an entire
+ * 12-hour RANGE (a bucket) to one such date, not from this function.
  */
 export function toPacificDateKey(epochMs) {
   if (!isFiniteNumber(epochMs)) return null;
@@ -285,13 +346,62 @@ export function toPacificDateKey(epochMs) {
   return pacificDateFormatter().format(new Date(epochMs));
 }
 
+// ---------------------------------------------------------------------------------------------
+// Presence bucket source adapter
+// ---------------------------------------------------------------------------------------------
+//
+// The persisted Firestore shape (presence/<user>.usageBuckets.<bucketId>, written by
+// queuePresenceUsage/flushDuePresenceUsage in index.html) carries several counters that are NOT
+// interchangeable:
+//   - activeWrites / idleWrites / logoutWrites: client-side activity ticks, one increment per
+//     user-visible presence event.
+//   - totalPresenceWrites: activeWrites + idleWrites + logoutWrites for that bucket. This is an
+//     APPLICATION ACTIVITY count -- how many presence events the client observed -- not a count
+//     of Firestore document writes. Many activity ticks are buffered client-side and flushed in
+//     a single Firestore updateDoc() call, so totalPresenceWrites can be far larger than the
+//     number of actual Firestore writes that bucket caused.
+//   - counterFlushWrites: incremented by exactly 1 inside flushDuePresenceUsage's updateDoc()
+//     call, once per flush. Each flush is exactly one Firestore document-write operation against
+//     that bucket's presence doc. This is the field that corresponds to actual Firestore write
+//     consumption (the thing the 20,000-writes/day quota counts), so it is the metric this
+//     module treats as "tracked Firestore writes" for a bucket.
+//
+// totalPresenceWrites does NOT include counterFlushWrites (they are separate counters
+// incremented in the same updateDoc call, not one derived from the other), and the two must
+// never be summed: doing so would add an application-activity count to a document-write count,
+// producing a number that corresponds to neither quantity.
+export function adaptPresenceBucketToObservedWrite(bucket) {
+  const bucketStart = bucket?.bucketStart;
+  const bucketEnd = bucket?.bucketEnd;
+  const writes = bucket?.counterFlushWrites;
+
+  if (!isFiniteNumber(bucketStart) || !isFiniteNumber(bucketEnd) || !isFiniteNumber(writes) || writes < 0) {
+    return null;
+  }
+
+  return Object.freeze({ bucketStart, bucketEnd, writes, ...PRESENCE_TRACKED_WRITE_PROVENANCE });
+}
+
 /**
- * Aggregates 12-hour presence write buckets (each { bucketStart, bucketEnd, writes }, epoch ms)
- * into tracked-writes-per-Pacific-day. A bucket is attributed to the Pacific day of its
- * bucketStart. Output is sorted ascending by date and only includes days with at least one
- * bucket. This produces "tracked daily writes", never a claim of total Firestore usage.
+ * Aggregates already-adapted Presence write observations (each { bucketStart, bucketEnd, writes
+ * }, epoch ms -- see adaptPresenceBucketToObservedWrite) into an APPROXIMATE, bucket-attributed
+ * count per Pacific calendar day.
+ *
+ * IMPORTANT -- this is deliberately NOT named/advertised as exact Pacific daily usage:
+ * the source data is a 12-hour aggregate counter, not per-write timestamps, so a bucket that
+ * spans Pacific midnight (which happens for both the PST and PDT halves of the day, since the
+ * bucket boundaries are fixed UTC 00:00/12:00, not Pacific-aligned) cannot be split across the
+ * two Pacific days it actually covers. This function attributes the WHOLE bucket to the Pacific
+ * calendar day of its bucketStart, which is a bucket-attributed approximation, not a
+ * reconstruction of exact per-day usage. Every row this function returns carries
+ * PRESENCE_TRACKED_WRITE_PROVENANCE (source/trustLevel/coverage/isEstimate/aggregationMethod/
+ * boundaryAccuracy) so downstream code can tell it apart from an authoritative, exact daily
+ * Firestore total. It must never be used to compute an exact "Firestore daily quota remaining".
+ *
+ * Duplicate bucketStart/bucketEnd pairs for the same date are summed (they represent additional
+ * non-overlapping observed writes, not competing measurements of the same thing).
  */
-export function aggregateDailyPacificWrites(rows = []) {
+export function aggregateObservedBucketsByPacificStartDate(rows = []) {
   const byDate = new Map();
   for (const row of rows) {
     const bucketStart = row?.bucketStart;
@@ -304,7 +414,9 @@ export function aggregateDailyPacificWrites(rows = []) {
     existing.bucketCount += 1;
     byDate.set(dateKey, existing);
   }
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  return [...byDate.values()]
+    .map((row) => ({ ...row, ...PRESENCE_TRACKED_WRITE_PROVENANCE }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -312,22 +424,43 @@ export function aggregateDailyPacificWrites(rows = []) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * dailyRows: array of { date: "YYYY-MM-DD", writes: number }, ascending or unordered.
+ * Merges dailyRows that share the same `date` key by summing their `writes`, so that two
+ * separately-observed rows for the same calendar day (e.g. two source buckets attributed to the
+ * same Pacific date) become exactly one day of data, not two. Unrecognized/invalid rows (missing
+ * date, non-finite writes) are dropped rather than guessed at. Returned rows are sorted
+ * ascending by date; each unique date appears exactly once.
+ */
+export function mergeDuplicateDailyRows(dailyRows = []) {
+  const byDate = new Map();
+  for (const row of dailyRows) {
+    if (!row || typeof row.date !== "string" || !isFiniteNumber(row.writes)) continue;
+    const existing = byDate.get(row.date);
+    byDate.set(row.date, existing ? existing + row.writes : row.writes);
+  }
+  return [...byDate.entries()]
+    .map(([date, writes]) => ({ date, writes }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * dailyRows: array of { date: "YYYY-MM-DD", writes: number }, ascending or unordered. Two rows
+ * sharing the same date are summed (via mergeDuplicateDailyRows) before anything else runs, so a
+ * duplicate date can never inflate `daysObserved` or silently skew the average/peak by being
+ * counted as two separate days.
  * windowDays: e.g. 7 or 30.
  * `asOfDate` (optional "YYYY-MM-DD") anchors the window; defaults to the latest date present.
  *
  * Missing days inside the window are NOT silently treated as 0 -- the function reports how
  * many of the windowDays actually have observed data (`daysObserved`) alongside the average
  * computed strictly over the rows that exist, so callers can see incompleteness rather than
- * have it hidden inside an average that assumes zero-usage gaps.
+ * have it hidden inside an average that assumes zero-usage gaps. A day that explicitly reports
+ * writes: 0 IS counted as observed (it is real data, not a gap); a day with no row at all is not.
  */
 export function calculateRollingWindow(dailyRows = [], windowDays, asOfDate = null) {
   if (!Number.isInteger(windowDays) || windowDays <= 0) {
     return { available: false, reason: "invalid_window", daysObserved: 0, average: null, peak: null };
   }
-  const sorted = [...dailyRows]
-    .filter((row) => row && typeof row.date === "string" && isFiniteNumber(row.writes))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const sorted = mergeDuplicateDailyRows(dailyRows);
 
   if (sorted.length === 0) {
     return { available: false, reason: "no_data", daysObserved: 0, average: null, peak: null };
@@ -415,6 +548,9 @@ export function forecastLinear(observedDailyAverage, multiplier) {
   const baseline = extractNumericValue(observedDailyAverage);
   if (baseline === null) {
     return { available: false, reason: "no_data", forecastedDailyWrites: null, isEstimate: true };
+  }
+  if (baseline < 0) {
+    return { available: false, reason: "invalid_baseline", forecastedDailyWrites: null, isEstimate: true };
   }
   if (!isFiniteNumber(multiplier) || multiplier <= 0) {
     return { available: false, reason: "invalid_multiplier", forecastedDailyWrites: null, isEstimate: true };
