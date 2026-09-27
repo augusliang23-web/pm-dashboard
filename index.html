@@ -9691,7 +9691,9 @@ window.openProjEdit = (code, isNew = false) => {
     role: currentRole,
     isNew,
     code,
-    revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject),
+    revisionFingerprint: isNew
+      ? null
+      : (existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)),
     originalProject: isNew ? null : p
   });
   document.getElementById('pe_details').open = isNew;

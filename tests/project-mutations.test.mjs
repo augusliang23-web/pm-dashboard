@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
 
 import {
   applyProjectAttentionUpdate,
@@ -477,7 +478,10 @@ test('project editor pins week and identity session and stale completions cannot
   assert.ok(dashboard.includes('let projectEditorSession = null;'));
   assert.ok(dashboard.includes('projectEditorSession = Object.freeze({'));
   assert.ok(dashboard.includes('weekId: week.__documentId ||'));
-  assert.ok(dashboard.includes('revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)'));
+  assert.match(
+    dashboard,
+    /revisionFingerprint: isNew\s*\?\s*null\s*:\s*\(existingProject\.__revisionFingerprint\s*\|\|\s*projectRevisionFingerprint\(existingProject\)\)/,
+  );
   assert.ok(dashboard.includes("Object.defineProperty(normalizedWeek, '__documentId'"));
   assert.ok(dashboard.includes('session.authUid === (currentUser?.uid ||'));
   assert.ok(dashboard.includes('session.authEmail === getEmailKey(currentUser)'));
@@ -495,6 +499,35 @@ test('project editor pins week and identity session and stale completions cannot
   }
   assert.ok(saveSource.includes('expectedRevision: session.revisionFingerprint'));
   assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
+});
+
+test('new project editor sessions skip revision lookup while existing projects keep it', () => {
+  const editorStart = dashboard.indexOf('window.openProjEdit =');
+  const sessionStart = dashboard.indexOf('projectEditorSession = Object.freeze({', editorStart);
+  const sessionEnd = dashboard.indexOf('\n  });', sessionStart);
+  const sessionSource = dashboard.slice(sessionStart, sessionEnd);
+  const fingerprintExpression = sessionSource.match(
+    /revisionFingerprint:\s*([\s\S]*?),\s*originalProject:/,
+  )?.[1];
+
+  assert.ok(fingerprintExpression, 'project editor session must define its revision fingerprint');
+  const evaluateFingerprint = (isNew, existingProject, projectRevisionFingerprint) => vm.runInNewContext(
+    fingerprintExpression,
+    { isNew, existingProject, projectRevisionFingerprint },
+  );
+
+  assert.equal(
+    evaluateFingerprint(true, undefined, () => assert.fail('new projects must not calculate a revision fingerprint')),
+    null,
+  );
+  assert.equal(
+    evaluateFingerprint(false, { __revisionFingerprint: 'stored-revision' }, () => 'calculated-revision'),
+    'stored-revision',
+  );
+  assert.equal(
+    evaluateFingerprint(false, {}, () => 'calculated-revision'),
+    'calculated-revision',
+  );
 });
 
 test('editable project row renderers and collectors persist stable DOM identities', () => {
