@@ -46,6 +46,26 @@ function isFiniteNonNegative(value) {
 }
 
 /**
+ * Derives the single "tracked writes" total for the first-screen Firestore card from an
+ * aggregateObservedBucketsByPacificStartDate-shaped result (see js/usage-cost-guard.mjs).
+ *
+ * UCG-V2-3-R1: returns null (never 0) both when the aggregation is unavailable (conflicting
+ * observations) AND when it is available but empty (`rows: []`) -- an empty rows array here can
+ * only mean "no valid observation was ever adapted", never "we observed writes and the true sum
+ * happens to be zero": adaptPresenceBucketToObservedWrite rejects any bucket whose writes < 1, so
+ * a genuinely-persisted, successfully-adapted observation can never contribute a zero-writes row.
+ * There is no "observed zero" state in this pipeline, only "observed something" or "no data" --
+ * this function makes that distinction explicit so the caller never shows a fabricated
+ * "Tracked writes: 0" for the no-data case.
+ */
+export function deriveTrackedFirestoreWritesTotal(aggregated) {
+  if (!aggregated || !aggregated.available || !Array.isArray(aggregated.rows) || aggregated.rows.length === 0) {
+    return null;
+  }
+  return aggregated.rows.reduce((sum, row) => sum + row.writes, 0);
+}
+
+/**
  * Firestore card view model. Status is ALWAYS UNKNOWN: we only have partial, observed, tracked
  * Presence writes, never total project Firestore usage, so this never computes (or lets a caller
  * infer) an exact remaining-writes figure, an exact % LEFT, or a project-wide SAFE state.
@@ -233,4 +253,25 @@ export function buildCapacityOutlookViewModel(rows = [], { multiplier = 1, windo
     coverage: 'partial',
     isEstimate: true,
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tracked Daily Writes / Capacity Outlook unavailability messaging (UCG-V2-3-R1)
+// ---------------------------------------------------------------------------------------------
+//
+// index.html's ucgTrackedDailyWritesRows carries one of three `reason` values whenever
+// `available` is false: a genuine data-integrity conflict (dedupeObservationsById failing
+// closed), a load currently in flight, or the most recent load having failed outright. Both the
+// Tracked Daily Writes chart and the Capacity Outlook cards must explain the SAME reason
+// identically and truthfully -- in particular, a failed/in-flight refresh must never be
+// described as (or look like) a stale successful result, and must never reuse the data-conflict
+// wording for an unrelated cause.
+export function describeTrackedDailyWritesUnavailability(reason) {
+  if (reason === 'load_failed') {
+    return 'the last Presence data refresh failed, so no history is shown rather than stale data';
+  }
+  if (reason === 'loading') {
+    return 'Presence data is refreshing';
+  }
+  return 'conflicting observations were found for the same tracked bucket';
 }

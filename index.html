@@ -3091,7 +3091,7 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes } from "./js/presence-usage.mjs";
 import { adaptPresenceBucketToObservedWrite, aggregateObservedBucketsByPacificStartDate, toPacificDateKey } from "./js/usage-cost-guard.mjs";
-import { buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow, buildCapacityOutlookViewModel } from "./js/usage-cost-guard-view.mjs";
+import { buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow, buildCapacityOutlookViewModel, deriveTrackedFirestoreWritesTotal, describeTrackedDailyWritesUnavailability } from "./js/usage-cost-guard-view.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4750,12 +4750,12 @@ function buildObservedPresenceWriteRows(presenceDocs) {
 
 // Uses the approved Presence bucket adapter + Pacific aggregation from js/usage-cost-guard.mjs
 // (identity-preserving, so the exact same persisted bucket is never double-counted) to produce a
-// single "tracked writes" total for the Firestore card. Returns null (never 0) when the
-// observations conflict or none are available, so the UI never shows a fabricated tracked count.
+// single "tracked writes" total for the Firestore card. The null-vs-0 distinction (UCG-V2-3-R1:
+// no valid observations must render as unavailable, never a fabricated 0) lives in the approved,
+// unit-tested js/usage-cost-guard-view.mjs deriveTrackedFirestoreWritesTotal, so this stays a
+// thin wrapper rather than a second implementation of that rule.
 function calculateTrackedFirestoreWrites(presenceDocs) {
-  const aggregated = buildObservedPresenceWriteRows(presenceDocs);
-  if (!aggregated.available) return null;
-  return aggregated.rows.reduce((sum, row) => sum + row.writes, 0);
+  return deriveTrackedFirestoreWritesTotal(buildObservedPresenceWriteRows(presenceDocs));
 }
 
 // ── TRACKED DAILY WRITES — Daily History (UCG-V2-2C) ──
@@ -4764,6 +4764,17 @@ function calculateTrackedFirestoreWrites(presenceDocs) {
 // without refetching Firestore. Each row already carries PRESENCE_TRACKED_WRITE_PROVENANCE
 // (observed/partial/approximate) from the foundation -- this module never upgrades that.
 let ucgTrackedDailyWritesRows = { available: true, reason: null, rows: [] };
+
+// UCG-V2-3-R1: a successful load must never leave stale Daily History / Capacity Outlook values
+// visible once a *new* load has started or has failed -- both would let old data masquerade as
+// current. Call this immediately before starting a new Presence refresh, and again in that
+// refresh's catch block, so the two sections always reflect the truth of the load that is
+// actually in flight/just failed, never a leftover successful result from an earlier load.
+function invalidateUcgTrackedDailyWritesRows(reason) {
+  ucgTrackedDailyWritesRows = { available: false, reason, rows: [] };
+  renderTrackedDailyWritesHistory();
+  renderCapacityOutlook();
+}
 
 function fmtUcgHistoryDate(dateKey) {
   const parsed = new Date(`${dateKey}T00:00:00Z`);
@@ -4784,8 +4795,9 @@ function renderTrackedDailyWritesHistory() {
   const windowDays = Number(document.getElementById('ucgHistoryRangeDays')?.value || 30);
 
   if (!ucgTrackedDailyWritesRows.available) {
-    chart.innerHTML = '<div class="usage-chart-empty">Tracked daily writes are unavailable: conflicting observations were found for the same tracked bucket.</div>';
-    note.textContent = 'Data quality: unavailable · a data-integrity conflict was detected in the underlying Presence observations.';
+    const reason = describeTrackedDailyWritesUnavailability(ucgTrackedDailyWritesRows.reason);
+    chart.innerHTML = `<div class="usage-chart-empty">Tracked daily writes are unavailable: ${escHtml(reason)}.</div>`;
+    note.textContent = `Data quality: unavailable · ${reason}.`;
     return;
   }
 
@@ -4869,8 +4881,9 @@ function renderCapacityOutlook() {
   if (!grid || !note) return;
 
   if (!ucgTrackedDailyWritesRows.available) {
-    grid.innerHTML = '<div class="usage-card"><div class="usage-card-label">Capacity Outlook</div><div class="usage-card-value">Unavailable</div><div class="usage-card-note">Conflicting tracked-write observations were found.</div></div>';
-    note.textContent = 'Data quality: unavailable · a data-integrity conflict was detected in the underlying Presence observations.';
+    const reason = describeTrackedDailyWritesUnavailability(ucgTrackedDailyWritesRows.reason);
+    grid.innerHTML = `<div class="usage-card"><div class="usage-card-label">Capacity Outlook</div><div class="usage-card-value">Unavailable</div><div class="usage-card-note">${escHtml(reason.charAt(0).toUpperCase() + reason.slice(1))}.</div></div>`;
+    note.textContent = `Data quality: unavailable · ${reason}.`;
     return;
   }
 
@@ -5249,6 +5262,11 @@ window.loadPresenceUsageStats = async () => {
   if (currentRole !== 'admin') return;
   const table = document.getElementById('presenceUsageTable');
   table.innerHTML = '<div class="usage-empty">Loading presence usage...</div>';
+  // UCG-V2-3-R1: invalidate the previous load's Daily History / Capacity Outlook BEFORE starting
+  // this new load -- a stale successful result from an earlier load must never keep rendering
+  // while a new refresh is in flight or if it fails; both sections are repopulated below only on
+  // a genuinely successful load.
+  invalidateUcgTrackedDailyWritesRows('loading');
   const rangeDays = Number(document.getElementById('presenceRangeDays')?.value || 56);
   const cutoff = Date.now() - rangeDays * 24 * 60 * 60 * 1000;
   try {
@@ -5313,6 +5331,10 @@ window.loadPresenceUsageStats = async () => {
       ? 'Firebase denied access to presence usage data.'
       : 'Presence usage could not be loaded. Please refresh and try again.';
     table.innerHTML = `<div class="usage-empty">${escHtml(message)}</div>`;
+    // UCG-V2-3-R1: the overall load failed -- Daily History and Capacity Outlook must show a
+    // truthful unavailable state here too, never a stale successful result left over from an
+    // earlier load (see invalidateUcgTrackedDailyWritesRows's rationale above).
+    invalidateUcgTrackedDailyWritesRows('load_failed');
   }
 };
 

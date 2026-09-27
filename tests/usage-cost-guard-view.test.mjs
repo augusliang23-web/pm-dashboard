@@ -12,6 +12,8 @@ import {
   CAPACITY_OUTLOOK_GROWTH_MULTIPLIERS,
   combineOverallStatus,
   describeOverallStatus,
+  describeTrackedDailyWritesUnavailability,
+  deriveTrackedFirestoreWritesTotal,
 } from '../js/usage-cost-guard-view.mjs';
 
 // ---------------------------------------------------------------------------------------------
@@ -372,4 +374,102 @@ test('buildCapacityOutlookViewModel: never exposes a quota-remaining/percentage/
   assert.ok(!('remaining' in vm));
   assert.ok(!('remainingPercentage' in vm));
   assert.ok(!('status' in vm));
+});
+
+// ---------------------------------------------------------------------------------------------
+// UCG-V2-3-R1 Finding A: no valid observations -> first-screen tracked writes is `Unavailable`,
+// never a fabricated 0. deriveTrackedFirestoreWritesTotal is the single, shared, unit-tested rule
+// index.html's calculateTrackedFirestoreWrites wraps -- see tests/usage-cost-guard-daily-history.
+// test.mjs for the index.html wiring check.
+// ---------------------------------------------------------------------------------------------
+
+test('deriveTrackedFirestoreWritesTotal: no valid observations at all (empty rows) -> null, never 0', () => {
+  assert.equal(deriveTrackedFirestoreWritesTotal({ available: true, reason: null, rows: [] }), null);
+});
+
+test('deriveTrackedFirestoreWritesTotal: conflicting-observation failure -> null, never 0', () => {
+  assert.equal(
+    deriveTrackedFirestoreWritesTotal({ available: false, reason: 'conflicting_duplicate_observation', observationId: 'x', rows: [] }),
+    null,
+  );
+});
+
+test('deriveTrackedFirestoreWritesTotal: missing/malformed input -> null, never a crash or a fabricated 0', () => {
+  assert.equal(deriveTrackedFirestoreWritesTotal(null), null);
+  assert.equal(deriveTrackedFirestoreWritesTotal(undefined), null);
+  assert.equal(deriveTrackedFirestoreWritesTotal({ available: true, reason: null, rows: null }), null);
+});
+
+test('deriveTrackedFirestoreWritesTotal: genuine observed data still renders normally (sums real rows)', () => {
+  const aggregated = {
+    available: true,
+    reason: null,
+    rows: [
+      { date: '2026-08-01', writes: 120, observationCount: 1 },
+      { date: '2026-08-02', writes: 340, observationCount: 2 },
+    ],
+  };
+  assert.equal(deriveTrackedFirestoreWritesTotal(aggregated), 460);
+});
+
+test('deriveTrackedFirestoreWritesTotal: a single genuinely observed row of real (non-zero) writes is never mistaken for "no data"', () => {
+  assert.equal(
+    deriveTrackedFirestoreWritesTotal({ available: true, reason: null, rows: [{ date: '2026-08-01', writes: 7, observationCount: 1 }] }),
+    7,
+  );
+});
+
+test('Finding A end-to-end: buildFirestoreCardViewModel(null) reads as Unavailable, status stays UNKNOWN, Observed/Partial preserved', () => {
+  const noObservationsTotal = deriveTrackedFirestoreWritesTotal({ available: true, reason: null, rows: [] });
+  const vm = buildFirestoreCardViewModel({ trackedWrites: noObservationsTotal });
+  assert.equal(vm.trackedWrites, null, 'no observations must render as unavailable (null), never 0');
+  assert.equal(vm.status, STATUS.UNKNOWN);
+  assert.equal(vm.coverage, 'partial');
+});
+
+test('Finding A end-to-end: overall status stays UNKNOWN when tracked writes are unavailable, exactly as with any other unavailable metric', () => {
+  const noObservationsTotal = deriveTrackedFirestoreWritesTotal({ available: true, reason: null, rows: [] });
+  const overview = buildUsageCostGuardOverview({
+    trackedFirestoreWrites: noObservationsTotal,
+    usageCostGuardConfig: { cloudRun: null, cloudRunFunctions: null },
+    environment: 'prod',
+  });
+  assert.equal(overview.firestore.trackedWrites, null);
+  assert.equal(overview.overallStatus, STATUS.UNKNOWN);
+});
+
+// ---------------------------------------------------------------------------------------------
+// UCG-V2-3-R1 Finding B: the shared reason-message helper Daily History and Capacity Outlook both
+// call when unavailable. Truthfully distinguishes a genuine data conflict from an in-flight/
+// failed load, so a failed refresh can never read (or look) like a stale successful result.
+// ---------------------------------------------------------------------------------------------
+
+test('describeTrackedDailyWritesUnavailability: a failed reload reads as a failed refresh, not a data-integrity conflict', () => {
+  const message = describeTrackedDailyWritesUnavailability('load_failed');
+  assert.match(message, /refresh failed/);
+  assert.doesNotMatch(message, /conflicting/);
+});
+
+test('describeTrackedDailyWritesUnavailability: an in-flight load reads as refreshing, not a stale result or a conflict', () => {
+  const message = describeTrackedDailyWritesUnavailability('loading');
+  assert.match(message, /refreshing/i);
+  assert.doesNotMatch(message, /conflicting/);
+});
+
+test('describeTrackedDailyWritesUnavailability: a genuine data-integrity conflict keeps its original wording', () => {
+  assert.match(describeTrackedDailyWritesUnavailability('conflicting_duplicate_observation'), /conflicting observations were found/);
+});
+
+test('describeTrackedDailyWritesUnavailability: an unknown/missing reason falls back to the conflict wording rather than throwing', () => {
+  assert.match(describeTrackedDailyWritesUnavailability(undefined), /conflicting observations were found/);
+  assert.match(describeTrackedDailyWritesUnavailability(null), /conflicting observations were found/);
+});
+
+test('describeTrackedDailyWritesUnavailability: the three reasons are all distinct strings (no accidental collapse)', () => {
+  const messages = new Set([
+    describeTrackedDailyWritesUnavailability('conflicting_duplicate_observation'),
+    describeTrackedDailyWritesUnavailability('loading'),
+    describeTrackedDailyWritesUnavailability('load_failed'),
+  ]);
+  assert.equal(messages.size, 3);
 });

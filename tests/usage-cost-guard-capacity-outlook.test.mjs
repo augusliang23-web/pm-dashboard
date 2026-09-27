@@ -32,7 +32,7 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
     assert.match(html, /function renderCapacityOutlook\(\)/);
     assert.match(html, /buildCapacityOutlookViewModel\(ucgTrackedDailyWritesRows\.rows, \{ multiplier, windowDays: 30, now: Date\.now\(\) \}\)/);
     // Import comes from the same approved view-model module as the other UCG view models.
-    assert.match(html, /import \{ buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow, buildCapacityOutlookViewModel \} from "\.\/js\/usage-cost-guard-view\.mjs";/);
+    assert.match(html, /import \{ buildUsageCostGuardOverview, buildTrackedDailyHistoryWindow, buildCapacityOutlookViewModel, deriveTrackedFirestoreWritesTotal, describeTrackedDailyWritesUnavailability \} from "\.\/js\/usage-cost-guard-view\.mjs";/);
   });
 
   test(`${label}: renderCapacityOutlook is invoked whenever tracked daily writes are refreshed`, () => {
@@ -66,5 +66,48 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
     assert.match(block, /linear projection/);
     assert.match(block, /not a prediction/);
     assert.match(block, /not project-wide current usage, quota remaining, or guaranteed free headroom/);
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// UCG-V2-3-R1 Finding B: a stale successful Daily History / Capacity Outlook result must never
+// keep rendering once a NEW load has started or after that load has failed. The reusable
+// invalidateUcgTrackedDailyWritesRows helper (pure reason -> message mapping is unit-tested
+// directly in tests/usage-cost-guard-view.test.mjs) must be wired at both required points.
+// ---------------------------------------------------------------------------------------------
+
+for (const [label, html] of [['production', production], ['uat', uat]]) {
+  test(`${label}: invalidateUcgTrackedDailyWritesRows clears BOTH Daily History and Capacity Outlook together, never just one`, () => {
+    assert.match(
+      html,
+      /function invalidateUcgTrackedDailyWritesRows\(reason\) \{\s*\n\s*ucgTrackedDailyWritesRows = \{ available: false, reason, rows: \[\] \};\s*\n\s*renderTrackedDailyWritesHistory\(\);\s*\n\s*renderCapacityOutlook\(\);\s*\n\s*\}/,
+    );
+  });
+
+  test(`${label}: a new load invalidates the previous load's derived state BEFORE fetching, so an in-flight refresh can never show a stale successful result`, () => {
+    const loadFn = html.slice(html.indexOf('window.loadPresenceUsageStats = async'), html.indexOf('window.openPresenceUsage'));
+    assert.ok(loadFn.length > 0, 'loadPresenceUsageStats body not found');
+    const invalidateIdx = loadFn.indexOf("invalidateUcgTrackedDailyWritesRows('loading')");
+    const tryIdx = loadFn.indexOf('try {');
+    assert.ok(invalidateIdx !== -1, 'expected an invalidate("loading") call before the fetch begins');
+    assert.ok(invalidateIdx < tryIdx, 'invalidation must happen before the new load is attempted, not after');
+  });
+
+  test(`${label}: a failed load invalidates the derived state in the catch block, never leaving the prior successful result visible`, () => {
+    const loadFn = html.slice(html.indexOf('window.loadPresenceUsageStats = async'), html.indexOf('window.openPresenceUsage'));
+    const catchIdx = loadFn.indexOf('} catch (error) {');
+    const invalidateIdx = loadFn.indexOf("invalidateUcgTrackedDailyWritesRows('load_failed')");
+    assert.ok(catchIdx !== -1 && invalidateIdx !== -1, 'expected a catch block that invalidates on load_failed');
+    assert.ok(invalidateIdx > catchIdx, 'the load_failed invalidation must happen inside the catch block');
+  });
+
+  test(`${label}: the successful path still repopulates both sections with fresh data after a genuinely successful load`, () => {
+    // Regression guard: Finding B's fix must not accidentally make the success path a no-op --
+    // ucgTrackedDailyWritesRows is still assigned fresh data and both renderers still called with
+    // it once the load actually succeeds (already covered above, re-asserted here for locality).
+    assert.match(
+      html,
+      /ucgTrackedDailyWritesRows = buildObservedPresenceWriteRows\(presenceDocs\);\s*\n\s*renderTrackedDailyWritesHistory\(\);\s*\n\s*renderCapacityOutlook\(\);/,
+    );
   });
 }

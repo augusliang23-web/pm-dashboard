@@ -56,7 +56,12 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
       html,
       /function buildObservedPresenceWriteRows\(presenceDocs\) \{\s*\n\s*const observations = presenceDocs\.flatMap\(\(\{ id, data \}\) =>\s*\n\s*Object\.values\(data\.usageBuckets \|\| \{\}\)\s*\n\s*\.map\(bucket => adaptPresenceBucketToObservedWrite\(bucket, \{ sourceDocumentId: id \}\)\)\s*\n\s*\.filter\(Boolean\)\);\s*\n\s*return aggregateObservedBucketsByPacificStartDate\(observations\);/,
     );
-    assert.match(html, /calculateTrackedFirestoreWrites\(presenceDocs\) \{\s*\n\s*const aggregated = buildObservedPresenceWriteRows\(presenceDocs\);/);
+    // UCG-V2-3-R1: the null-vs-0 rule (no valid observations -> unavailable, never a fabricated 0)
+    // moved into the approved, unit-tested js/usage-cost-guard-view.mjs
+    // deriveTrackedFirestoreWritesTotal -- calculateTrackedFirestoreWrites is now a thin wrapper,
+    // not a second implementation of that rule (see tests/usage-cost-guard-view.test.mjs for the
+    // behavior-level coverage of deriveTrackedFirestoreWritesTotal itself).
+    assert.match(html, /calculateTrackedFirestoreWrites\(presenceDocs\) \{\s*\n\s*return deriveTrackedFirestoreWritesTotal\(buildObservedPresenceWriteRows\(presenceDocs\)\);/);
     assert.match(html, /ucgTrackedDailyWritesRows = buildObservedPresenceWriteRows\(presenceDocs\);/);
   });
 
@@ -76,9 +81,14 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
     assert.match(html, /missing days are gaps, not zero writes/);
   });
 
-  test(`${label}: history availability failure (conflicting observations) is surfaced, never defaulted`, () => {
+  test(`${label}: history availability failure is surfaced via the shared, unit-tested reason-message helper, never defaulted`, () => {
     assert.match(html, /if \(!ucgTrackedDailyWritesRows\.available\) \{/);
-    assert.match(html, /conflicting observations were found/);
+    // UCG-V2-3-R1: the actual reason text (data conflict vs. loading vs. load_failed) now comes
+    // from the shared, pure, unit-tested describeTrackedDailyWritesUnavailability helper (see
+    // tests/usage-cost-guard-view.test.mjs) rather than being hardcoded per-branch in index.html
+    // -- this only checks index.html actually calls it and surfaces the result, never defaulting.
+    assert.match(html, /const reason = describeTrackedDailyWritesUnavailability\(ucgTrackedDailyWritesRows\.reason\);/);
+    assert.match(html, /Tracked daily writes are unavailable: \$\{escHtml\(reason\)\}/);
   });
 }
 
