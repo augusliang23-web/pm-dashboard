@@ -4765,13 +4765,18 @@ function calculateTrackedFirestoreWrites(presenceDocs) {
 // (observed/partial/approximate) from the foundation -- this module never upgrades that.
 let ucgTrackedDailyWritesRows = { available: true, reason: null, rows: [] };
 
-// UCG-V2-3-R1: a successful load must never leave stale Daily History / Capacity Outlook values
-// visible once a *new* load has started or has failed -- both would let old data masquerade as
-// current. Call this immediately before starting a new Presence refresh, and again in that
-// refresh's catch block, so the two sections always reflect the truth of the load that is
-// actually in flight/just failed, never a leftover successful result from an earlier load.
+// UCG-V2-3-R1 (extended in UCG-V2-3-R2): a successful load must never leave stale first-screen
+// Firestore tracked-writes / Daily History / Capacity Outlook values visible once a *new* load has
+// started or has failed -- any of the three would let old data masquerade as current. Call this
+// immediately before starting a new Presence refresh, and again in that refresh's catch block, so
+// all three sections always reflect the truth of the load that is actually in flight/just
+// failed, never a leftover successful result from an earlier load. UCG-V2-3-R2: the first-screen
+// Firestore card is reset here too (via refreshUsageCostGuardOverview(null), the same "unavailable"
+// call already used before any data has ever loaded) rather than through a second, independent
+// invalidation mechanism -- one call now keeps all three views synchronized to the same load state.
 function invalidateUcgTrackedDailyWritesRows(reason) {
   ucgTrackedDailyWritesRows = { available: false, reason, rows: [] };
+  refreshUsageCostGuardOverview(null);
   renderTrackedDailyWritesHistory();
   renderCapacityOutlook();
 }

@@ -473,3 +473,135 @@ test('describeTrackedDailyWritesUnavailability: the three reasons are all distin
   ]);
   assert.equal(messages.size, 3);
 });
+
+// ---------------------------------------------------------------------------------------------
+// UCG-V2-3-R2: the first-screen Firestore card must stay synchronized with Daily History /
+// Capacity Outlook across a load's full lifecycle -- a stale "Tracked writes: <old value>" must
+// never survive a new load starting or a load failing, while History/Outlook correctly go
+// unavailable. This models index.html's invalidateUcgTrackedDailyWritesRows/
+// refreshUsageCostGuardOverview/calculateTrackedFirestoreWrites lifecycle using only the exported,
+// unit-tested pure functions those wrappers compose (buildUsageCostGuardOverview,
+// deriveTrackedFirestoreWritesTotal, buildCapacityOutlookViewModel), so this is real behavior
+// coverage of the state machine, not a source-string check.
+// ---------------------------------------------------------------------------------------------
+
+const UCG_CONFIG = { cloudRun: null, cloudRunFunctions: null };
+
+function createUcgLoadHarness() {
+  let trackedRows = { available: true, reason: null, rows: [] };
+  let overview = buildUsageCostGuardOverview({ trackedFirestoreWrites: null, usageCostGuardConfig: UCG_CONFIG, environment: 'prod' });
+
+  // Mirrors index.html's invalidateUcgTrackedDailyWritesRows: resets ALL THREE views together
+  // (first-screen card via refreshUsageCostGuardOverview(null), Daily History, Capacity Outlook)
+  // to the same unavailable state -- never just some of them.
+  function invalidate(reason) {
+    trackedRows = { available: false, reason, rows: [] };
+    overview = buildUsageCostGuardOverview({ trackedFirestoreWrites: null, usageCostGuardConfig: UCG_CONFIG, environment: 'prod' });
+  }
+
+  // Mirrors a genuinely successful loadPresenceUsageStats: fresh aggregated rows repopulate both
+  // the first-screen total (via deriveTrackedFirestoreWritesTotal, same null-vs-0 rule as Finding A)
+  // and the Daily History rows, from the SAME observation set.
+  function succeed(aggregated) {
+    trackedRows = aggregated;
+    overview = buildUsageCostGuardOverview({
+      trackedFirestoreWrites: deriveTrackedFirestoreWritesTotal(aggregated),
+      usageCostGuardConfig: UCG_CONFIG,
+      environment: 'prod',
+    });
+  }
+
+  function capacityOutlook(now) {
+    if (!trackedRows.available) return { available: false };
+    return buildCapacityOutlookViewModel(trackedRows.rows, { multiplier: 1, windowDays: 30, now });
+  }
+
+  return {
+    invalidate,
+    succeed,
+    capacityOutlook,
+    get overview() { return overview; },
+    get trackedRows() { return trackedRows; },
+  };
+}
+
+const SOME_OBSERVED_ROWS = {
+  available: true,
+  reason: null,
+  rows: [
+    { date: '2026-08-01', writes: 100, observationCount: 1 },
+    { date: '2026-08-02', writes: 150, observationCount: 1 },
+  ],
+};
+const HARNESS_NOW = Date.parse('2026-08-24T12:00:00-07:00');
+
+test('UCG load lifecycle 1: a successful load shows the real first-screen tracked value', () => {
+  const harness = createUcgLoadHarness();
+  harness.succeed(SOME_OBSERVED_ROWS);
+  assert.equal(harness.overview.firestore.trackedWrites, 250);
+});
+
+test('UCG load lifecycle 2: starting a new refresh invalidates the previous tracked value (never left stale)', () => {
+  const harness = createUcgLoadHarness();
+  harness.succeed(SOME_OBSERVED_ROWS);
+  assert.equal(harness.overview.firestore.trackedWrites, 250, 'sanity: a real value was showing before the new load started');
+
+  harness.invalidate('loading');
+  assert.equal(harness.overview.firestore.trackedWrites, null, 'the old value must not survive the start of a new load');
+});
+
+test('UCG load lifecycle 3: a failed refresh leaves the tracked value unavailable, never reverting to the prior stale value', () => {
+  const harness = createUcgLoadHarness();
+  harness.succeed(SOME_OBSERVED_ROWS);
+  harness.invalidate('loading'); // new load begins
+  harness.invalidate('load_failed'); // that load's catch block fires
+  assert.equal(harness.overview.firestore.trackedWrites, null);
+  assert.equal(harness.overview.firestore.status, STATUS.UNKNOWN);
+});
+
+test('UCG load lifecycle 4: a successful retry after a failure repopulates the fresh value', () => {
+  const harness = createUcgLoadHarness();
+  harness.succeed(SOME_OBSERVED_ROWS);
+  harness.invalidate('loading');
+  harness.invalidate('load_failed');
+  assert.equal(harness.overview.firestore.trackedWrites, null, 'sanity: unavailable after the failure');
+
+  harness.invalidate('loading'); // retry begins
+  const retryRows = { available: true, reason: null, rows: [{ date: '2026-08-03', writes: 400, observationCount: 1 }] };
+  harness.succeed(retryRows);
+  assert.equal(harness.overview.firestore.trackedWrites, 400, 'a successful retry must repopulate from the fresh observation set');
+});
+
+test('UCG load lifecycle 5: first-screen card, Daily History, and Capacity Outlook are always synchronized to the same load state', () => {
+  const harness = createUcgLoadHarness();
+
+  // Successful load: all three views show real data from the same observation set.
+  harness.succeed(SOME_OBSERVED_ROWS);
+  assert.equal(harness.overview.firestore.trackedWrites, 250);
+  assert.equal(harness.trackedRows.available, true);
+  assert.equal(harness.capacityOutlook(HARNESS_NOW).available, true);
+
+  // New load starts: all three must go unavailable together, never a partial state where one
+  // view still shows the old data while another has already moved on.
+  harness.invalidate('loading');
+  assert.equal(harness.overview.firestore.trackedWrites, null);
+  assert.equal(harness.trackedRows.available, false);
+  assert.equal(harness.capacityOutlook(HARNESS_NOW).available, false);
+
+  // Load fails: still all three unavailable together.
+  harness.invalidate('load_failed');
+  assert.equal(harness.overview.firestore.trackedWrites, null);
+  assert.equal(harness.trackedRows.available, false);
+  assert.equal(harness.capacityOutlook(HARNESS_NOW).available, false);
+});
+
+test('UCG load lifecycle 6: overall status is UNKNOWN throughout invalidation and after a failed load, never SAFE from stale data', () => {
+  const harness = createUcgLoadHarness();
+  harness.succeed(SOME_OBSERVED_ROWS);
+
+  harness.invalidate('loading');
+  assert.equal(harness.overview.overallStatus, STATUS.UNKNOWN);
+
+  harness.invalidate('load_failed');
+  assert.equal(harness.overview.overallStatus, STATUS.UNKNOWN);
+});

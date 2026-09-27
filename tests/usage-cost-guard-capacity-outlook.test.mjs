@@ -70,17 +70,20 @@ for (const [label, html] of [['production', production], ['uat', uat]]) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// UCG-V2-3-R1 Finding B: a stale successful Daily History / Capacity Outlook result must never
-// keep rendering once a NEW load has started or after that load has failed. The reusable
-// invalidateUcgTrackedDailyWritesRows helper (pure reason -> message mapping is unit-tested
-// directly in tests/usage-cost-guard-view.test.mjs) must be wired at both required points.
+// UCG-V2-3-R1 Finding B (extended in UCG-V2-3-R2): a stale successful Daily History / Capacity
+// Outlook / first-screen Firestore tracked-writes result must never keep rendering once a NEW
+// load has started or after that load has failed. The reusable invalidateUcgTrackedDailyWritesRows
+// helper (pure reason -> message mapping is unit-tested directly in
+// tests/usage-cost-guard-view.test.mjs) must be wired at both required points and must reset ALL
+// THREE views together, never just Daily History/Capacity Outlook while leaving the first-screen
+// card stale (the exact regression Codex found in R1's own fix).
 // ---------------------------------------------------------------------------------------------
 
 for (const [label, html] of [['production', production], ['uat', uat]]) {
-  test(`${label}: invalidateUcgTrackedDailyWritesRows clears BOTH Daily History and Capacity Outlook together, never just one`, () => {
+  test(`${label}: invalidateUcgTrackedDailyWritesRows clears the first-screen Firestore card, Daily History, AND Capacity Outlook together, never just some of them`, () => {
     assert.match(
       html,
-      /function invalidateUcgTrackedDailyWritesRows\(reason\) \{\s*\n\s*ucgTrackedDailyWritesRows = \{ available: false, reason, rows: \[\] \};\s*\n\s*renderTrackedDailyWritesHistory\(\);\s*\n\s*renderCapacityOutlook\(\);\s*\n\s*\}/,
+      /function invalidateUcgTrackedDailyWritesRows\(reason\) \{\s*\n\s*ucgTrackedDailyWritesRows = \{ available: false, reason, rows: \[\] \};\s*\n\s*refreshUsageCostGuardOverview\(null\);\s*\n\s*renderTrackedDailyWritesHistory\(\);\s*\n\s*renderCapacityOutlook\(\);\s*\n\s*\}/,
     );
   });
 
