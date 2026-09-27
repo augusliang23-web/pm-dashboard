@@ -743,12 +743,40 @@ test('SUPPORTED_PHASES and SUPPORTED_FORMATS match the documented CLI contract',
 });
 
 // --------------------------------------------------------------------------------------------------------------
-// Real-repository sanity: the actual committed configuration must currently be predeploy-clean. This test reads
-// the real repository (never writes to it) to keep this suite honest about the state stage-b-pdf-readiness.md
-// and the runbook both describe.
+// Real-repository sanity: transition-safe across both legitimate Stage B states for the UAT PDF URL fields.
+// This test reads the real repository (never writes to it) and derives which phase ought to PASS from the
+// committed configuration itself, rather than assuming the pre-B8 state forever:
+//   A. registry.targets.uat.serviceUrl and env/uat.json's pdfServiceUrl are both null -> predeploy must PASS.
+//   B. both are set to the exact same valid HTTPS root -> postdeploy must PASS.
+// Any other combination (mixed null/non-null, or non-null values that disagree) is never a legitimate committed
+// state and must fail this test outright, before either phase is even run.
 // --------------------------------------------------------------------------------------------------------------
-test('the real repository currently passes predeploy (UAT PDF service not yet deployed)', async () => {
-  const report = await runPreflight({ repo: repoRoot, phase: 'predeploy' });
-  assert.equal(findCheck(report, 'uat-registry-service-url-is-null').status, 'PASS');
-  assert.equal(findCheck(report, 'uat-env-pdf-service-url-is-null').status, 'PASS');
+test('the real repository is in a legitimate Stage B state for the UAT PDF URL fields', async () => {
+  const registry = JSON.parse(await readFile(join(repoRoot, 'pdf-service', 'src', 'targets', 'registry.json'), 'utf8'));
+  const envUat = JSON.parse(await readFile(join(repoRoot, 'env', 'uat.json'), 'utf8'));
+  const registryUrl = registry.targets.uat.serviceUrl;
+  const envUrl = envUat.pdfServiceUrl;
+
+  const bothNull = registryUrl === null && envUrl === null;
+  const bothSameValidHttpsUrl = registryUrl !== null && envUrl !== null
+    && registryUrl === envUrl && /^https:\/\/[^/\s]+$/.test(registryUrl);
+
+  assert.ok(
+    bothNull || bothSameValidHttpsUrl,
+    `real repository UAT PDF URL fields are in neither legitimate Stage B state: ` +
+      `registry.targets.uat.serviceUrl=${JSON.stringify(registryUrl)}, env/uat.json.pdfServiceUrl=${JSON.stringify(envUrl)}`
+  );
+
+  const phase = bothNull ? 'predeploy' : 'postdeploy';
+  const report = await runPreflight({ repo: repoRoot, phase });
+  assert.equal(report.overall, 'PASS', `expected ${phase} to PASS against the real repository's current committed state`);
+
+  if (bothNull) {
+    assert.equal(findCheck(report, 'uat-registry-service-url-is-null').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-env-pdf-service-url-is-null').status, 'PASS');
+  } else {
+    assert.equal(findCheck(report, 'uat-registry-service-url-non-null').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-env-pdf-service-url-non-null').status, 'PASS');
+    assert.equal(findCheck(report, 'uat-service-url-matches-env').status, 'PASS');
+  }
 });

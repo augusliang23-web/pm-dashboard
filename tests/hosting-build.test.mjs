@@ -173,15 +173,26 @@ test('the real UAT build publishes only browser files, injects env/uat.json, and
   const outDir = await mkdtemp(join(tmpdir(), 'hosting-dist-uat-'));
   try {
     const env = await loadHostingEnv(repoRoot, 'uat');
+    // Transition-safe across both legitimate Stage B states (pre-B8: null; post-B8: a registered URL) -- the
+    // expected readiness/URL is derived from the committed registry, never hardcoded to either state.
+    const registry = JSON.parse(await readFile(join(repoRoot, 'pdf-service', 'src', 'targets', 'registry.json'), 'utf8'));
+    const registeredUatUrl = registry.targets.uat.serviceUrl;
+    const expectedReady = registeredUatUrl !== null;
+    assert.equal(env.pdfReleaseReady, expectedReady, 'pdfReleaseReady must be derived from the registered UAT serviceUrl');
+
     const logs = [];
     const { files, projectId, pdfReleaseReady } = await buildHosting({ rootDir: repoRoot, outDir, env, log: line => logs.push(line) });
     assert.equal(projectId, 'pm-dashboard-uat-20260820-a7f3');
     assert.deepEqual(files, await collectHostingAssets(repoRoot));
-    assert.equal(pdfReleaseReady, false);
-    assert.ok(logs.some(line => line.startsWith('NOT READY FOR RELEASE: uat')));
+    assert.equal(pdfReleaseReady, expectedReady);
+    if (expectedReady) {
+      assert.ok(!logs.some(line => line.includes('NOT READY FOR RELEASE')), 'must not log not-ready once a UAT PDF service is registered');
+    } else {
+      assert.ok(logs.some(line => line.startsWith('NOT READY FOR RELEASE: uat')), 'must log the not-ready state while no UAT PDF service is registered');
+    }
     const envConfig = await readFile(join(outDir, 'env-config.js'), 'utf8');
     assert.match(envConfig, /dashboardProfile: "uat"/);
-    assert.match(envConfig, /pdfServiceUrl: null/);
+    assert.ok(envConfig.includes(`pdfServiceUrl: ${JSON.stringify(registeredUatUrl)}`), 'env-config.js must carry the exact committed UAT pdfServiceUrl');
     for (const file of files) {
       assert.ok(!(await readFile(join(outDir, file), 'utf8')).includes('project-manager-dashboar-a067f'), `${file} names the Production project`);
     }
@@ -229,12 +240,15 @@ test('the environment loader rejects an unknown environment and a path traversal
   await assert.rejects(loadHostingEnv(repoRoot, '../package'), /unknown|not a hosting target/i);
 });
 
-test('env/prod.json is release-ready and env/uat.json is not, matching the pdf-service target registry', async () => {
+test('env/prod.json is release-ready, and env/uat.json\'s readiness matches whether the pdf-service target registry has a registered UAT service URL', async () => {
   const registry = JSON.parse(await readFile(join(repoRoot, 'pdf-service/src/targets/registry.json'), 'utf8'));
   const prod = await loadHostingEnv(repoRoot, 'prod');
   const uat = await loadHostingEnv(repoRoot, 'uat');
   assert.equal(prod.pdfServiceUrl, registry.targets.production.serviceUrl);
   assert.equal(uat.pdfServiceUrl, registry.targets.uat.serviceUrl);
   assert.equal(prod.pdfReleaseReady, true);
-  assert.equal(uat.pdfReleaseReady, false);
+  // Transition-safe: UAT's readiness is derived from the registry's own registered UAT serviceUrl, so this
+  // assertion holds identically pre-B8 (null -> false) and post-B8 (a registered URL -> true), and fails
+  // closed if the derived state and the loader's own state ever disagreed.
+  assert.equal(uat.pdfReleaseReady, registry.targets.uat.serviceUrl !== null);
 });
