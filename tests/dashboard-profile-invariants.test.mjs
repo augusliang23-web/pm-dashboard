@@ -45,11 +45,23 @@ const PDF_SECTION_PICKER_EXCEPTIONS = new Set(['openProjectPdfSectionPicker', 'c
 // new behavior's own coverage.
 const USAGE_COST_GUARD_EXCEPTIONS = new Set(['loadPresenceUsageStats', 'openPresenceUsage']);
 
+// UCG-V2-2B-R1: legacy quota-truth cleanup. Independent review found these three functions still
+// presented a misleading cumulative/per-bucket Firestore quota interpretation (a 42-day
+// "840,000 free quota" gap/percentage, and per-bucket "quota used %"/"remaining" figures derived
+// by summing totalPresenceWrites -- an activity/event tick count -- together with
+// counterFlushWrites -- the actual tracked Firestore write count). All three functions' actual
+// data-fetching/aggregation/session-history behavior is unchanged; only the removed quota
+// interpretation and its labels changed (see 'UCG-V2-2B-R1: no misleading cumulative/per-bucket
+// Firestore quota interpretation remains in Production' below for the behavior proof).
+const LEGACY_QUOTA_CLEANUP_EXCEPTIONS = new Set(['renderFirestoreHistoricalSummary', 'renderPresenceUsageStats', 'renderPresenceUsageChart']);
+
 // Named, reviewed exceptions to the byte-for-byte guarantee below. Each entry needs a Control Plane remediation
 // reference and a companion test elsewhere in this file proving Production's *behavior* -- not just its source
 // text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
 // name here is a deliberate, auditable act, not a way to silence an unexpected difference.
-const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([...PDF_SECTION_PICKER_EXCEPTIONS, ...USAGE_COST_GUARD_EXCEPTIONS]);
+const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
+  ...PDF_SECTION_PICKER_EXCEPTIONS, ...USAGE_COST_GUARD_EXCEPTIONS, ...LEGACY_QUOTA_CLEANUP_EXCEPTIONS,
+]);
 
 test('the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions', () => {
   const productionSource = dashboardSource('production');
@@ -112,6 +124,54 @@ test('the two Usage & Cost Guard exceptions still do their pre-existing job unco
   assert.match(loadBody, /getDocs\(collection\(db, "presence"\)\)/, 'loadPresenceUsageStats must still fetch presence docs');
   assert.match(loadBody, /refreshUsageCostGuardOverview\(calculateTrackedFirestoreWrites\(presenceDocs\)\)/, 'loadPresenceUsageStats must refresh the cards with a real tracked-write total');
   assert.match(loadBody, /renderPresenceUsageStats\(rows, sessions, rangeDays, estimatedActivities, lastSeenActivities\)/, 'loadPresenceUsageStats must still render the pre-existing legacy diagnostics');
+});
+
+test('UCG-V2-2B-R1: no misleading cumulative/per-bucket Firestore quota interpretation remains in Production', () => {
+  const production = dashboardSource('production');
+
+  // The retired 42-day cumulative quota model must be gone entirely.
+  assert.doesNotMatch(production, /840[,_]?000/, 'the retired 42x20,000 cumulative quota figure must not appear');
+  assert.doesNotMatch(production, /42\s*\*\s*FIRESTORE_FREE_WRITES_PER_DAY/, 'no cumulative multi-day quota calculation may remain');
+  assert.doesNotMatch(production, /freeWriteQuota/i, 'the cumulative free-write-quota field must be removed');
+  assert.doesNotMatch(production, /Free writes used/i);
+  assert.doesNotMatch(production, /Free quota gap/i);
+  assert.doesNotMatch(production, /Aggregate writes remaining across 42 days/i);
+  assert.doesNotMatch(production, /Free quota used/i);
+
+  // Historical writes/reads remain, clearly framed as historical, not a quota fraction.
+  assert.match(production, /Past 6 weeks writes/);
+  assert.match(production, /Past 6 weeks reads/);
+
+  const historicalBody = production.slice(
+    production.indexOf('function renderFirestoreHistoricalSummary()'),
+    production.indexOf('function renderFirestoreHistoricalSummary()') + 1500,
+  );
+  assert.doesNotMatch(historicalBody, /usedPct|freeWriteQuota/i, 'no percentage-of-quota or quota-gap calculation may remain');
+
+  // Bucket-level and summary-card quota interpretation must be gone; the underlying tracked-flush
+  // and activity-event figures must still be present and separately labeled.
+  const presenceStatsBody = production.slice(
+    production.indexOf('function renderPresenceUsageStats('),
+    production.indexOf('window.loadPresenceUsageStats'),
+  );
+  assert.doesNotMatch(presenceStatsBody, /Quota Used|<th>Remaining<\/th>/);
+  assert.doesNotMatch(presenceStatsBody, /usedPct|remaining\s*=\s*Math\.max\(0, quota/);
+  assert.match(presenceStatsBody, /Activity events/);
+  assert.match(presenceStatsBody, /Tracked flush writes/);
+  assert.match(presenceStatsBody, /Tracked Flush Writes/, 'the bucket table column must still expose tracked flush writes');
+  assert.match(presenceStatsBody, /totals\.flush/, 'the tracked-flush total must still be computed and shown');
+  assert.match(presenceStatsBody, /totals\.presence/, 'the activity-event total must still be computed and shown');
+
+  // The daily chart must chart tracked flush writes only (never totalPresenceWrites summed with
+  // counterFlushWrites) and must never claim a "% of quota" for a single bucket.
+  const chartBody = production.slice(
+    production.indexOf('function renderPresenceUsageChart('),
+    production.indexOf('function renderPresenceUsageChart(') + 3500,
+  );
+  assert.doesNotMatch(chartBody, /totalPresenceWrites.*\+.*counterFlushWrites|counterFlushWrites.*\+.*totalPresenceWrites/,
+    'the chart must not sum activity events with tracked flush writes');
+  assert.match(chartBody, /writes:\s*Number\(row\.counterFlushWrites \|\| 0\)/);
+  assert.doesNotMatch(chartBody, /% of quota/i);
 });
 
 test('the UAT profile still exposes every UAT a04c0c1 function name', () => {

@@ -2888,7 +2888,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="ucg-cards" id="usageCostGuardCards"></div>
   <div class="usage-section-title" style="margin-top:8px;">Usage details</div>
   <div class="usage-section-title">Firestore actual usage · Past 6 weeks</div>
-  <div class="usage-summary-grid" id="firestoreHistoricalSummary"></div>
+  <div class="usage-summary-grid" id="firestoreHistoricalSummary" style="grid-template-columns:repeat(2, 1fr);"></div>
   <div class="usage-history-note" id="firestoreHistoricalNote"></div>
   <div class="usage-section-title">Presence writes recorded after counter activation</div>
   <div class="usage-summary-grid" id="presenceUsageSummary"></div>
@@ -2903,7 +2903,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="usage-summary-grid" id="presenceSessionSummary"></div>
   <div class="usage-chart-toolbar">
     <div class="usage-chart-legend">
-      <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour writes</span>
+      <span class="usage-chart-key"><span class="usage-chart-swatch"></span>12-hour tracked flush writes</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch warning"></span>20% attention line · 80% shown when reached</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#78B395;"></span>Online session</span>
       <span class="usage-chart-key"><span class="usage-chart-swatch" style="height:8px; background:#AAB7C4;"></span>Timed out</span>
@@ -2917,7 +2917,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
   <div class="usage-chart" id="presenceDailyChart"></div>
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
-    <div style="font-size:11px; color:var(--muted); line-height:1.45;">The upper chart shows 12-hour writes. Green and gray blocks are recorded sessions. Gold blocks mean activity was detected within that 12-hour bucket—not that the user stayed online for 12 hours. Blue dots are last-seen fallbacks; neither gold blocks nor blue dots infer login time or duration.</div>
+    <div style="font-size:11px; color:var(--muted); line-height:1.45;">The upper chart shows 12-hour tracked Firestore flush writes (not activity/event counts). Green and gray blocks are recorded sessions. Gold blocks mean activity was detected within that 12-hour bucket—not that the user stayed online for 12 hours. Blue dots are last-seen fallbacks; neither gold blocks nor blue dots infer login time or duration.</div>
     <button class="btn btn-ghost" onclick="loadPresenceUsageStats()">Refresh</button>
   </div>
   <div class="usage-section-title">Session history</div>
@@ -4135,12 +4135,15 @@ const PRESENCE_ROLLUP_COLLECTION = 'presenceDailyRollups';
 const PRESENCE_SESSION_RETENTION_DAYS = 90;
 const FIRESTORE_FREE_WRITES_PER_DAY = 20000;
 const FIRESTORE_FREE_WRITES_PER_12H = FIRESTORE_FREE_WRITES_PER_DAY / 2;
+// Historical reference only (UCG-V2-2B-R1): this period's writes/reads are a fixed historical
+// total, not compared against any cumulative multi-day quota pool -- the Firestore free-tier
+// write quota resets daily (FIRESTORE_FREE_WRITES_PER_DAY), so a 42-day total has no cumulative
+// "quota" of its own to be a percentage or remaining-gap of. See renderFirestoreHistoricalSummary.
 const FIRESTORE_SIX_WEEK_BASELINE = {
   startDate: "2026-05-16",
   endDate: "2026-06-27",
   reads: 69,
-  writes: 6882,
-  freeWriteQuota: 42 * FIRESTORE_FREE_WRITES_PER_DAY
+  writes: 6882
 };
 let weeksUnsub = null;
 let projectManagerUnsub = null;
@@ -4691,17 +4694,14 @@ function calculateTrackedFirestoreWrites(presenceDocs) {
 
 function renderFirestoreHistoricalSummary() {
   const data = FIRESTORE_SIX_WEEK_BASELINE;
-  const usedPct = (data.writes / data.freeWriteQuota) * 100;
-  const remaining = Math.max(0, data.freeWriteQuota - data.writes);
   document.getElementById('firestoreHistoricalSummary').innerHTML = `
-    <div class="usage-card"><div class="usage-card-label">Firestore writes</div><div class="usage-card-value">${fmtUsageNumber(data.writes)}</div><div class="usage-card-note">All database writes in the selected period</div></div>
-    <div class="usage-card"><div class="usage-card-label">Firestore reads</div><div class="usage-card-value">${fmtUsageNumber(data.reads)}</div><div class="usage-card-note">All database reads in the selected period</div></div>
-    <div class="usage-card"><div class="usage-card-label">Free writes used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${fmtUsageNumber(data.writes)} of ${fmtUsageNumber(data.freeWriteQuota)}</div></div>
-    <div class="usage-card"><div class="usage-card-label">Free quota gap</div><div class="usage-card-value">${fmtUsageNumber(remaining)}</div><div class="usage-card-note">Aggregate writes remaining across 42 days</div></div>
+    <div class="usage-card"><div class="usage-card-label">Past 6 weeks writes</div><div class="usage-card-value">${fmtUsageNumber(data.writes)}</div><div class="usage-card-note">All database writes in the selected period</div></div>
+    <div class="usage-card"><div class="usage-card-label">Past 6 weeks reads</div><div class="usage-card-value">${fmtUsageNumber(data.reads)}</div><div class="usage-card-note">All database reads in the selected period</div></div>
   `;
   document.getElementById('firestoreHistoricalNote').textContent =
-    `${data.startDate} to ${data.endDate} · Source: Google Cloud Firestore Usage Insights. ` +
-    `The free quota resets daily, so the 42-day comparison does not identify a single-day peak. ` +
+    `${data.startDate} to ${data.endDate} · Source: Google Cloud Firestore Usage Insights · Historical reference only. ` +
+    `The Firestore free-tier write quota (${fmtUsageNumber(FIRESTORE_FREE_WRITES_PER_DAY)} writes/day) resets daily and is not a multi-day pool, ` +
+    `so this historical total cannot be expressed as a percentage of quota used or a remaining quota gap, and unused days do not carry forward. ` +
     `Historical writes cannot be reliably separated into active, idle, logout, or other dashboard writes because those event types were not recorded before the counter was enabled.`;
 }
 
@@ -4769,11 +4769,15 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
   const chart = document.getElementById('presenceDailyChart');
   const now = Date.now();
   const rangeStart = now - rangeDays * 24 * 60 * 60 * 1000;
+  // UCG-V2-2B-R1: charted against the 12-hour reference lines below, so this must be actual
+  // tracked Firestore flush writes (counterFlushWrites) only -- never combined with
+  // totalPresenceWrites (an activity/event tick count, not a Firestore write count; see
+  // renderPresenceUsageStats above for the same distinction).
   const points = rows
     .map(row => ({
       label: row.bucketLabel || row.bucketId || '-',
       bucketStart: Number(row.bucketStart || 0),
-      writes: Number(row.totalPresenceWrites || 0) + Number(row.counterFlushWrites || 0)
+      writes: Number(row.counterFlushWrites || 0)
     }))
     .sort((a, b) => a.bucketStart - b.bucketStart)
     .filter(point => point.bucketStart >= rangeStart)
@@ -4822,7 +4826,7 @@ function renderPresenceUsageChart(rows, sessions = [], rangeDays = 56, estimated
     const barHeight = Math.max(item.writes ? 1 : 0, upperHeight - y);
     const color = item.writes >= warningWrites ? '#d14343' : 'var(--accent)';
     return `<rect x="${x}" y="${upperHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="2" fill="${color}">
-        <title>${item.label}: ${fmtUsageNumber(item.writes)} writes (${((item.writes / FIRESTORE_FREE_WRITES_PER_12H) * 100).toFixed(2)}% of quota)</title>
+        <title>${item.label}: ${fmtUsageNumber(item.writes)} tracked flush writes</title>
       </rect>`;
   }).join('');
 
@@ -4976,16 +4980,18 @@ function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimated
     acc.flush += row.counterFlushWrites || 0;
     return acc;
   }, { active: 0, idle: 0, logout: 0, presence: 0, flush: 0 });
-  const totalEstimated = totals.presence + totals.flush;
-  const quota = rows.length * FIRESTORE_FREE_WRITES_PER_12H;
-  const usedPct = quota ? (totalEstimated / quota) * 100 : 0;
-  const remaining = Math.max(0, quota - totalEstimated);
 
+  // UCG-V2-2B-R1: activity/event counters (active/idle/logout/presence) and tracked Firestore
+  // flush writes (counterFlushWrites) are kept as distinct, separately labeled figures here --
+  // never summed together, and never compared against FIRESTORE_FREE_WRITES_PER_12H/DAY to
+  // produce a "quota used %" or "writes remaining" claim (see js/usage-cost-guard.mjs's
+  // adaptPresenceBucketToObservedWrite for why only counterFlushWrites represents actual
+  // Firestore document writes).
   document.getElementById('presenceUsageSummary').innerHTML = `
-    <div class="usage-card"><div class="usage-card-label">Presence writes</div><div class="usage-card-value">${fmtUsageNumber(totals.presence)}</div><div class="usage-card-note">Active + idle + logout</div></div>
+    <div class="usage-card"><div class="usage-card-label">Activity events</div><div class="usage-card-value">${fmtUsageNumber(totals.presence)}</div><div class="usage-card-note">Active + idle + logout (not Firestore writes)</div></div>
     <div class="usage-card"><div class="usage-card-label">Active writes</div><div class="usage-card-value">${fmtUsageNumber(totals.active)}</div><div class="usage-card-note">Heartbeat and resume activity</div></div>
     <div class="usage-card"><div class="usage-card-label">Idle / logout</div><div class="usage-card-value">${fmtUsageNumber(totals.idle + totals.logout)}</div><div class="usage-card-note">Idle ${fmtUsageNumber(totals.idle)} · Logout ${fmtUsageNumber(totals.logout)}</div></div>
-    <div class="usage-card"><div class="usage-card-label">Free quota used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${rows.length ? `${fmtUsageNumber(remaining)} writes remaining in loaded buckets` : 'No completed buckets yet'}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Tracked flush writes</div><div class="usage-card-value">${fmtUsageNumber(totals.flush)}</div><div class="usage-card-note">Actual tracked Firestore document writes · no quota comparison</div></div>
   `;
   if (Array.isArray(sessions)) {
     renderPresenceSessionStats(sessions);
@@ -5010,14 +5016,11 @@ function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimated
 
   document.getElementById('presenceUsageTable').innerHTML = `
     <table class="usage-table">
-      <thead><tr><th>Bucket</th><th>Active</th><th>Idle</th><th>Logout</th><th>Presence Total</th><th>Counter Writes</th><th>Quota Used</th><th>Remaining</th></tr></thead>
+      <thead><tr><th>Bucket</th><th>Active</th><th>Idle</th><th>Logout</th><th>Activity Total</th><th>Tracked Flush Writes</th></tr></thead>
       <tbody>
         ${rows.map(row => {
           const presence = row.totalPresenceWrites || 0;
           const flush = row.counterFlushWrites || 0;
-          const estimated = presence + flush;
-          const pct = (estimated / FIRESTORE_FREE_WRITES_PER_12H) * 100;
-          const remain = Math.max(0, FIRESTORE_FREE_WRITES_PER_12H - estimated);
           return `<tr>
             <td>${escHtml(row.bucketLabel || row.bucketId || '-')}</td>
             <td class="num">${fmtUsageNumber(row.activeWrites)}</td>
@@ -5025,8 +5028,6 @@ function renderPresenceUsageStats(rows, sessions = [], rangeDays = 56, estimated
             <td class="num">${fmtUsageNumber(row.logoutWrites)}</td>
             <td class="num">${fmtUsageNumber(presence)}</td>
             <td class="num">${fmtUsageNumber(flush)}</td>
-            <td class="num">${pct.toFixed(2)}%</td>
-            <td class="num">${fmtUsageNumber(remain)}</td>
           </tr>`;
         }).join('')}
       </tbody>
