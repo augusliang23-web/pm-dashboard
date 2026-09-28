@@ -25,7 +25,7 @@ function assertModuleParses(profile) {
 }
 
 // Named, reviewed exceptions to the byte-for-byte guarantee below. Each entry needs a Control Plane remediation
-// reference and a companion test elsewhere in this file proving Production's *behavior* -- not just its source
+// reference and a companion test in tests/project-mutations.test.mjs proving Production's *behavior* -- not just its source
 // text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
 // name here is a deliberate, auditable act, not a way to silence an unexpected difference.
 const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
@@ -34,6 +34,12 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // gained an isProfileVisible() filter so Production's *checked/submitted* set is unchanged (see 'the two
   // deliberate Production exceptions never check or submit project-brief/project-update' below, and the
   // dedicated VM-level tests in tests/project-pdf-sections.uat.test.mjs).
+  'openProjectPdfSectionPicker',
+  'confirmProjectPdfExport',
+  // Shared Add New Project null-revision fix (Production Pages PR #25; this main/UAT port).
+  'openProjEdit'
+]);
+const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
   'confirmProjectPdfExport'
 ]);
@@ -70,9 +76,9 @@ test('the Production profile runs every Production e1f0e5c function byte-for-byt
   assert.equal(Object.keys(baselines.productionFunctions).length, 389);
 });
 
-test('the two deliberate Production exceptions never check or submit project-brief/project-update', () => {
+test('the deliberate PDF-section Production exceptions never check or submit project-brief/project-update', () => {
   const production = dashboardSource('production');
-  for (const name of DELIBERATE_PRODUCTION_EXCEPTIONS) {
+  for (const name of PDF_SECTION_PRODUCTION_EXCEPTIONS) {
     const start = production.indexOf(`function ${name}(`);
     assert.ok(start >= 0, `${name} must exist in the Production view`);
     const bodyStart = production.slice(Math.max(0, start - 6), start) === 'async ' ? start - 6 : start;
