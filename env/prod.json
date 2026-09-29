@@ -15,5 +15,19 @@
     "appId": "1:842441149281:web:ef2a9af8b37593451e1320",
     "measurementId": "G-TW9FW819EY"
   },
-  "pdfServiceUrl": "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app"
+  "pdfServiceUrl": "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app",
+  "usageCostGuard": {
+    "cloudRun": {
+      "configuredCapSgd": 2,
+      "source": "dashboard-config",
+      "trustLevel": "manualConfig",
+      "verifiedAt": "2026-09-26"
+    },
+    "cloudRunFunctions": {
+      "configuredCapSgd": 2,
+      "source": "dashboard-config",
+      "trustLevel": "manualConfig",
+      "verifiedAt": "2026-09-26"
+    }
+  }
 }

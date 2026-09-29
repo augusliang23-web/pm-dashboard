@@ -28,20 +28,46 @@ function assertModuleParses(profile) {
 // reference and a companion test in tests/project-mutations.test.mjs proving Production's *behavior* -- not just its source
 // text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
 // name here is a deliberate, auditable act, not a way to silence an unexpected difference.
+// UAT PDF picker UI remediation (project-brief/project-update section picker restored as UAT-profile-only).
+// Both functions now read the shared #projectPdfSectionPicker markup, which grew two UAT-only checkboxes; they
+// gained an isProfileVisible() filter so Production's *checked/submitted* set is unchanged (see 'the two
+// deliberate Production exceptions never check or submit project-brief/project-update' below, and the
+// dedicated VM-level tests in tests/project-pdf-sections.uat.test.mjs).
+const PDF_SECTION_PICKER_EXCEPTIONS = new Set(['openProjectPdfSectionPicker', 'confirmProjectPdfExport']);
+
+// UCG-V2-2B: Usage & Cost Guard first-screen safety cards. openPresenceUsage now renders the cards
+// immediately (refreshUsageCostGuardOverview(null)) before its existing Firestore historical
+// summary and Presence load; loadPresenceUsageStats now also computes a tracked-write total
+// (calculateTrackedFirestoreWrites, reusing the approved js/usage-cost-guard.mjs adapter/
+// aggregation) and refreshes the cards with it. Both functions' pre-existing behavior -- fetching,
+// aggregating and rendering the legacy Presence diagnostics -- is otherwise unchanged; see
+// tests/usage-cost-guard-view.test.mjs and tests/usage-cost-guard-runtime-config.test.mjs for the
+// new behavior's own coverage.
+const USAGE_COST_GUARD_EXCEPTIONS = new Set(['loadPresenceUsageStats', 'openPresenceUsage']);
+
+// UCG-V2-2B-R1: legacy quota-truth cleanup. Independent review found these three functions still
+// presented a misleading cumulative/per-bucket Firestore quota interpretation (a 42-day
+// "840,000 free quota" gap/percentage, and per-bucket "quota used %"/"remaining" figures derived
+// by summing totalPresenceWrites -- an activity/event tick count -- together with
+// counterFlushWrites -- the actual tracked Firestore write count). All three functions' actual
+// data-fetching/aggregation/session-history behavior is unchanged; only the removed quota
+// interpretation and its labels changed (see 'UCG-V2-2B-R1: no misleading cumulative/per-bucket
+// Firestore quota interpretation remains in Production' below for the behavior proof).
+const LEGACY_QUOTA_CLEANUP_EXCEPTIONS = new Set(['renderFirestoreHistoricalSummary', 'renderPresenceUsageStats', 'renderPresenceUsageChart']);
+
+// Named, reviewed exceptions to the byte-for-byte guarantee below. Each entry needs a Control Plane remediation
+// reference and a companion test elsewhere in this file proving Production's *behavior* -- not just its source
+// text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
+// name here is a deliberate, auditable act, not a way to silence an unexpected difference.
+// Shared Add New Project null-revision fix (Production Pages PR #25; this main/UAT port).
+// openProjEdit now skips the revision lookup entirely for a brand-new project (isNew: true),
+// never calculating -- or needing -- a fingerprint for a project that doesn't exist yet; see the
+// behavior-level coverage in tests/project-mutations.test.mjs's 'new project editor sessions skip
+// revision lookup in root, Production, and UAT views'.
+const PROJECT_REVISION_LOOKUP_EXCEPTIONS = new Set(['openProjEdit']);
+
 const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
-  // UAT PDF picker UI remediation (project-brief/project-update section picker restored as UAT-profile-only).
-  // Both functions now read the shared #projectPdfSectionPicker markup, which grew two UAT-only checkboxes; they
-  // gained an isProfileVisible() filter so Production's *checked/submitted* set is unchanged (see 'the two
-  // deliberate Production exceptions never check or submit project-brief/project-update' below, and the
-  // dedicated VM-level tests in tests/project-pdf-sections.uat.test.mjs).
-  'openProjectPdfSectionPicker',
-  'confirmProjectPdfExport',
-  // Shared Add New Project null-revision fix (Production Pages PR #25; this main/UAT port).
-  'openProjEdit'
-]);
-const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
-  'openProjectPdfSectionPicker',
-  'confirmProjectPdfExport'
+  ...PDF_SECTION_PICKER_EXCEPTIONS, ...USAGE_COST_GUARD_EXCEPTIONS, ...LEGACY_QUOTA_CLEANUP_EXCEPTIONS, ...PROJECT_REVISION_LOOKUP_EXCEPTIONS,
 ]);
 
 test('the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions', () => {
@@ -78,7 +104,7 @@ test('the Production profile runs every Production e1f0e5c function byte-for-byt
 
 test('the deliberate PDF-section Production exceptions never check or submit project-brief/project-update', () => {
   const production = dashboardSource('production');
-  for (const name of PDF_SECTION_PRODUCTION_EXCEPTIONS) {
+  for (const name of PDF_SECTION_PICKER_EXCEPTIONS) {
     const start = production.indexOf(`function ${name}(`);
     assert.ok(start >= 0, `${name} must exist in the Production view`);
     const bodyStart = production.slice(Math.max(0, start - 6), start) === 'async ' ? start - 6 : start;
@@ -89,6 +115,101 @@ test('the deliberate PDF-section Production exceptions never check or submit pro
     // body may unconditionally check or read them -- every reference must go through isProfileVisible().
     assert.match(body, /isProfileVisible/, `${name} must gate through isProfileVisible()`);
   }
+});
+
+test('the two Usage & Cost Guard exceptions still do their pre-existing job unconditionally, alongside the new cards', () => {
+  const production = dashboardSource('production');
+  const openBody = production.slice(production.indexOf('window.openPresenceUsage = async () => {'));
+  assert.match(openBody, /refreshUsageCostGuardOverview\(null\)/, 'openPresenceUsage must render the first-screen cards immediately');
+  assert.match(openBody, /renderFirestoreHistoricalSummary\(\)/, 'openPresenceUsage must still render the pre-existing historical summary');
+  assert.match(openBody, /await loadPresenceUsageStats\(\)/, 'openPresenceUsage must still load Presence usage stats');
+
+  const loadBody = production.slice(
+    production.indexOf('window.loadPresenceUsageStats = async () => {'),
+    production.indexOf('window.openPresenceUsage'),
+  );
+  assert.match(loadBody, /getDocs\(collection\(db, "presence"\)\)/, 'loadPresenceUsageStats must still fetch presence docs');
+  assert.match(loadBody, /refreshUsageCostGuardOverview\(calculateTrackedFirestoreWrites\(presenceDocs\)\)/, 'loadPresenceUsageStats must refresh the cards with a real tracked-write total');
+  assert.match(loadBody, /renderPresenceUsageStats\(rows, sessions, rangeDays, estimatedActivities, lastSeenActivities\)/, 'loadPresenceUsageStats must still render the pre-existing legacy diagnostics');
+});
+
+test('UCG-V2-2B-R1: no misleading cumulative/per-bucket Firestore quota interpretation remains in Production', () => {
+  const production = dashboardSource('production');
+
+  // The retired 42-day cumulative quota model must be gone entirely.
+  assert.doesNotMatch(production, /840[,_]?000/, 'the retired 42x20,000 cumulative quota figure must not appear');
+  assert.doesNotMatch(production, /42\s*\*\s*FIRESTORE_FREE_WRITES_PER_DAY/, 'no cumulative multi-day quota calculation may remain');
+  assert.doesNotMatch(production, /freeWriteQuota/i, 'the cumulative free-write-quota field must be removed');
+  assert.doesNotMatch(production, /Free writes used/i);
+  assert.doesNotMatch(production, /Free quota gap/i);
+  assert.doesNotMatch(production, /Aggregate writes remaining across 42 days/i);
+  assert.doesNotMatch(production, /Free quota used/i);
+
+  // Historical writes/reads remain, clearly framed as historical, not a quota fraction.
+  assert.match(production, /Past 6 weeks writes/);
+  assert.match(production, /Past 6 weeks reads/);
+
+  const historicalBody = production.slice(
+    production.indexOf('function renderFirestoreHistoricalSummary()'),
+    production.indexOf('function renderFirestoreHistoricalSummary()') + 1500,
+  );
+  assert.doesNotMatch(historicalBody, /usedPct|freeWriteQuota/i, 'no percentage-of-quota or quota-gap calculation may remain');
+
+  // Bucket-level and summary-card quota interpretation must be gone; the underlying tracked-flush
+  // and activity-event figures must still be present and separately labeled.
+  const presenceStatsBody = production.slice(
+    production.indexOf('function renderPresenceUsageStats('),
+    production.indexOf('window.loadPresenceUsageStats'),
+  );
+  assert.doesNotMatch(presenceStatsBody, /Quota Used|<th>Remaining<\/th>/);
+  assert.doesNotMatch(presenceStatsBody, /usedPct|remaining\s*=\s*Math\.max\(0, quota/);
+  assert.match(presenceStatsBody, /Activity events/);
+  assert.match(presenceStatsBody, /Tracked flush writes/);
+  assert.match(presenceStatsBody, /Tracked Flush Writes/, 'the bucket table column must still expose tracked flush writes');
+  assert.match(presenceStatsBody, /totals\.flush/, 'the tracked-flush total must still be computed and shown');
+  assert.match(presenceStatsBody, /totals\.presence/, 'the activity-event total must still be computed and shown');
+
+  // The daily chart must chart tracked flush writes only (never totalPresenceWrites summed with
+  // counterFlushWrites) and must never claim a "% of quota" for a single bucket.
+  const chartBody = production.slice(
+    production.indexOf('function renderPresenceUsageChart('),
+    production.indexOf('function renderPresenceUsageChart(') + 3500,
+  );
+  assert.doesNotMatch(chartBody, /totalPresenceWrites.*\+.*counterFlushWrites|counterFlushWrites.*\+.*totalPresenceWrites/,
+    'the chart must not sum activity events with tracked flush writes');
+  // UCG-V2-2C: a malformed/non-numeric counterFlushWrites must be dropped, not coerced to 0
+  // (which would previously have let a non-numeric value reach Number() as NaN).
+  assert.match(chartBody, /const writes = Number\(row\.counterFlushWrites\);/);
+  assert.match(chartBody, /if \(!Number\.isFinite\(bucketStart\) \|\| !Number\.isFinite\(writes\) \|\| writes < 0\) return null;/);
+  assert.doesNotMatch(chartBody, /% of quota/i);
+});
+
+test('UCG-V2-2B-R2: the Presence chart no longer draws quota-derived reference lines', () => {
+  const production = dashboardSource('production');
+
+  // The 20%/80% quota-attention reference lines, their legend text, and the code that computed
+  // them must all be gone.
+  assert.doesNotMatch(production, /20% attention line/i);
+  assert.doesNotMatch(production, /80% shown when reached/i);
+  assert.doesNotMatch(production, /selectPresenceWriteScale/, 'the dashboard must not wire the quota-derived scale helper');
+  assert.doesNotMatch(production, /\bwarningWrites\b/);
+  assert.doesNotMatch(production, /referenceLines/);
+  assert.doesNotMatch(production, /usage-chart-swatch\.warning/, 'the now-unused warning-swatch style must be removed, not left dangling');
+  assert.doesNotMatch(production, /\bscale\.gridValues\b|\bscale\.maxWrites\b/);
+  // No replacement percentage/SAFE/WATCH/HIGH threshold marker may have been introduced either.
+  assert.doesNotMatch(production, /(?:SAFE|WATCH|HIGH)[- ]?threshold/i);
+
+  const chartBody = production.slice(
+    production.indexOf('function renderPresenceUsageChart('),
+    production.indexOf('function renderPresenceUsageStats('),
+  );
+  // The chart must still autoscale sensibly and still plot the tracked-flush-write series and
+  // its bucket/time labels -- this is removal of the quota interpretation, not a redesign.
+  assert.match(chartBody, /const peakWrites = points\.reduce/, 'a non-quota peak-based autoscale must replace the quota-derived scale');
+  assert.match(chartBody, /const maxWrites = Math\.max\(1, peakWrites \* 1\.2\)/);
+  assert.match(chartBody, /gridValues\.map/, 'the y-axis grid must still render');
+  assert.match(chartBody, /tracked flush writes<\/title>/, 'the per-bucket tooltip must still show the tracked-flush-write value');
+  assert.match(chartBody, /USER ACCESS TIMELINE/, 'the existing timeline section must remain intact');
 });
 
 test('the UAT profile still exposes every UAT a04c0c1 function name', () => {
