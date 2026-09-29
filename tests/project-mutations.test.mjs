@@ -2,6 +2,7 @@ import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-sourc
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
 
 import {
   applyProjectAttentionUpdate,
@@ -475,7 +476,10 @@ test('project editor pins week and identity session and stale completions cannot
   assert.ok(dashboard.includes('let projectEditorSession = null;'));
   assert.ok(dashboard.includes('projectEditorSession = Object.freeze({'));
   assert.ok(dashboard.includes('weekId: week.__documentId ||'));
-  assert.ok(dashboard.includes('revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)'));
+  assert.match(
+    dashboard,
+    /revisionFingerprint: isNew\s*\?\s*null\s*:\s*\(existingProject\.__revisionFingerprint\s*\|\|\s*projectRevisionFingerprint\(existingProject\)\)/,
+  );
   assert.ok(dashboard.includes("Object.defineProperty(normalizedWeek, '__documentId'"));
   assert.ok(dashboard.includes('session.authUid === (currentUser?.uid ||'));
   assert.ok(dashboard.includes('session.authEmail === getEmailKey(currentUser)'));
@@ -493,6 +497,46 @@ test('project editor pins week and identity session and stale completions cannot
   }
   assert.ok(saveSource.includes('expectedRevision: session.revisionFingerprint'));
   assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
+});
+
+test('new project editor sessions skip revision lookup in root, Production, and UAT views', () => {
+  const views = [
+    ['root', dashboard],
+    ['Production', dashboardSource('production')],
+    ['UAT', dashboardSource('uat')],
+  ];
+
+  for (const [profile, source] of views) {
+    const editorStart = source.indexOf('window.openProjEdit =');
+    const sessionStart = source.indexOf('projectEditorSession = Object.freeze({', editorStart);
+    const sessionEnd = source.indexOf('\n  });', sessionStart);
+    const sessionSource = source.slice(sessionStart, sessionEnd);
+    const fingerprintExpression = sessionSource.match(
+      /revisionFingerprint:\s*([\s\S]*?),\s*originalProject:/,
+    )?.[1];
+
+    assert.ok(fingerprintExpression, `${profile}: project editor session must define its revision fingerprint`);
+    const evaluateFingerprint = (isNew, existingProject, projectRevisionFingerprint) => vm.runInNewContext(
+      fingerprintExpression,
+      { isNew, existingProject, projectRevisionFingerprint },
+    );
+
+    assert.equal(
+      evaluateFingerprint(true, undefined, () => assert.fail(`${profile}: new projects must not calculate a revision fingerprint`)),
+      null,
+      `${profile}: new projects have no revision fingerprint`,
+    );
+    assert.equal(
+      evaluateFingerprint(false, { __revisionFingerprint: 'stored-revision' }, () => 'calculated-revision'),
+      'stored-revision',
+      `${profile}: existing projects retain their stored fingerprint`,
+    );
+    assert.equal(
+      evaluateFingerprint(false, {}, () => 'calculated-revision'),
+      'calculated-revision',
+      `${profile}: existing projects retain the calculated fallback`,
+    );
+  }
 });
 
 test('editable project row renderers and collectors persist stable DOM identities', () => {

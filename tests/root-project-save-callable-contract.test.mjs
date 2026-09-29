@@ -24,6 +24,6 @@ test('root Project Editor compares the raw Firestore revision after normalizing 
   );
   assert.match(
     dashboard,
-    /revisionFingerprint: existingProject\.__revisionFingerprint \|\| projectRevisionFingerprint\(existingProject\)/,
+    /revisionFingerprint: isNew\s*\?\s*null\s*:\s*\(existingProject\.__revisionFingerprint\s*\|\|\s*projectRevisionFingerprint\(existingProject\)\)/,
   );
 });

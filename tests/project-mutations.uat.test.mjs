@@ -434,7 +434,10 @@ test('project editor pins week and identity session and stale completions cannot
   assert.ok(dashboard.includes('let projectEditorSession = null;'));
   assert.ok(dashboard.includes('projectEditorSession = Object.freeze({'));
   assert.ok(dashboard.includes('weekId: week.__documentId ||'));
-  assert.ok(dashboard.includes('revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)'));
+  assert.match(
+    dashboard,
+    /revisionFingerprint: isNew\s*\?\s*null\s*:\s*\(existingProject\.__revisionFingerprint\s*\|\|\s*projectRevisionFingerprint\(existingProject\)\)/,
+  );
   assert.ok(dashboard.includes("Object.defineProperty(normalizedWeek, '__documentId'"));
   assert.ok(dashboard.includes('session.authUid === (currentUser?.uid ||'));
   assert.ok(dashboard.includes('session.authEmail === getEmailKey(currentUser)'));
