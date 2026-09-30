@@ -45,6 +45,8 @@ async function seed() {
       setDoc(doc(db, 'users/engineering@example.com'), { role: 'engineering', displayName: 'Engineering' }),
       setDoc(doc(db, 'users/business@example.com'), { role: 'business', displayName: 'Business' }),
       setDoc(doc(db, 'users/product@example.com'), { role: 'product', displayName: 'Product' }),
+      setDoc(doc(db, 'users/sales@example.com'), { role: 'sales', displayName: 'Sales' }),
+      setDoc(doc(db, 'users/format-pm@example.com'), { role: 'PM', displayName: 'Format PM' }),
       setDoc(doc(db, 'weeks/draft-week'), {
         weekLabel: 'W33 2026', isReleased: false,
         projects: [{ code: 'ALPHA', owner: 'Owner' }],
@@ -251,4 +253,63 @@ test('presence sessions accept only the dashboard session envelope and bounded u
     endReason: null,
     updatedAt: serverTimestamp(),
   }));
+});
+
+test('presenceSessions requires the exact stored sales role', async () => {
+  const sales = auth('sales-uid', 'sales@example.com');
+  const makeSession = (sessionId, role) => {
+    const startedAt = Date.now();
+    return {
+      sessionId,
+      ownerUid: 'sales-uid',
+      userKey: 'sales@example.com',
+      displayName: 'Sales',
+      role,
+      environment: 'v2.1',
+      startedAt,
+      lastSeenAt: startedAt,
+      endedAt: null,
+      activeMs: 0,
+      idleMs: 0,
+      state: 'active',
+      endReason: null,
+      aggregatedAt: null,
+      expiresAt: new Date(startedAt + 90 * 24 * 60 * 60 * 1000),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  };
+
+  await assertSucceeds(setDoc(doc(sales, 'presenceSessions/sales-role-raw'), makeSession('sales-role-raw', 'sales')));
+  await assertFails(setDoc(doc(sales, 'presenceSessions/sales-role-business'), makeSession('sales-role-business', 'business')));
+  await assertFails(setDoc(doc(sales, 'presenceSessions/sales-role-pm'), makeSession('sales-role-pm', 'pm')));
+});
+
+test('presenceSessions requires the exact stored PM casing', async () => {
+  const pm = auth('format-pm-uid', 'format-pm@example.com');
+  const makeSession = (sessionId, role) => {
+    const startedAt = Date.now();
+    return {
+      sessionId,
+      ownerUid: 'format-pm-uid',
+      userKey: 'format-pm@example.com',
+      displayName: 'Format PM',
+      role,
+      environment: 'v2.1',
+      startedAt,
+      lastSeenAt: startedAt,
+      endedAt: null,
+      activeMs: 0,
+      idleMs: 0,
+      state: 'active',
+      endReason: null,
+      aggregatedAt: null,
+      expiresAt: new Date(startedAt + 90 * 24 * 60 * 60 * 1000),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  };
+
+  await assertSucceeds(setDoc(doc(pm, 'presenceSessions/pm-role-raw'), makeSession('pm-role-raw', 'PM')));
+  await assertFails(setDoc(doc(pm, 'presenceSessions/pm-role-normalized'), makeSession('pm-role-normalized', 'pm')));
 });
