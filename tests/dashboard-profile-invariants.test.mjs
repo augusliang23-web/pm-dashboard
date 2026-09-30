@@ -37,7 +37,11 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
   'confirmProjectPdfExport',
   // Shared Add New Project null-revision fix (Production Pages PR #25; this main/UAT port).
-  'openProjEdit'
+  'openProjEdit',
+  // Production Role Contract remediation: fail closed while mapping raw roles to v2.1 perspectives,
+  // and preserve the exact Firestore role in presenceSessions (tests/role-contract.test.mjs).
+  'getDashboardRole',
+  'startPresenceSession'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',

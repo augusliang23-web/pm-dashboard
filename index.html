@@ -3048,6 +3048,9 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = IS_UAT_PROFILE ? ('pending') : ('pm');
+// @prod-only begin
+let currentRawRole = null;
+// @prod-only end
 const uatProductionSyncController = createUatProductionSyncController({
   api: uatProductionSyncApi,
   getRole: () => currentRole,
@@ -4267,10 +4270,20 @@ function normalizeRole(...args) { return (IS_UAT_PROFILE ? normalizeRole__uat : 
 // @profile-group begin fn getDashboardRole
 // @profile-variant prod
 function getDashboardRole__prod(userDoc) {
+  currentRawRole = null;
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
-  return normalizeRole(userDoc.data().role);
+  const rawRole = userDoc.data().role;
+  const normalized = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : '';
+  const perspective = new Map([
+    ['admin', 'admin'], ['vip', 'vip'], ['pm', 'pm'],
+    ['engineering', 'engineering'], ['business', 'business'], ['product', 'product'],
+    ['executive', 'vip'], ['sales', 'business'], ['bd', 'business']
+  ]).get(normalized);
+  if (!perspective) throw new Error('missing-dashboard-role');
+  currentRawRole = rawRole;
+  return perspective;
 }
 // @profile-variant uat
 function getDashboardRole__uat(userDoc) {
@@ -4482,7 +4495,7 @@ function startPresenceSession__prod() {
     ownerUid: currentUser.uid,
     userKey: getEmailKey(currentUser),
     displayName: getUserDisplayName(currentUser.email),
-    role: currentRole,
+    role: currentRawRole,
     environment: 'v2.1',
     startedAt: now,
     lastSeenAt: now,
