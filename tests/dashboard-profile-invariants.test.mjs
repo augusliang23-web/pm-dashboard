@@ -25,7 +25,7 @@ function assertModuleParses(profile) {
 }
 
 // Named, reviewed exceptions to the byte-for-byte guarantee below. Each entry needs a Control Plane remediation
-// reference and a companion test in tests/project-mutations.test.mjs proving Production's *behavior* -- not just its source
+// reference and a companion test proving Production's *behavior* -- not just its source
 // text -- is unaffected. Anything else that drifts from the e1f0e5c baseline still fails the test below; adding a
 // name here is a deliberate, auditable act, not a way to silence an unexpected difference.
 const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([

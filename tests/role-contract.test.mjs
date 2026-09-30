@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import vm from 'node:vm';
 
-import { canReadDraftWeeks } from '../js/dashboard-access.mjs';
 import { authorizeExecutiveAudienceView } from '../pdf-service/src/report-access.js';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 
@@ -99,17 +98,42 @@ test('Production PDF default view for every valid raw role is accepted by real b
   }
 });
 
-test('Production visibility keeps executive released-only and maps sales and bd to Business', () => {
+function productionWeekQueryFor(rawRole) {
   const context = roleContext();
-  const executive = context.resolveRole(userDoc('executive'));
-  assert.equal(executive, 'vip');
-  assert.equal(canReadDraftWeeks(executive), false);
-  for (const raw of ['sales', 'bd']) {
-    const perspective = context.resolveRole(userDoc(raw));
-    assert.equal(perspective, 'business');
-    assert.equal(canReadDraftWeeks(perspective), false);
+  context.currentRole = context.resolveRole(userDoc(rawRole));
+  let selectedQuery;
+  Object.assign(context, {
+    weeksUnsub: null,
+    db: {},
+    currentUser: { uid: 'test-uid', email: 'role@example.test' },
+    authSessionGeneration: 1,
+    collection: (_db, name) => ({ collection: name }),
+    query: (source, constraint) => ({ source, constraint }),
+    where: (field, operator, value) => ({ type: 'where', field, operator, value }),
+    orderBy: field => ({ type: 'orderBy', field }),
+    getEmailKey: user => user.email,
+    isAuthInitializationCurrent: () => true,
+    onSnapshot: value => { selectedQuery = value; return () => {}; },
+  });
+  vm.runInContext(`${functionSource('initData')}; this.initData = initData;`, context);
+  context.initData(1, context.currentUser);
+  return selectedQuery;
+}
+
+test('Production runtime query gives VIP released weeks and all other mapped roles all weeks', () => {
+  for (const raw of ['vip', 'executive']) {
+    assert.deepEqual(productionWeekQueryFor(raw), {
+      source: { collection: 'weeks' },
+      constraint: { type: 'where', field: 'isReleased', operator: '==', value: true },
+    }, `${raw} must use the actual Production released-week query`);
   }
-  assert.equal(canReadDraftWeeks(context.resolveRole(userDoc('pm'))), true);
+
+  for (const raw of ['sales', 'bd', 'business', 'pm', 'engineering', 'product']) {
+    assert.deepEqual(productionWeekQueryFor(raw), {
+      source: { collection: 'weeks' },
+      constraint: { type: 'orderBy', field: 'weekLabel' },
+    }, `${raw} must use the actual Production all-weeks query`);
+  }
 });
 
 test('Production presenceSessions writes the exact raw role for compatibility', async () => {
