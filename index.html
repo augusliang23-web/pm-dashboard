@@ -2764,6 +2764,7 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
+let currentRawRole = null;
 let authSessionGeneration = 0;
 const displayNameDirectory = createDisplayNameDirectory();
 let isAdminVipPreview = false;
@@ -3626,10 +3627,20 @@ function normalizeRole(role) {
 }
 
 function getDashboardRole(userDoc) {
+  currentRawRole = null;
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
-  return normalizeRole(userDoc.data().role);
+  const rawRole = userDoc.data().role;
+  const normalized = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : '';
+  const perspective = new Map([
+    ['admin', 'admin'], ['vip', 'vip'], ['pm', 'pm'],
+    ['engineering', 'engineering'], ['business', 'business'], ['product', 'product'],
+    ['executive', 'vip'], ['sales', 'business'], ['bd', 'business']
+  ]).get(normalized);
+  if (!perspective) throw new Error('missing-dashboard-role');
+  currentRawRole = rawRole;
+  return perspective;
 }
 
 function showAuthError(message) {
@@ -3785,7 +3796,7 @@ function startPresenceSession() {
     ownerUid: currentUser.uid,
     userKey: getEmailKey(currentUser),
     displayName: getUserDisplayName(currentUser.email),
-    role: currentRole,
+    role: currentRawRole,
     environment: 'v2.1',
     startedAt: now,
     lastSeenAt: now,
