@@ -41,7 +41,11 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // Production Role Contract remediation: fail closed while mapping raw roles to v2.1 perspectives,
   // and preserve the exact Firestore role in presenceSessions (tests/role-contract.test.mjs).
   'getDashboardRole',
-  'startPresenceSession'
+  'startPresenceSession',
+  // Production Manage Weeks least-privilege hotfix: setupUI hides the Manage Weeks control and
+  // openWeekManagement fails closed for everyone but Admin/PM (tests/manage-weeks-visibility.test.mjs).
+  'setupUI',
+  'openWeekManagement'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
