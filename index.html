@@ -5625,6 +5625,7 @@ function setupUI__prod() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
   document.getElementById('presenceUsageBtn').style.display = 'none';
   
   isOverview = false;
@@ -12752,6 +12753,7 @@ window.checkMsDates = () => {
 // @profile-group begin win openWeekManagement
 // @profile-variant prod
 const openWeekManagement__prod = () => {
+  if (!canReadDraftWeeks(currentRole)) return;
   const week = allWeeks[currentIdx];
   if(!week) return;
   
