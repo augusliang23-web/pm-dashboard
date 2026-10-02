@@ -2127,7 +2127,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
       </button>
       
-      <button class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
+      <button id="manageWeeksBtn" class="btn-icon vip-hidden" onclick="openWeekManagement()" title="Manage Weeks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
 
@@ -4668,6 +4668,7 @@ function setupUI() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
   document.getElementById('presenceUsageBtn').style.display = 'none';
   
   isOverview = false;
@@ -4702,6 +4703,11 @@ function setupUI() {
     PM_LIST.map(pm => `<option value="${escHtml(pm)}">${escHtml(pm)}</option>`).join('');
   updateMasterDataLists();
   refreshFxRates();
+}
+
+// Manage Weeks is for Admin and PM perspectives only (same contract as canonical main's canReadDraftWeeks).
+function canReadDraftWeeks(role) {
+  return role === 'admin' || role === 'pm';
 }
 
 // ── DATA ──
@@ -10102,6 +10108,7 @@ window.checkMsDates = () => {
 
 // ── WEEK MANAGEMENT COMBINED LOGIC ──
 window.openWeekManagement = () => {
+  if (!canReadDraftWeeks(currentRole)) return;
   const week = allWeeks[currentIdx];
   if(!week) return;
   
