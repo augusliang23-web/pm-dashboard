@@ -5737,6 +5737,7 @@ window.jumpToWeek = (...args) => (IS_UAT_PROFILE ? jumpToWeek__uat : jumpToWeek_
 // @profile-group begin win toggleReleaseWeek
 // @profile-variant prod
 const toggleReleaseWeek__prod = async () => {
+  if (!canReadDraftWeeks(currentRole)) return;
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || releaseWriteInProgress) return;
   
@@ -9713,15 +9714,17 @@ const render__prod = () => {
             <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             Released
           </span>
-          <div style="width:1px; height:12px; background:var(--border2);"></div>
-          <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+          ${canReadDraftWeeks(currentRole) ? `
+            <div style="width:1px; height:12px; background:var(--border2);"></div>
+            <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+          ` : ''}
         </div>
       `;
     } else {
       bannerPills.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
           <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
-          <button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to VIP</button>
+          ${canReadDraftWeeks(currentRole) ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to VIP</button>' : ''}
         </div>
       `;
     }

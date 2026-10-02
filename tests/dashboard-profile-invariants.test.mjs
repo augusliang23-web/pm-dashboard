@@ -45,7 +45,12 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // Production Manage Weeks least-privilege hotfix: setupUI hides the Manage Weeks control and
   // openWeekManagement fails closed for everyone but Admin/PM (tests/manage-weeks-visibility.test.mjs).
   'setupUI',
-  'openWeekManagement'
+  'openWeekManagement',
+  // Production week release least-privilege hotfix: the week banner renders Release to VIP / Revert to Draft
+  // for Admin/PM only (status stays visible) and toggleReleaseWeek fails closed for everyone else
+  // (tests/week-release-visibility.test.mjs).
+  'render',
+  'toggleReleaseWeek'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
