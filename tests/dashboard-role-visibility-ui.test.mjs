@@ -6,7 +6,7 @@ import test from 'node:test';
 const dashboard = await dashboardSourceAsync('uat');
 
 test('v2.2T uses role-safe week queries and a live PM-only list', () => {
-  assert.match(dashboard, /canReadDraftWeeks\(currentRole\) \|\| canCurrentUser\('week\.manage'\)\s*\?\s*query\(weeksRef, orderBy\('weekLabel'\)\)\s*:\s*query\(weeksRef, where\('isReleased', '==', true\)\)/);
+  assert.match(dashboard, /canReadDraftWeeks\(currentRole\) \|\| canCurrentUser\('week\.manage'\) \|\| canCurrentUser\('week\.release'\)\s*\?\s*query\(weeksRef, orderBy\('weekLabel'\)\)\s*:\s*query\(weeksRef, where\('isReleased', '==', true\)\)/);
   assert.match(dashboard, /projectManagerUnsub\s*=\s*onSnapshot\(collection\(db, 'users'\)/);
   assert.match(dashboard, /PM_LIST\s*=\s*buildProjectManagerList\(/);
   assert.match(dashboard, /currentPMFilter\s*=\s*reconcileProjectManagerFilter\(currentPMFilter, PM_LIST\)/);
@@ -21,9 +21,9 @@ test('only Admin and PM can edit a project and Executive retains portfolio navig
   assert.match(dashboard, /const isExecutivePerspective = \(\) => currentRole === 'admin' && isAdminExecutivePreview;/);
 });
 
-test('only PM and Admin receive a release control and it uses the protected callable', () => {
+test('release controls follow the effective week.release capability (Admin and PM by role default) and use the protected callable', () => {
   assert.match(dashboard, /let currentRole = 'pending';/);
-  assert.match(dashboard, /function canManageWeekRelease\(\)\s*\{\s*return \['admin', 'pm'\]\.includes\(currentRole\);\s*\}/);
+  assert.match(dashboard, /function canManageWeekRelease\(\)\s*\{\s*return canCurrentUser\('week\.release'\);\s*\}/);
   assert.match(dashboard, /\$\{canManageWeekRelease\(\) \? [\s\S]*toggleReleaseWeek\(\)/);
   assert.match(dashboard, /if \(!week \|\| !currentUser \|\| releaseWriteInProgress \|\| !canManageWeekRelease\(\)\) return;/);
   assert.match(dashboard, /projectDashboardApi\.setWeekRelease\(/);

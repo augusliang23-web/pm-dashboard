@@ -52,6 +52,15 @@ service cloud.firestore {
           && weekManageOverride().get('week.manage', false) == true);
     }
 
+    // Effective week.release for roles that do not hold it by default (PM already reads drafts through
+    // canReadDraftWeeks): a server-stored boolean true override for a working-team role. A holder must see the
+    // draft weeks it releases; this grants reads only, never writes.
+    function canReleaseWeeks() {
+      return dashboardRole() in ['engineering', 'business', 'sales', 'bd', 'product']
+        && weekManageOverride() is map
+        && weekManageOverride().get('week.release', false) == true;
+    }
+
     function hasBoundedString(data, key, maximumLength) {
       return data.get(key, '') is string
         && data.get(key, '').size() > 0
@@ -221,7 +230,7 @@ service cloud.firestore {
 
     match /weeks/{weekId} {
       allow read: if hasDashboardAccess()
-        && (canReadDraftWeeks() || canManageWeeks() || resource.data.isReleased == true);
+        && (canReadDraftWeeks() || canManageWeeks() || canReleaseWeeks() || resource.data.isReleased == true);
       allow write: if false;
       allow delete: if false;
     }

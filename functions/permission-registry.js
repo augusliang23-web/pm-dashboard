@@ -8,19 +8,56 @@ const KNOWN_ROLES = Object.freeze([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
 ]);
 
+// Roles that work in the working-team view (draft weeks, project editor, release banner).
+const WORKING_ROLES = Object.freeze(['pm', 'engineering', 'business', 'sales', 'bd', 'product']);
+const ALL_NON_ADMIN_ROLES = Object.freeze([...WORKING_ROLES, 'vip', 'executive']);
+
+// label/description: reviewed Admin-facing presentation for the User Permissions page.
 // roleDefaults: roles that hold the capability without an override.
 // delegable: whether a per-user override may change the role default.
+// adminLocked: Admin's foundational access; no override (even stale or malformed data) can remove it.
 // grantableRoles: roles that an explicit `true` override may enable (never 'admin').
-// label/description: reviewed Admin-facing presentation for the User Permissions page.
 const CAPABILITIES = Object.freeze({
   // Manage Weeks workflow: open Week Management, Copilot prompt, Weekly Summary save, Create Next Week.
   // Excludes Production -> UAT sync/restore, week release, strategy layer and Executive governance.
   'week.manage': Object.freeze({
     label: 'Manage Weeks',
-    description: 'Open Week Management, copy the Copilot prompt, save the Weekly Summary and create the next reporting week.',
+    description: 'Open Week Management, write the Weekly Summary and create the next reporting week.',
     roleDefaults: Object.freeze(['admin']),
     delegable: true,
-    grantableRoles: Object.freeze(['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']),
+    adminLocked: true,
+    grantableRoles: ALL_NON_ADMIN_ROLES,
+  }),
+  // Release to the audience / Revert to Draft (setDashboardWeekRelease). PM keeps today's access by default.
+  // Not grantable to VIP/Executive: their perspective has no release controls or draft weeks to act on.
+  'week.release': Object.freeze({
+    label: 'Release Week',
+    description: 'Release a week to its audience and revert it back to draft.',
+    roleDefaults: Object.freeze(['admin', 'pm']),
+    delegable: true,
+    adminLocked: true,
+    grantableRoles: WORKING_ROLES,
+  }),
+  // Global Gantt administration: default Gantt templates and the PDF Gantt display window. Viewing Gantt charts and
+  // editing an individual project's schedule are not part of this capability.
+  'gantt.manage': Object.freeze({
+    label: 'Manage Gantt',
+    description: 'Change the default Gantt templates and the PDF Gantt display window.',
+    roleDefaults: Object.freeze(['admin']),
+    delegable: true,
+    adminLocked: true,
+    grantableRoles: ALL_NON_ADMIN_ROLES,
+  }),
+  // Project administration: create and delete projects. Editing an existing project stays ownership-based
+  // (owner/deputy), and an Admin's right to edit any project stays role-only. Not grantable to VIP/Executive:
+  // they have no project editor and see released (locked) weeks only.
+  'project.manage': Object.freeze({
+    label: 'Manage Projects',
+    description: 'Add new projects and delete projects.',
+    roleDefaults: Object.freeze(['admin']),
+    delegable: true,
+    adminLocked: true,
+    grantableRoles: WORKING_ROLES,
   }),
   // Reserved: only raw-role Admin may manage user permissions. Never delegable.
   'permissions.manage': Object.freeze({
@@ -28,6 +65,7 @@ const CAPABILITIES = Object.freeze({
     description: 'Raw-role Admin only.',
     roleDefaults: Object.freeze(['admin']),
     delegable: false,
+    adminLocked: true,
     grantableRoles: Object.freeze([]),
   }),
 });
@@ -55,20 +93,27 @@ function normalizePermissionOverrides(overrides) {
   return result;
 }
 
+// The default (no override) effective state of a capability for a role.
+function roleDefault(capability, role) {
+  if (!isKnownCapability(capability)) return false;
+  const normalizedRole = normalizePermissionRole(role);
+  return Boolean(normalizedRole) && CAPABILITIES[capability].roleDefaults.includes(normalizedRole);
+}
+
 function can(capability, { role, overrides } = {}) {
   if (!isKnownCapability(capability)) return false;
   const definition = CAPABILITIES[capability];
   const normalizedRole = normalizePermissionRole(role);
   if (!normalizedRole) return false;
-  const roleDefault = definition.roleDefaults.includes(normalizedRole);
+  const base = definition.roleDefaults.includes(normalizedRole);
   // Admin keeps every role-default capability: an override (even stale or malformed data) never removes it.
-  if (normalizedRole === 'admin' || !definition.delegable) return roleDefault;
+  if (normalizedRole === 'admin' || !definition.delegable) return base;
   const override = normalizePermissionOverrides(overrides)[capability];
   if (override === false) return false;
   if (override === true) return definition.grantableRoles.includes(normalizedRole);
-  return roleDefault;
+  return base;
 }
 
 module.exports = {
-  CAPABILITIES, can, isKnownCapability, normalizePermissionOverrides, normalizePermissionRole,
+  CAPABILITIES, can, isKnownCapability, normalizePermissionOverrides, normalizePermissionRole, roleDefault,
 };

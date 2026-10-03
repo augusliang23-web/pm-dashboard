@@ -272,10 +272,12 @@ test('UAT Production Data Sync stays raw-role Admin only inside Week Management'
   }
 });
 
-test('week release controls keep their Admin/PM role contract and are not folded into week.manage', () => {
+test('week release controls follow their own week.release capability and are not folded into week.manage', () => {
   const production = PROFILES.production;
-  assert.match(sliceBody(production, 'window.toggleReleaseWeek = async () => {', '\n};\n'), /if \(!canReadDraftWeeks\(currentRole\)\) return;/);
-  assert.match(production, /\$\{canReadDraftWeeks\(currentRole\) \? '<button class="btn btn-primary" onclick="toggleReleaseWeek\(\)"/);
+  const prodToggle = sliceBody(production, 'window.toggleReleaseWeek = async () => {', '\n};\n');
+  assert.match(prodToggle, /if \(!canCurrentUser\('week\.release'\)\) return;/);
+  assert.doesNotMatch(prodToggle, /week\.manage/);
+  assert.match(production, /\$\{canCurrentUser\('week\.release'\) \? '<button class="btn btn-primary" onclick="toggleReleaseWeek\(\)"/);
   assert.match(PROFILES.uat, /\$\{canManageWeekRelease\(\) \? '<button class="btn btn-primary" onclick="toggleReleaseWeek\(\)"/);
   const uatToggle = sliceBody(PROFILES.uat, 'window.toggleReleaseWeek = async () => {', '\n};\n');
   assert.match(uatToggle, /!canManageWeekRelease\(\)/);

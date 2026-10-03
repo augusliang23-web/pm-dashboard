@@ -217,23 +217,30 @@ button[aria-busy="true"] { cursor:wait; }
 .permission-identity { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:4px 0 18px; }
 .permission-identity dt { font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
 .permission-identity dd { margin:2px 0 0; font-size:13px; color:var(--text); overflow-wrap:anywhere; }
-.permission-heading { margin:0 0 10px; font-size:13px; font-weight:700; color:var(--text); }
-.permission-rows { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
-.permission-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:6px 12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
-.permission-toggle { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; }
-.permission-toggle input:disabled + span { color:var(--text-light); }
-.permission-badge { justify-self:end; padding:2px 8px; border-radius:999px; border:1px solid var(--border2); font-size:11px; font-weight:600; color:var(--text-light); white-space:nowrap; }
-.permission-badge.custom-enabled { color:var(--accent-hov); border-color:var(--accent); }
-.permission-badge.custom-disabled { color:var(--red); border-color:var(--red); }
-.permission-meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; font-size:11px; color:var(--text-light); }
-.permission-meta .btn { padding:2px 8px; font-size:11px; }
+.permission-rows { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.permission-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.permission-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.permission-name { font-size:13px; font-weight:700; color:var(--text); }
+.permission-desc { font-size:11px; line-height:1.45; color:var(--text-light); }
+.permission-switch { display:inline-flex; align-items:center; gap:10px; flex-shrink:0; cursor:pointer; }
+.permission-switch input { position:absolute; opacity:0; width:1px; height:1px; }
+.permission-track { position:relative; width:40px; height:22px; border-radius:999px; background:var(--border2); transition:background .15s; }
+.permission-track::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform .15s; }
+.permission-switch input:checked + .permission-track { background:var(--accent); }
+.permission-switch input:checked + .permission-track::after { transform:translateX(18px); }
+.permission-switch input:focus-visible + .permission-track { outline:2px solid var(--accent-hov); outline-offset:2px; }
+.permission-switch input:disabled + .permission-track { opacity:.55; }
+.permission-switch input:disabled ~ .permission-state { color:var(--muted); }
+.permission-switch input:disabled, .permission-switch.locked, .permission-switch.saving { cursor:default; }
+.permission-state { min-width:62px; font-size:12px; font-weight:700; color:var(--text); }
 .permission-message { min-height:18px; font-size:12px; color:var(--text-light); margin-bottom:12px; }
 .permission-message.error { color:var(--red); }
-.permission-actions { display:flex; justify-content:flex-end; gap:10px; margin-bottom:20px; }
+.permission-message.success { color:var(--accent-hov); }
+.permission-history summary { cursor:pointer; font-size:12px; font-weight:700; color:var(--text-light); margin-bottom:8px; }
 .permission-audit { display:flex; flex-direction:column; gap:8px; font-size:12px; color:var(--text-light); }
 .permission-audit-entry { padding:8px 10px; border-left:3px solid var(--border2); background:var(--s2); }
 .permission-audit-entry strong { color:var(--text); font-weight:600; }
-@media (max-width: 640px) { .permission-identity { grid-template-columns:1fr; } }
+@media (max-width: 640px) { .permission-identity { grid-template-columns:1fr; } .permission-row { align-items:flex-start; flex-direction:column; } }
 .gantt-template-list { display:flex; flex-direction:column; gap:7px; }
 .gantt-template-row { display:grid; grid-template-columns:minmax(0,1fr) 32px 32px 34px; gap:6px; align-items:center; }
 .gantt-template-row .fi { min-width:0; }
@@ -2779,7 +2786,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       </section>
       
       <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border);" id="adminProjActions">
-        <label class="fl" style="color:var(--red);">Admin Actions</label>
+        <label class="fl" style="color:var(--red);">Project Actions</label>
+        <div id="pe_manage_only_note" class="gantt-template-note" style="display:none;">You can delete this project, but only its owner or an Admin can edit it.</div>
         <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
           <label class="fl" for="pe_visibility" style="margin:0;">Project visibility</label>
           <select class="fs" id="pe_visibility" aria-label="Project visibility" style="width:130px; font-weight:600;">
@@ -3017,12 +3025,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <div class="overlay" id="userPermissionsOverlay" role="dialog" aria-modal="true" aria-labelledby="userPermissionsTitle">
-  <div class="modal" style="width:760px">
+  <div class="modal" style="width:720px">
     <div class="modal-hdr">
       <h3 id="userPermissionsTitle">User Permissions</h3>
       <button class="modal-x" type="button" onclick="closeModal('userPermissionsOverlay')" aria-label="Close user permissions">×</button>
     </div>
-    <p class="gantt-template-note">Each user keeps their role's permissions by default. A custom setting applies to that user only and never changes their role.</p>
+    <p class="gantt-template-note">Turn features on or off for one person. Changes save automatically and never change their role.</p>
     <div class="fg">
       <label class="fl" for="userPermissionsUserSelect">User</label>
       <select class="fs" id="userPermissionsUserSelect" onchange="selectUserPermissionsUser(this.value)"></select>
@@ -3034,14 +3042,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div><dt>Email</dt><dd id="userPermissionsEmail"></dd></div>
         <div><dt>Role</dt><dd id="userPermissionsRole"></dd></div>
       </dl>
-      <h4 class="permission-heading">Feature Permissions</h4>
       <div id="userPermissionsRows" class="permission-rows"></div>
-      <div class="permission-actions">
-        <button id="userPermissionsResetAllBtn" class="btn btn-ghost" type="button" onclick="resetAllUserPermissions()">Reset to role defaults</button>
-        <button id="userPermissionsSaveBtn" class="btn btn-primary" type="button" onclick="saveUserPermissions()">Save changes</button>
-      </div>
-      <h4 class="permission-heading">Recent Changes</h4>
-      <div id="userPermissionsAudit" class="permission-audit"></div>
+      <details class="permission-history">
+        <summary>Recent changes</summary>
+        <div id="userPermissionsAudit" class="permission-audit"></div>
+      </details>
     </div>
   </div>
 </div>
@@ -3059,7 +3064,7 @@ import { createExecutiveApi } from "./js/executive-api.mjs";
 import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
 import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs?v=vip-readonly-1";
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
-import { buildPermissionRows, createUserPermissionsApi, describeAuditEntries, draftAfterReset, draftAfterResetAll, draftAfterToggle, isPermissionConflict, permissionChanges, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState } from "./js/user-permissions-admin.mjs";
+import { buildSwitchRows, createUserPermissionsApi, describeAuditEntries, isPermissionConflict, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState, switchChange } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
@@ -3593,7 +3598,7 @@ function isGanttTemplateSessionCurrent(session) {
     && session.authUid === (currentUser?.uid || '')
     && session.authEmail === getEmailKey(currentUser)
     && session.role === currentRole
-    && currentRole === 'admin'
+    && canCurrentUser('gantt.manage')
     && !isAdminVipPreview
     && document.getElementById('ganttTemplateOverlay').classList.contains('open')
   );
@@ -3670,7 +3675,7 @@ function renderGanttTemplateDraft(config) {
 }
 
 window.openGanttTemplateSettings = () => {
-  if (currentRole !== 'admin' || isAdminVipPreview || ganttTemplateSaveInFlight || !ganttTemplateSubscriptionReady) return;
+  if (!canCurrentUser('gantt.manage') || isAdminVipPreview || ganttTemplateSaveInFlight || !ganttTemplateSubscriptionReady) return;
   ganttTemplateSession = Object.freeze({
     token: `gantt-template-${++ganttTemplateSessionSequence}`,
     authUid: currentUser?.uid || '',
@@ -3686,7 +3691,7 @@ window.openGanttTemplateSettings = () => {
 
 window.addGanttTemplateRow = level => {
   const session = ganttTemplateSession;
-  if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session)) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttTemplateSessionCurrent(session)) return;
   const container = document.getElementById(ganttTemplateListId(level));
   if (!container || container.children.length >= 20) {
     document.getElementById('ganttTemplateError').textContent = 'Each template can contain no more than 20 workstreams.';
@@ -3698,7 +3703,7 @@ window.addGanttTemplateRow = level => {
 
 window.moveGanttTemplateRow = (button, direction) => {
   const session = ganttTemplateSession;
-  if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session)) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttTemplateSessionCurrent(session)) return;
   const row = button.closest('.gantt-template-row');
   const sibling = direction < 0 ? row?.previousElementSibling : row?.nextElementSibling;
   if (!row || !sibling) return;
@@ -3709,7 +3714,7 @@ window.moveGanttTemplateRow = (button, direction) => {
 
 window.deleteGanttTemplateRow = button => {
   const session = ganttTemplateSession;
-  if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session)) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttTemplateSessionCurrent(session)) return;
   button.closest('.gantt-template-row')?.remove();
 };
 
@@ -3717,7 +3722,7 @@ window.deleteGanttTemplateRow = button => {
 // @profile-variant prod
 const saveGanttTemplateSettings__prod = async () => {
   const session = ganttTemplateSession;
-  if (currentRole !== 'admin' || !isGanttTemplateSessionCurrent(session) || ganttTemplateSaveInFlight) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttTemplateSessionCurrent(session) || ganttTemplateSaveInFlight) return;
   if (ganttTemplateSessionConflicted) {
     document.getElementById('ganttTemplateError').textContent =
       'The live defaults changed. Close and reopen settings before saving a new draft.';
@@ -3761,7 +3766,7 @@ const saveGanttTemplateSettings__prod = async () => {
 const saveGanttTemplateSettings__uat = async () => {
   const session = ganttTemplateSession;
   if (
-    currentRole !== 'admin'
+    !canCurrentUser('gantt.manage')
     || !isGanttTemplateSessionCurrent(session)
     || ganttTemplateSaveInFlight
     || !ganttTemplateSubscriptionReady
@@ -3913,7 +3918,7 @@ function isGanttWindowSessionCurrent(session) {
     && session.authUid === (currentUser?.uid || '')
     && session.authEmail === getEmailKey(currentUser)
     && session.role === currentRole
-    && currentRole === 'admin'
+    && canCurrentUser('gantt.manage')
     && !isAdminVipPreview
     && document.getElementById('ganttWindowOverlay').classList.contains('open')
   );
@@ -3940,7 +3945,7 @@ function setGanttWindowControlsDisabled(disabled) {
 }
 
 window.openGanttWindowSettings = () => {
-  if (currentRole !== 'admin' || isAdminVipPreview || ganttWindowSaveInFlight || !ganttTemplateSubscriptionReady) return;
+  if (!canCurrentUser('gantt.manage') || isAdminVipPreview || ganttWindowSaveInFlight || !ganttTemplateSubscriptionReady) return;
   ganttWindowSession = Object.freeze({
     token: `gantt-window-${++ganttWindowSessionSequence}`,
     authUid: currentUser?.uid || '',
@@ -3956,7 +3961,7 @@ window.openGanttWindowSettings = () => {
 
 window.addGanttWindowOverrideRow = () => {
   const session = ganttWindowSession;
-  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session)) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttWindowSessionCurrent(session)) return;
   const select = document.getElementById('ganttWindowAddProjectSelect');
   const code = select?.value;
   if (!code) return;
@@ -3973,14 +3978,14 @@ window.addGanttWindowOverrideRow = () => {
 
 window.removeGanttWindowOverrideRow = button => {
   const session = ganttWindowSession;
-  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session)) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttWindowSessionCurrent(session)) return;
   button.closest('.gantt-window-row')?.remove();
   renderGanttWindowAddOptions();
 };
 
 window.saveGanttWindowSettings = async () => {
   const session = ganttWindowSession;
-  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session) || ganttWindowSaveInFlight) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttWindowSessionCurrent(session) || ganttWindowSaveInFlight) return;
   if (ganttWindowSessionConflicted) {
     document.getElementById('ganttWindowError').textContent =
       'The live settings changed. Close and reopen settings before saving a new draft.';
@@ -4020,7 +4025,7 @@ window.saveGanttWindowSettings = async () => {
 
 window.previewGanttWindowSettings = async () => {
   const session = ganttWindowSession;
-  if (currentRole !== 'admin' || !isGanttWindowSessionCurrent(session) || ganttWindowPreviewInFlight) return;
+  if (!canCurrentUser('gantt.manage') || !isGanttWindowSessionCurrent(session) || ganttWindowPreviewInFlight) return;
   const projectCode = document.getElementById('ganttWindowPreviewProjectSelect')?.value;
   const status = document.getElementById('ganttWindowPreviewStatus');
   const frameWrap = document.getElementById('ganttWindowPreviewFrameWrap');
@@ -4398,7 +4403,7 @@ async function loadCurrentUserPermissionOverrides(email) {
 
 // @uat-only begin canManageWeekRelease
 function canManageWeekRelease() {
-  return ['admin', 'pm'].includes(currentRole);
+  return canCurrentUser('week.release');
 }
 // @uat-only end canManageWeekRelease
 
@@ -5746,6 +5751,10 @@ function setupUI__prod() {
   }
   // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated VIP).
   document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
+  // Gantt administration and project creation follow their effective capability, not the role.
+  document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
+  document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
+  document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   
@@ -5803,6 +5812,10 @@ function setupUI__uat() {
   }
   // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated Executive Owner).
   document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
+  // Gantt administration and project creation follow their effective capability, not the role.
+  document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
+  document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
+  document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   syncProjectManagerFilterOptions();
@@ -5834,7 +5847,7 @@ window.jumpToWeek = (...args) => (IS_UAT_PROFILE ? jumpToWeek__uat : jumpToWeek_
 // @profile-group begin win toggleReleaseWeek
 // @profile-variant prod
 const toggleReleaseWeek__prod = async () => {
-  if (!canReadDraftWeeks(currentRole)) return;
+  if (!canCurrentUser('week.release')) return;
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || releaseWriteInProgress) return;
   
@@ -5987,7 +6000,7 @@ function initData__uat(authGeneration, authUser) {
   }
 
   const weeksRef = collection(db, "weeks");
-  const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
+  const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage') || canCurrentUser('week.release')
     ? query(weeksRef, orderBy('weekLabel'))
     : query(weeksRef, where('isReleased', '==', true));
   const ownerUid = authUser?.uid || '';
@@ -9811,7 +9824,7 @@ const render__prod = () => {
             <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             Released
           </span>
-          ${canReadDraftWeeks(currentRole) ? `
+          ${canCurrentUser('week.release') ? `
             <div style="width:1px; height:12px; background:var(--border2);"></div>
             <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
           ` : ''}
@@ -9821,7 +9834,7 @@ const render__prod = () => {
       bannerPills.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
           <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
-          ${canReadDraftWeeks(currentRole) ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to VIP</button>' : ''}
+          ${canCurrentUser('week.release') ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to VIP</button>' : ''}
         </div>
       `;
     }
@@ -9990,7 +10003,7 @@ function renderNormal(projs) {
     const highlightText = p.highlight || 'No updates.';
     const teamEffort = summarizeTeamEffort(p.teamMembers);
     const budgetTotals = projectBudgetTotals(p, overviewCurrency);
-    const canEdit = canEditProject(p);
+    const canEdit = canEditProject(p) || canCurrentUser('project.manage');
     const editIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
 
     return `
@@ -12295,7 +12308,9 @@ window.openProjEdit = (code, isNew = false) => {
   if (isNew && !ganttTemplateSubscriptionReady) return;
   const week = allWeeks[currentIdx];
   if (isWeekReleased(week)) return;
-  if (isNew ? currentRole !== 'admin' : !canEditProject(existingProject)) return;
+  if (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage'))) return;
+  // A project.manage holder who may not edit this project (not its owner/deputy and not Admin) gets a delete-only editor.
+  const manageOnly = !isNew && !canEditProject(existingProject);
   isCreatingNew = isNew;
   editingProjCode = code;
   clearProjectMutationError();
@@ -12387,12 +12402,15 @@ window.openProjEdit = (code, isNew = false) => {
   setResourceValidation('budgetActual');
   
   const actionDiv = document.getElementById('adminProjActions');
-  if (currentRole === 'admin') {
-    actionDiv.style.display = 'block';
-    document.getElementById('pe_btn_delete').style.display = isNew ? 'none' : 'inline-block';
-  } else {
-    actionDiv.style.display = 'none';
+  const canManageProjects = canCurrentUser('project.manage');
+  actionDiv.style.display = currentRole === 'admin' || canManageProjects ? 'block' : 'none';
+  // Visibility stays an Admin-only editor control; Delete follows the project.manage capability.
+  for (const control of [document.getElementById('pe_visibility'), actionDiv.querySelector('label[for="pe_visibility"]')]) {
+    if (control) control.style.display = currentRole === 'admin' ? '' : 'none';
   }
+  document.getElementById('pe_btn_delete').style.display = canManageProjects && !isNew ? 'inline-block' : 'none';
+  document.getElementById('pe_manage_only_note').style.display = manageOnly ? 'block' : 'none';
+  document.getElementById('pe_btn_save').style.display = manageOnly ? 'none' : '';
 
   projectEditorSession = Object.freeze({
     token: `project-editor-${++projectEditorSessionSequence}`,
@@ -12402,6 +12420,7 @@ window.openProjEdit = (code, isNew = false) => {
     authEmail: getEmailKey(currentUser),
     role: currentRole,
     isNew,
+    manageOnly,
     code,
     revisionFingerprint: isNew
       ? null
@@ -12465,6 +12484,7 @@ window.saveProjEdit = async () => {
     );
     return;
   }
+  if (session.manageOnly) return;
   const previousProject = session.originalProject;
   const editorResources = collectEditorResources(previousProject?.resources);
   if (!editorResources) return;
@@ -12592,7 +12612,7 @@ window.deleteProject = async () => {
     );
     return;
   }
-  if (session.role !== 'admin') return;
+  if (!canCurrentUser('project.manage')) return;
   if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
   let transactionResult = null;
 
@@ -12851,11 +12871,12 @@ window.checkMsDates = () => {
 
 // ── USER PERMISSIONS (Admin only) ──
 // One implementation for both profiles. Reads come from Firestore (Admin-readable by rules); every change goes
-// through the Admin-only setUserPermissionOverrides callable, which re-checks the raw role server-side.
+// through the Admin-only setUserPermissionOverrides callable, which re-checks the raw role server-side. The page
+// shows ON/OFF switches only: the role-default + override model stays inside js/user-permissions-admin.mjs.
 let userPermissionsUsers = [];
 let userPermissionsTarget = null;
 let userPermissionsSequence = 0;
-let userPermissionsSaving = false;
+let userPermissionsSaving = null;
 
 function canManageUserPermissions() {
   return canCurrentUser('permissions.manage') && !isAdminVipPreview;
@@ -12865,7 +12886,7 @@ function invalidateUserPermissionsSession() {
   userPermissionsSequence += 1;
   userPermissionsTarget = null;
   userPermissionsUsers = [];
-  userPermissionsSaving = false;
+  userPermissionsSaving = null;
   document.getElementById('userPermissionsOverlay')?.classList.remove('open');
 }
 
@@ -12873,6 +12894,7 @@ function setUserPermissionsMessage(message = '', { type = 'info' } = {}) {
   const target = document.getElementById('userPermissionsMessage');
   target.textContent = message;
   target.classList.toggle('error', type === 'error');
+  target.classList.toggle('success', type === 'success');
 }
 
 function renderUserPermissionsUserOptions(selectedEmail = '') {
@@ -12899,56 +12921,43 @@ function renderUserPermissionsTarget() {
   document.getElementById('userPermissionsEmail').textContent = target.email;
   document.getElementById('userPermissionsRole').textContent = roleLabel(target.role);
 
-  const rows = buildPermissionRows({ role: target.role, stored: target.stored, draft: target.draft });
+  const rows = buildSwitchRows({ role: target.role, stored: target.stored, saving: userPermissionsSaving?.key || '' });
   document.getElementById('userPermissionsRows').replaceChildren(...rows.map(row => {
     const container = document.createElement('div');
     container.className = 'permission-row';
     container.dataset.capability = row.key;
-    const toggle = document.createElement('label');
-    toggle.className = 'permission-toggle';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = row.effective;
-    checkbox.disabled = row.locked || userPermissionsSaving;
-    checkbox.setAttribute('aria-describedby', `userPermissionMeta-${row.key}`);
-    checkbox.addEventListener('change', () => window.toggleUserPermission(row.key, checkbox.checked));
-    const label = document.createElement('span');
-    label.textContent = row.label;
-    toggle.append(checkbox, label);
-    const badge = document.createElement('span');
-    badge.className = `permission-badge ${row.state}`;
-    badge.textContent = row.dirty ? `${row.stateLabel} · unsaved` : row.stateLabel;
-    const meta = document.createElement('div');
-    meta.className = 'permission-meta';
-    meta.id = `userPermissionMeta-${row.key}`;
+    const info = document.createElement('div');
+    info.className = 'permission-info';
+    const name = document.createElement('span');
+    name.className = 'permission-name';
+    name.id = `userPermissionName-${row.key}`;
+    name.textContent = row.label;
     const description = document.createElement('span');
-    description.textContent = row.description;
-    const roleDefault = document.createElement('span');
-    roleDefault.textContent = `Role default: ${row.roleDefault ? 'On' : 'Off'}`;
-    meta.append(description, roleDefault);
-    if (row.lockReason) {
-      const lock = document.createElement('span');
-      lock.textContent = row.lockReason;
-      meta.append(lock);
-    }
-    if (row.canReset) {
-      const reset = document.createElement('button');
-      reset.type = 'button';
-      reset.className = 'btn btn-ghost';
-      reset.textContent = 'Reset';
-      reset.disabled = userPermissionsSaving;
-      reset.setAttribute('aria-label', `Reset ${row.label} to the role default`);
-      reset.addEventListener('click', () => window.resetUserPermission(row.key));
-      meta.append(reset);
-    }
-    container.append(toggle, badge, meta);
+    description.className = 'permission-desc';
+    description.id = `userPermissionDesc-${row.key}`;
+    description.textContent = row.note ? `${row.description} ${row.note}` : row.description;
+    info.append(name, description);
+
+    const toggle = document.createElement('label');
+    toggle.className = `permission-switch${row.saving ? ' saving' : ''}${row.locked ? ' locked' : ''}`;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('role', 'switch');
+    input.setAttribute('aria-labelledby', name.id);
+    input.setAttribute('aria-describedby', description.id);
+    input.checked = row.saving ? userPermissionsSaving.desiredOn : row.on;
+    input.disabled = !row.available || userPermissionsSaving !== null;
+    input.addEventListener('change', () => window.setUserPermissionSwitch(row.key, input.checked));
+    const track = document.createElement('span');
+    track.className = 'permission-track';
+    track.setAttribute('aria-hidden', 'true');
+    const state = document.createElement('span');
+    state.className = 'permission-state';
+    state.textContent = row.saving ? 'Saving…' : `${row.on ? 'ON' : 'OFF'}${row.locked ? ' 🔒' : ''}`;
+    toggle.append(input, track, state);
+    container.append(info, toggle);
     return container;
   }));
-
-  const changes = permissionChanges(target.stored, target.draft);
-  document.getElementById('userPermissionsSaveBtn').disabled = userPermissionsSaving || !Object.keys(changes).length;
-  document.getElementById('userPermissionsResetAllBtn').disabled = userPermissionsSaving
-    || rows.every(row => row.locked || row.draft === null);
 
   const audit = document.getElementById('userPermissionsAudit');
   if (!target.audit.length) {
@@ -12961,7 +12970,7 @@ function renderUserPermissionsTarget() {
     const item = document.createElement('div');
     item.className = 'permission-audit-entry';
     const heading = document.createElement('strong');
-    heading.textContent = `${entry.at ? new Date(entry.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Pending timestamp'} · ${entry.actorEmail}`;
+    heading.textContent = `${entry.at ? new Date(entry.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Just now'} · ${entry.actorEmail}`;
     item.append(heading, ...entry.changes.map(change => {
       const line = document.createElement('div');
       line.textContent = change;
@@ -12976,7 +12985,7 @@ async function loadUserPermissionsAudit(email) {
   return describeAuditEntries(snapshot.docs.map(entry => entry.data()));
 }
 
-// Loads the authoritative stored overrides and recent audit for a user; stale responses are discarded.
+// Loads the authoritative stored settings and recent history for a user; stale responses are discarded.
 async function loadUserPermissionsTarget(user, sequence) {
   const [permissionSnapshot, audit] = await Promise.all([
     getDoc(doc(db, 'userPermissions', user.email)),
@@ -12984,8 +12993,9 @@ async function loadUserPermissionsTarget(user, sequence) {
   ]);
   if (sequence !== userPermissionsSequence || !canManageUserPermissions()) return false;
   const data = permissionSnapshot.exists() ? permissionSnapshot.data() : {};
-  const stored = storedPermissionState(data?.overrides);
-  userPermissionsTarget = { ...user, revision: storedPermissionRevision(data), stored, draft: { ...stored }, audit };
+  userPermissionsTarget = {
+    ...user, revision: storedPermissionRevision(data), stored: storedPermissionState(data?.overrides), audit,
+  };
   renderUserPermissionsTarget();
   return true;
 }
@@ -12995,7 +13005,7 @@ window.openUserPermissions = async () => {
   const sequence = ++userPermissionsSequence;
   userPermissionsTarget = null;
   userPermissionsUsers = [];
-  userPermissionsSaving = false;
+  userPermissionsSaving = null;
   renderUserPermissionsUserOptions();
   renderUserPermissionsTarget();
   setUserPermissionsMessage('Loading dashboard users…');
@@ -13033,50 +13043,29 @@ window.selectUserPermissionsUser = async email => {
   }
 };
 
-function updateUserPermissionsDraft(nextDraft) {
-  if (!canManageUserPermissions() || !userPermissionsTarget || userPermissionsSaving) return;
-  userPermissionsTarget = { ...userPermissionsTarget, draft: nextDraft(userPermissionsTarget.draft) };
-  setUserPermissionsMessage('');
-  renderUserPermissionsTarget();
-}
-
-window.toggleUserPermission = (capability, checked) => {
-  const row = userPermissionsTarget && buildPermissionRows(userPermissionsTarget).find(entry => entry.key === capability);
-  if (!row || row.locked) return;
-  updateUserPermissionsDraft(draft => draftAfterToggle(draft, capability, checked));
-};
-
-window.resetUserPermission = capability => {
-  const row = userPermissionsTarget && buildPermissionRows(userPermissionsTarget).find(entry => entry.key === capability);
-  if (!row || row.locked) return;
-  updateUserPermissionsDraft(draft => draftAfterReset(draft, capability));
-};
-
-window.resetAllUserPermissions = () => {
-  if (!userPermissionsTarget || buildPermissionRows(userPermissionsTarget).some(row => row.locked)) return;
-  updateUserPermissionsDraft(draft => draftAfterResetAll(draft));
-};
-
-window.saveUserPermissions = async () => {
+// One switch change = one audited callable call, saved immediately with the current revision. The switch shows the
+// requested state while saving, then follows the server's answer; any failure puts it back to its previous state.
+window.setUserPermissionSwitch = async (capability, desiredOn) => {
   const target = userPermissionsTarget;
   if (!canManageUserPermissions() || !target || userPermissionsSaving) return;
-  const changes = permissionChanges(target.stored, target.draft);
-  if (!Object.keys(changes).length) return;
+  const change = switchChange(capability, target.role, desiredOn === true);
+  if (!change) {
+    renderUserPermissionsTarget();
+    return;
+  }
   const sequence = userPermissionsSequence;
-  userPermissionsSaving = true;
-  setUserPermissionsMessage('Saving permissions…');
+  userPermissionsSaving = { key: capability, desiredOn: desiredOn === true };
+  setUserPermissionsMessage('Saving…');
   renderUserPermissionsTarget();
   try {
-    const result = await userPermissionsApi.setOverrides({ targetEmail: target.email, expectedRevision: target.revision, changes });
+    const result = await userPermissionsApi.setOverrides({ targetEmail: target.email, expectedRevision: target.revision, changes: change });
     if (sequence !== userPermissionsSequence) return;
-    const stored = storedPermissionState(result?.overrides);
     userPermissionsTarget = {
-      ...target, role: result?.role || target.role, revision: storedPermissionRevision(result), stored, draft: { ...stored },
+      ...target, role: result?.role || target.role, revision: storedPermissionRevision(result), stored: storedPermissionState(result?.overrides),
     };
-    userPermissionsSaving = false;
-    setUserPermissionsMessage(result?.changed ? 'Permissions saved. The user sees the change after reloading the dashboard.' : 'No changes were needed.');
+    userPermissionsSaving = null;
+    setUserPermissionsMessage(result?.changed ? 'Saved. The change applies the next time this person loads the dashboard.' : 'Already up to date.', { type: 'success' });
     renderUserPermissionsTarget();
-    if (result?.changed) showSaveToast('User permissions saved');
     const audit = await loadUserPermissionsAudit(target.email).catch(() => null);
     if (audit && sequence === userPermissionsSequence && userPermissionsTarget?.email === target.email) {
       userPermissionsTarget = { ...userPermissionsTarget, audit };
@@ -13085,7 +13074,7 @@ window.saveUserPermissions = async () => {
   } catch (error) {
     if (sequence !== userPermissionsSequence) return;
     console.error('User Permissions save failed:', error);
-    userPermissionsSaving = false;
+    userPermissionsSaving = null;
     if (isPermissionConflict(error)) {
       const reloadSequence = ++userPermissionsSequence;
       userPermissionsTarget = null;
@@ -13096,10 +13085,10 @@ window.saveUserPermissions = async () => {
         console.error('User Permissions reload failed:', reloadError);
       }
       if (reloadSequence !== userPermissionsSequence) return;
-      setUserPermissionsMessage('Permissions were changed by another Admin. The latest settings have been reloaded; review them before saving again.', { type: 'error' });
+      setUserPermissionsMessage('These settings were changed by someone else. The latest settings are shown; please try again.', { type: 'error' });
       return;
     }
-    setUserPermissionsMessage(getCallableErrorMessage(error, 'Unable to save permissions. Please try again.'), { type: 'error' });
+    setUserPermissionsMessage(getCallableErrorMessage(error, 'Unable to save this change. The switch was put back.'), { type: 'error' });
     renderUserPermissionsTarget();
   }
 };
