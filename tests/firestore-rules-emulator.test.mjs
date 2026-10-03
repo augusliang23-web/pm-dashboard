@@ -369,3 +369,74 @@ test('userPermissionAudit is readable only by Admin and never client-writable', 
     await assertFails(deleteDoc(doc(client, 'userPermissionAudit/seed-audit')));
   }
 });
+
+test('Production permission rules normalize the stored role exactly like the browser, Functions and UAT', async () => {
+  // [account, stored role, normalized Admin?]
+  const cases = [
+    ['role-admin', 'admin', true],
+    ['role-admin-upper', 'ADMIN', true],
+    ['role-admin-padded', ' Admin ', true],
+    ['role-admin-title', 'Admin', true],
+    ['role-pm-upper', 'PM', false],
+    ['role-vip-upper', 'VIP', false],
+    ['role-business-upper', 'BUSINESS', false],
+    ['role-executive-upper', 'EXECUTIVE', false],
+    ['role-unknown', 'contractor', false],
+    ['role-number', 7, false],
+    ['role-array', ['admin'], false],
+    ['role-map', { admin: true }, false],
+  ];
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await Promise.all([
+      ...cases.map(([account, role]) => setDoc(doc(db, `users/${account}@example.com`), { role, displayName: account })),
+      ...cases.map(([account]) => setDoc(doc(db, `userPermissions/${account}@example.com`), { overrides: {}, revision: 0 })),
+      setDoc(doc(db, 'users/role-missing@example.com'), { displayName: 'No role' }),
+      setDoc(doc(db, 'userPermissions/owner@example.com'), { schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1 }),
+      setDoc(doc(db, 'userPermissionAudit/matrix-audit'), {
+        targetEmail: 'owner@example.com', actorEmail: 'admin@example.com', actorUid: 'admin-uid',
+        revisionBefore: 0, revisionAfter: 1, roleAtChange: 'pm',
+        changes: [{ capability: 'week.manage', before: null, after: true }],
+      }),
+      setDoc(doc(db, 'presenceDailyRollups/2026-10-03'), { date: '2026-10-03' }),
+    ]);
+  });
+
+  for (const [account, role, admin] of [...cases, ['role-missing', undefined, false]]) {
+    const client = auth(`${account}-uid`, `${account}@example.com`);
+    const label = `${account} (${JSON.stringify(role)})`;
+    const expect = admin ? assertSucceeds : assertFails;
+    await expect(getDoc(doc(client, 'userPermissions/owner@example.com')), `${label}: other user's permissions`);
+    await expect(getDocs(collection(client, 'userPermissions')), `${label}: list permissions`);
+    await expect(getDoc(doc(client, 'userPermissionAudit/matrix-audit')), `${label}: audit`);
+    await expect(getDocs(query(collection(client, 'userPermissionAudit'), where('targetEmail', '==', 'owner@example.com'))), `${label}: audit query`);
+    await expect(getDoc(doc(client, 'presenceDailyRollups/2026-10-03')), `${label}: Admin presence rollups follow isAdmin()`);
+    // Ordinary dashboard users always read their own permission document.
+    await assertSucceeds(getDoc(doc(client, `userPermissions/${account}@example.com`)), `${label}: own permissions`);
+    for (const write of [
+      setDoc(doc(client, 'userPermissions/owner@example.com'), { overrides: { 'week.manage': false } }),
+      setDoc(doc(client, `userPermissions/${account}@example.com`), { overrides: { 'week.manage': true } }),
+      deleteDoc(doc(client, 'userPermissions/owner@example.com')),
+      setDoc(doc(client, 'userPermissionAudit/forged-matrix'), { targetEmail: 'owner@example.com', changes: [] }),
+      deleteDoc(doc(client, 'userPermissionAudit/matrix-audit')),
+    ]) {
+      await assertFails(write, `${label}: client write`);
+    }
+  }
+});
+
+test('Production presenceSessions still bind the exact stored role, not the normalized one', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'users/upper-admin@example.com'), { role: 'ADMIN', displayName: 'Upper Admin' });
+  });
+  const client = auth('upper-admin-uid', 'upper-admin@example.com');
+  const now = Date.now();
+  const session = (sessionId, role) => ({
+    sessionId, ownerUid: 'upper-admin-uid', userKey: 'upper-admin@example.com', displayName: 'Upper Admin', role,
+    environment: 'v2.1', startedAt: now, lastSeenAt: now, endedAt: null, activeMs: 0, idleMs: 0, state: 'active',
+    endReason: null, aggregatedAt: null, expiresAt: new Date(now + 90 * 24 * 60 * 60 * 1000),
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+  await assertSucceeds(setDoc(doc(client, 'presenceSessions/upper-admin-raw'), session('upper-admin-raw', 'ADMIN')));
+  await assertFails(setDoc(doc(client, 'presenceSessions/upper-admin-normalized'), session('upper-admin-normalized', 'admin')));
+});
