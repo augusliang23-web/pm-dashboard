@@ -81,6 +81,7 @@ test('PM selector treats a stored label as text in both value and caption', () =
     loadOverviewScopeForCurrentUser: () => {},
     updateMasterDataLists: () => {},
     refreshFxRates: () => {},
+    canCurrentUser: () => true,
     escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
   });
   vm.runInContext(sourceBetween('function setupUI(', '// ── DATA ──'), context);
@@ -124,6 +125,7 @@ test('authenticated header renders the stored directory display name', () => {
     loadOverviewScopeForCurrentUser: () => {},
     updateMasterDataLists: () => {},
     refreshFxRates: () => {},
+    canCurrentUser: () => true,
     escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
   });
   vm.runInContext(sourceBetween('function getUserDisplayName(', 'function sectionUpdateLabel('), context);

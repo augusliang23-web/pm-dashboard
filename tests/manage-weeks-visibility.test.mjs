@@ -1,47 +1,52 @@
-// Production Pages least-privilege hotfix (port of canonical main PR #29): the header "Manage Weeks" control and
-// the openWeekManagement() global behind it must be available to the Admin and PM perspectives only. Raw sales/bd
-// map to BUSINESS and raw executive maps to VIP; none of those may see or open it. These tests execute the real
-// Pages getDashboardRole, setupUI, canReadDraftWeeks and openWeekManagement source in a VM.
+// Production Pages port of the canonical main Manage Weeks capability contract (week.manage): the header Manage
+// Weeks control, openWeekManagement(), saveWeekSummary() and createNewWeekFromManage() are available only when the
+// effective week.manage capability is true -- raw-role Admin by default, or any other recognized role with an
+// explicit per-user override. Release / Revert keeps its Admin/PM perspective contract. These tests execute the
+// real Pages getDashboardRole, canCurrentUser, setupUI, initData and Manage Weeks globals in a VM against the real
+// js/permission-registry.mjs resolver.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const pages = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+import { can, normalizePermissionOverrides } from '../js/permission-registry.mjs';
 
-function functionSource(name) {
-  const start = pages.indexOf(`function ${name}(`);
-  const end = pages.indexOf('\n}\n', start);
-  assert.ok(start >= 0 && end > start, `Pages must define ${name}`);
-  return pages.slice(start, end + 2);
+const PAGES = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+
+function sliceBody(startMarker, endMarker) {
+  const start = PAGES.indexOf(startMarker);
+  assert.ok(start >= 0, `Pages must define ${startMarker}`);
+  const end = PAGES.indexOf(endMarker, start);
+  assert.ok(end > start, `Pages must close ${startMarker}`);
+  return PAGES.slice(start, end + endMarker.length);
 }
 
-function openWeekManagementSource() {
-  const start = pages.indexOf('window.openWeekManagement = () => {');
-  const end = pages.indexOf('\n};\n', start);
-  assert.ok(start >= 0 && end > start, 'Pages must define window.openWeekManagement');
-  return pages.slice(start, end + 3);
-}
+const BODIES = {
+  getDashboardRole: sliceBody('function getDashboardRole(', '\n}\n'),
+  canCurrentUser: sliceBody('function canCurrentUser(', '\n}\n'),
+  setupUI: sliceBody('function setupUI(', '\n}\n'),
+  initData: sliceBody('function initData(', '\n}\n'),
+  openWeekManagement: sliceBody('window.openWeekManagement = () => {', '\n};\n'),
+  saveWeekSummary: sliceBody('window.saveWeekSummary = async () => {', '\n};\n'),
+  createNewWeekFromManage: sliceBody('window.createNewWeekFromManage = async () => {', '\n};\n'),
+};
 
 function stubElement(classes = []) {
   return {
-    style: {},
-    textContent: '',
-    innerHTML: '',
-    value: '',
-    disabled: false,
-    dataset: {},
-    className: '',
-    classList: { add() {}, remove() {}, toggle() {} },
-    appendChild() {},
-    __classes: classes,
+    style: {}, textContent: '', innerHTML: '', value: '', disabled: false, dataset: {}, className: '',
+    classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, __classes: classes,
   };
 }
 
 function makeDom() {
   const elements = new Map();
-  // Mirror the Pages markup: the Manage Weeks button carries the vip-hidden class (index.html).
+  // Mirror the Pages markup classes.
   elements.set('manageWeeksBtn', stubElement(['vip-hidden']));
+  elements.set('userPermissionsBtn', stubElement(['admin-only', 'vip-hidden']));
+  elements.set('topPmSelect', stubElement(['vip-hidden']));
+  elements.set('btnOverview', stubElement(['vip-hidden']));
+  elements.set('addProjectBtn', stubElement(['admin-only']));
+  elements.set('ganttTemplateSettingsBtn', stubElement(['admin-only']));
   const element = id => {
     if (!elements.has(id)) elements.set(id, stubElement());
     return elements.get(id);
@@ -49,138 +54,204 @@ function makeDom() {
   const document = {
     getElementById: element,
     createElement: () => stubElement(),
-    querySelectorAll: selector => (selector === '.vip-hidden'
-      ? [...elements.values()].filter(el => el.__classes.includes('vip-hidden'))
-      : []),
+    querySelectorAll: selector => {
+      const cls = selector.startsWith('.') ? selector.slice(1) : '';
+      return cls ? [...elements.values()].filter(el => el.__classes.includes(cls)) : [];
+    },
   };
   return { document, element };
 }
 
-function pagesContext(currentRole) {
+function setupContext(rawRole, overrides = {}) {
   const dom = makeDom();
-  const modalCalls = [];
+  const calls = { modal: [], api: [], loader: [], toast: [], queries: [] };
   const context = vm.createContext({
     window: {},
+    console,
     document: dom.document,
-    currentRole,
-    currentUser: { email: 'tester@example.com' },
-    allWeeks: [{ weekLabel: 'W1 2026', weekDate: 'Jan 1 - Jan 5', summary: '' }],
+    currentRole: 'pm',
+    currentRawRole: null,
+    currentPermissionOverrides: normalizePermissionOverrides(overrides),
+    currentUser: { uid: 'uid', email: 'tester@example.com' },
+    allWeeks: [{ weekLabel: 'W1 2026', weekDate: 'Jan 1 - Jan 5', summary: '', projects: [] }],
     currentIdx: 0,
+    jumpToLatestOnNextRender: false,
     PM_LIST: [],
-    DASHBOARD_RELEASE: 'test',
+    isOverview: false,
+    isAdminVipPreview: false,
+    DASHBOARD_RELEASE: 'v2.1',
     DASHBOARD_BASE_COMMIT: 'test',
-    invalidateProjectEditorSession() {},
-    invalidateGanttTemplateSession() {},
-    invalidateGanttWindowSession() {},
-    loadOverviewScopeForCurrentUser() {},
-    getUserDisplayName: () => 'Tester',
-    getEmailKey: () => 'tester',
-    escHtml: value => value,
-    updateMasterDataLists() {},
-    refreshFxRates() {},
+    canWithPermissions: can,
+    invalidateProjectEditorSession() {}, invalidateGanttTemplateSession() {}, invalidateGanttWindowSession() {},
+    loadOverviewScopeForCurrentUser() {}, getUserDisplayName: () => 'Tester', getEmailKey: user => user?.email || 'tester',
+    escHtml: value => value, updateMasterDataLists() {}, refreshFxRates() {},
     setWeeklySummaryValidation() {},
+    normalizeWeeklySummaryForSave: () => ({ ok: true, canonicalText: 'Summary', corrections: [] }),
+    summaryProjectContext: () => ({}),
+    showWeeklySummaryCorrections() {},
     getIsoWeekData: () => ({ label: 'W2 2026', dateStr: 'Jan 8 - Jan 12' }),
     updateCopilotPrompt() {},
-    openAccessibleModal: overlay => modalCalls.push(overlay),
+    openAccessibleModal: overlay => calls.modal.push(overlay),
+    closeModal() {},
+    showLoader: text => calls.loader.push(`show:${text}`),
+    hideLoader: () => calls.loader.push('hide'),
+    showSaveToast: (message, options) => calls.toast.push({ message, type: options?.type || 'success' }),
+    getCallableErrorMessage: (_error, fallback) => fallback,
+    setTimeout: callback => callback(),
+    projectDashboardApi: {
+      saveWeekFields: async data => { calls.api.push(['saveWeekFields', data]); return {}; },
+      createWeek: async data => { calls.api.push(['createWeek', data]); return { week: { weekLabel: data.weekLabel } }; },
+    },
+    weeksUnsub: null,
+    authSessionGeneration: 1,
+    db: {},
+    collection: (_db, name) => ({ collection: name }),
+    query: (ref, constraint) => ({ ...ref, constraint }),
+    where: (field, operator, value) => ({ type: 'where', field, operator, value }),
+    orderBy: field => ({ type: 'orderBy', field }),
+    isAuthInitializationCurrent: () => true,
+    onSnapshot: ref => { calls.queries.push(ref); return () => {}; },
   });
   context.window.updateWmDate = () => {};
-  vm.runInContext(`${functionSource('canReadDraftWeeks')}\n${functionSource('setupUI')}\n${openWeekManagementSource()}\nthis.setupUI = setupUI; this.canReadDraftWeeks = canReadDraftWeeks;`, context);
-  return { context, dom, modalCalls };
+  vm.runInContext([
+    ...Object.values(BODIES),
+    'this.setupUI = setupUI; this.getDashboardRole = getDashboardRole; this.canCurrentUser = canCurrentUser; this.initData = initData;',
+  ].join('\n'), context);
+  context.currentRole = context.getDashboardRole({ exists: () => true, data: () => ({ role: rawRole }) });
+  return { context, dom, calls };
 }
 
-function resolvePerspective(rawRole) {
-  const context = vm.createContext({});
-  const rawRoleState = pages.match(/^let currentRawRole = [^\n]+;$/m)?.[0] || '';
-  vm.runInContext(`${rawRoleState}\n${functionSource('normalizeRole')}\n${functionSource('getDashboardRole')}\nthis.resolveRole = getDashboardRole;`, context);
-  return context.resolveRole({ exists: () => true, data: () => ({ role: rawRole }) });
-}
-
-// Raw Firestore role -> expected Pages perspective -> whether Manage Weeks may be shown/opened.
+// [raw Firestore role, overrides, expected effective week.manage]. Admin keeps week.manage even with stale false;
+// every other recognized role -- including VIP and Executive Owner -- needs an explicit boolean true.
 const MATRIX = [
-  ['admin', 'admin', true],
-  ['pm', 'pm', true],
-  ['sales', 'business', false],
-  ['bd', 'business', false],
-  ['business', 'business', false],
-  ['engineering', 'engineering', false],
-  ['product', 'product', false],
-  ['executive', 'vip', false],
-  ['vip', 'vip', false],
+  ['admin', {}, true],
+  ['admin', { 'week.manage': false }, true],
+  ['ADMIN', {}, true],
+  ['pm', {}, false],
+  ['pm', { 'week.manage': false }, false],
+  ['pm', { 'week.manage': true }, true],
+  ['pm', { 'week.manage': 'true' }, false],
+  ['engineering', {}, false],
+  ['engineering', { 'week.manage': true }, true],
+  ['sales', {}, false],
+  ['sales', { 'week.manage': true }, true],
+  ['bd', { 'week.manage': true }, true],
+  ['business', {}, false],
+  ['business', { 'week.manage': true }, true],
+  ['product', { 'week.manage': true }, true],
+  ['vip', {}, false],
+  ['vip', { 'week.manage': true }, true],
+  ['executive', {}, false],
+  ['executive', { 'week.manage': true }, true],
 ];
+const label = (role, overrides) => `pages ${role} ${JSON.stringify(overrides)}`;
 
-test('the Pages Manage Weeks button is addressable and still part of the vip-hidden header markup', () => {
-  assert.match(pages, /<button id="manageWeeksBtn" class="btn-icon vip-hidden" onclick="openWeekManagement\(\)" title="Manage Weeks">/);
+test('the Pages Manage Weeks button keeps its vip-hidden header markup', () => {
+  assert.match(PAGES, /<button id="manageWeeksBtn" class="btn-icon vip-hidden" onclick="openWeekManagement\(\)"/);
 });
 
-test('Pages raw roles keep mapping to the intended perspective (sales/bd -> business, executive -> vip)', () => {
-  for (const [raw, perspective] of MATRIX) {
-    assert.equal(resolvePerspective(raw), perspective, `raw role ${raw}`);
-  }
-});
-
-test('canReadDraftWeeks allows only the admin and pm perspectives and fails closed otherwise', () => {
-  const { context } = pagesContext('pm');
-  for (const [raw, perspective, allowed] of MATRIX) {
-    assert.equal(context.canReadDraftWeeks(perspective), allowed, `${raw} (${perspective})`);
-  }
-  for (const role of ['pending', '', undefined, null, 'sales', 'bd', 'executive', 'PM', ' admin ']) {
-    assert.equal(context.canReadDraftWeeks(role), false, `${JSON.stringify(role)} must not read draft weeks`);
-  }
-});
-
-test('Pages setupUI shows Manage Weeks to Admin and PM only', () => {
-  for (const [raw, , visible] of MATRIX) {
-    const perspective = resolvePerspective(raw);
-    const { context, dom } = pagesContext(perspective);
+test('Pages setupUI shows Manage Weeks only for effective week.manage', () => {
+  for (const [role, overrides, allowed] of MATRIX) {
+    const { context, dom } = setupContext(role, overrides);
     context.setupUI();
-    const display = dom.element('manageWeeksBtn').style.display;
-    if (visible) assert.equal(display, '', `${raw} (${perspective}) must see Manage Weeks`);
-    else assert.equal(display, 'none', `${raw} (${perspective}) must not see Manage Weeks`);
+    assert.equal(dom.element('manageWeeksBtn').style.display, allowed ? '' : 'none', label(role, overrides));
   }
 });
 
-test('Pages setupUI re-hides Manage Weeks after a privileged session switches to a lower role', () => {
-  const { context, dom } = pagesContext('pm');
+test('Pages setupUI re-hides Manage Weeks when a delegated session is replaced by one without the override', () => {
+  const { context, dom } = setupContext('pm', { 'week.manage': true });
   context.setupUI();
   assert.equal(dom.element('manageWeeksBtn').style.display, '');
-  context.currentRole = 'business';
+  context.currentPermissionOverrides = {};
   context.setupUI();
   assert.equal(dom.element('manageWeeksBtn').style.display, 'none');
 });
 
-test('Pages openWeekManagement fails closed for every non-Admin/PM perspective without opening the modal', () => {
-  for (const [raw, , allowed] of MATRIX) {
-    const perspective = resolvePerspective(raw);
-    const { context, dom, modalCalls } = pagesContext(perspective);
-    assert.doesNotThrow(() => context.window.openWeekManagement(), `${raw} direct call must not throw`);
+test('no signed-in user resolves no capability, even with a stale Admin raw role', () => {
+  const { context } = setupContext('admin');
+  context.currentUser = null;
+  assert.equal(context.canCurrentUser('week.manage'), false);
+  assert.equal(context.canCurrentUser('permissions.manage'), false);
+});
+
+test('Pages Manage Weeks entry points open or write only with effective week.manage and fail closed otherwise', async () => {
+  for (const [role, overrides, allowed] of MATRIX) {
+    const { context, dom, calls } = setupContext(role, overrides);
+    assert.doesNotThrow(() => context.window.openWeekManagement());
+    dom.element('wm_nw_label').value = 'W2 2026';
+    await context.window.saveWeekSummary();
+    await context.window.createNewWeekFromManage();
     if (allowed) {
-      assert.equal(modalCalls.length, 1, `${raw} (${perspective}) keeps the existing open behavior`);
-      assert.equal(modalCalls[0], dom.element('weekManageOverlay'));
+      assert.equal(calls.modal.length, 1, label(role, overrides));
+      assert.deepEqual(calls.api.map(([name]) => name), ['saveWeekFields', 'createWeek'], label(role, overrides));
     } else {
-      assert.deepEqual(modalCalls, [], `${raw} (${perspective}) must not open weekManageOverlay`);
-      assert.equal(dom.element('wm_current_title').textContent, '', `${raw} must not populate the week editor`);
+      assert.deepEqual(calls.modal, [], label(role, overrides));
+      assert.deepEqual(calls.api, [], label(role, overrides));
+      assert.deepEqual(calls.loader, [], `${label(role, overrides)} must not show a loader`);
+      assert.equal(dom.element('wm_current_title').textContent, '', `${label(role, overrides)} must not populate the editor`);
+      assert.equal(context.jumpToLatestOnNextRender, false);
     }
   }
 });
 
-test('openWeekManagement is also closed while the session is pending or signed out of a role', () => {
-  const { context, modalCalls } = pagesContext('pending');
-  context.window.openWeekManagement();
-  assert.deepEqual(modalCalls, []);
+test('each Pages Manage Weeks entry point checks week.manage before touching any state', () => {
+  for (const name of ['openWeekManagement', 'saveWeekSummary', 'createNewWeekFromManage']) {
+    const lines = BODIES[name].split('\n');
+    assert.equal(lines[1].trim(), "if (!canCurrentUser('week.manage')) return;", `${name} guard must be the first statement`);
+    assert.doesNotMatch(BODIES[name], /canReadDraftWeeks/);
+  }
+  assert.match(BODIES.setupUI, /document\.getElementById\('manageWeeksBtn'\)\.style\.display = canCurrentUser\('week\.manage'\) \? '' : 'none';/);
 });
 
-test('the guard is the first statement, precedes any week-state access and adds no error flow', () => {
-  const source = openWeekManagementSource();
-  const guard = 'if (!canReadDraftWeeks(currentRole)) return;';
-  const guardIndex = source.indexOf(guard);
-  assert.ok(guardIndex >= 0, 'openWeekManagement must check canReadDraftWeeks(currentRole)');
-  assert.equal(source.slice(0, guardIndex).replace(/window\.openWeekManagement = \(\) => \{\s*/, ''), '', 'guard must be the first statement');
-  assert.ok(guardIndex < source.indexOf('allWeeks[currentIdx]'));
-  assert.doesNotMatch(source.slice(0, guardIndex + guard.length), /alert|showSaveToast|showAuthError/);
+test('a delegated VIP/Executive sees Manage Weeks but keeps the VIP perspective and no Admin controls', () => {
+  for (const role of ['vip', 'executive']) {
+    for (const granted of [true, false]) {
+      const { context, dom } = setupContext(role, granted ? { 'week.manage': true } : {});
+      context.setupUI();
+      const name = `${role} granted=${granted}`;
+      assert.equal(context.currentRole, 'vip', name);
+      assert.equal(dom.element('manageWeeksBtn').style.display, granted ? '' : 'none', name);
+      for (const id of ['addProjectBtn', 'ganttTemplateSettingsBtn', 'userPermissionsBtn', 'presenceUsageBtn']) {
+        assert.equal(dom.element(id).style.display, 'none', `${name}: ${id} stays hidden`);
+      }
+      assert.equal(context.isOverview, true, name);
+      assert.equal(dom.element('normalView').style.display, 'none', name);
+      assert.equal(dom.element('execView').style.display, 'block', name);
+      assert.equal(dom.element('topPmSelect').style.display, 'none', `${name}: other vip-hidden controls stay hidden`);
+    }
+  }
 });
 
-test('only Admin can re-show the button through the VIP preview toggle', () => {
-  const start = pages.indexOf('window.toggleVipPreview = () => {');
-  assert.ok(start >= 0, 'Pages must define toggleVipPreview');
-  assert.match(pages.slice(start, start + 120), /if \(currentRole !== 'admin'\) return;/);
+test('Pages week query keeps the legacy all-weeks baseline and adds drafts only for a delegated VIP perspective', () => {
+  const ALL = { type: 'orderBy', field: 'weekLabel' };
+  const RELEASED = { type: 'where', field: 'isReleased', operator: '==', value: true };
+  for (const [role, overrides, allowed] of MATRIX) {
+    const { context, calls } = setupContext(role, overrides);
+    context.initData(1, context.currentUser);
+    const baseline = !['vip', 'executive'].includes(role);
+    assert.deepEqual(calls.queries.find(ref => ref.collection === 'weeks').constraint, baseline || allowed ? ALL : RELEASED, label(role, overrides));
+  }
+});
+
+test('Release / Revert keeps the Admin/PM perspective contract and is not folded into week.manage', () => {
+  const toggle = sliceBody('window.toggleReleaseWeek = async () => {', '\n};\n');
+  assert.equal(toggle.split('\n')[1].trim(), 'if (!canReadDraftWeeks(currentRole)) return;');
+  assert.doesNotMatch(toggle, /week\.manage/);
+  assert.match(PAGES, /\$\{canReadDraftWeeks\(currentRole\) \? '<button class="btn btn-primary" onclick="toggleReleaseWeek\(\)"/);
+  assert.match(sliceBody('function canReadDraftWeeks(', '\n}\n'), /return role === 'admin' \|\| role === 'pm';/);
+});
+
+test('Pages declares the permission state, helpers and registry import at module scope', () => {
+  for (const declaration of [
+    /^let currentRawRole = null;$/m,
+    /^let currentPermissionOverrides = \{\};$/m,
+    /^function canCurrentUser\(capability\) \{$/m,
+    /^function resetCurrentUserPermissions\(\) \{$/m,
+    /^async function loadCurrentUserPermissionOverrides\(email\) \{$/m,
+    /^import \{ can as canWithPermissions, normalizePermissionOverrides \} from "\.\/js\/permission-registry\.mjs";$/m,
+  ]) {
+    assert.match(PAGES, declaration);
+  }
+  assert.equal(PAGES.split('resetCurrentUserPermissions();').length - 1, 1);
+  assert.equal(PAGES.split('currentPermissionOverrides = permissionOverrides;').length - 1, 1);
 });
