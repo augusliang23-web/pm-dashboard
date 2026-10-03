@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 import { authorizeExecutiveAudienceView } from '../pdf-service/src/report-access.js';
+import { can } from '../js/permission-registry.mjs';
 
 const pages = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const validRoles = [
@@ -89,11 +90,13 @@ for (const [raw, , expectedView] of validRoles) {
   });
 }
 
-function weekQueryFor(raw) {
+function weekQueryFor(raw, permissionOverrides = {}) {
   const context = roleContext();
   context.currentRole = context.resolveRole(userDoc(raw));
   let selectedQuery;
   Object.assign(context, {
+    canWithPermissions: can,
+    currentPermissionOverrides: permissionOverrides,
     weeksUnsub: null,
     db: {},
     currentUser: { uid: 'test-uid', email: 'role@example.test' },
@@ -106,7 +109,7 @@ function weekQueryFor(raw) {
     isAuthInitializationCurrent: () => true,
     onSnapshot: value => { selectedQuery = value; return () => {}; },
   });
-  vm.runInContext(`${functionSource('initData')}\ninitData(1, currentUser);`, context);
+  vm.runInContext(`${functionSource('canCurrentUser')}\n${functionSource('initData')}\ninitData(1, currentUser);`, context);
   return selectedQuery;
 }
 
@@ -122,6 +125,16 @@ test('Pages runtime query keeps VIP/executive released-only and other approved r
       source: { collection: 'weeks' },
       constraint: { type: 'orderBy', field: 'weekLabel' },
     }, `raw ${JSON.stringify(raw)} retains the legacy all-weeks subscription`);
+  }
+});
+
+test('Pages VIP/Executive holding week.manage load the draft weeks Manage Weeks operates on', () => {
+  for (const raw of ['vip', 'executive', ' Executive ']) {
+    assert.deepEqual(weekQueryFor(raw, { 'week.manage': true }).constraint, { type: 'orderBy', field: 'weekLabel' }, `${raw} + week.manage`);
+    for (const overrides of [{ 'week.manage': false }, { 'week.manage': 'true' }, { 'permissions.manage': true }]) {
+      assert.deepEqual(weekQueryFor(raw, overrides).constraint, { type: 'where', field: 'isReleased', operator: '==', value: true },
+        `${raw} ${JSON.stringify(overrides)} stays released-only`);
+    }
   }
 });
 
