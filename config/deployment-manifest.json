@@ -15,7 +15,8 @@
         "saveDashboardWeekFields",
         "createDashboardWeek",
         "saveDashboardGanttTemplateSettings",
-        "saveDashboardGanttWindowSettings"
+        "saveDashboardGanttWindowSettings",
+        "setUserPermissionOverrides"
       ],
       "functionsPreserveExisting": [
         "addExecutiveMilestoneUpdate",
@@ -32,9 +33,6 @@
           "syncProductionWeeksToUat",
           "getProductionWeekSyncStatus",
           "restoreUatWeeksSnapshot"
-        ],
-        "userPermissionsPendingProductionGate": [
-          "setUserPermissionOverrides"
         ]
       }
     },
@@ -72,10 +70,10 @@
   },
   "notes": [
     "This manifest is a source-of-truth allowlist only. It does not grant, prove, or perform any deployment.",
-    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11) plus the shared presence scheduler.",
+    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11), the Admin User Permissions Callable setUserPermissionOverrides, and the shared presence scheduler. Being managed does not authorize deploying them together: each Production release deploys only its reviewed, explicitly named selector.",
     "Production's functionsPreserveExisting explicitly permits the eight existing Executive Functions to remain live, but does not authorize deploying, updating, or deleting them as part of Core Production. Executive has a separate future release/security gate.",
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
-    "setUserPermissionOverrides (Admin User Permissions) is UAT-first: Production lists it under functionsNeverDeploy.userPermissionsPendingProductionGate until a separate Control Plane promotion moves it to the Production allowlist together with its pmdash-user-perms@ runtime identity.",
+    "setUserPermissionOverrides (Admin User Permissions) was UAT-first and is promoted to the Production allowlist by the User Permissions Production promotion candidate. Its first Production deployment requires the pmdash-user-perms@ runtime identity (roles/datastore.user only, no keys) to exist before deploy; see docs/production-user-permissions-promotion.md.",
     "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization."
   ]
 }
