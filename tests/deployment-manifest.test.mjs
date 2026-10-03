@@ -24,7 +24,7 @@ test('the manifest is fully consistent with functions/index.js, hosting targets,
 test('every source Function has exactly one managed, preserved, or forbidden policy', async () => {
   const indexSource = await readFile(join(repoRoot, 'functions', 'index.js'), 'utf8');
   const sourceExports = [...indexSource.matchAll(/^exports\.([A-Za-z0-9_]+)\s*=/gm)].map(m => m[1]).sort();
-  assert.equal(sourceExports.length, 20, 'sanity: functions/index.js export count changed; update this test deliberately');
+  assert.equal(sourceExports.length, 21, 'sanity: functions/index.js export count changed; update this test deliberately');
 
   for (const name of ENVIRONMENTS) {
     const env = manifest.environments[name];
@@ -71,7 +71,7 @@ test('Production keeps exactly the eight-function dashboard write/Gantt contract
 });
 
 test('UAT allows every function; nothing is silently excluded there', () => {
-  assert.equal(functionsAllowlistFor(manifest, 'uat').length, 20);
+  assert.equal(functionsAllowlistFor(manifest, 'uat').length, 21);
   assert.deepEqual(manifest.environments.uat.functionsPreserveExisting, []);
   assert.deepEqual(manifest.environments.uat.functionsNeverDeploy, {});
 });
@@ -195,4 +195,12 @@ test('no source file builds a bare "firebase deploy --only functions" or an unsc
 test('this module never exposes a way to actually run a Functions deploy (source contains no deploy invocation)', async () => {
   const source = await readFile(join(repoRoot, 'scripts', 'deployment-manifest.mjs'), 'utf8');
   assert.doesNotMatch(source, /child_process|spawn|execFile|exec\(/, 'deployment-manifest.mjs must stay a pure allowlist/validator, not a deploy runner');
+});
+
+test('the Admin permission callable is UAT-managed and fail-closed for Production until its promotion gate', () => {
+  const prod = manifest.environments.prod;
+  assert.ok(functionsAllowlistFor(manifest, 'uat').includes('setUserPermissionOverrides'));
+  assert.ok(!functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
+  assert.deepEqual(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, ['setUserPermissionOverrides']);
+  assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides']), DeploymentManifestError);
 });

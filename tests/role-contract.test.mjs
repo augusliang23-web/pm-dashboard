@@ -9,10 +9,9 @@ import { dashboardSource } from './helpers/dashboard-source.mjs';
 
 const production = dashboardSource('production');
 const uat = dashboardSource('uat');
-// Frozen UAT rendering. Last deliberately changed by the week.manage permission foundation (Manage Weeks
-// capability guards, userPermissions override loading, delegated draft-week query, Create Week error recovery);
-// any other UAT drift fails.
-const originalUatHash = '2569336eb2580d557856614ad740649ca08f0317e8eee36b01be22f46a17da33';
+// Frozen UAT rendering. Last deliberately changed by the Admin User Permissions page (entry point, overlay,
+// Admin-only permission callable wiring) on top of the week.manage permission foundation; any other UAT drift fails.
+const originalUatHash = '68bedca5d012d9d1600bdcae54bab126d0ba87ed723fe331eb7577a13c5786d0';
 
 const validRoles = new Map([
   ['admin', 'admin'],

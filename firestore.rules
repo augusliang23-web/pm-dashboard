@@ -11,14 +11,30 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
     }
 
+    // Match the browser/Functions role contract; non-string and unknown values fail closed.
+    // trim()/lower() are supported Firebase Rules String methods.
+    function normalizeDashboardRole(role) {
+      let value = role is string ? role.trim().lower() : '';
+      return value in ['admin', 'pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']
+        ? value : '';
+    }
+
+    // Exact stored role. Production presenceSessions must record it byte-for-byte (Production role contract),
+    // so this stays un-normalized; authorization decisions use normalizedDashboardRole().
     function dashboardRole() {
       return hasDashboardAccess()
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
         : '';
     }
 
+    function normalizedDashboardRole() {
+      return hasDashboardAccess()
+        ? normalizeDashboardRole(get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.get('role', ''))
+        : '';
+    }
+
     function isAdmin() {
-      return dashboardRole() == 'admin';
+      return normalizedDashboardRole() == 'admin';
     }
 
     function hasBoundedString(data, key, maximumLength) {
@@ -191,6 +207,13 @@ service cloud.firestore {
     match /userPermissions/{email} {
       allow read: if hasDashboardAccess()
         && (request.auth.token.email == email || isAdmin());
+      allow write: if false;
+    }
+
+    // Permission-change audit trail, written only by the Admin permission callable in the same transaction
+    // as the userPermissions change. Admin-readable; no client may create, change or delete records.
+    match /userPermissionAudit/{auditId} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 
