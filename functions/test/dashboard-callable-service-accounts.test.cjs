@@ -12,9 +12,10 @@ const expectedServiceAccounts = {
   createDashboardWeek: 'pmdash-create-week@',
   saveDashboardGanttTemplateSettings: 'pmdash-gantt-template@',
   saveDashboardGanttWindowSettings: 'pmdash-gantt-window@',
+  setUserPermissionOverrides: 'pmdash-user-perms@',
 };
 
-test('all eight dashboard handlers are exported with their exact runtime service account', () => {
+test('every dashboard handler, including the Admin permission callable, is exported with its exact runtime service account', () => {
   for (const [name, serviceAccountEmail] of Object.entries(expectedServiceAccounts)) {
     assert.equal(typeof functions[name], 'function', `${name} must be exported`);
     assert.equal(functions[name].__endpoint.serviceAccountEmail, serviceAccountEmail, `${name} service account`);

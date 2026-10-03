@@ -41,3 +41,11 @@ test("userPermissions overrides are self/Admin readable and never client-writabl
   assert.match(block, /allow write:\s*if false;/);
   assert.doesNotMatch(block, /allow (create|update|delete)/);
 });
+
+test("userPermissionAudit is Admin-readable and never client-writable", async () => {
+  const rules = await readRules();
+  const block = rules.match(/match\s+\/userPermissionAudit\/\{auditId\}\s*\{([\s\S]*?)\n    \}/)?.[1] || '';
+  assert.match(block, /allow read:\s*if isAdmin\(\);/);
+  assert.match(block, /allow write:\s*if false;/);
+  assert.doesNotMatch(block, /allow (create|update|delete)|request\.auth\.token\.email/);
+});

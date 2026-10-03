@@ -11,16 +11,21 @@ const KNOWN_ROLES = Object.freeze([
 // roleDefaults: roles that hold the capability without an override.
 // delegable: whether a per-user override may change the role default.
 // grantableRoles: roles that an explicit `true` override may enable (never 'admin').
+// label/description: reviewed Admin-facing presentation for the User Permissions page.
 const CAPABILITIES = Object.freeze({
   // Manage Weeks workflow: open Week Management, Copilot prompt, Weekly Summary save, Create Next Week.
   // Excludes Production -> UAT sync/restore, week release, strategy layer and Executive governance.
   'week.manage': Object.freeze({
+    label: 'Manage Weeks',
+    description: 'Open Week Management, copy the Copilot prompt, save the Weekly Summary and create the next reporting week.',
     roleDefaults: Object.freeze(['admin']),
     delegable: true,
     grantableRoles: Object.freeze(['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']),
   }),
   // Reserved: only raw-role Admin may manage user permissions. Never delegable.
   'permissions.manage': Object.freeze({
+    label: 'Manage user permissions',
+    description: 'Raw-role Admin only.',
     roleDefaults: Object.freeze(['admin']),
     delegable: false,
     grantableRoles: Object.freeze([]),

@@ -194,6 +194,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Permission-change audit trail, written only by the Admin permission callable in the same transaction
+    // as the userPermissions change. Admin-readable; no client may create, change or delete records.
+    match /userPermissionAudit/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /weeks/{weekId} {
       allow read: if hasDashboardAccess();
       allow write: if false;

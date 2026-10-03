@@ -32,6 +32,9 @@
           "syncProductionWeeksToUat",
           "getProductionWeekSyncStatus",
           "restoreUatWeeksSnapshot"
+        ],
+        "userPermissionsPendingProductionGate": [
+          "setUserPermissionOverrides"
         ]
       }
     },
@@ -60,7 +63,8 @@
         "setExecutiveRagOverride",
         "syncProductionWeeksToUat",
         "getProductionWeekSyncStatus",
-        "restoreUatWeeksSnapshot"
+        "restoreUatWeeksSnapshot",
+        "setUserPermissionOverrides"
       ],
       "functionsPreserveExisting": [],
       "functionsNeverDeploy": {}
@@ -71,6 +75,7 @@
     "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11) plus the shared presence scheduler.",
     "Production's functionsPreserveExisting explicitly permits the eight existing Executive Functions to remain live, but does not authorize deploying, updating, or deleting them as part of Core Production. Executive has a separate future release/security gate.",
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
+    "setUserPermissionOverrides (Admin User Permissions) is UAT-first: Production lists it under functionsNeverDeploy.userPermissionsPendingProductionGate until a separate Control Plane promotion moves it to the Production allowlist together with its pmdash-user-perms@ runtime identity.",
     "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization."
   ]
 }

@@ -214,6 +214,26 @@ button[aria-busy="true"] { cursor:wait; }
 .gantt-template-panel { padding:14px; border:1px solid var(--border); border-radius:9px; background:var(--s2); }
 .gantt-template-panel h4 { margin:0 0 5px; font-size:13px; }
 .gantt-template-note { margin:0 0 12px; color:var(--muted); font-size:11px; line-height:1.45; }
+.permission-identity { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:4px 0 18px; }
+.permission-identity dt { font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+.permission-identity dd { margin:2px 0 0; font-size:13px; color:var(--text); overflow-wrap:anywhere; }
+.permission-heading { margin:0 0 10px; font-size:13px; font-weight:700; color:var(--text); }
+.permission-rows { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+.permission-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:6px 12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.permission-toggle { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; }
+.permission-toggle input:disabled + span { color:var(--text-light); }
+.permission-badge { justify-self:end; padding:2px 8px; border-radius:999px; border:1px solid var(--border2); font-size:11px; font-weight:600; color:var(--text-light); white-space:nowrap; }
+.permission-badge.custom-enabled { color:var(--accent-hov); border-color:var(--accent); }
+.permission-badge.custom-disabled { color:var(--red); border-color:var(--red); }
+.permission-meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; font-size:11px; color:var(--text-light); }
+.permission-meta .btn { padding:2px 8px; font-size:11px; }
+.permission-message { min-height:18px; font-size:12px; color:var(--text-light); margin-bottom:12px; }
+.permission-message.error { color:var(--red); }
+.permission-actions { display:flex; justify-content:flex-end; gap:10px; margin-bottom:20px; }
+.permission-audit { display:flex; flex-direction:column; gap:8px; font-size:12px; color:var(--text-light); }
+.permission-audit-entry { padding:8px 10px; border-left:3px solid var(--border2); background:var(--s2); }
+.permission-audit-entry strong { color:var(--text); font-weight:600; }
+@media (max-width: 640px) { .permission-identity { grid-template-columns:1fr; } }
 .gantt-template-list { display:flex; flex-direction:column; gap:7px; }
 .gantt-template-row { display:grid; grid-template-columns:minmax(0,1fr) 32px 32px 34px; gap:6px; align-items:center; }
 .gantt-template-row .fi { min-width:0; }
@@ -2374,6 +2394,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="ganttWindowSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttWindowSettings()" title="PDF Gantt Display Window" aria-label="Manage PDF Gantt display window">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="14" y2="14"/></svg>
       </button>
+      <button id="userPermissionsBtn" class="btn-icon admin-only vip-hidden executive-hidden" style="display:none;" onclick="openUserPermissions()" title="User Permissions" aria-label="Manage user permissions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><circle cx="12" cy="10" r="2.5"/><path d="M8 16.5c.8-1.8 2.3-2.8 4-2.8s3.2 1 4 2.8"/></svg>
+      </button>
     </div>
     
     <div class="user-block">
@@ -2993,6 +3016,36 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
+<div class="overlay" id="userPermissionsOverlay" role="dialog" aria-modal="true" aria-labelledby="userPermissionsTitle">
+  <div class="modal" style="width:760px">
+    <div class="modal-hdr">
+      <h3 id="userPermissionsTitle">User Permissions</h3>
+      <button class="modal-x" type="button" onclick="closeModal('userPermissionsOverlay')" aria-label="Close user permissions">×</button>
+    </div>
+    <p class="gantt-template-note">Each user keeps their role's permissions by default. A custom setting applies to that user only and never changes their role.</p>
+    <div class="fg">
+      <label class="fl" for="userPermissionsUserSelect">User</label>
+      <select class="fs" id="userPermissionsUserSelect" onchange="selectUserPermissionsUser(this.value)"></select>
+    </div>
+    <div id="userPermissionsMessage" class="permission-message" role="status" aria-live="polite"></div>
+    <div id="userPermissionsDetail" hidden>
+      <dl class="permission-identity">
+        <div><dt>Name</dt><dd id="userPermissionsName"></dd></div>
+        <div><dt>Email</dt><dd id="userPermissionsEmail"></dd></div>
+        <div><dt>Role</dt><dd id="userPermissionsRole"></dd></div>
+      </dl>
+      <h4 class="permission-heading">Feature Permissions</h4>
+      <div id="userPermissionsRows" class="permission-rows"></div>
+      <div class="permission-actions">
+        <button id="userPermissionsResetAllBtn" class="btn btn-ghost" type="button" onclick="resetAllUserPermissions()">Reset to role defaults</button>
+        <button id="userPermissionsSaveBtn" class="btn btn-primary" type="button" onclick="saveUserPermissions()">Save changes</button>
+      </div>
+      <h4 class="permission-heading">Recent Changes</h4>
+      <div id="userPermissionsAudit" class="permission-audit"></div>
+    </div>
+  </div>
+</div>
+
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
@@ -3006,6 +3059,7 @@ import { createExecutiveApi } from "./js/executive-api.mjs";
 import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
 import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs?v=vip-readonly-1";
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
+import { buildPermissionRows, createUserPermissionsApi, describeAuditEntries, draftAfterReset, draftAfterResetAll, draftAfterToggle, isPermissionConflict, permissionChanges, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
@@ -3041,6 +3095,7 @@ if (localEmulator) {
 }
 const executiveApi = createExecutiveApi({ functions, httpsCallable });
 const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });
+const userPermissionsApi = createUserPermissionsApi({ functions, httpsCallable });
 const uatProductionSyncApi = createUatProductionSyncApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
@@ -4327,6 +4382,7 @@ function canCurrentUser(capability) {
 function resetCurrentUserPermissions() {
   currentRawRole = null;
   currentPermissionOverrides = {};
+  invalidateUserPermissionsSession();
 }
 
 // Fails closed to role defaults: a missing document, denied read or malformed data grants nothing extra.
@@ -5690,6 +5746,8 @@ function setupUI__prod() {
   }
   // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated VIP).
   document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
+  // permissions.manage is raw-role Admin only and never delegable.
+  document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
@@ -5745,6 +5803,8 @@ function setupUI__uat() {
   }
   // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated Executive Owner).
   document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
+  // permissions.manage is raw-role Admin only and never delegable.
+  document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   syncProjectManagerFilterOptions();
   updateMasterDataLists();
   refreshExecutivePendingCount();
@@ -12787,6 +12847,261 @@ window.checkMsDates = () => {
       prevDate = currDate;
     }
   });
+};
+
+// ── USER PERMISSIONS (Admin only) ──
+// One implementation for both profiles. Reads come from Firestore (Admin-readable by rules); every change goes
+// through the Admin-only setUserPermissionOverrides callable, which re-checks the raw role server-side.
+let userPermissionsUsers = [];
+let userPermissionsTarget = null;
+let userPermissionsSequence = 0;
+let userPermissionsSaving = false;
+
+function canManageUserPermissions() {
+  return canCurrentUser('permissions.manage') && !isAdminVipPreview;
+}
+
+function invalidateUserPermissionsSession() {
+  userPermissionsSequence += 1;
+  userPermissionsTarget = null;
+  userPermissionsUsers = [];
+  userPermissionsSaving = false;
+  document.getElementById('userPermissionsOverlay')?.classList.remove('open');
+}
+
+function setUserPermissionsMessage(message = '', { type = 'info' } = {}) {
+  const target = document.getElementById('userPermissionsMessage');
+  target.textContent = message;
+  target.classList.toggle('error', type === 'error');
+}
+
+function renderUserPermissionsUserOptions(selectedEmail = '') {
+  const select = document.getElementById('userPermissionsUserSelect');
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = userPermissionsUsers.length ? 'Select a user…' : 'No dashboard users';
+  const options = userPermissionsUsers.map(user => {
+    const option = document.createElement('option');
+    option.value = user.email;
+    option.textContent = `${user.name} · ${user.email} · ${roleLabel(user.role)}`;
+    return option;
+  });
+  select.replaceChildren(placeholder, ...options);
+  select.value = selectedEmail;
+}
+
+function renderUserPermissionsTarget() {
+  const target = userPermissionsTarget;
+  const detail = document.getElementById('userPermissionsDetail');
+  detail.hidden = !target;
+  if (!target) return;
+  document.getElementById('userPermissionsName').textContent = target.name;
+  document.getElementById('userPermissionsEmail').textContent = target.email;
+  document.getElementById('userPermissionsRole').textContent = roleLabel(target.role);
+
+  const rows = buildPermissionRows({ role: target.role, stored: target.stored, draft: target.draft });
+  document.getElementById('userPermissionsRows').replaceChildren(...rows.map(row => {
+    const container = document.createElement('div');
+    container.className = 'permission-row';
+    container.dataset.capability = row.key;
+    const toggle = document.createElement('label');
+    toggle.className = 'permission-toggle';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = row.effective;
+    checkbox.disabled = row.locked || userPermissionsSaving;
+    checkbox.setAttribute('aria-describedby', `userPermissionMeta-${row.key}`);
+    checkbox.addEventListener('change', () => window.toggleUserPermission(row.key, checkbox.checked));
+    const label = document.createElement('span');
+    label.textContent = row.label;
+    toggle.append(checkbox, label);
+    const badge = document.createElement('span');
+    badge.className = `permission-badge ${row.state}`;
+    badge.textContent = row.dirty ? `${row.stateLabel} · unsaved` : row.stateLabel;
+    const meta = document.createElement('div');
+    meta.className = 'permission-meta';
+    meta.id = `userPermissionMeta-${row.key}`;
+    const description = document.createElement('span');
+    description.textContent = row.description;
+    const roleDefault = document.createElement('span');
+    roleDefault.textContent = `Role default: ${row.roleDefault ? 'On' : 'Off'}`;
+    meta.append(description, roleDefault);
+    if (row.lockReason) {
+      const lock = document.createElement('span');
+      lock.textContent = row.lockReason;
+      meta.append(lock);
+    }
+    if (row.canReset) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'btn btn-ghost';
+      reset.textContent = 'Reset';
+      reset.disabled = userPermissionsSaving;
+      reset.setAttribute('aria-label', `Reset ${row.label} to the role default`);
+      reset.addEventListener('click', () => window.resetUserPermission(row.key));
+      meta.append(reset);
+    }
+    container.append(toggle, badge, meta);
+    return container;
+  }));
+
+  const changes = permissionChanges(target.stored, target.draft);
+  document.getElementById('userPermissionsSaveBtn').disabled = userPermissionsSaving || !Object.keys(changes).length;
+  document.getElementById('userPermissionsResetAllBtn').disabled = userPermissionsSaving
+    || rows.every(row => row.locked || row.draft === null);
+
+  const audit = document.getElementById('userPermissionsAudit');
+  if (!target.audit.length) {
+    const empty = document.createElement('div');
+    empty.textContent = 'No permission changes recorded.';
+    audit.replaceChildren(empty);
+    return;
+  }
+  audit.replaceChildren(...target.audit.map(entry => {
+    const item = document.createElement('div');
+    item.className = 'permission-audit-entry';
+    const heading = document.createElement('strong');
+    heading.textContent = `${entry.at ? new Date(entry.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Pending timestamp'} · ${entry.actorEmail}`;
+    item.append(heading, ...entry.changes.map(change => {
+      const line = document.createElement('div');
+      line.textContent = change;
+      return line;
+    }));
+    return item;
+  }));
+}
+
+async function loadUserPermissionsAudit(email) {
+  const snapshot = await getDocs(query(collection(db, 'userPermissionAudit'), where('targetEmail', '==', email)));
+  return describeAuditEntries(snapshot.docs.map(entry => entry.data()));
+}
+
+// Loads the authoritative stored overrides and recent audit for a user; stale responses are discarded.
+async function loadUserPermissionsTarget(user, sequence) {
+  const [permissionSnapshot, audit] = await Promise.all([
+    getDoc(doc(db, 'userPermissions', user.email)),
+    loadUserPermissionsAudit(user.email),
+  ]);
+  if (sequence !== userPermissionsSequence || !canManageUserPermissions()) return false;
+  const data = permissionSnapshot.exists() ? permissionSnapshot.data() : {};
+  const stored = storedPermissionState(data?.overrides);
+  userPermissionsTarget = { ...user, revision: storedPermissionRevision(data), stored, draft: { ...stored }, audit };
+  renderUserPermissionsTarget();
+  return true;
+}
+
+window.openUserPermissions = async () => {
+  if (!canManageUserPermissions()) return;
+  const sequence = ++userPermissionsSequence;
+  userPermissionsTarget = null;
+  userPermissionsUsers = [];
+  userPermissionsSaving = false;
+  renderUserPermissionsUserOptions();
+  renderUserPermissionsTarget();
+  setUserPermissionsMessage('Loading dashboard users…');
+  openAccessibleModal(document.getElementById('userPermissionsOverlay'));
+  try {
+    const snapshot = await getDocs(collection(db, 'users'));
+    if (sequence !== userPermissionsSequence || !canManageUserPermissions()) return;
+    userPermissionsUsers = permissionUserOptions(snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() })), getUserDisplayName);
+    renderUserPermissionsUserOptions();
+    setUserPermissionsMessage('');
+  } catch (error) {
+    if (sequence !== userPermissionsSequence) return;
+    console.error('User Permissions user list failed:', error);
+    setUserPermissionsMessage('Unable to load dashboard users. Please try again.', { type: 'error' });
+  }
+};
+
+window.selectUserPermissionsUser = async email => {
+  if (!canManageUserPermissions() || userPermissionsSaving) return;
+  const sequence = ++userPermissionsSequence;
+  userPermissionsTarget = null;
+  renderUserPermissionsTarget();
+  const user = userPermissionsUsers.find(entry => entry.email === email);
+  if (!user) {
+    setUserPermissionsMessage('');
+    return;
+  }
+  setUserPermissionsMessage('Loading permissions…');
+  try {
+    if (await loadUserPermissionsTarget(user, sequence)) setUserPermissionsMessage('');
+  } catch (error) {
+    if (sequence !== userPermissionsSequence) return;
+    console.error('User Permissions load failed:', error);
+    setUserPermissionsMessage('Unable to load this user\'s permissions. Please try again.', { type: 'error' });
+  }
+};
+
+function updateUserPermissionsDraft(nextDraft) {
+  if (!canManageUserPermissions() || !userPermissionsTarget || userPermissionsSaving) return;
+  userPermissionsTarget = { ...userPermissionsTarget, draft: nextDraft(userPermissionsTarget.draft) };
+  setUserPermissionsMessage('');
+  renderUserPermissionsTarget();
+}
+
+window.toggleUserPermission = (capability, checked) => {
+  const row = userPermissionsTarget && buildPermissionRows(userPermissionsTarget).find(entry => entry.key === capability);
+  if (!row || row.locked) return;
+  updateUserPermissionsDraft(draft => draftAfterToggle(draft, capability, checked));
+};
+
+window.resetUserPermission = capability => {
+  const row = userPermissionsTarget && buildPermissionRows(userPermissionsTarget).find(entry => entry.key === capability);
+  if (!row || row.locked) return;
+  updateUserPermissionsDraft(draft => draftAfterReset(draft, capability));
+};
+
+window.resetAllUserPermissions = () => {
+  if (!userPermissionsTarget || buildPermissionRows(userPermissionsTarget).some(row => row.locked)) return;
+  updateUserPermissionsDraft(draft => draftAfterResetAll(draft));
+};
+
+window.saveUserPermissions = async () => {
+  const target = userPermissionsTarget;
+  if (!canManageUserPermissions() || !target || userPermissionsSaving) return;
+  const changes = permissionChanges(target.stored, target.draft);
+  if (!Object.keys(changes).length) return;
+  const sequence = userPermissionsSequence;
+  userPermissionsSaving = true;
+  setUserPermissionsMessage('Saving permissions…');
+  renderUserPermissionsTarget();
+  try {
+    const result = await userPermissionsApi.setOverrides({ targetEmail: target.email, expectedRevision: target.revision, changes });
+    if (sequence !== userPermissionsSequence) return;
+    const stored = storedPermissionState(result?.overrides);
+    userPermissionsTarget = {
+      ...target, role: result?.role || target.role, revision: storedPermissionRevision(result), stored, draft: { ...stored },
+    };
+    userPermissionsSaving = false;
+    setUserPermissionsMessage(result?.changed ? 'Permissions saved. The user sees the change after reloading the dashboard.' : 'No changes were needed.');
+    renderUserPermissionsTarget();
+    if (result?.changed) showSaveToast('User permissions saved');
+    const audit = await loadUserPermissionsAudit(target.email).catch(() => null);
+    if (audit && sequence === userPermissionsSequence && userPermissionsTarget?.email === target.email) {
+      userPermissionsTarget = { ...userPermissionsTarget, audit };
+      renderUserPermissionsTarget();
+    }
+  } catch (error) {
+    if (sequence !== userPermissionsSequence) return;
+    console.error('User Permissions save failed:', error);
+    userPermissionsSaving = false;
+    if (isPermissionConflict(error)) {
+      const reloadSequence = ++userPermissionsSequence;
+      userPermissionsTarget = null;
+      renderUserPermissionsTarget();
+      try {
+        await loadUserPermissionsTarget(target, reloadSequence);
+      } catch (reloadError) {
+        console.error('User Permissions reload failed:', reloadError);
+      }
+      if (reloadSequence !== userPermissionsSequence) return;
+      setUserPermissionsMessage('Permissions were changed by another Admin. The latest settings have been reloaded; review them before saving again.', { type: 'error' });
+      return;
+    }
+    setUserPermissionsMessage(getCallableErrorMessage(error, 'Unable to save permissions. Please try again.'), { type: 'error' });
+    renderUserPermissionsTarget();
+  }
 };
 
 // ── WEEK MANAGEMENT COMBINED LOGIC ──

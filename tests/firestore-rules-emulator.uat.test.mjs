@@ -23,6 +23,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 
 const rulesFile = process.env.FIRESTORE_RULES_FILE;
@@ -444,4 +445,33 @@ test('raw role variants have matching dashboard, client, Functions and rules aut
   }
 });
 
+
+test('userPermissionAudit is readable only by Admin and never client-writable', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'userPermissionAudit/seed-audit'), {
+      targetEmail: 'owner@example.com', actorEmail: 'admin@example.com', actorUid: 'admin-uid',
+      revisionBefore: 0, revisionAfter: 1, roleAtChange: 'pm',
+      changes: [{ capability: 'week.manage', before: null, after: true }],
+    });
+  });
+  const admin = auth('admin-uid', 'admin@example.com');
+  const owner = auth('owner-uid', 'owner@example.com');
+  const other = auth('other-uid', 'other@example.com');
+  const vip = auth('vip-uid', 'vip@example.com');
+  const outsider = auth('outsider-uid', 'outsider@example.com');
+
+  await assertSucceeds(getDoc(doc(admin, 'userPermissionAudit/seed-audit')));
+  await assertSucceeds(getDocs(query(collection(admin, 'userPermissionAudit'), where('targetEmail', '==', 'owner@example.com'))));
+  for (const client of [owner, other, vip, outsider]) {
+    await assertFails(getDoc(doc(client, 'userPermissionAudit/seed-audit')));
+    await assertFails(getDocs(query(collection(client, 'userPermissionAudit'), where('targetEmail', '==', 'owner@example.com'))));
+  }
+  for (const client of [admin, owner, other, vip, outsider]) {
+    await assertFails(setDoc(doc(client, 'userPermissionAudit/forged'), {
+      targetEmail: 'owner@example.com', actorEmail: 'admin@example.com', changes: [],
+    }));
+    await assertFails(updateDoc(doc(client, 'userPermissionAudit/seed-audit'), { roleAtChange: 'admin' }));
+    await assertFails(deleteDoc(doc(client, 'userPermissionAudit/seed-audit')));
+  }
+});
 }
