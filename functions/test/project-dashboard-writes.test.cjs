@@ -398,3 +398,19 @@ test('large revisions save and unknown metadata survives while deleted rows stay
   assert.equal(result.committedProject.budget.approvedBy, 'finance@example.com');
   assert.deepEqual(result.committedProject.budget.monthlyPlans, [liveProject.budget.monthlyPlans[0]]);
 });
+
+test('authenticated actors carry only normalized, server-read permission overrides', () => {
+  const { canManageWeeks } = require('../project-dashboard-writes');
+  const delegate = buildAuthenticatedActor(
+    { uid: 'pm-2', email: 'Delegate@Example.test' },
+    { role: 'pm', displayName: 'Delegate' },
+    { overrides: { 'week.manage': true, 'permissions.manage': true, stale: true, 'week.release': 'true' } },
+  );
+  assert.deepEqual(delegate.permissionOverrides, { 'week.manage': true, 'permissions.manage': true });
+  assert.ok(Object.isFrozen(delegate.permissionOverrides));
+  assert.equal(canManageWeeks(delegate), true);
+  assert.deepEqual(buildAuthenticatedActor({ uid: 'pm-3', email: 'pm@example.test' }, { role: 'pm' }).permissionOverrides, {});
+  assert.equal(canManageWeeks(buildAuthenticatedActor({ uid: 'pm-3', email: 'pm@example.test' }, { role: 'pm' })), false);
+  assert.equal(canManageWeeks({ ...actor, role: 'admin' }), true);
+  assert.equal(canManageWeekFields('pm'), false, 'the strategy layer stays raw-role Admin only');
+});

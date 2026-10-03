@@ -45,6 +45,18 @@ export async function confirmWeekMutation(
   return candidate;
 }
 
+// Callable (Cloud Functions) failures carry the server's user-facing reason in error.message.
+// Generic transport/internal failures fall back to the caller's message instead of leaking codes.
+export function getCallableErrorMessage(error, fallback) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').trim();
+  const genericCodes = new Set(['functions/internal', 'functions/unknown', 'functions/unavailable', 'functions/deadline-exceeded']);
+  if (code.startsWith('functions/') && !genericCodes.has(code) && message && message !== code.slice('functions/'.length)) {
+    return message;
+  }
+  return fallback;
+}
+
 export function getWriteErrorMessage(error) {
   const code = String(error?.code || '');
   if (code.includes('permission-denied')) {

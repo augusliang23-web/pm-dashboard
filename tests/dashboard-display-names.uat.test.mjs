@@ -119,6 +119,7 @@ test('authenticated header renders the stored directory display name', () => {
     DASHBOARD_BASE_COMMIT: 'test',
     getEmailKey: user => typeof user === 'string' ? user.toLowerCase() : user.email.toLowerCase(),
     canReadDraftWeeks: () => true,
+    canCurrentUser: () => true,
     invalidateProjectEditorSession: () => {},
     invalidateGanttTemplateSession: () => {},
     invalidateGanttWindowSession: () => {}, // Production-baseline Gantt Window helper shared with the UAT profile

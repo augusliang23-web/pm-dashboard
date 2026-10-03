@@ -3005,6 +3005,7 @@ import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewC
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
 import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs?v=vip-readonly-1";
+import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
@@ -3014,7 +3015,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
+import { confirmWeekMutation, getCallableErrorMessage, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
 import { downloadProfessionalPdf, fetchOnePagerPreviewHtml } from "./professional-pdf-client.mjs?v=one-pager-preview-1";
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
@@ -3048,9 +3049,9 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = IS_UAT_PROFILE ? ('pending') : ('pm');
-// @prod-only begin
+// Raw Firestore role and the user's own permission overrides: the inputs to canCurrentUser() in both profiles.
 let currentRawRole = null;
-// @prod-only end
+let currentPermissionOverrides = {};
 const uatProductionSyncController = createUatProductionSyncController({
   api: uatProductionSyncApi,
   getRole: () => currentRole,
@@ -4287,11 +4288,13 @@ function getDashboardRole__prod(userDoc) {
 }
 // @profile-variant uat
 function getDashboardRole__uat(userDoc) {
+  currentRawRole = null;
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
   const role = normalizeDashboardRole(userDoc.data().role);
   if (!role) throw new Error('missing-dashboard-role');
+  currentRawRole = role;
   return role;
 }
 // @profile-dispatcher
@@ -4311,6 +4314,30 @@ function sortWeeksByLabel(weeks) {
 
 function isWeekReleased(week) {
   return week?.isReleased === true;
+}
+
+// Effective capability for the signed-in user: the raw Firestore role plus the user's own
+// userPermissions/{email} overrides, resolved by js/permission-registry.mjs. The Functions resolve the
+// same registry server-side; this only mirrors it for visibility and fail-closed client guards.
+function canCurrentUser(capability) {
+  if (!currentUser) return false;
+  return canWithPermissions(capability, { role: currentRawRole, overrides: currentPermissionOverrides });
+}
+
+function resetCurrentUserPermissions() {
+  currentRawRole = null;
+  currentPermissionOverrides = {};
+}
+
+// Fails closed to role defaults: a missing document, denied read or malformed data grants nothing extra.
+async function loadCurrentUserPermissionOverrides(email) {
+  try {
+    const snapshot = await getDoc(doc(db, 'userPermissions', email));
+    return snapshot.exists() ? normalizePermissionOverrides(snapshot.data()?.overrides) : {};
+  } catch (error) {
+    if (error?.code !== 'permission-denied') console.warn('User permission overrides unavailable; using role defaults.', error);
+    return {};
+  }
 }
 
 // @uat-only begin canManageWeekRelease
@@ -5411,6 +5438,7 @@ onAuthStateChanged(auth, async user => {
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
   quiesceDashboardForAuthTransition();
+  resetCurrentUserPermissions();
   currentUser = user;
   const isCurrentAuthInitialization = () => isAuthInitializationCurrent(
     authSessionGeneration,
@@ -5427,6 +5455,9 @@ onAuthStateChanged(auth, async user => {
       const userDoc = await getDoc(doc(db, "users", authEmail));
       if (!isCurrentAuthInitialization()) return;
       currentRole = getDashboardRole(userDoc);
+      const permissionOverrides = await loadCurrentUserPermissionOverrides(authEmail);
+      if (!isCurrentAuthInitialization()) return;
+      currentPermissionOverrides = permissionOverrides;
 
       const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
@@ -5472,6 +5503,7 @@ onAuthStateChanged(auth, async user => {
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
   quiesceDashboardForAuthTransition();
+  resetCurrentUserPermissions();
   currentUser = user;
   const isCurrentAuthInitialization = () => isAuthInitializationCurrent(
     authSessionGeneration,
@@ -5488,6 +5520,9 @@ onAuthStateChanged(auth, async user => {
       const userDoc = await getDoc(doc(db, "users", authEmail));
       if (!isCurrentAuthInitialization()) return;
       currentRole = getDashboardRole(userDoc);
+      const permissionOverrides = await loadCurrentUserPermissionOverrides(authEmail);
+      if (!isCurrentAuthInitialization()) return;
+      currentPermissionOverrides = permissionOverrides;
 
       const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
@@ -5625,7 +5660,6 @@ function setupUI__prod() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
   document.getElementById('presenceUsageBtn').style.display = 'none';
   
   isOverview = false;
@@ -5654,6 +5688,8 @@ function setupUI__prod() {
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
   }
+  // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated VIP).
+  document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
@@ -5679,7 +5715,6 @@ function setupUI__uat() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.executive-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
   document.getElementById('presenceUsageBtn').style.display = 'none';
   document.getElementById('executiveApprovalInboxBtn').style.display = 'none';
   
@@ -5708,6 +5743,8 @@ function setupUI__uat() {
     document.getElementById('onlineUsersContainer').style.display = 'none'; 
     document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
   }
+  // Effective week.manage wins over the generic perspective hiding above (e.g. a delegated Executive Owner).
+  document.getElementById('manageWeeksBtn').style.display = canCurrentUser('week.manage') ? '' : 'none';
   syncProjectManagerFilterOptions();
   updateMasterDataLists();
   refreshExecutivePendingCount();
@@ -5821,7 +5858,7 @@ function initData__prod(authGeneration, authUser) {
   }
 
   const weeksRef = collection(db, "weeks");
-  const weeksQuery = currentRole === 'vip'
+  const weeksQuery = currentRole === 'vip' && !canCurrentUser('week.manage')
     ? query(weeksRef, where("isReleased", "==", true))
     : query(weeksRef, orderBy("weekLabel"));
   const ownerUid = authUser?.uid || '';
@@ -5890,7 +5927,7 @@ function initData__uat(authGeneration, authUser) {
   }
 
   const weeksRef = collection(db, "weeks");
-  const weeksQuery = canReadDraftWeeks(currentRole)
+  const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
     : query(weeksRef, where('isReleased', '==', true));
   const ownerUid = authUser?.uid || '';
@@ -12756,7 +12793,7 @@ window.checkMsDates = () => {
 // @profile-group begin win openWeekManagement
 // @profile-variant prod
 const openWeekManagement__prod = () => {
-  if (!canReadDraftWeeks(currentRole)) return;
+  if (!canCurrentUser('week.manage')) return;
   const week = allWeeks[currentIdx];
   if(!week) return;
   
@@ -12792,6 +12829,7 @@ const openWeekManagement__prod = () => {
 };
 // @profile-variant uat
 const openWeekManagement__uat = () => {
+  if (!canCurrentUser('week.manage')) return;
   const week = allWeeks[currentIdx];
   if(!week) return;
   
@@ -12967,6 +13005,7 @@ function showWeeklySummaryCorrections(corrections = []) {
 }
 
 window.saveWeekSummary = async () => {
+  if (!canCurrentUser('week.manage')) return;
   const week = allWeeks[currentIdx];
   const field = document.getElementById('wm_summary');
   const result = normalizeWeeklySummaryForSave(field.value, summaryProjectContext(week));
@@ -13001,6 +13040,7 @@ window.saveWeekSummary = async () => {
 };
 
 window.createNewWeekFromManage = async () => {
+  if (!canCurrentUser('week.manage')) return;
   const sel = document.getElementById('wm_nw_label');
   const label = sel.value;
   const date = document.getElementById('wm_nw_date').value;
@@ -13013,20 +13053,27 @@ window.createNewWeekFromManage = async () => {
   const sourceWeekId = sourceWeek?.__documentId || sourceWeek?.weekLabel?.replace(/\s+/g, '-');
   jumpToLatestOnNextRender = true;
   const weekId = label.replace(/\s+/g, '-');
-  const response = await projectDashboardApi.createWeek({
-    weekId,
-    weekLabel: label,
-    weekDate: date,
-    ...(sourceWeekId ? { sourceWeekId } : {}),
-  });
-  if (response?.week) {
-    Object.defineProperty(response.week, '__documentId', { value: weekId, enumerable: false, configurable: true });
-    allWeeks.push(response.week);
+  try {
+    const response = await projectDashboardApi.createWeek({
+      weekId,
+      weekLabel: label,
+      weekDate: date,
+      ...(sourceWeekId ? { sourceWeekId } : {}),
+    });
+    if (response?.week) {
+      Object.defineProperty(response.week, '__documentId', { value: weekId, enumerable: false, configurable: true });
+      allWeeks.push(response.week);
+    }
+
+    await new Promise(r => setTimeout(r, 600));
+    showSaveToast("New week created");
+  } catch (error) {
+    jumpToLatestOnNextRender = false;
+    console.error('Create week failed:', error);
+    showSaveToast(getCallableErrorMessage(error, 'Unable to create the new week. Please try again.'), { type: 'error' });
+  } finally {
+    hideLoader();
   }
-  
-  await new Promise(r => setTimeout(r, 600));
-  hideLoader();
-  showSaveToast("New week created");
 };
 
 function getIsoWeekData(baseDate, offsetWeeks) {

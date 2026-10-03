@@ -16,7 +16,7 @@ test('VIP remains a recognized read-only dashboard role', () => {
 test('only Admin and PM can read Draft weeks', () => {
   assert.equal(canReadDraftWeeks('admin'), true);
   assert.equal(canReadDraftWeeks('pm'), true);
-  for (const role of ['sales', 'bd', 'engineering', 'product', 'executive', 'unknown']) {
+  for (const role of ['business', 'sales', 'bd', 'engineering', 'product', 'executive', 'unknown']) {
     assert.equal(canReadDraftWeeks(role), false);
   }
 });

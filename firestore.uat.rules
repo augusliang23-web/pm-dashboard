@@ -11,9 +11,17 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
     }
 
+    // Match the browser/Functions role contract; non-string and unknown values fail closed.
+    // trim()/lower() are supported Firebase Rules String methods.
+    function normalizeDashboardRole(role) {
+      let value = role is string ? role.trim().lower() : '';
+      return value in ['admin', 'pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']
+        ? value : '';
+    }
+
     function dashboardRole() {
       return hasDashboardAccess()
-        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        ? normalizeDashboardRole(get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.get('role', ''))
         : '';
     }
 
@@ -27,6 +35,21 @@ service cloud.firestore {
 
     function canReadDraftWeeks() {
       return dashboardRole() in ['admin', 'pm'];
+    }
+
+    // Effective week.manage (mirrors js/permission-registry.mjs): Admin by role, or a delegable role with a
+    // server-stored boolean true override in userPermissions/{email}. Anything else fails closed.
+    function weekManageOverride() {
+      return exists(/databases/$(database)/documents/userPermissions/$(request.auth.token.email))
+        ? get(/databases/$(database)/documents/userPermissions/$(request.auth.token.email)).data.get('overrides', {})
+        : {};
+    }
+
+    function canManageWeeks() {
+      return isAdmin()
+        || (dashboardRole() in ['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']
+          && weekManageOverride() is map
+          && weekManageOverride().get('week.manage', false) == true);
     }
 
     function hasBoundedString(data, key, maximumLength) {
@@ -186,9 +209,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Per-user capability overrides. Read-only for the account itself and Admin; every client write is
+    // denied -- changes will go only through an Admin-authorized callable.
+    match /userPermissions/{email} {
+      allow read: if hasDashboardAccess()
+        && (request.auth.token.email == email || isAdmin());
+      allow write: if false;
+    }
+
     match /weeks/{weekId} {
       allow read: if hasDashboardAccess()
-        && (canReadDraftWeeks() || resource.data.isReleased == true);
+        && (canReadDraftWeeks() || canManageWeeks() || resource.data.isReleased == true);
       allow write: if false;
       allow delete: if false;
     }

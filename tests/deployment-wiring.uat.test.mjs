@@ -15,7 +15,7 @@ test('root dashboard exposes the v2.2T release identity', () => {
 test('v2.2T uses confirmed protected release writes', () => {
   assert.match(
     production,
-    /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\/sync-core\.js"/
+    /import \{ confirmWeekMutation, getCallableErrorMessage, getWriteErrorMessage \} from "\.\/sync-core\.js"/
   );
   assert.match(production, /await projectDashboardApi\.setWeekRelease\(\{ weekId: id, isReleased: newStatus \}\)/);
   assert.doesNotMatch(production, /await updateDoc\(doc\(db, "weeks", id\), \{/);
