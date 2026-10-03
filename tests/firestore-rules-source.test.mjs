@@ -32,3 +32,12 @@ test("firebase config maps the Firestore rules source", async () => {
 
   assert.equal(config.firestore?.rules, "firestore.rules");
 });
+
+test("userPermissions overrides are self/Admin readable and never client-writable", async () => {
+  const rules = await readRules();
+  const block = rules.match(/match\s+\/userPermissions\/\{email\}\s*\{([\s\S]*?)\n    \}/)?.[1] || '';
+
+  assert.match(block, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(request\.auth\.token\.email == email \|\| isAdmin\(\)\);/);
+  assert.match(block, /allow write:\s*if false;/);
+  assert.doesNotMatch(block, /allow (create|update|delete)/);
+});

@@ -313,3 +313,28 @@ test('presenceSessions requires the exact stored PM casing', async () => {
   await assertSucceeds(setDoc(doc(pm, 'presenceSessions/pm-role-raw'), makeSession('pm-role-raw', 'PM')));
   await assertFails(setDoc(doc(pm, 'presenceSessions/pm-role-normalized'), makeSession('pm-role-normalized', 'pm')));
 });
+
+test('userPermissions overrides are readable only by the account itself and Admin and never client-writable', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'userPermissions/owner@example.com'), {
+      schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1,
+    });
+  });
+  const admin = auth('admin-uid', 'admin@example.com');
+  const owner = auth('owner-uid', 'owner@example.com');
+  const other = auth('other-uid', 'other@example.com');
+  const outsider = auth('outsider-uid', 'outsider@example.com');
+
+  await assertSucceeds(getDoc(doc(owner, 'userPermissions/owner@example.com')));
+  await assertSucceeds(getDoc(doc(admin, 'userPermissions/owner@example.com')));
+  await assertSucceeds(getDoc(doc(other, 'userPermissions/other@example.com')));
+  await assertFails(getDoc(doc(other, 'userPermissions/owner@example.com')));
+  await assertFails(getDoc(doc(outsider, 'userPermissions/outsider@example.com')));
+  await assertFails(getDocs(collection(other, 'userPermissions')));
+  for (const client of [admin, owner, other, outsider]) {
+    await assertFails(setDoc(doc(client, 'userPermissions/owner@example.com'), { overrides: { 'week.manage': false } }));
+    await assertFails(setDoc(doc(client, 'userPermissions/other@example.com'), { overrides: { 'week.manage': true } }));
+    await assertFails(updateDoc(doc(client, 'userPermissions/owner@example.com'), { 'overrides.week.manage': false }));
+    await assertFails(deleteDoc(doc(client, 'userPermissions/owner@example.com')));
+  }
+});

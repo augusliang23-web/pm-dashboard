@@ -186,6 +186,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Per-user capability overrides. Read-only for the account itself and Admin; every client write is
+    // denied -- changes will go only through an Admin-authorized callable.
+    match /userPermissions/{email} {
+      allow read: if hasDashboardAccess()
+        && (request.auth.token.email == email || isAdmin());
+      allow write: if false;
+    }
+
     match /weeks/{weekId} {
       allow read: if hasDashboardAccess();
       allow write: if false;

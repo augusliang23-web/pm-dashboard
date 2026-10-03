@@ -8,7 +8,7 @@ const production = await dashboardSourceAsync('production');
 test('Production uses confirmed release state with a protected Callable write', () => {
   assert.match(
     production,
-    /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\/sync-core\.js"/
+    /import \{ confirmWeekMutation, getCallableErrorMessage, getWriteErrorMessage \} from "\.\/sync-core\.js"/
   );
   assert.match(production, /await projectDashboardApi\.setWeekRelease\(\{ weekId: id, isReleased: newStatus \}\)/);
   assert.match(

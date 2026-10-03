@@ -4,11 +4,15 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 import { authorizeExecutiveAudienceView } from '../pdf-service/src/report-access.js';
+import { can } from '../js/permission-registry.mjs';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 
 const production = dashboardSource('production');
 const uat = dashboardSource('uat');
-const originalUatHash = '12ce8cd958e8660d5f65db9c88b63af5031261379420d598d4f638f8802d7a21';
+// Frozen UAT rendering. Last deliberately changed by the week.manage permission foundation (Manage Weeks
+// capability guards, userPermissions override loading, delegated draft-week query, Create Week error recovery);
+// any other UAT drift fails.
+const originalUatHash = '2569336eb2580d557856614ad740649ca08f0317e8eee36b01be22f46a17da33';
 
 const validRoles = new Map([
   ['admin', 'admin'],
@@ -98,11 +102,13 @@ test('Production PDF default view for every valid raw role is accepted by real b
   }
 });
 
-function productionWeekQueryFor(rawRole) {
+function productionWeekQueryFor(rawRole, permissionOverrides = {}) {
   const context = roleContext();
   context.currentRole = context.resolveRole(userDoc(rawRole));
   let selectedQuery;
   Object.assign(context, {
+    canWithPermissions: can,
+    currentPermissionOverrides: permissionOverrides,
     weeksUnsub: null,
     db: {},
     currentUser: { uid: 'test-uid', email: 'role@example.test' },
@@ -115,7 +121,7 @@ function productionWeekQueryFor(rawRole) {
     isAuthInitializationCurrent: () => true,
     onSnapshot: value => { selectedQuery = value; return () => {}; },
   });
-  vm.runInContext(`${functionSource('initData')}; this.initData = initData;`, context);
+  vm.runInContext(`${functionSource('canCurrentUser')}\n${functionSource('initData')}; this.initData = initData;`, context);
   context.initData(1, context.currentUser);
   return selectedQuery;
 }
@@ -133,6 +139,19 @@ test('Production runtime query gives VIP released weeks and all other mapped rol
       source: { collection: 'weeks' },
       constraint: { type: 'orderBy', field: 'weekLabel' },
     }, `${raw} must use the actual Production all-weeks query`);
+  }
+});
+
+test('Production VIP/Executive with a week.manage override load the draft weeks Manage Weeks operates on', () => {
+  for (const raw of ['vip', 'executive']) {
+    assert.deepEqual(productionWeekQueryFor(raw, { 'week.manage': true }), {
+      source: { collection: 'weeks' },
+      constraint: { type: 'orderBy', field: 'weekLabel' },
+    }, `${raw} + week.manage must load all weeks`);
+    for (const overrides of [{ 'week.manage': false }, { 'week.manage': 'true' }, { 'permissions.manage': true }]) {
+      assert.deepEqual(productionWeekQueryFor(raw, overrides).constraint,
+        { type: 'where', field: 'isReleased', operator: '==', value: true }, `${raw} ${JSON.stringify(overrides)} stays released-only`);
+    }
   }
 });
 

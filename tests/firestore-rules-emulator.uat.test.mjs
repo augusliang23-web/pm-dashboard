@@ -13,6 +13,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -333,5 +335,74 @@ test('Admin and non-Admin clients cannot read or write sync control, run, or sna
       await assertFails(deleteDoc(doc(db, path)));
     }
   }
+});
+
+test('userPermissions overrides are readable only by the account itself and Admin and never client-writable', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'userPermissions/owner@example.com'), {
+      schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1,
+    });
+  });
+  const admin = auth('admin-uid', 'admin@example.com');
+  const owner = auth('owner-uid', 'owner@example.com');
+  const other = auth('other-uid', 'other@example.com');
+  const outsider = auth('outsider-uid', 'outsider@example.com');
+
+  await assertSucceeds(getDoc(doc(owner, 'userPermissions/owner@example.com')));
+  await assertSucceeds(getDoc(doc(admin, 'userPermissions/owner@example.com')));
+  await assertSucceeds(getDoc(doc(other, 'userPermissions/other@example.com')));
+  await assertFails(getDoc(doc(other, 'userPermissions/owner@example.com')));
+  await assertFails(getDoc(doc(outsider, 'userPermissions/outsider@example.com')));
+  await assertFails(getDocs(collection(other, 'userPermissions')));
+  for (const client of [admin, owner, other, outsider]) {
+    await assertFails(setDoc(doc(client, 'userPermissions/owner@example.com'), { overrides: { 'week.manage': false } }));
+    await assertFails(setDoc(doc(client, 'userPermissions/other@example.com'), { overrides: { 'week.manage': true } }));
+    await assertFails(updateDoc(doc(client, 'userPermissions/owner@example.com'), { 'overrides.week.manage': false }));
+    await assertFails(deleteDoc(doc(client, 'userPermissions/owner@example.com')));
+  }
+});
+
+test('a server-stored week.manage override lets any recognized non-Admin role read draft weeks, and nothing else does', async () => {
+  const delegates = ['engineering', 'sales', 'bd', 'product', 'vip', 'executive'];
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await Promise.all([
+      ...delegates.map(role => setDoc(doc(db, `users/${role}-delegate@example.com`), { role, displayName: role })),
+      ...delegates.map(role => setDoc(doc(db, `userPermissions/${role}-delegate@example.com`), {
+        schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1,
+      })),
+      setDoc(doc(db, 'users/engineering@example.com'), { role: 'engineering', displayName: 'Engineering' }),
+      setDoc(doc(db, 'users/denied@example.com'), { role: 'engineering', displayName: 'Denied' }),
+      setDoc(doc(db, 'userPermissions/denied@example.com'), { overrides: { 'week.manage': false } }),
+      setDoc(doc(db, 'users/malformed@example.com'), { role: 'sales', displayName: 'Malformed' }),
+      setDoc(doc(db, 'userPermissions/malformed@example.com'), { overrides: { 'week.manage': 'true' } }),
+      setDoc(doc(db, 'users/not-a-map@example.com'), { role: 'sales', displayName: 'Not a map' }),
+      setDoc(doc(db, 'userPermissions/not-a-map@example.com'), { overrides: 'week.manage' }),
+      setDoc(doc(db, 'users/unknown-role@example.com'), { role: 'contractor', displayName: 'Unknown' }),
+      setDoc(doc(db, 'userPermissions/unknown-role@example.com'), { overrides: { 'week.manage': true } }),
+      setDoc(doc(db, 'userPermissions/vip@example.com'), { overrides: { 'permissions.manage': true } }),
+    ]);
+  });
+
+  for (const role of delegates) {
+    const delegate = auth(`${role}-delegate-uid`, `${role}-delegate@example.com`);
+    await assertSucceeds(getDoc(doc(delegate, 'weeks/draft-week')));
+    await assertSucceeds(getDocs(query(collection(delegate, 'weeks'), orderBy('weekLabel'))));
+    await assertFails(setDoc(doc(delegate, 'weeks/draft-week'), { summary: 'direct write' }, { merge: true }));
+    await assertFails(setDoc(doc(delegate, `userPermissions/${role}-delegate@example.com`), { overrides: { 'week.manage': true } }));
+  }
+  for (const [uid, email] of [
+    ['engineering-uid', 'engineering@example.com'],
+    ['denied-uid', 'denied@example.com'],
+    ['malformed-uid', 'malformed@example.com'],
+    ['not-a-map-uid', 'not-a-map@example.com'],
+    ['unknown-role-uid', 'unknown-role@example.com'],
+    ['vip-uid', 'vip@example.com'],
+  ]) {
+    const client = auth(uid, email);
+    await assertFails(getDoc(doc(client, 'weeks/draft-week')));
+    await assertFails(getDocs(query(collection(client, 'weeks'), orderBy('weekLabel'))));
+  }
+  await assertSucceeds(getDoc(doc(auth('vip-uid', 'vip@example.com'), 'weeks/released-week')));
 });
 }

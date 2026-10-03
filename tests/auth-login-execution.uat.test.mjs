@@ -67,6 +67,9 @@ function makeContext(overrides = {}) {
     isAuthInitializationCurrent,
     getEmailKey: user => (user?.email || '').trim().toLowerCase(),
     quiesceDashboardForAuthTransition: () => {},
+    resetCurrentUserPermissions: () => {},
+    loadCurrentUserPermissionOverrides: async () => ({}),
+    currentPermissionOverrides: {},
     getDoc: async ref => ref,
     doc: (_db, _col, id) => ({ id }),
     db: {},
@@ -162,4 +165,22 @@ test('UAT: sign-out resets shared Gantt Template and Gantt Window state without 
   // a regression of HIGH #1 -- it is verified here so the shared reset path stays covered.
   const { context } = makeContext();
   await assert.doesNotReject(() => context.handler(null));
+});
+
+test('UAT: permissions reset on every auth transition and the user\'s overrides load before setupUI', async () => {
+  const order = [];
+  const { context, calls } = makeContext({
+    resetCurrentUserPermissions: () => { order.push('reset'); },
+    loadCurrentUserPermissionOverrides: async email => { order.push(`load:${email}`); return { 'week.manage': true }; },
+    setupUI: () => { order.push(`setupUI:${JSON.stringify(context.currentPermissionOverrides)}`); calls.setupUI += 1; },
+  });
+
+  await context.handler({ uid: 'uid-perm', email: 'Delegate@Example.test' });
+
+  assert.deepEqual(order, ['reset', 'load:delegate@example.test', 'setupUI:{"week.manage":true}']);
+  assert.equal(calls.signOut, 0);
+
+  order.length = 0;
+  await context.handler(null);
+  assert.deepEqual(order, ['reset'], 'sign-out clears permission state and loads nothing');
 });

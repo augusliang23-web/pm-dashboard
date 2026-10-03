@@ -42,10 +42,18 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // and preserve the exact Firestore role in presenceSessions (tests/role-contract.test.mjs).
   'getDashboardRole',
   'startPresenceSession',
-  // Production Manage Weeks least-privilege hotfix: setupUI hides the Manage Weeks control and
-  // openWeekManagement fails closed for everyone but Admin/PM (tests/manage-weeks-visibility.test.mjs).
+  // Manage Weeks capability (week.manage, superseding the Admin/PM hotfix): setupUI shows the Manage Weeks
+  // control and openWeekManagement, saveWeekSummary and createNewWeekFromManage fail closed unless the
+  // effective week.manage capability resolves true -- Admin by default or a per-user override
+  // (tests/manage-weeks-visibility.test.mjs). createNewWeekFromManage also surfaces callable failures
+  // instead of leaving the loader up with an unhandled rejection (tests/create-week-error-handling.test.mjs).
+  // initData keeps every existing query but also loads draft weeks for a VIP/Executive holding week.manage,
+  // so the granted capability can operate (tests/role-contract.test.mjs, tests/manage-weeks-visibility.test.mjs).
   'setupUI',
   'openWeekManagement',
+  'saveWeekSummary',
+  'createNewWeekFromManage',
+  'initData',
   // Production week release least-privilege hotfix: the week banner renders Release to VIP / Revert to Draft
   // for Admin/PM only (status stays visible) and toggleReleaseWeek fails closed for everyone else
   // (tests/week-release-visibility.test.mjs).

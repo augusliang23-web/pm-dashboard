@@ -3,6 +3,7 @@ const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
+const { can, normalizePermissionOverrides } = require('./permission-registry');
 
 const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
@@ -54,15 +55,21 @@ function assertActor(actor) {
   }
 }
 
-function buildAuthenticatedActor(authIdentity = {}, userData = {}) {
+// permissionData is the server-read userPermissions/{email} document (or null); client input never reaches it.
+function buildAuthenticatedActor(authIdentity = {}, userData = {}, permissionData = null) {
   const actor = {
     uid: String(authIdentity.uid || '').trim(),
     email: normalized(authIdentity.email),
     role: normalized(userData.role),
     displayName: resolveActorDisplayName(authIdentity.email, userData.displayName),
+    permissionOverrides: Object.freeze(normalizePermissionOverrides(permissionData?.overrides)),
   };
   assertActor(actor);
   return actor;
+}
+
+function actorCan(actor, capability) {
+  return can(capability, { role: actor?.role, overrides: actor?.permissionOverrides });
 }
 
 function identityTokens(actor = {}) {
@@ -110,9 +117,17 @@ function canCreateProject(role) {
   return normalized(role) === 'admin';
 }
 
+// Raw-role Admin only: week fields outside the Manage Weeks workflow (the strategy layer).
 function canManageWeekFields(role) {
   return normalized(role) === 'admin';
 }
+
+// Effective week.manage capability: Admin by default, or an explicit per-user override.
+function canManageWeeks(actor) {
+  return actorCan(actor, 'week.manage');
+}
+
+const WEEK_MANAGE_FIELDS = new Set(['summary']);
 
 function isPlainObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -333,8 +348,8 @@ function buildProjectPatch(week, data, actor, nowIso) {
 
 function buildWeekFieldsPatch(week, data, actor) {
   assertActor(actor);
-  if (!canManageWeekFields(actor.role)) {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update week management fields.');
+  if (!canManageWeeks(actor) && !canManageWeekFields(actor.role)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Weeks permission is required to update week fields.');
   }
   assertBoundedJson(data);
   assertAllowedKeys(data, ['weekId', 'fields'], 'Week field request');
@@ -343,6 +358,14 @@ function buildWeekFieldsPatch(week, data, actor) {
   const keys = Object.keys(data.fields);
   if (!keys.length) {
     throw securityError('invalid-argument', 'invalid-payload', 'At least one week field is required.');
+  }
+  for (const key of keys) {
+    const allowed = WEEK_MANAGE_FIELDS.has(key) ? canManageWeeks(actor) : canManageWeekFields(actor.role);
+    if (!allowed) {
+      throw securityError('permission-denied', 'role-forbidden', WEEK_MANAGE_FIELDS.has(key)
+        ? 'Manage Weeks permission is required to update the Weekly Summary.'
+        : 'Only administrators can update the strategy layer.');
+    }
   }
   return {
     ...Object.fromEntries(keys.map(key => [key, data.fields[key]])),
@@ -353,8 +376,8 @@ function buildWeekFieldsPatch(week, data, actor) {
 
 function buildCreatedWeek(data, actor, sourceWeek) {
   assertActor(actor);
-  if (!canManageWeekFields(actor.role)) {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can create reporting weeks.');
+  if (!canManageWeeks(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Weeks permission is required to create reporting weeks.');
   }
   assertBoundedJson(data);
   assertAllowedKeys(data, ['weekId', 'weekLabel', 'weekDate', 'sourceWeekId'], 'Week creation request');
@@ -475,7 +498,8 @@ async function authenticatedActor(transaction, request) {
   if (!snapshot.exists) {
     throw securityError('permission-denied', 'role-forbidden', 'Dashboard identity is missing.');
   }
-  return buildAuthenticatedActor({ uid, email }, snapshot.data());
+  const permissionSnapshot = await transaction.get(database().collection('userPermissions').doc(email));
+  return buildAuthenticatedActor({ uid, email }, snapshot.data(), permissionSnapshot.exists ? permissionSnapshot.data() : null);
 }
 
 const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
@@ -638,7 +662,7 @@ module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
   buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
   buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
-  canManageWeekFields, identityTokens, ownerOrDeputyMatches, ownershipTokens,
+  canManageWeekFields, canManageWeeks, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,

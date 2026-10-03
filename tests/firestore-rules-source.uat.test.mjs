@@ -104,12 +104,22 @@ test("Executive configuration is dashboard-user-readable but callable-write-only
   assert.doesNotMatch(rules, /sectionId == 'ioe-product-portfolio'/);
 });
 
-test('Firestore draft week reads are limited to PM and Admin while released reads remain available to dashboard users', async () => {
-  const rules = await readRules();
-  assert.match(rules, /function canReadDraftWeeks\(\)/);
-  assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
-  assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
-  assert.match(rules, /allow write: if false;/);
+test('Firestore draft week reads are limited to PM, Admin and effective week.manage while released reads remain available to dashboard users', async () => {
+  for (const rules of [await readRules(), await readSharedBackendRules()]) {
+    assert.match(rules, /function canReadDraftWeeks\(\)/);
+    assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
+    assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| canManageWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
+    assert.match(rules, /allow write: if false;/);
+    // week.manage is read only from the server-stored userPermissions document of the signed-in email, and only
+    // a boolean true counts; Admin keeps it by role.
+    const fn = rules.match(/function canManageWeeks\(\) \{([\s\S]*?)\n    \}/)?.[1] || '';
+    assert.match(fn, /isAdmin\(\)/);
+    assert.match(fn, /dashboardRole\(\) in \['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'\]/);
+    assert.match(fn, /weekManageOverride\(\) is map/);
+    assert.match(fn, /weekManageOverride\(\)\.get\('week\.manage', false\) == true/);
+    assert.match(rules, /userPermissions\/\$\(request\.auth\.token\.email\)/);
+    assert.doesNotMatch(fn, /request\.resource|resource\.data/);
+  }
 });
 
 test('shared backend rules cannot restore direct client week writes', async () => {
@@ -160,4 +170,13 @@ test('root dashboard creates one complete presence document and preserves identi
     assert.match(write, /userKey:\s*getEmailKey\(currentUser\)/);
   }
   assert.doesNotMatch(dashboard, /setDoc\(doc\(db, "presence", getEmailKey\(currentUser\)\)/);
+});
+
+test('userPermissions overrides are self/Admin readable and never client-writable in UAT and shared-backend rules', async () => {
+  for (const rules of [await readRules(), await readSharedBackendRules()]) {
+    const block = rules.match(/match\s+\/userPermissions\/\{email\}\s*\{([\s\S]*?)\n    \}/)?.[1] || '';
+    assert.match(block, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(request\.auth\.token\.email == email \|\| isAdmin\(\)\);/);
+    assert.match(block, /allow write:\s*if false;/);
+    assert.doesNotMatch(block, /allow (create|update|delete)/);
+  }
 });
