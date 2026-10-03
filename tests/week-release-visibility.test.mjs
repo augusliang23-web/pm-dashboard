@@ -220,19 +220,20 @@ test('every release control in the Production banner is gated by the effective w
   assert.doesNotMatch(renderSource, /canReadDraftWeeks/);
 });
 
-// Delegation: [raw role, overrides, expected week.release]. An explicit OFF removes a PM's access; a working-team
-// role can be switched ON; VIP/Executive have no release controls and cannot be granted it; Admin stays locked ON.
+// Delegation: [raw role, overrides, expected week.release]. V1 is PM-only: an explicit OFF removes a PM's access,
+// and no other role can be granted it (a stale or forged true override is ignored); Admin stays locked ON.
 const DELEGATION = [
   ['admin', { 'week.release': false }, true],
   ['pm', {}, true],
   ['pm', { 'week.release': false }, false],
   ['pm', { 'week.release': true }, true],
   ['engineering', {}, false],
-  ['engineering', { 'week.release': true }, true],
-  ['business', { 'week.release': true }, true],
-  ['sales', { 'week.release': true }, true],
-  ['bd', { 'week.release': true }, true],
-  ['product', { 'week.release': true }, true],
+  ['engineering', { 'week.release': true }, false],
+  ['business', { 'week.release': true }, false],
+  ['sales', { 'week.release': true }, false],
+  ['bd', { 'week.release': true }, false],
+  ['product', { 'week.release': true }, false],
+  ['pm', { 'week.release': null }, true],
   ['engineering', { 'week.release': false }, false],
   ['engineering', { 'week.manage': true, 'gantt.manage': true, 'project.manage': true }, false],
   ['vip', { 'week.release': true }, false],

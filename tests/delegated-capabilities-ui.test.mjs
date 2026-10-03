@@ -80,9 +80,9 @@ const MATRIX = [
   ['pm', { 'project.manage': true }, false, true],
   ['pm', { 'gantt.manage': true, 'project.manage': true }, true, true],
   ['pm', { 'week.manage': true, 'week.release': true }, false, false],
-  ['engineering', { 'gantt.manage': true, 'project.manage': true }, true, true],
+  ['engineering', { 'gantt.manage': true, 'project.manage': true }, true, false],
   ['business', { 'gantt.manage': true }, true, false],
-  ['sales', { 'project.manage': true }, false, true],
+  ['sales', { 'project.manage': true }, false, false],
   ['vip', {}, false, false],
   ['vip', { 'gantt.manage': true, 'project.manage': true }, true, false],
   ['executive', { 'gantt.manage': true, 'project.manage': true }, true, false],
@@ -235,9 +235,10 @@ test('editing an existing project: owners and Admin edit normally; a project.man
     assert.deepEqual({ ...openProjEditGuard(profile, { rawRole: 'pm', isNew: false, canEdit: true }) }, { opened: true, manageOnly: false });
     assert.deepEqual({ ...openProjEditGuard(profile, { rawRole: 'pm', overrides: { 'project.manage': false }, isNew: false, canEdit: true }) }, { opened: true, manageOnly: false });
     // Non-owner with the capability: delete-only.
-    assert.deepEqual({ ...openProjEditGuard(profile, { rawRole: 'engineering', overrides: { 'project.manage': true }, isNew: false, canEdit: false }) }, { opened: true, manageOnly: true });
+    assert.deepEqual({ ...openProjEditGuard(profile, { rawRole: 'pm', overrides: { 'project.manage': true }, isNew: false, canEdit: false }) }, { opened: true, manageOnly: true });
     // Non-owner without it: nothing opens.
-    assert.equal(openProjEditGuard(profile, { rawRole: 'engineering', isNew: false, canEdit: false }), undefined);
+    assert.equal(openProjEditGuard(profile, { rawRole: 'pm', isNew: false, canEdit: false }), undefined);
+    assert.equal(openProjEditGuard(profile, { rawRole: 'engineering', overrides: { 'project.manage': true }, isNew: false, canEdit: false }), undefined, 'only PM can be granted it');
     assert.equal(openProjEditGuard(profile, { rawRole: 'vip', overrides: { 'project.manage': true }, isNew: false, canEdit: false }), undefined, 'VIP cannot be granted it');
   }
 });
@@ -264,7 +265,7 @@ test('the editor shows Delete for project.manage holders, keeps Project visibili
     assert.equal(admin.dom.element('pe_visibility').style.display, '');
     assert.equal(admin.dom.element('pe_btn_save').style.display, '');
 
-    const delegate = actionBlock(profile, { rawRole: 'engineering', overrides: { 'project.manage': true }, currentRole: 'engineering', isNew: false, manageOnly: true });
+    const delegate = actionBlock(profile, { rawRole: 'pm', overrides: { 'project.manage': true }, currentRole: 'pm', isNew: false, manageOnly: true });
     assert.equal(delegate.actionDiv.style.display, 'block');
     assert.equal(delegate.dom.element('pe_btn_delete').style.display, 'inline-block');
     assert.equal(delegate.dom.element('pe_visibility').style.display, 'none', 'visibility stays an Admin-only editor control');
@@ -300,10 +301,11 @@ test('deleteProject and saveProjEdit honor the capability and the delete-only mo
     // Capability OFF: delete never reaches the confirmation.
     assert.equal((await run('pm', {}, { manageOnly: false, role: 'pm' })).confirm, 0, `${profile} pm without project.manage`);
     assert.equal((await run('admin', { 'project.manage': false }, { manageOnly: false, role: 'admin' })).confirm, 1, `${profile} Admin keeps delete (role default, locked)`);
-    assert.equal((await run('engineering', { 'project.manage': true }, { manageOnly: true, role: 'engineering' })).confirm, 1, `${profile} delegate may delete`);
+    assert.equal((await run('pm', { 'project.manage': true }, { manageOnly: true, role: 'pm' })).confirm, 1, `${profile} PM delegate may delete`);
+    assert.equal((await run('engineering', { 'project.manage': true }, { manageOnly: false, role: 'engineering' })).confirm, 0, `${profile} only PM can be granted it`);
     assert.equal((await run('vip', { 'project.manage': true }, { manageOnly: false, role: 'vip' })).confirm, 0, `${profile} VIP cannot be granted it`);
     // Delete-only mode: Save never reaches the editor collection.
-    assert.equal((await run('engineering', { 'project.manage': true }, { manageOnly: true })).collect, 0, `${profile} delete-only blocks save`);
+    assert.equal((await run('pm', { 'project.manage': true }, { manageOnly: true })).collect, 0, `${profile} delete-only blocks save`);
     assert.equal((await run('pm', {}, { manageOnly: false })).collect, 1, `${profile} normal editing reaches the save flow`);
   }
 });
@@ -316,18 +318,19 @@ test('normal weekly project editing keeps its ownership contract and the card ed
   }
 });
 
-// ── Release Week: delegated holders outside the PM default also read the draft weeks they release.
+// ── Draft-week reads: week.release / project.manage never widen the weeks query (no new draft visibility).
 function weekQuery(profile, rawRole, overrides) {
   const { context } = setupContext(profile, rawRole, overrides);
   context.initData(1, context.currentUser);
   return context.subscribed.find(ref => ref.collection === 'weeks').constraint;
 }
 
-test('a week.release holder outside the PM default loads draft weeks (UAT), and baselines stay unchanged', () => {
+test('week.release and project.manage overrides never widen the weeks query, and baselines stay unchanged', () => {
   const ALL = { type: 'orderBy', field: 'weekLabel' };
   const RELEASED = { type: 'where', field: 'isReleased', operator: '==', value: true };
   const cases = [
-    ['uat', 'engineering', { 'week.release': true }, ALL],
+    ['uat', 'engineering', { 'week.release': true, 'project.manage': true }, RELEASED],
+    ['uat', 'engineering', { 'week.manage': true }, ALL],
     ['uat', 'engineering', {}, RELEASED],
     ['uat', 'business', { 'week.release': false }, RELEASED],
     ['uat', 'pm', { 'week.release': false }, ALL],

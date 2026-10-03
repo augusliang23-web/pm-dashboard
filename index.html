@@ -6000,7 +6000,7 @@ function initData__uat(authGeneration, authUser) {
   }
 
   const weeksRef = collection(db, "weeks");
-  const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage') || canCurrentUser('week.release')
+  const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
     : query(weeksRef, where('isReleased', '==', true));
   const ownerUid = authUser?.uid || '';

@@ -6,7 +6,7 @@ import test from 'node:test';
 const dashboard = await dashboardSourceAsync('uat');
 
 test('v2.2T uses role-safe week queries and a live PM-only list', () => {
-  assert.match(dashboard, /canReadDraftWeeks\(currentRole\) \|\| canCurrentUser\('week\.manage'\) \|\| canCurrentUser\('week\.release'\)\s*\?\s*query\(weeksRef, orderBy\('weekLabel'\)\)\s*:\s*query\(weeksRef, where\('isReleased', '==', true\)\)/);
+  assert.match(dashboard, /canReadDraftWeeks\(currentRole\) \|\| canCurrentUser\('week\.manage'\)\s*\?\s*query\(weeksRef, orderBy\('weekLabel'\)\)\s*:\s*query\(weeksRef, where\('isReleased', '==', true\)\)/);
   assert.match(dashboard, /projectManagerUnsub\s*=\s*onSnapshot\(collection\(db, 'users'\)/);
   assert.match(dashboard, /PM_LIST\s*=\s*buildProjectManagerList\(/);
   assert.match(dashboard, /currentPMFilter\s*=\s*reconcileProjectManagerFilter\(currentPMFilter, PM_LIST\)/);

@@ -24,7 +24,7 @@ const rowOf = (role, stored, key) => buildSwitchRows({ role, stored }).find(row 
 
 test('exactly the four reviewed delegable capabilities get a switch, in registry order, never permissions.manage', () => {
   assert.deepEqual(configurableCapabilities().map(entry => entry.key), KEYS);
-  assert.deepEqual(configurableCapabilities().map(entry => entry.label), ['Manage Weeks', 'Release Week', 'Manage Gantt', 'Manage Projects']);
+  assert.deepEqual(configurableCapabilities().map(entry => entry.label), ['Manage Weeks', 'Release Week', 'Manage Gantt', 'Add / Delete Projects']);
   for (const entry of configurableCapabilities()) assert.ok(entry.description.length > 10, entry.key);
   assert.equal(configurableCapabilities().some(entry => entry.key === 'permissions.manage'), false);
 });

@@ -11,6 +11,7 @@ const KNOWN_ROLES = Object.freeze([
 
 // Roles that work in the working-team view (draft weeks, project editor, release banner).
 const WORKING_ROLES = Object.freeze(['pm', 'engineering', 'business', 'sales', 'bd', 'product']);
+const PM_ONLY = Object.freeze(['pm']);
 const ALL_NON_ADMIN_ROLES = Object.freeze([...WORKING_ROLES, 'vip', 'executive']);
 
 // label/description: reviewed Admin-facing presentation for the User Permissions page.
@@ -30,14 +31,15 @@ export const CAPABILITIES = Object.freeze({
     grantableRoles: ALL_NON_ADMIN_ROLES,
   }),
   // Release to the audience / Revert to Draft (setDashboardWeekRelease). PM keeps today's access by default.
-  // Not grantable to VIP/Executive: their perspective has no release controls or draft weeks to act on.
+  // V1 is least-privilege: only PM may hold it (switch OFF/ON for an individual PM). No other role is grantable,
+  // so no draft-read expansion is needed.
   'week.release': Object.freeze({
     label: 'Release Week',
     description: 'Release a week to its audience and revert it back to draft.',
     roleDefaults: Object.freeze(['admin', 'pm']),
     delegable: true,
     adminLocked: true,
-    grantableRoles: WORKING_ROLES,
+    grantableRoles: PM_ONLY,
   }),
   // Global Gantt administration: default Gantt templates and the PDF Gantt display window. Viewing Gantt charts and
   // editing an individual project's schedule are not part of this capability.
@@ -50,15 +52,15 @@ export const CAPABILITIES = Object.freeze({
     grantableRoles: ALL_NON_ADMIN_ROLES,
   }),
   // Project administration: create and delete projects. Editing an existing project stays ownership-based
-  // (owner/deputy), and an Admin's right to edit any project stays role-only. Not grantable to VIP/Executive:
-  // they have no project editor and see released (locked) weeks only.
+  // (owner/deputy), and an Admin's right to edit any project stays role-only. PM-only in V1: the create/delete
+  // workflow acts on draft weeks, which PM already reads. Does not imply week.manage, week.release or draft reads.
   'project.manage': Object.freeze({
-    label: 'Manage Projects',
-    description: 'Add new projects and delete projects.',
+    label: 'Add / Delete Projects',
+    description: 'Create new projects and delete existing projects. Editing project content is not included.',
     roleDefaults: Object.freeze(['admin']),
     delegable: true,
     adminLocked: true,
-    grantableRoles: WORKING_ROLES,
+    grantableRoles: PM_ONLY,
   }),
   // Reserved: only raw-role Admin may manage user permissions. Never delegable.
   'permissions.manage': Object.freeze({

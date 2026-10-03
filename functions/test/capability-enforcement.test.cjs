@@ -86,19 +86,19 @@ const GANTT_TEMPLATE = { expectedRevision: 0, config: { system: ['Plan'], 'hardw
 const GANTT_WINDOW = { expectedRevision: 0, defaultMonths: 9, overrides: {} };
 const OPERATIONS = {
   'week.release': {
-    revert: key => writes.setDashboardWeekRelease.run(request(key, { weekId: 'W39-2026', isReleased: false })),
-    release: key => writes.setDashboardWeekRelease.run(request(key, { weekId: 'W40-2026', isReleased: true })),
+    revert: (key, claims) => writes.setDashboardWeekRelease.run(request(key, { weekId: 'W39-2026', isReleased: false }, claims)),
+    release: (key, claims) => writes.setDashboardWeekRelease.run(request(key, { weekId: 'W40-2026', isReleased: true }, claims)),
   },
   'gantt.manage': {
-    template: key => writes.saveDashboardGanttTemplateSettings.run(request(key, GANTT_TEMPLATE)),
-    window: key => writes.saveDashboardGanttWindowSettings.run(request(key, GANTT_WINDOW)),
+    template: (key, claims) => writes.saveDashboardGanttTemplateSettings.run(request(key, GANTT_TEMPLATE, claims)),
+    window: (key, claims) => writes.saveDashboardGanttWindowSettings.run(request(key, GANTT_WINDOW, claims)),
   },
   'project.manage': {
-    create: key => writes.saveDashboardProject.run(request(key, {
+    create: (key, claims) => writes.saveDashboardProject.run(request(key, {
       weekId: 'W40-2026', projectCode: 'BETA', isNew: true,
       project: { code: 'BETA', name: 'Beta', owner: 'Bonnie', visibility: 'active' },
-    })),
-    delete: key => writes.deleteDashboardProject.run(request(key, { weekId: 'W40-2026', originalCode: 'OTHER' })),
+    }, claims)),
+    delete: (key, claims) => writes.deleteDashboardProject.run(request(key, { weekId: 'W40-2026', originalCode: 'OTHER' }, claims)),
   },
 };
 const DENIED = 'permission-denied/role-forbidden';
@@ -112,18 +112,17 @@ for (const [capability, operations] of Object.entries(OPERATIONS)) {
       assert.equal(await reasonOf(run('admin')), 'ok');
     });
 
-    test(`${capability}/${name}: a manual backend call is denied without the capability and token claims never grant it`, async () => {
-      for (const key of ['engineering', 'business', 'vip', 'executive']) {
-        if (capability === 'week.release' && key === 'pm') continue;
+    test(`${capability}/${name}: a manual backend call is denied without the capability and forged token claims never grant it`, async () => {
+      // `run` is this capability's own backend operation; the forged token claims go through that same handler.
+      const forged = { role: 'admin', permissionOverrides: { [capability]: true }, admin: true };
+      const denied = capability === 'week.release' || capability === 'project.manage'
+        ? ['engineering', 'business', 'vip', 'executive'] : ['pm', 'engineering', 'business', 'vip', 'executive'];
+      if (capability === 'project.manage') denied.push('pm');
+      for (const key of denied) {
         reset();
-        const claims = { role: 'admin', permissionOverrides: { [capability]: true } };
-        const call = operations[name];
-        assert.equal(await reasonOf(call(key)), DENIED, key);
-        assert.equal(await reasonOf(writes.setDashboardWeekRelease.run(request(key, { weekId: 'W39-2026', isReleased: false }, claims))), DENIED, `${key} with claims`);
-      }
-      if (capability !== 'week.release') {
+        assert.equal(await reasonOf(run(key)), DENIED, key);
         reset();
-        assert.equal(await reasonOf(run('pm')), DENIED, 'pm');
+        assert.equal(await reasonOf(run(key, forged)), DENIED, `${key} with forged claims`);
       }
     });
   }
@@ -145,23 +144,28 @@ test('week.release: an explicit OFF denies a PM, and removing it restores the ro
   assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), 'ok');
 });
 
-test('week.release: ON allows other working roles, and switching it off or resetting denies again', async () => {
-  for (const key of ['engineering', 'business']) {
-    reset({ [key]: { 'week.release': true } });
-    assert.equal(await reasonOf(OPERATIONS['week.release'].revert(key)), 'ok', key);
-    assert.equal(await reasonOf(OPERATIONS['week.release'].release(key)), 'ok', key);
-    store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides: { 'week.release': false }, revision: 2 });
-    assert.equal(await reasonOf(OPERATIONS['week.release'].revert(key)), DENIED, `${key} switched off`);
-    store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides: {}, revision: 3 });
-    assert.equal(await reasonOf(OPERATIONS['week.release'].revert(key)), DENIED, `${key} reset`);
-  }
-});
-
-test('week.release: VIP and Executive cannot be granted it, and unrelated release validation is unchanged', async () => {
-  for (const key of ['vip', 'executive']) {
+test('week.release: only PM is grantable; a stale or forged true override never lets another role release', async () => {
+  for (const key of ['engineering', 'business', 'vip', 'executive']) {
     reset({ [key]: { 'week.release': true } });
     assert.equal(await reasonOf(OPERATIONS['week.release'].revert(key)), DENIED, key);
+    assert.equal(await reasonOf(OPERATIONS['week.release'].release(key)), DENIED, key);
   }
+  for (const key of ['sales', 'bd', 'product']) {
+    USERS[key] = { role: key, displayName: key };
+    reset({ [key]: { 'week.release': true } });
+    assert.equal(await reasonOf(OPERATIONS['week.release'].revert(key)), DENIED, key);
+    delete USERS[key];
+  }
+  // PM: default ON, false -> OFF, reset (no key) -> ON again.
+  reset();
+  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), 'ok');
+  reset({ pm: { 'week.release': false } });
+  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), DENIED);
+  reset({ pm: {} });
+  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), 'ok');
+});
+
+test('week.release: unrelated release validation is unchanged', async () => {
   reset();
   store.delete('executiveMilestoneState/live');
   assert.equal(await reasonOf(OPERATIONS['week.release'].release('admin')), 'failed-precondition/invalid-payload', 'the live timeline precondition still applies');
@@ -192,28 +196,52 @@ test('gantt.manage: delegation is scoped; it grants nothing else and keeps Gantt
   assert.equal(await reasonOf(writes.saveDashboardGanttTemplateSettings.run(request('engineering', { ...GANTT_TEMPLATE, expectedRevision: 3 }))), 'failed-precondition/conflict');
 });
 
-test('project.manage: ON allows creating and deleting projects for working roles, and OFF or reset denies again', async () => {
-  for (const key of ['pm', 'engineering', 'business']) {
-    reset({ [key]: { 'project.manage': true } });
-    assert.equal(await reasonOf(OPERATIONS['project.manage'].create(key)), 'ok', `${key} create`);
-    assert.ok(store.get('weeks/W40-2026').projects.some(project => project.code === 'BETA'));
-    assert.equal(await reasonOf(OPERATIONS['project.manage'].delete(key)), 'ok', `${key} delete`);
-    store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides: { 'project.manage': false }, revision: 2 });
-    assert.equal(await reasonOf(writes.deleteDashboardProject.run(request(key, { weekId: 'W40-2026', originalCode: 'ALPHA' }))), DENIED, `${key} off`);
-    store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides: {}, revision: 3 });
-    assert.equal(await reasonOf(writes.saveDashboardProject.run(request(key, {
-      weekId: 'W40-2026', projectCode: 'GAMMA', isNew: true, project: { code: 'GAMMA', name: 'Gamma', owner: 'x', visibility: 'active' },
-    }))), DENIED, `${key} reset`);
-  }
+test('project.manage: PM-only; ON allows create and delete on a draft week, and OFF or reset denies again', async () => {
+  reset();
+  assert.equal(await reasonOf(OPERATIONS['project.manage'].create('pm')), DENIED, 'PM default is OFF');
+  reset({ pm: { 'project.manage': true } });
+  assert.equal(await reasonOf(OPERATIONS['project.manage'].create('pm')), 'ok', 'create');
+  assert.ok(store.get('weeks/W40-2026').projects.some(project => project.code === 'BETA'));
+  assert.equal(await reasonOf(OPERATIONS['project.manage'].delete('pm')), 'ok', 'delete');
+  assert.ok(!store.get('weeks/W40-2026').projects.some(project => project.code === 'OTHER'));
+  store.set('userPermissions/pm@example.test', { schemaVersion: 1, overrides: { 'project.manage': false }, revision: 2 });
+  assert.equal(await reasonOf(writes.deleteDashboardProject.run(request('pm', { weekId: 'W40-2026', originalCode: 'ALPHA' }))), DENIED, 'off');
+  store.set('userPermissions/pm@example.test', { schemaVersion: 1, overrides: {}, revision: 3 });
+  assert.equal(await reasonOf(OPERATIONS['project.manage'].create('pm')), DENIED, 'reset');
 });
 
-test('project.manage: VIP and Executive cannot be granted it, and a delegate gains no other project or admin power', async () => {
-  for (const key of ['vip', 'executive']) {
+test('project.manage: no other role can be granted it, even with a stale or forged true override', async () => {
+  for (const key of ['engineering', 'business', 'vip', 'executive']) {
     reset({ [key]: { 'project.manage': true } });
     assert.equal(await reasonOf(OPERATIONS['project.manage'].create(key)), DENIED, key);
     assert.equal(await reasonOf(OPERATIONS['project.manage'].delete(key)), DENIED, key);
   }
-  reset({ engineering: { 'project.manage': true }, pm: { 'project.manage': true } });
+  for (const key of ['sales', 'bd', 'product']) {
+    USERS[key] = { role: key, displayName: key };
+    reset({ [key]: { 'project.manage': true } });
+    assert.equal(await reasonOf(OPERATIONS['project.manage'].create(key)), DENIED, key);
+    assert.equal(await reasonOf(OPERATIONS['project.manage'].delete(key)), DENIED, key);
+    delete USERS[key];
+  }
+});
+
+test('project.manage does not bypass released-week protection: create and delete on a released week fail', async () => {
+  for (const [who, setup] of [['pm', { pm: { 'project.manage': true } }], ['admin', {}]]) {
+    reset(setup);
+    store.set('weeks/W39-2026', { ...store.get('weeks/W39-2026'), projects: [{ code: 'REL', name: 'Rel', owner: 'Bonnie', visibility: 'active' }] });
+    const before = JSON.stringify(store.get('weeks/W39-2026'));
+    const create = await reasonOf(writes.saveDashboardProject.run(request(who, {
+      weekId: 'W39-2026', projectCode: 'NEW', isNew: true, project: { code: 'NEW', name: 'New', owner: 'Bonnie', visibility: 'active' },
+    })));
+    const del = await reasonOf(writes.deleteDashboardProject.run(request(who, { weekId: 'W39-2026', originalCode: 'REL' })));
+    assert.match(create, /^failed-precondition\//, `${who} create`);
+    assert.match(del, /^failed-precondition\//, `${who} delete`);
+    assert.equal(JSON.stringify(store.get('weeks/W39-2026')), before, `${who}: the released week is unchanged`);
+  }
+});
+
+test('project.manage: a PM delegate gains no other project or admin power', async () => {
+  reset({ pm: { 'project.manage': true } });
   // Editing someone else's project stays ownership-based, and editing any project stays role-only (Admin).
   const other = store.get('weeks/W40-2026').projects.find(project => project.code === 'OTHER');
   const edit = key => writes.saveDashboardProject.run(request(key, {
@@ -221,10 +249,12 @@ test('project.manage: VIP and Executive cannot be granted it, and a delegate gai
     project: { code: 'OTHER', name: 'Renamed', owner: 'Someone Else', visibility: 'active' },
   }));
   assert.equal(await reasonOf(edit('pm')), 'permission-denied/ownership-forbidden');
-  assert.equal(await reasonOf(edit('engineering')), 'permission-denied/ownership-forbidden');
   assert.equal(await reasonOf(edit('admin')), 'ok');
   assert.equal(await reasonOf(OPERATIONS['gantt.manage'].template('pm')), DENIED);
-  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('engineering')), DENIED);
+  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), 'ok', 'PM release is its own default, independent of project.manage');
+  reset({ pm: { 'project.manage': true, 'week.release': false } });
+  assert.equal(await reasonOf(OPERATIONS['week.release'].revert('pm')), DENIED, 'project.manage does not imply week.release');
+  assert.equal(await reasonOf(writes.createDashboardWeek.run(request('pm', { weekId: 'W41', weekLabel: 'W41', weekDate: 'x' }))), DENIED, 'nor week.manage');
 });
 
 test('project.manage: normal weekly project editing is unaffected, with or without the capability', async () => {

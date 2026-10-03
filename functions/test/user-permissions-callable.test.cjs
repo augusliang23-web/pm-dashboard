@@ -269,7 +269,10 @@ const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manag
 test('every reviewed delegable capability can be granted and reset to an eligible role with an audited, atomic change', async () => {
   for (const capability of DELEGABLE) {
     reset();
-    const target = 'eng@example.test';
+    const pmOnly = capability === 'week.release' || capability === 'project.manage';
+    const target = pmOnly ? 'bonnie@example.test' : 'eng@example.test';
+    // week.release is already ON for a PM, so its grant is exercised through the OFF/ON test below.
+    if (capability === 'week.release') continue;
     const granted = await call(change(target, { [capability]: true }));
     assert.deepEqual({ changed: granted.changed, revision: granted.revision, overrides: granted.overrides }, { changed: true, revision: 1, overrides: { [capability]: true } }, capability);
     const cleared = await call(change(target, { [capability]: null }, 1));
@@ -277,13 +280,13 @@ test('every reviewed delegable capability can be granted and reset to an eligibl
     const [grantAudit, resetAudit] = audits();
     assert.deepEqual(grantAudit.changes, [{ capability, before: null, after: true }], capability);
     assert.deepEqual(resetAudit.changes, [{ capability, before: true, after: null }], capability);
-    assert.equal(grantAudit.roleAtChange, 'engineering');
+    assert.equal(grantAudit.roleAtChange, pmOnly ? 'pm' : 'engineering');
   }
 });
 
-test('role eligibility comes from the registry: working-team-only capabilities reject VIP and Executive', async () => {
+test('role eligibility comes from the registry: week.release and project.manage are PM-only and reject every other role', async () => {
   for (const capability of ['week.release', 'project.manage']) {
-    for (const target of ['vip@example.test', 'exec@example.test']) {
+    for (const target of ['eng@example.test', 'biz@example.test', 'vip@example.test', 'exec@example.test']) {
       reset();
       assert.equal(await reasonOf(call(change(target, { [capability]: true }))), 'failed-precondition/role-not-grantable', `${capability} ${target}`);
       assert.deepEqual(audits(), []);

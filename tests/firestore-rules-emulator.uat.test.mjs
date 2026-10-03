@@ -475,51 +475,31 @@ test('userPermissionAudit is readable only by Admin and never client-writable', 
   }
 });
 
-test('a server-stored week.release override lets a working-team role read the draft weeks it releases, and nothing else does', async () => {
+test('week.release and project.manage overrides never grant draft-week reads (no strategyLayer exposure)', async () => {
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
-    const grants = ['engineering', 'business', 'sales', 'bd', 'product'];
+    const roles = ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'];
     await Promise.all([
-      ...grants.map(role => setDoc(doc(db, `users/${role}-release@example.com`), { role, displayName: role })),
-      ...grants.map(role => setDoc(doc(db, `userPermissions/${role}-release@example.com`), { schemaVersion: 1, overrides: { 'week.release': true }, revision: 1 })),
-      setDoc(doc(db, 'users/engineering-none@example.com'), { role: 'engineering', displayName: 'No override' }),
-      setDoc(doc(db, 'users/business-off@example.com'), { role: 'business', displayName: 'Off' }),
-      setDoc(doc(db, 'userPermissions/business-off@example.com'), { overrides: { 'week.release': false } }),
-      setDoc(doc(db, 'users/sales-malformed@example.com'), { role: 'sales', displayName: 'Malformed' }),
-      setDoc(doc(db, 'userPermissions/sales-malformed@example.com'), { overrides: { 'week.release': 'true' } }),
-      setDoc(doc(db, 'users/gantt-only@example.com'), { role: 'engineering', displayName: 'Other capability' }),
-      setDoc(doc(db, 'userPermissions/gantt-only@example.com'), { overrides: { 'gantt.manage': true, 'project.manage': true } }),
-      setDoc(doc(db, 'users/exec-release@example.com'), { role: 'executive', displayName: 'Exec' }),
-      setDoc(doc(db, 'userPermissions/exec-release@example.com'), { overrides: { 'week.release': true } }),
+      ...roles.map(role => setDoc(doc(db, `users/${role}-release@example.com`), { role, displayName: role })),
+      ...roles.map(role => setDoc(doc(db, `userPermissions/${role}-release@example.com`), {
+        schemaVersion: 1, overrides: { 'week.release': true, 'project.manage': true, 'gantt.manage': true }, revision: 1,
+      })),
       setDoc(doc(db, 'users/pm-release-off@example.com'), { role: 'pm', displayName: 'PM release off' }),
       setDoc(doc(db, 'userPermissions/pm-release-off@example.com'), { overrides: { 'week.release': false } }),
     ]);
   });
 
-  for (const role of ['engineering', 'business', 'sales', 'bd', 'product']) {
-    const holder = auth(`${role}-release-uid`, `${role}-release@example.com`);
-    await assertSucceeds(getDoc(doc(holder, 'weeks/draft-week')));
-    await assertSucceeds(getDocs(query(collection(holder, 'weeks'), orderBy('weekLabel'))));
-    await assertFails(setDoc(doc(holder, 'weeks/draft-week'), { isReleased: true }, { merge: true }));
-  }
-  for (const [uid, email] of [
-    ['engineering-none-uid', 'engineering-none@example.com'],
-    ['business-off-uid', 'business-off@example.com'],
-    ['sales-malformed-uid', 'sales-malformed@example.com'],
-    ['gantt-only-uid', 'gantt-only@example.com'],
-    ['exec-release-uid', 'exec-release@example.com'],
-    ['vip-uid', 'vip@example.com'],
-  ]) {
-    const client = auth(uid, email);
+  for (const role of ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
+    const client = auth(`${role}-release-uid`, `${role}-release@example.com`);
     await assertFails(getDoc(doc(client, 'weeks/draft-week')));
     await assertFails(getDocs(query(collection(client, 'weeks'), orderBy('weekLabel'))));
     await assertSucceeds(getDoc(doc(client, 'weeks/released-week')));
+    await assertFails(setDoc(doc(client, 'weeks/draft-week'), { isReleased: true }, { merge: true }));
   }
   // The PM baseline for reading drafts is independent of the release switch.
   await assertSucceeds(getDoc(doc(auth('pm-release-off-uid', 'pm-release-off@example.com'), 'weeks/draft-week')));
   // Permission documents stay read-protected from other users and never client-writable.
   const holder = auth('engineering-release-uid', 'engineering-release@example.com');
-  await assertFails(getDoc(doc(holder, 'userPermissions/business-off@example.com')));
   await assertFails(setDoc(doc(holder, 'userPermissions/engineering-release@example.com'), { overrides: { 'week.release': false, 'gantt.manage': true } }));
 });
 }

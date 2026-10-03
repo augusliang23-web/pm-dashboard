@@ -108,14 +108,10 @@ test('Firestore draft week reads are limited to PM, Admin and effective week.man
   for (const rules of [await readRules(), await readSharedBackendRules()]) {
     assert.match(rules, /function canReadDraftWeeks\(\)/);
     assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
-    assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| canManageWeeks\(\) \|\| canReleaseWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
-    // week.release holders outside the PM default read drafts through a boolean-true override of a working-team role only
-    // (PM reads drafts by default; VIP/Executive cannot be granted release). Reads only: week writes stay denied.
-    const release = rules.match(/function canReleaseWeeks\(\) \{([\s\S]*?)\n    \}/)?.[1] || '';
-    assert.match(release, /dashboardRole\(\) in \['engineering', 'business', 'sales', 'bd', 'product'\]/);
-    assert.match(release, /weekManageOverride\(\) is map/);
-    assert.match(release, /weekManageOverride\(\)\.get\('week\.release', false\) == true/);
-    assert.doesNotMatch(release, /request\.resource|resource\.data|vip|executive/);
+    assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| canManageWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
+    // V1 is least-privilege: week.release / project.manage are PM-only (PM already reads drafts), so the rules add no
+    // release- or project-based draft read.
+    assert.doesNotMatch(rules, /canReleaseWeeks|week\.release|project\.manage/);
     assert.match(rules, /allow write: if false;/);
     // week.manage is read only from the server-stored userPermissions document of the signed-in email, and only
     // a boolean true counts; Admin keeps it by role.

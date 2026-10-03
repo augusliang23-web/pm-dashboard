@@ -345,9 +345,9 @@ for (const profile of Object.keys(PROFILES)) {
   test(`${profile}: an unexpected failure reverts the switch with a plain message`, async () => {
     const { context, dom } = makeContext(profile, { setOverrides: async () => { throw new TypeError('Failed to fetch'); } });
     await openAndSelect(context, 'eng@example.test');
-    flip(dom, 'project.manage', true);
+    flip(dom, 'gantt.manage', true);
     await settle();
-    assert.equal(stateOf(dom, 'project.manage'), 'OFF');
+    assert.equal(stateOf(dom, 'gantt.manage'), 'OFF');
     assert.equal(dom.element('userPermissionsMessage').textContent, 'Unable to save this change. The switch was put back.');
   });
 

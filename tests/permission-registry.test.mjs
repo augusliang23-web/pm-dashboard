@@ -18,9 +18,9 @@ const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manag
 // Reviewed role defaults and grantable roles. The registry must match this table exactly.
 const EXPECTED = {
   'week.manage': { defaults: ['admin'], grantable: NON_ADMIN_ROLES },
-  'week.release': { defaults: ['admin', 'pm'], grantable: WORKING_ROLES },
+  'week.release': { defaults: ['admin', 'pm'], grantable: ['pm'] },
   'gantt.manage': { defaults: ['admin'], grantable: NON_ADMIN_ROLES },
-  'project.manage': { defaults: ['admin'], grantable: WORKING_ROLES },
+  'project.manage': { defaults: ['admin'], grantable: ['pm'] },
 };
 
 test('the registry holds exactly the reviewed delegable capabilities plus the non-delegable permissions.manage', () => {
@@ -70,13 +70,17 @@ test('Release Week keeps PM access by default, an Admin can switch it off or on 
   assert.equal(can('week.release', { role: 'pm' }), true);
   assert.equal(can('week.release', { role: 'pm', overrides: { 'week.release': false } }), false);
   assert.equal(can('week.release', { role: 'pm', overrides: { 'week.release': true } }), true);
-  for (const role of ['engineering', 'business', 'sales', 'bd', 'product']) {
+  assert.equal(can('week.release', { role: 'pm', overrides: {} }), true, 'reset returns to the role default');
+  // V1 is PM-only: no other role can be granted Release, so no draft-read expansion is needed.
+  for (const role of ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
     assert.equal(can('week.release', { role }), false, role);
-    assert.equal(can('week.release', { role, overrides: { 'week.release': true } }), true, role);
+    assert.equal(can('week.release', { role, overrides: { 'week.release': true } }), false, `${role} cannot be granted Release`);
   }
-  for (const role of ['vip', 'executive']) {
-    assert.equal(can('week.release', { role, overrides: { 'week.release': true } }), false, `${role} has no release controls`);
+  for (const role of ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
+    assert.equal(can('project.manage', { role, overrides: { 'project.manage': true } }), false, `${role} cannot be granted Add / Delete Projects`);
   }
+  assert.equal(can('project.manage', { role: 'pm' }), false);
+  assert.equal(can('project.manage', { role: 'pm', overrides: { 'project.manage': true } }), true);
 });
 
 test('capabilities are independent: one override never affects another capability', () => {
