@@ -31,7 +31,7 @@ export const CAPABILITIES = Object.freeze({
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
 export function normalizePermissionRole(role) {
-  const value = String(role || '').trim().toLowerCase();
+  const value = typeof role === 'string' ? role.trim().toLowerCase() : '';
   return KNOWN_ROLES.includes(value) ? value : '';
 }
 

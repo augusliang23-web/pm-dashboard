@@ -53,6 +53,8 @@ const USERS = {
   admin: { role: 'admin', displayName: 'Admin' },
   pm: { role: 'pm', displayName: 'Bonnie' },
   engineering: { role: 'engineering', displayName: 'Eng' },
+  business: { role: 'business', displayName: 'Business' },
+  bd: { role: 'bd', displayName: 'BD' },
   sales: { role: 'sales', displayName: 'Sales' },
   product: { role: 'product', displayName: 'Product' },
   vip: { role: 'vip', displayName: 'VIP' },
@@ -104,7 +106,7 @@ test('Admin keeps week.manage when its permission document says false', async ()
 });
 
 test('non-Admin roles without an override are denied week creation and summary saves', async () => {
-  for (const key of ['pm', 'engineering', 'sales', 'product', 'vip', 'executive']) {
+  for (const key of ['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
     reset();
     assert.equal(await reasonOf(writes.createDashboardWeek.run(request(key, createData()))), 'permission-denied/role-forbidden', key);
     assert.equal(await reasonOf(writes.saveDashboardWeekFields.run(request(key, summaryData()))), 'permission-denied/role-forbidden', key);
@@ -114,7 +116,7 @@ test('non-Admin roles without an override are denied week creation and summary s
 });
 
 test('an explicit week.manage override lets PM, Engineering, Sales, Product, VIP and Executive create weeks and save summaries', async () => {
-  for (const key of ['pm', 'engineering', 'sales', 'product', 'vip', 'executive']) {
+  for (const key of ['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
     reset({ [key]: { 'week.manage': true } });
     assert.equal(await reasonOf(writes.createDashboardWeek.run(request(key, createData()))), 'ok', key);
     assert.equal(store.get('weeks/W41-2026').lastModifiedBy, `${key}@example.test`);
@@ -185,4 +187,23 @@ test('week.manage does not change project, delete or release authorization', asy
   assert.equal(await reasonOf(writes.setDashboardProjectAttention.run(request('engineering', {
     weekId: 'W40-2026', projectCode: 'ALPHA', attention: 'action',
   }))), 'permission-denied/ownership-forbidden');
+});
+
+
+test('business recognition and week.manage delegation grant no neighbouring mutation privileges', async () => {
+  for (const overrides of [{}, { 'week.manage': true }]) {
+    reset({ business: overrides });
+    const actor = writes.buildAuthenticatedActor({ uid: 'business-uid', email: 'business@example.test' }, USERS.business, { overrides });
+    assert.equal(writes.canSetWeekRelease(actor.role), false);
+    assert.equal(writes.canCreateProject(actor.role), false);
+    assert.equal(writes.canDeleteProject(actor.role), false);
+    assert.equal(writes.canManageWeekFields(actor.role), false);
+    assert.equal(writes.canMutateProject({ actor, project: { owner: 'Business' } }), false);
+    const denied = 'permission-denied/role-forbidden';
+    assert.equal(await reasonOf(writes.saveDashboardWeekFields.run(request('business', summaryData({ strategyLayer: {} })))), denied);
+    assert.equal(await reasonOf(writes.setDashboardWeekRelease.run(request('business', { weekId: 'W40-2026', isReleased: true }))), denied);
+    assert.equal(await reasonOf(writes.deleteDashboardProject.run(request('business', { weekId: 'W40-2026', originalCode: 'ALPHA' }))), denied);
+    assert.equal(await reasonOf(writes.saveDashboardGanttTemplateSettings.run(request('business', {}))), denied);
+    assert.equal(await reasonOf(writes.saveDashboardGanttWindowSettings.run(request('business', {}))), denied);
+  }
 });

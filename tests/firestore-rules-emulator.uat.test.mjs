@@ -2,6 +2,11 @@ import { dashboardSource, dashboardSourceAsync } from './helpers/dashboard-sourc
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
+import { createRequire } from 'node:module';
+import { ROLE_CASES } from './helpers/dashboard-role-cases.mjs';
+import { normalizeDashboardRole } from '../js/dashboard-access.mjs';
+import { can as clientCan } from '../js/permission-registry.mjs';
+const serverPermissions = createRequire(import.meta.url)('../functions/permission-registry.js');
 import {
   assertFails,
   assertSucceeds,
@@ -405,4 +410,38 @@ test('a server-stored week.manage override lets any recognized non-Admin role re
   }
   await assertSucceeds(getDoc(doc(auth('vip-uid', 'vip@example.com'), 'weeks/released-week')));
 });
+
+test('raw role variants have matching dashboard, client, Functions and rules authorization', async () => {
+  const values = [undefined, true, false, 'true', 1, {}];
+  const cases = ROLE_CASES.flatMap((roleCase, roleIndex) => values.map((value, valueIndex) => ({
+    ...roleCase, value, email: `parity-${roleIndex}-${valueIndex}@example.com`,
+  })));
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await Promise.all(cases.map(async ({ raw, value, email }) => {
+      await setDoc(doc(db, `users/${email}`), raw === undefined ? {} : { role: raw });
+      if (value !== undefined) await setDoc(doc(db, `userPermissions/${email}`), { overrides: { 'week.manage': value } });
+    }));
+  });
+  for (const { raw, expected, value, email } of cases) {
+    const label = `${JSON.stringify(raw)} / ${JSON.stringify(value)}`;
+    assert.equal(normalizeDashboardRole(raw), expected, label);
+    assert.equal(serverPermissions.normalizePermissionRole(raw), expected, label);
+    const manage = expected === 'admin' || (!!expected && value === true);
+    const input = { role: raw, overrides: { 'week.manage': value } };
+    assert.equal(clientCan('week.manage', input), manage, label);
+    assert.equal(serverPermissions.can('week.manage', input), manage, label);
+    const client = auth(email, email);
+    const readDraft = getDoc(doc(client, 'weeks/draft-week'));
+    if (manage || expected === 'pm') await assertSucceeds(readDraft);
+    else await assertFails(readDraft);
+    // Released reads retain the existing directory-membership behavior, even for unknown roles.
+    await assertSucceeds(getDoc(doc(client, 'weeks/released-week')));
+    // A Manage Weeks grant never becomes Admin permission-document access.
+    const readOtherPermissions = getDoc(doc(client, 'userPermissions/other@example.com'));
+    if (expected === 'admin') await assertSucceeds(readOtherPermissions);
+    else await assertFails(readOtherPermissions);
+  }
+});
+
 }

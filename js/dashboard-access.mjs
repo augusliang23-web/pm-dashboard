@@ -1,7 +1,7 @@
-const VALID_ROLES = new Set(['admin', 'pm', 'vip', 'sales', 'bd', 'engineering', 'product', 'executive']);
+const VALID_ROLES = new Set(['admin', 'pm', 'vip', 'sales', 'bd', 'engineering', 'business', 'product', 'executive']);
 
 export function normalizeDashboardRole(role) {
-  const value = String(role || '').trim().toLowerCase();
+  const value = typeof role === 'string' ? role.trim().toLowerCase() : '';
   return VALID_ROLES.has(value) ? value : '';
 }
 

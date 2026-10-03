@@ -3,7 +3,7 @@ const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
-const { can, normalizePermissionOverrides } = require('./permission-registry');
+const { can, normalizePermissionOverrides, normalizePermissionRole } = require('./permission-registry');
 
 const KNOWN_ROLES = new Set([
   'admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product',
@@ -60,7 +60,7 @@ function buildAuthenticatedActor(authIdentity = {}, userData = {}, permissionDat
   const actor = {
     uid: String(authIdentity.uid || '').trim(),
     email: normalized(authIdentity.email),
-    role: normalized(userData.role),
+    role: normalizePermissionRole(userData.role),
     displayName: resolveActorDisplayName(authIdentity.email, userData.displayName),
     permissionOverrides: Object.freeze(normalizePermissionOverrides(permissionData?.overrides)),
   };

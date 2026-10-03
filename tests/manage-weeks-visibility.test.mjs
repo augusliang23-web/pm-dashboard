@@ -168,8 +168,8 @@ const PRODUCTION_MATRIX = [
   ['vip', { 'week.manage': true }, true],
   ['vip', { 'week.manage': false }, false],
 ];
-// UAT has no raw `business` role (normalizeDashboardRole rejects it at login).
-const UAT_MATRIX = PRODUCTION_MATRIX.filter(([role]) => role !== 'business');
+// Both profiles support every recognized raw dashboard role.
+const UAT_MATRIX = PRODUCTION_MATRIX;
 const MATRIX = { production: PRODUCTION_MATRIX, uat: UAT_MATRIX };
 const label = (profile, role, overrides) => `${profile} ${role} ${JSON.stringify(overrides)}`;
 
@@ -261,6 +261,7 @@ test('UAT Production Data Sync stays raw-role Admin only inside Week Management'
     ['pm', { 'week.manage': true }, 0],
     ['engineering', { 'week.manage': true }, 0],
     ['sales', { 'week.manage': true }, 0],
+    ['business', { 'week.manage': true }, 0],
   ]) {
     const { context, dom, calls } = setupContext('uat', role, overrides);
     context.setupUI();

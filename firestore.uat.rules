@@ -11,9 +11,17 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
     }
 
+    // Match the browser/Functions role contract; non-string and unknown values fail closed.
+    // trim()/lower() are supported Firebase Rules String methods.
+    function normalizeDashboardRole(role) {
+      let value = role is string ? role.trim().lower() : '';
+      return value in ['admin', 'pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']
+        ? value : '';
+    }
+
     function dashboardRole() {
       return hasDashboardAccess()
-        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        ? normalizeDashboardRole(get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.get('role', ''))
         : '';
     }
 
