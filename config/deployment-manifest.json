@@ -78,9 +78,31 @@
   ],
   "releases": {
     "userPermissionsV2": {
-      "description": "Production promotion of User Permissions V2 (PR #39 on main 1c2ec79). Release plan only; the manifest never performs a deployment.",
+      "description": "Production promotion of User Permissions V2. Runtime target source is main 57ef1caa (PR #39 + PR #42). Release plan only; the manifest never performs a deployment.",
       "environment": "prod",
-      "featureSourceMainSha": "1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32",
+      "runtimeTargetSourceSha": "57ef1caad37c186adfe8536b6cb22d6302fdfc21",
+      "runtimeTargetIncludedPullRequests": [
+        39,
+        42
+      ],
+      "runtimeTargetSecurityContracts": {
+        "saveDashboardProject": {
+          "pullRequest": 42,
+          "visibilityRefusalReason": "visibility-admin-only",
+          "rules": [
+            "non-Admin project visibility cannot change (create must start Active; edit must echo the live visibility)",
+            "project.manage grants create/delete only and never visibility authority",
+            "ownership-based editing never grants visibility authority",
+            "Admin behavior is unchanged"
+          ],
+          "runtimeSourceFile": "functions/project-dashboard-writes.js",
+          "runtimeContractTest": "functions/test/project-visibility-authority.test.cjs"
+        }
+      },
+      "runtimeTargetHostingContract": {
+        "pullRequest": 42,
+        "conflictReload": "a failed conflict reload must not claim fresh settings; it hides stale detail and requires the Admin to reselect the user"
+      },
       "functions": [
         "setUserPermissionOverrides",
         "createDashboardWeek",
@@ -157,7 +179,7 @@
         "hostingRelease": "1790984982984000"
       },
       "executionFreeze": {
-        "rule": "The release runs from an explicitly recorded execution freeze SHA verified against featureSourceMainSha; any runtime-relevant path change since the feature source requires a re-baseline. Only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ (verified with git diff --name-only, never assumed).",
+        "rule": "The release runs from an explicitly recorded execution freeze SHA verified against runtimeTargetSourceSha (main 57ef1caa); any runtime-relevant path change since that source requires another re-baseline. Only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ (verified with git diff --name-only, never assumed).",
         "planOnlyFiles": [
           "config/deployment-manifest.json",
           "scripts/deployment-manifest.mjs"

@@ -122,7 +122,7 @@ export function assertReleasePlan(manifest, id) {
   if (post.preserved !== preserved.size) problems.push('post-release preserved count must equal the preserved list size');
   if (release.baseline.liveManaged + (release.newFunctions || []).length !== post.managed) problems.push('baseline managed + new Functions must equal post-release managed');
   // Critical safety metadata is validated at runtime, not only pinned by tests.
-  if (!/^[0-9a-f]{40}$/.test(release.featureSourceMainSha || '')) problems.push('featureSourceMainSha must be a full 40-character commit SHA');
+  if (!/^[0-9a-f]{40}$/.test(release.runtimeTargetSourceSha || '')) problems.push('runtimeTargetSourceSha must be a full 40-character commit SHA');
   if (release.environment !== 'prod') problems.push('this release plan must target the prod environment');
   if (release.rulesDeployRequired !== true) problems.push('rulesDeployRequired must be true');
   if (release.rulesFile !== env.firestoreRulesFile || release.rulesFile !== 'firestore.rules') problems.push('rulesFile must be the Production firestore.rules');
@@ -134,6 +134,11 @@ export function assertReleasePlan(manifest, id) {
     problems.push(`Production Pages may merge only after: ${prerequisites.join(', ')}`);
   }
   if (!/^roles\/[a-z]+\.[a-z]+$/.test(release.serviceAccountProjectRole || '')) problems.push('serviceAccountProjectRole must be one predefined role');
+  const contract = release.runtimeTargetSecurityContracts?.saveDashboardProject;
+  if (!names.includes('saveDashboardProject') || contract?.visibilityRefusalReason !== 'visibility-admin-only' || !Array.isArray(contract?.rules) || contract.rules.length < 4) {
+    problems.push('the runtime target security contract for saveDashboardProject (Admin-only visibility) must be pinned');
+  }
+  if (!Array.isArray(release.runtimeTargetIncludedPullRequests) || !release.runtimeTargetIncludedPullRequests.includes(42)) problems.push('the runtime target must record that it includes PR #42');
   const untouched = release.untouchedManagedFunctions || [];
   for (const fn of untouched) if (!managed.has(fn)) problems.push(`untouched Function "${fn}" is not managed`);
   const rollback = release.rollbackBaseline || {};
@@ -317,8 +322,8 @@ export function assertFullRollbackVerified(manifest, id, baseline, restored) {
   return true;
 }
 
-// ── Execution freeze vs approved feature source ─────────────────────────────────────────────────────────────
-// Only plan/test paths may differ between the approved feature source (`featureSourceMainSha`) and the execution
+// ── Execution freeze vs approved runtime target source ─────────────────────────────────────────────────────────────
+// Only plan/test paths may differ between the approved runtime target source (`runtimeTargetSourceSha`) and the execution
 // freeze. Everything else is runtime-relevant and requires a re-baseline. Fail-closed: unknown paths count as runtime.
 const PLAN_ONLY_FILES = new Set(['config/deployment-manifest.json', 'scripts/deployment-manifest.mjs']);
 const PLAN_ONLY_PREFIXES = ['docs/', 'tests/'];
@@ -332,12 +337,12 @@ export function runtimeRelevantChanges(changedPaths) {
   return changedPaths.filter(path => !isPlanOnly(path));
 }
 
-export function assertExecutionFreeze(manifest, id, { featureSourceSha, freezeSha, changedPaths }) {
+export function assertExecutionFreeze(manifest, id, { runtimeTargetSha, freezeSha, changedPaths }) {
   const release = assertReleasePlan(manifest, id);
-  if (featureSourceSha !== release.featureSourceMainSha) throw new DeploymentManifestError('The recorded feature source does not equal the approved feature source baseline.');
+  if (runtimeTargetSha !== release.runtimeTargetSourceSha) throw new DeploymentManifestError('The recorded runtime target source does not equal the approved runtime target source.');
   if (!/^[0-9a-f]{40}$/.test(freezeSha || '')) throw new DeploymentManifestError('The execution freeze must be a recorded full commit SHA.');
   const runtime = runtimeRelevantChanges(changedPaths);
-  if (runtime.length) throw new DeploymentManifestError(`Runtime-relevant source changed since the approved feature source; re-baseline required:\n- ${runtime.join('\n- ')}`);
+  if (runtime.length) throw new DeploymentManifestError(`Runtime-relevant source changed since the approved runtime target source; re-baseline required:\n- ${runtime.join('\n- ')}`);
   return true;
 }
 

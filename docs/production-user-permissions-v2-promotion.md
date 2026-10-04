@@ -15,9 +15,9 @@ Rule for every stage: **failure → STOP → roll back to the last verified comp
 
 | Item | Value |
 |---|---|
-| Approved feature source baseline | `main` @ `1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32` (merge of PR #39). This is the runtime source the plan was derived from and reviewed against. |
-| PR #41 release-plan candidate head | the head of this PR (confirm at freeze). It differs from the feature source baseline only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
-| Execution freeze SHA | **recorded and independently verified before the release starts**, after this PR merges (it will not equal `1c2ec79…`). Verified against the feature source baseline as described in Stage 0. |
+| Approved runtime target source | `main` @ `57ef1caad37c186adfe8536b6cb22d6302fdfc21` (includes PR #39 and PR #42). **`PRODUCTION_TARGET_SOURCE = 57ef1caad37c186adfe8536b6cb22d6302fdfc21`.** The Production release intentionally includes PR #42. |
+| PR #41 release-plan commits | the head of this PR (confirm at freeze). It differs from the runtime target source only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
+| Execution freeze SHA | **recorded and independently verified before the release starts**, after this PR merges (it will necessarily differ from `57ef1caa…` because plan files changed). Verified against the runtime target source as described in Stage 0; any runtime-relevant change after `57ef1caa…` requires another re-baseline. |
 | Live Production Functions (2026-10-04) | **17** = 9 MANAGED + 8 PRESERVED Executive; all `nodejs20`, Gen 2, `us-central1`, default compute runtime identity |
 | `setUserPermissionOverrides` | **absent** in Production |
 | Live ruleset | `7ed64612-dc1c-4856-baf1-f627972046b6` (predates `userPermissions` / `userPermissionAudit`) |
@@ -81,6 +81,34 @@ Validation: capture `{runtime, revision, serviceAccount, invoker, updateTime}` f
 compare after each Function stage with `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged`. Any
 difference **fails the runbook** (STOP).
 
+## Runtime target includes PR #42
+
+The runtime target source (`57ef1caa…`) is `1c2ec79…` plus PR #42 (`fix: enforce project visibility server-side and tighten User Permissions conflict handling`).
+Impact on the approved scope, proven from the diff `1c2ec79… → 57ef1caa…`:
+
+- Under `functions/`, PR #42 changes only `functions/project-dashboard-writes.js` (+19 lines: `effectiveVisibility`,
+  `assertVisibilityAuthority`, and two calls inside `buildProjectPatch`) and adds a test. No change to `index.js`,
+  `user-permissions.js`, `permission-registry.js`, `package.json` or the lockfile.
+- `buildProjectPatch` is called by exactly one Function: `saveDashboardProject`. The other seven target Functions run
+  the same logic as at `1c2ec79…`; no additional Function is required. **`FINAL_PRODUCTION_FUNCTION_SCOPE = 8` remains valid.**
+- PR #42 changes no Firestore rules; Production rules deployment is still required for User Permissions.
+
+**Target `saveDashboardProject` security contract** (runtime source `functions/project-dashboard-writes.js`, pinned
+here, not duplicated; exercised by `functions/test/project-visibility-authority.test.cjs`):
+
+- a non-Admin cannot change project visibility (create must start Active; edit must echo the live visibility;
+  refusal reason `visibility-admin-only`);
+- `project.manage` remains create/delete only and never grants visibility authority;
+- ownership-based editing never grants visibility authority;
+- Admin behavior is unchanged.
+
+**Target Firebase Hosting contract (PR #42 frontend):** on a revision conflict a successful reload may say the latest
+settings are shown; a **failed** conflict reload must not claim fresh settings, hides the stale detail and requires the
+Admin to select the user again.
+
+The live Production rollback baseline is **not** changed by this: it describes the currently live source
+(`f4244be…`) and remains authoritative unless live Production itself changes.
+
 ## Node 22 contract
 
 - Current Production runtime: **nodejs20** for all 17 Functions. Target runtime for the eight release Functions:
@@ -95,7 +123,7 @@ difference **fails the runbook** (STOP).
 
 | Candidate | Pin (confirm at freeze) | Required evidence |
 |---|---|---|
-| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` (feature source baseline `1c2ec79…`) | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
+| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` (runtime target source `57ef1caa…`) | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
 | PR #40 (`production-pages`) | head SHA at freeze (`83787c81…` when this was written); base `production-pages` @ `932c6e2…` | **No GitHub CI exists on `production-pages`.** Accepted only on reproducible local evidence at the pinned SHA (570 tests, rules 10/10, binding audit, asset closure). Never describe it as "CI PASS". |
 
 ## Production GO prerequisites (unresolved — do not start until each is closed)
@@ -130,10 +158,10 @@ verification; a failed verification triggers the matching *Partial-failure* path
 
 ### Stage 0 — Freeze and before-snapshot (read-only)
 **Execution freeze.** Record the freeze SHA (the commit the release will be run from) and verify it against the
-approved feature source baseline; do not assume it:
+approved runtime target source; do not assume it:
 
 ```bash
-git diff --name-only 1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32 <freeze-sha>
+git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>
 ```
 
 Feed the listed paths to `assertExecutionFreeze`. Only `docs/`, `tests/`, `config/deployment-manifest.json` and
@@ -236,7 +264,7 @@ npm run deploy:hosting:prod
 
 Arrives with it: the User Permissions ON/OFF page with automatic save, the selector race fix, capability-driven
 Manage Weeks, the PM Release toggle, Gantt delegation, Add / Delete Projects, and "Saved. The permission change
-applies immediately." Verify `env-config.js` is the Production profile and project, that **no UAT project ID or UAT
+applies immediately." Verify the served `index.html` contains the PR #42 conflict-reload handling (the message "the latest settings could not be loaded" and the cleared selector), that `env-config.js` is the Production profile and project, that **no UAT project ID or UAT
 PDF endpoint** appears in any served file, and that `js/permission-registry.mjs` / `js/user-permissions-admin.mjs`
 match the pin.
 
@@ -263,7 +291,7 @@ Authorization to release does **not** imply authorization to create Production t
 
 - **Path A — explicit temporary Production E2E authorization.** Bounded temporary Production Admin and PM/delegate
   identities; verify Admin grant and revoke of each capability with same-session ON/OFF/ON proof, a PM Release
-  denial/restore, Admin-only boundaries, and post-reset denial, using one uniquely named temporary week; then clean
+  denial/restore, Admin-only boundaries, and post-reset denial, and that a forged non-Admin project visibility on `saveDashboardProject` is refused (`visibility-admin-only`), using one uniquely named temporary week; then clean
   up the temporary Auth users, `users` documents, permission documents and the week. **Retain all audit records.**
   Do not initialize or change Executive state.
 - **Path B — no temporary Production write authorization.** Do not silently skip validation or declare full PASS:

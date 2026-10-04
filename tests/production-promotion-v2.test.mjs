@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { dashboardSource } from './helpers/dashboard-source.mjs';
 import {
   DeploymentManifestError, assertExecutionFreeze, assertFullRollbackVerified, assertLiveFunctionInventory, assertNonSelectedUnchanged,
   assertPostReleaseInventory, assertPreservedFunctionsUnchanged, assertReleasePlan, assertSelectedFunctionsDeployed,
@@ -189,8 +190,8 @@ test('rollback baseline IDs are pinned in both the manifest and the runbook', ()
   assert.equal(release.rollback.hostingRelease, '1790984982984000');
   assert.equal(release.baseline.productionPagesSha, '932c6e2bda17acad9ffc8fc0153421dcd93410dd');
   assert.equal(release.baseline.iamEtag, 'BwZcleH3jJo=');
-  assert.equal(release.featureSourceMainSha, '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32');
-  for (const value of [release.rollback.rulesetId, release.rollback.hostingVersion, release.rollback.hostingRelease, release.baseline.productionPagesSha, release.featureSourceMainSha]) {
+  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
+  for (const value of [release.rollback.rulesetId, release.rollback.hostingVersion, release.rollback.hostingRelease, release.baseline.productionPagesSha, release.runtimeTargetSourceSha]) {
     assert.ok(runbook.includes(value), `${value} appears in the runbook`);
   }
   const sevenExisting = EIGHT.filter(fn => fn !== 'setUserPermissionOverrides');
@@ -487,8 +488,8 @@ test('permission-state rollback captures the empty baseline, restores it through
 test('release plan validation rejects every unsafe safety-metadata edit', () => {
   const mutate = edit => { const m = clone(); edit(m.releases[ID], m); return m; };
   const rejected = [
-    ['short feature SHA', r => { r.featureSourceMainSha = '1c2ec79'; }],
-    ['non-hex feature SHA', r => { r.featureSourceMainSha = 'z'.repeat(40); }],
+    ['short runtime target SHA', r => { r.runtimeTargetSourceSha = '57ef1ca'; }],
+    ['non-hex runtime target SHA', r => { r.runtimeTargetSourceSha = 'z'.repeat(40); }],
     ['UAT environment', r => { r.environment = 'uat'; }],
     ['unknown environment', r => { r.environment = 'staging'; }],
     ['rules not required', r => { r.rulesDeployRequired = false; }],
@@ -517,35 +518,35 @@ test('release plan validation rejects every unsafe safety-metadata edit', () => 
   assert.doesNotThrow(() => assertReleasePlan(manifest, ID));
 });
 
-test('exact approved pins are asserted for this release (least-privilege role, keys, feature source)', () => {
+test('exact approved pins are asserted for this release (least-privilege role, keys, runtime target source)', () => {
   assert.equal(release.serviceAccountProjectRole, 'roles/datastore.user');
   assert.equal(release.serviceAccountMaxUserManagedKeys, 0);
   assert.equal(release.environment, 'prod');
-  assert.equal(release.featureSourceMainSha, '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32');
+  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
 });
 
-test('execution freeze: only plan paths may differ from the approved feature source; anything else forces a re-baseline', () => {
+test('execution freeze: only plan paths may differ from the approved runtime target source; anything else forces a re-baseline', () => {
   const freezeSha = 'a'.repeat(40);
   const ok = ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs', 'config/deployment-manifest.json', 'scripts/deployment-manifest.mjs'];
-  assert.equal(assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: ok }), true);
-  assert.equal(assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: [] }), true);
+  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: ok }), true);
+  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: [] }), true);
   for (const path of ['functions/project-dashboard-writes.js', 'firestore.rules', 'index.html', 'js/permission-registry.mjs', 'package.json', 'firebase.json',
     'scripts/build-hosting.mjs', '.github/workflows/ci.yml', 'docs/../index.html', 'config/other.json', 'unknown-new-file']) {
     assert.deepEqual(runtimeRelevantChanges([path]), [path], path);
-    assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: [...ok, path] }), DeploymentManifestError, path);
+    assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: [...ok, path] }), DeploymentManifestError, path);
   }
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: '2'.repeat(40), freezeSha, changedPaths: [] }), DeploymentManifestError);
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha: 'main', changedPaths: [] }), DeploymentManifestError);
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: '2'.repeat(40), freezeSha, changedPaths: [] }), DeploymentManifestError);
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha: 'main', changedPaths: [] }), DeploymentManifestError);
   assert.throws(() => runtimeRelevantChanges(['']), DeploymentManifestError);
   assert.throws(() => runtimeRelevantChanges('docs/x.md'), DeploymentManifestError);
 });
 
-test('the runbook separates the approved feature source, the PR #41 candidate head and the future execution freeze', () => {
-  assert.match(runbook, /Approved feature source baseline/);
-  assert.match(runbook, /PR #41 release-plan candidate head/);
+test('the runbook separates the approved runtime target source, the PR #41 candidate head and the future execution freeze', () => {
+  assert.match(runbook, /Approved runtime target source/);
+  assert.match(runbook, /PR #41 release-plan commits/);
   assert.match(runbook, /Execution freeze SHA/);
-  assert.doesNotMatch(runbook, /Verify `main` is still `1c2ec79/);
-  assert.match(runbook, /git diff --name-only 1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32/);
+  assert.doesNotMatch(runbook, /Verify `main` is still `(1c2ec79|57ef1caa)/);
+  assert.match(runbook, /git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>/);
   assert.match(runbook, /re-baseline/);
 });
 
@@ -562,4 +563,107 @@ test('the earlier local rules-test flake is recorded accurately, without claimin
   assert.match(runbook, /exact cause unknown/i);
   assert.match(runbook, /14\/14/);
   assert.doesNotMatch(runbook, /root cause (was|is) /i);
+});
+
+
+// ── Post-PR #42 runtime target ───────────────────────────────────────────────────────────────────────────────
+const TARGET = '57ef1caad37c186adfe8536b6cb22d6302fdfc21';
+const writesSource = await readFile(join(repoRoot, 'functions', 'project-dashboard-writes.js'), 'utf8');
+
+test('the runtime target is main 57ef1caa (PR #39 + PR #42), recorded in the manifest and the runbook', () => {
+  assert.equal(release.runtimeTargetSourceSha, TARGET);
+  assert.deepEqual(release.runtimeTargetIncludedPullRequests, [39, 42]);
+  assert.match(runbook, /PRODUCTION_TARGET_SOURCE = 57ef1caad37c186adfe8536b6cb22d6302fdfc21/);
+  assert.match(runbook, /intentionally includes PR #42/);
+  assert.doesNotMatch(runbook, /Approved feature source/);
+});
+
+test('PR #42 does not change the scope: the plan is still the same eight Functions, and only saveDashboardProject runs the new logic', () => {
+  assert.deepEqual(release.functions, EIGHT);
+  assert.match(runbook, /FINAL_PRODUCTION_FUNCTION_SCOPE = 8` remains valid/);
+  const users = [...writesSource.matchAll(/buildProjectPatch\(/g)].length;
+  // definition + the single call in saveDashboardProject (+ none elsewhere)
+  assert.equal(users, 2, 'buildProjectPatch is defined once and called once');
+  const callSite = writesSource.slice(writesSource.indexOf('const saveDashboardProject = '), writesSource.indexOf('const deleteDashboardProject = '));
+  assert.match(callSite, /buildProjectPatch\(/);
+  for (const other of ['deleteDashboardProject', 'setDashboardProjectAttention', 'setDashboardWeekRelease', 'saveDashboardWeekFields', 'createDashboardWeek', 'saveDashboardGanttTemplateSettings', 'saveDashboardGanttWindowSettings']) {
+    const start = writesSource.indexOf(`const ${other} = `);
+    const ends = [writesSource.indexOf('\nconst ', start + 10), writesSource.indexOf('\nmodule.exports', start)].filter(index => index > start);
+    const body = writesSource.slice(start, Math.min(...ends));
+    assert.doesNotMatch(body, /assertVisibilityAuthority|buildProjectPatch/, `${other} does not use the visibility logic`);
+  }
+});
+
+test('target saveDashboardProject security contract: Admin-only visibility, project.manage create/delete only, ownership never confers it', () => {
+  const contract = release.runtimeTargetSecurityContracts.saveDashboardProject;
+  assert.equal(contract.visibilityRefusalReason, 'visibility-admin-only');
+  assert.equal(contract.runtimeSourceFile, 'functions/project-dashboard-writes.js');
+  assert.match(writesSource, /function assertVisibilityAuthority\(actor, draft, liveProject\) \{\n  if \(normalized\(actor\?\.role\) === 'admin'\) return;/);
+  assert.match(writesSource, /securityError\('permission-denied', 'visibility-admin-only'/);
+  // Both paths enforce it: create (no live project) and edit (against the live project), after their own authorization.
+  assert.match(writesSource, /canCreateProject\(actor\)\) \{[\s\S]{0,260}\}\n\s+assertVisibilityAuthority\(actor, draft, undefined\);/);
+  assert.match(writesSource, /canMutateProject\(\{ actor, project: liveProject \}\)\) \{[\s\S]{0,200}\}\n\s+assertVisibilityAuthority\(actor, draft, liveProject\);/);
+  // project.manage stays create/delete only; ownership-based editing keeps its own check.
+  assert.match(writesSource, /function canCreateProject\(actorOrRole\) \{\n  return actorCan\(asActor\(actorOrRole\), 'project\.manage'\);/);
+  assert.match(writesSource, /function canMutateProject\(\{ actor, project \}\) \{\n  if \(normalized\(actor\?\.role\) === 'admin'\) return true;/);
+});
+
+test('the runtime contract is exercised by the Functions suite, not re-implemented in this PR', async () => {
+  const contract = release.runtimeTargetSecurityContracts.saveDashboardProject;
+  const functionsTest = await readFile(join(repoRoot, contract.runtimeContractTest), 'utf8');
+  for (const title of ['create: a project.manage PM cannot create', 'edit: an owner PM cannot hide or archive', 'Admin behavior is unchanged', 'project.manage grants create/delete only']) {
+    assert.ok(functionsTest.includes(title), `Functions contract test "${title}" exists`);
+  }
+  assert.match(runbook, /project-visibility-authority\.test\.cjs/);
+  for (const rule of contract.rules) assert.ok(rule.length > 20);
+});
+
+test('Production Hosting source includes the PR #42 conflict-reload hardening, and the runbook pins it', () => {
+  const html = dashboardSource('production');
+  assert.match(html, /reloaded = await loadUserPermissionsTarget\(target, reloadSequence\);/);
+  assert.match(html, /the latest settings could not be loaded\. Select the user again to review them/);
+  assert.match(html, /if \(select\) select\.value = '';/);
+  const conflict = html.slice(html.indexOf('reloaded = await loadUserPermissionsTarget'), html.indexOf('reloaded = await loadUserPermissionsTarget') + 1400);
+  const success = conflict.indexOf('The latest settings are shown');
+  const failure = conflict.indexOf('could not be loaded');
+  assert.ok(success >= 0 && failure > success, 'the fresh-settings claim sits only on the successful-reload branch');
+  assert.match(conflict.slice(0, success), /if \(reloaded\)/);
+  assert.match(release.runtimeTargetHostingContract.conflictReload, /must not claim fresh settings/);
+  assert.match(runbook, /the latest settings could not be loaded/);
+  assert.match(runbook, /Target Firebase Hosting contract \(PR #42 frontend\)/);
+});
+
+test('the live rollback baseline is NOT replaced by the new runtime target', () => {
+  assert.notEqual(release.rollbackBaseline.sourceCommit, release.runtimeTargetSourceSha);
+  assert.equal(release.rollbackBaseline.sourceCommit, 'f4244beedacb9f6cc40addc533c3e8316e56aa96');
+  assert.equal(release.rollbackBaseline.sourceTreeDigest, 'e4e00a1d17b7f6ceceaf25288a830c220c2be854ff02295487c4bc951bdfcb11');
+  assert.equal(release.rollbackBaseline.sourceZipSha256, '0138d5864a6f1da3056a032535efdaef33374b1a09a64d1bcade767e70ed3123');
+  assert.deepEqual(release.baseline.priorRevisions, {
+    createDashboardWeek: 'createdashboardweek-00005-yap', saveDashboardWeekFields: 'savedashboardweekfields-00005-yul',
+    saveDashboardProject: 'savedashboardproject-00007-hit', deleteDashboardProject: 'deletedashboardproject-00005-rix',
+    saveDashboardGanttTemplateSettings: 'savedashboardgantttemplatesettings-00004-fix',
+    saveDashboardGanttWindowSettings: 'savedashboardganttwindowsettings-00002-pir', setDashboardWeekRelease: 'setdashboardweekrelease-00005-qey',
+  });
+  assert.equal(release.rollbackBaseline.runtime, 'nodejs20');
+  assert.match(runbook, /live Production rollback baseline is \*\*not\*\* changed|rollback baseline is \*\*not\*\* changed/);
+});
+
+test('execution freeze is measured from the post-PR #42 target: the old 1c2ec79 target no longer passes, and PR #42 paths are runtime-relevant', () => {
+  const freezeSha = 'b'.repeat(40);
+  for (const path of ['functions/project-dashboard-writes.js', 'index.html', 'functions/test/project-visibility-authority.test.cjs']) {
+    assert.deepEqual(runtimeRelevantChanges([path]), [path]);
+  }
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32', freezeSha, changedPaths: [] }), DeploymentManifestError);
+  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: TARGET, freezeSha, changedPaths: ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs'] }), true);
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: TARGET, freezeSha, changedPaths: ['functions/project-dashboard-writes.js'] }), DeploymentManifestError);
+});
+
+test('release plan validation requires the runtime-target security contract and the PR #42 record', () => {
+  const mutate = edit => { const m = clone(); edit(m.releases[ID]); return m; };
+  for (const [label, edit] of [
+    ['contract removed', r => { delete r.runtimeTargetSecurityContracts; }],
+    ['wrong refusal reason', r => { r.runtimeTargetSecurityContracts.saveDashboardProject.visibilityRefusalReason = 'other'; }],
+    ['rules dropped', r => { r.runtimeTargetSecurityContracts.saveDashboardProject.rules = []; }],
+    ['PR #42 not recorded', r => { r.runtimeTargetIncludedPullRequests = [39]; }],
+  ]) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
 });
