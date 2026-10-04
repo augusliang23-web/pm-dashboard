@@ -128,7 +128,8 @@
           "maxInstanceRequestConcurrency": 80,
           "maxInstanceCount": 20,
           "ingress": "ALLOW_ALL"
-        }
+        },
+        "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2"
       },
       "runtimeServiceAccounts": {
         "setUserPermissionOverrides": "pmdash-user-perms",
@@ -192,7 +193,7 @@
         "hostingRelease": "1790984982984000"
       },
       "executionFreeze": {
-        "rule": "Four separate identities. (1) runtimeTargetSourceSha (main 57ef1caa) is the approved runtime source: only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ from it (verified with git diff --name-only, never assumed). (2) The reviewed release plan is the exact commit and content digest of the safety-critical plan files that the Control Plane independently approved; it is recorded OUTSIDE this repository after the final reviewed merge. (3) The execution freeze SHA must EQUAL the reviewed release-plan SHA, and the digest of the frozen checkout must equal the recorded reviewed digest; any later edit to the manifest, the validator, the runbook or the pin tests requires a new independent review. (4) The live Production rollback baseline (baseline, rollbackBaseline) is pinned separately and is unrelated to (1)-(3).",
+        "rule": "Four separate identities: runtime target source 57ef1caa; external post-merge REVIEWED_RELEASE_PLAN_SHA; execution freeze exactly equal to that reviewed SHA; independently pinned live rollback baseline. Layer 0 is operator-controlled Git/shell outside repository code: exact actual HEAD and clean detached checkout, before importing any repository JavaScript. Any later commit, including plan-only edits, requires new approval and pin. Repository digest and runtime-target diff checks are SECONDARY defense-in-depth after bootstrap; plan-only paths describe differences from the older runtime target, never permission to edit after review.",
         "planOnlyFiles": [
           "config/deployment-manifest.json",
           "scripts/deployment-manifest.mjs"
@@ -210,7 +211,8 @@
             "docs/production-user-permissions-v2-promotion.md",
             "tests/deployment-manifest.test.mjs",
             "tests/production-promotion-v2.test.mjs"
-          ]
+          ],
+          "externalBootstrapRequired": true
         }
       },
       "rollbackBaseline": {
@@ -241,7 +243,8 @@
           "ingress": "ALLOW_ALL"
         },
         "node20DeployBlockedAfter": "2026-10-30",
-        "generation": "GEN_2"
+        "generation": "GEN_2",
+        "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2"
       }
     }
   }

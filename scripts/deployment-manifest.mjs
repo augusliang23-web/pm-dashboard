@@ -173,15 +173,15 @@ export function assertReleasePlan(manifest, id) {
   for (const fn of Object.keys(rollback.sourceGenerations || {})) if (!existingNames.includes(fn)) problems.push(`rollbackBaseline.sourceGenerations names non-release Function "${fn}"`);
   const baselineConfig = rollback.config || {};
   for (const field of CONFIG_FIELDS) if (!SNAPSHOT_VALIDATORS[field](baselineConfig[field])) problems.push(`rollbackBaseline.config.${field} must be an explicit normalized value`);
-  for (const field of ['runtime', 'serviceAccount', 'invoker', 'generation']) if (!SNAPSHOT_VALIDATORS[field](rollback[field])) problems.push(`rollbackBaseline.${field} must be an explicit normalized value`);
+  for (const field of ['runtime', 'serviceAccount', 'invoker', 'generation', 'executionEnvironment']) if (!SNAPSHOT_VALIDATORS[field](rollback[field])) problems.push(`rollbackBaseline.${field} must be an explicit normalized value`);
   const target = release.targetConfiguration || {};
-  for (const field of ['runtime', 'invoker', 'generation', ...CONFIG_FIELDS]) {
+  for (const field of ['runtime', 'invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]) {
     const value = CONFIG_FIELDS.includes(field) ? target.config?.[field] : target[field];
     if (!SNAPSHOT_VALIDATORS[field](value)) problems.push(`targetConfiguration.${field} must be an explicit normalized value`);
   }
   if (target.runtime !== release.targetRuntime) problems.push('targetConfiguration.runtime must equal the target runtime');
   const review = release.executionFreeze?.reviewedReleasePlan;
-  if (!review || review.recordedOutsideRepository !== true || review.freezeMustEqualReviewedSha !== true
+  if (!review || review.recordedOutsideRepository !== true || review.freezeMustEqualReviewedSha !== true || review.externalBootstrapRequired !== true
     || JSON.stringify(review.safetyCriticalFiles) !== JSON.stringify(SAFETY_CRITICAL_PLAN_FILES)) {
     problems.push('executionFreeze.reviewedReleasePlan must require an externally recorded reviewed SHA/digest equal to the freeze, over the exact safety-critical files');
   }
@@ -220,7 +220,7 @@ export function assertPostReleaseInventory(manifest, id, liveDeployedNames) {
 // identity, resources, timeout, concurrency, max instances, ingress, traffic allocation, and the invoker IAM policy).
 export const IDENTITY_FIELDS = Object.freeze(['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
 export const CONFIG_FIELDS = Object.freeze(['memory', 'cpu', 'timeoutSeconds', 'maxInstanceRequestConcurrency', 'maxInstanceCount', 'ingress']);
-export const SERVING_FIELDS = Object.freeze(['generation', 'trafficRevision', 'trafficPercent']);
+export const SERVING_FIELDS = Object.freeze(['generation', 'trafficRevision', 'trafficPercent', 'reconciling', 'serviceGeneration', 'observedGeneration', 'terminalConditionState', 'latestCreatedRevision', 'executionEnvironment']);
 export const SNAPSHOT_FIELDS = Object.freeze([...IDENTITY_FIELDS, ...CONFIG_FIELDS, ...SERVING_FIELDS]);
 
 const isString = value => typeof value === 'string';
@@ -242,7 +242,79 @@ const SNAPSHOT_VALIDATORS = Object.freeze({
   generation: value => value === 'GEN_2',
   trafficRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
   trafficPercent: value => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100,
+  reconciling: value => value === false,
+  serviceGeneration: value => typeof value === 'string' && /^[1-9]\d*$/.test(value),
+  observedGeneration: value => typeof value === 'string' && /^[1-9]\d*$/.test(value),
+  terminalConditionState: value => value === 'CONDITION_SUCCEEDED',
+  latestCreatedRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
+  executionEnvironment: value => value === 'EXECUTION_ENVIRONMENT_GEN2',
 });
+
+// Normalize ONLY responses obtained by GET from the named authoritative resources. Service.template and
+// requested traffic are never read. Save these raw responses in the external evidence package alongside the record.
+// Cloud Run v2 Service.ingress on GET is documented as the currently observed ingress, not the requested input.
+export function buildObservedFunctionRecord({ functionResource, service, serviceAfter, revision, iamPolicy, sourceTreeDigest }) {
+  const fail = message => { throw new DeploymentManifestError(`Observed Function evidence: ${message}`); };
+  const f = functionResource;
+  if (!f || !service || !revision || !iamPolicy) fail('missing authoritative resource');
+  for (const key of ['name', 'etag', 'generation', 'observedGeneration', 'reconciling', 'terminalCondition', 'latestReadyRevision', 'latestCreatedRevision', 'trafficStatuses', 'ingress', 'invokerIamDisabled']) {
+    if (!serviceAfter || !Object.hasOwn(service, key) || JSON.stringify(service[key]) !== JSON.stringify(serviceAfter[key])) fail(`Service changed or evidence missing between capture reads: ${key}`);
+  }
+  const serviceName = service.name;
+  if (!/^projects\/[^/]+\/locations\/[^/]+\/services\/[^/]+$/.test(serviceName || '')
+    || f.serviceConfig?.service !== serviceName) fail('Function and Service identities disagree');
+  const ready = service.latestReadyRevision;
+  if (typeof ready !== 'string' || !ready.startsWith(`${serviceName}/revisions/`)
+    || revision.name !== ready || revision.service !== serviceName) fail('Revision is not the exact latestReadyRevision of this Service');
+  const revisionName = ready.split('/').at(-1);
+  if (f.state !== 'ACTIVE' || f.serviceConfig?.revision !== revisionName) fail('Function is not ACTIVE on the fetched serving Revision');
+  const createdName = service.latestCreatedRevision?.startsWith(`${serviceName}/revisions/`)
+    ? service.latestCreatedRevision.split('/').at(-1) : undefined;
+  const traffic = service.trafficStatuses;
+  if (!Array.isArray(traffic) || traffic.length !== 1 || traffic[0].revision !== ready || traffic[0].percent !== 100) fail('observed trafficStatuses must allocate 100% to the fetched ready Revision');
+  const ingress = { INGRESS_TRAFFIC_ALL: 'ALLOW_ALL', INGRESS_TRAFFIC_INTERNAL_ONLY: 'ALLOW_INTERNAL_ONLY', INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER: 'ALLOW_INTERNAL_AND_GCLB' }[service.ingress];
+  if (!ingress) fail('observed Service ingress missing or unspecified');
+  if (service.invokerIamDisabled !== false) fail('IAM invocation checks must be explicitly enabled');
+  if (!Array.isArray(iamPolicy.bindings)) fail('IAM policy bindings missing');
+  const bindings = iamPolicy.bindings.filter(b => b.role === 'roles/run.invoker');
+  if (bindings.some(b => b.condition || !Array.isArray(b.members) || b.members.some(m => m !== 'allUsers'))) fail('unsupported or conditional invoker IAM state');
+  const invoker = bindings.some(b => b.members.includes('allUsers')) ? 'allUsers' : 'none';
+  if (!Array.isArray(revision.containers) || revision.containers.length !== 1) fail('expected one Revision container');
+  const limits = revision.containers[0].resources?.limits || {};
+  // Equivalent explicit units are normalized without rounding; absent values never become defaults.
+  const rawCpu = limits.cpu;
+  const cpu = typeof rawCpu === 'string' && /^(?:[1-9]\d*(?:\.\d{1,3})?|0\.\d{1,3})$/.test(rawCpu)
+    ? String(Number(rawCpu)) : typeof rawCpu === 'string' && /^[1-9]\d*m$/.test(rawCpu) ? String(Number(rawCpu.slice(0, -1)) / 1000) : undefined;
+  const rawMemory = limits.memory;
+  const memory = typeof rawMemory === 'string' && /^[1-9]\d*(Mi|Gi)$/.test(rawMemory)
+    ? `${Number.parseInt(rawMemory, 10) * (rawMemory.endsWith('Gi') ? 1024 : 1)}Mi` : undefined;
+  const timeoutSeconds = typeof revision.timeout === 'string' && /^[1-9]\d*(?:\.0+)?s$/.test(revision.timeout) ? Number.parseFloat(revision.timeout) : undefined;
+  const record = {
+    runtime: f.buildConfig?.runtime, generation: f.environment, updateTime: f.updateTime,
+    revision: revisionName, serviceAccount: revision.serviceAccount, invoker,
+    memory, cpu, timeoutSeconds, maxInstanceRequestConcurrency: revision.maxInstanceRequestConcurrency,
+    maxInstanceCount: revision.scaling?.maxInstanceCount, ingress,
+    executionEnvironment: revision.executionEnvironment,
+    reconciling: service.reconciling, serviceGeneration: service.generation,
+    observedGeneration: service.observedGeneration, terminalConditionState: service.terminalCondition?.state,
+    latestCreatedRevision: createdName, trafficRevision: revisionName, trafficPercent: traffic[0].percent,
+  };
+  assertObservedServing(record);
+  for (const field of SNAPSHOT_FIELDS) if (!SNAPSHOT_VALIDATORS[field](record[field])) fail(`missing or invalid ${field}`);
+  if (sourceTreeDigest !== undefined) {
+    if (!/^[0-9a-f]{64}$/.test(sourceTreeDigest)) fail('invalid deployed source archive digest');
+    record.sourceTreeDigest = sourceTreeDigest;
+  }
+  return record;
+}
+
+function assertObservedServing(record) {
+  if (record.reconciling !== false || record.terminalConditionState !== 'CONDITION_SUCCEEDED'
+    || record.serviceGeneration !== record.observedGeneration || record.latestCreatedRevision !== record.revision
+    || record.trafficRevision !== record.revision || record.trafficPercent !== 100) {
+    throw new DeploymentManifestError('Service reconciliation or observed serving state is incomplete or inconsistent.');
+  }
+}
 
 function isPlainRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -291,6 +363,7 @@ export function assertSnapshotComplete(manifest, id, snapshot, phase) {
     if (SNAPSHOT_FIELDS.every(field => Object.hasOwn(record, field)) && !problems.some(problem => problem.startsWith(`${fn}.`))) {
       if (record.trafficRevision !== record.revision) problems.push(`${fn}.trafficRevision: ${record.trafficRevision} is not the latest ready revision ${record.revision}`);
       if (record.trafficPercent !== 100) problems.push(`${fn}.trafficPercent: ${record.trafficPercent}, expected 100`);
+      try { assertObservedServing(record); } catch (error) { problems.push(`${fn}: ${error.message}`); }
     }
   }
   const expectedCount = expected.length;
@@ -332,11 +405,11 @@ export function assertNonSelectedUnchanged(manifest, id, before, after) {
 }
 
 // The configuration a Function must carry, as normalized explicit values: the pinned values of one record.
-const CONFIGURATION_FIELDS = Object.freeze(['runtime', 'serviceAccount', 'invoker', 'generation', ...CONFIG_FIELDS]);
+const CONFIGURATION_FIELDS = Object.freeze(['runtime', 'serviceAccount', 'invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]);
 
 function configurationOf(source) {
   return {
-    runtime: source.runtime, serviceAccount: source.serviceAccount, invoker: source.invoker, generation: source.generation,
+    runtime: source.runtime, serviceAccount: source.serviceAccount, invoker: source.invoker, generation: source.generation, executionEnvironment: source.executionEnvironment,
     ...Object.fromEntries(CONFIG_FIELDS.map(field => [field, source.config?.[field]])),
   };
 }
@@ -377,9 +450,9 @@ export function assertSelectedFunctionsDeployed(manifest, id, before, after) {
   for (const fn of release.functions) {
     const record = after[fn];
     if (record.runtime !== release.targetRuntime) problems.push(`${fn}: runtime ${record.runtime}, expected ${release.targetRuntime}`);
-    if (!record.serviceAccount.startsWith(`${release.runtimeServiceAccounts[fn]}@`)) problems.push(`${fn}: runtime identity ${record.serviceAccount}, expected ${release.runtimeServiceAccounts[fn]}@…`);
+    if (record.serviceAccount !== `${release.runtimeServiceAccounts[fn]}@${manifest.environments[release.environment].firebaseProjectId}.iam.gserviceaccount.com`) problems.push(`${fn}: runtime identity ${record.serviceAccount}, expected ${release.runtimeServiceAccounts[fn]}@…`);
     if (before[fn] && before[fn].revision === record.revision) problems.push(`${fn}: no new revision was created`);
-    for (const field of ['invoker', 'generation', ...CONFIG_FIELDS]) {
+    for (const field of ['invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]) {
       if (record[field] !== target[field]) problems.push(`${fn}.${field}: ${record[field]} != intended ${target[field]}`);
       if (before[fn] && record[field] !== before[fn][field]) problems.push(`${fn}.${field}: changed by the redeploy (${before[fn][field]} -> ${record[field]})`);
     }
@@ -411,6 +484,7 @@ export function assertFullRollbackVerified(manifest, id, baseline, restored) {
     }
     if (typeof record.sourceTreeDigest !== 'string' || !/^[0-9a-f]{64}$/.test(record.sourceTreeDigest)) problems.push(`${fn}.sourceTreeDigest: missing or invalid`);
     if (problems.some(problem => problem.startsWith(`${fn}.`))) continue;
+    try { assertObservedServing(record); } catch (error) { problems.push(`${fn}: ${error.message}`); }
     if (record.revision === baseline[fn].revision) problems.push(`${fn}: revision equals the baseline revision — traffic shifting alone is EMERGENCY MITIGATION, not a full rollback`);
     if (record.trafficRevision !== record.revision) problems.push(`${fn}.trafficRevision: ${record.trafficRevision} is not the newly redeployed revision ${record.revision}`);
     if (record.trafficPercent !== 100) problems.push(`${fn}.trafficPercent: ${record.trafficPercent}, the redeployed revision must serve 100%`);
@@ -437,7 +511,7 @@ export function assertFullRollbackVerified(manifest, id, baseline, restored) {
 //    commit, however small, needs a new independent review and a new recorded pin.
 // 4. live Production rollback baseline: the pinned live state (`rollbackBaseline`, `baseline`), unrelated to 1-3.
 //
-// Runtime integrity: only plan/test paths may differ between (1) and (3). Fail-closed: unknown paths count as runtime.
+// SECONDARY runtime-target integrity AFTER the external Git bootstrap: only plan/test paths may differ between (1) and (3). Fail-closed: unknown paths count as runtime.
 const PLAN_ONLY_FILES = new Set(['config/deployment-manifest.json', 'scripts/deployment-manifest.mjs']);
 const PLAN_ONLY_PREFIXES = ['docs/', 'tests/'];
 
@@ -471,6 +545,8 @@ export async function computeReleasePlanDigest(rootDir) {
   return hash.digest('hex');
 }
 
+// Defense-in-depth ONLY: this repository function cannot establish trust in its own source. The external
+// operator must first verify actual Git HEAD == REVIEWED_RELEASE_PLAN_SHA and a clean detached checkout.
 export async function assertExecutionFreeze(manifest, id, { runtimeTargetSha, reviewedReleasePlanSha, reviewedReleasePlanDigest, freezeSha, planRoot, changedPaths }) {
   const sha = value => /^[0-9a-f]{40}$/.test(value || '');
   if (!sha(reviewedReleasePlanSha)) throw new DeploymentManifestError('The reviewed release-plan SHA must be a recorded full commit SHA (recorded by the Control Plane after the final reviewed merge).');

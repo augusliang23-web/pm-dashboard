@@ -1,6 +1,7 @@
 // Pins the User Permissions V2 Production promotion plan (config/deployment-manifest.json `releases.userPermissionsV2`
 // and docs/production-user-permissions-v2-promotion.md). Pure checks: nothing here talks to Firebase or deploys.
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,7 +14,7 @@ import {
   assertPostReleaseInventory, assertPreservedFunctionsUnchanged, assertReleasePlan, assertSelectedFunctionsDeployed,
   assertSnapshotComplete, buildFunctionsOnlyFlag, buildReleaseFunctionsOnlyFlag, expectedAfterNames, expectedBeforeNames,
   functionsAllowlistFor, functionsPreservedFor, loadDeploymentManifest, readSourceServiceAccounts, releaseFor,
-  runtimeRelevantChanges, validateManifestAgainstSource
+  runtimeRelevantChanges, buildObservedFunctionRecord, validateManifestAgainstSource
 } from '../scripts/deployment-manifest.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -251,7 +252,8 @@ const record = (fn, over = {}) => {
     runtime: 'nodejs20', revision, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
     invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', generation: 'GEN_2',
     memory: '256Mi', cpu: '1', timeoutSeconds: 60, maxInstanceRequestConcurrency: 80, maxInstanceCount: 20, ingress: 'ALLOW_ALL',
-    trafficRevision: revision, trafficPercent: 100, ...over,
+    trafficRevision: revision, trafficPercent: 100, reconciling: false, serviceGeneration: '7', observedGeneration: '7',
+    terminalConditionState: 'CONDITION_SUCCEEDED', latestCreatedRevision: revision, executionEnvironment: 'EXECUTION_ENVIRONMENT_GEN2', ...over,
   };
 };
 // The seven existing Functions read back as the pinned baseline: the revisions the plan pins.
@@ -396,7 +398,7 @@ function restoredSnapshot() {
   for (const fn of beforeNames) restored[fn] = { ...base[fn] };
   for (const fn of SEVEN) {
     const revision = `${fn.toLowerCase()}-00003-ccc`;
-    restored[fn] = { ...base[fn], revision, trafficRevision: revision, trafficPercent: 100, updateTime: '2026-10-12T00:00:00Z', sourceTreeDigest: pinned.sourceTreeDigest };
+    restored[fn] = { ...base[fn], revision, latestCreatedRevision: revision, trafficRevision: revision, trafficPercent: 100, updateTime: '2026-10-12T00:00:00Z', sourceTreeDigest: pinned.sourceTreeDigest };
   }
   return restored;
 }
@@ -556,7 +558,7 @@ async function freezeInputs(root, over = {}) {
 }
 const freezeManifest = async root => loadDeploymentManifest(root);
 
-test('execution freeze: only plan paths may differ from the approved runtime target source; anything else forces a re-baseline', async () => {
+test('SECONDARY runtime-target comparison permits reviewed plan differences from the older runtime target only', async () => {
   const root = await planCopy();
   try {
     const gate = over => freezeInputs(root, over).then(inputs => assertExecutionFreeze(manifest, ID, inputs));
@@ -843,10 +845,12 @@ test('the runbook lists every configuration field in the rollback read-back and 
   }
   const capture = runbook.slice(runbook.indexOf('## Snapshot capture'), runbook.indexOf('## Invoker strategy'));
   for (const field of [...SNAPSHOT_FIELDS, 'sourceTreeDigest']) assert.ok(capture.includes(`\`${field}\``), `capture documents ${field}`);
-  for (const source of ['gcloud functions describe', 'gcloud run services describe', 'status.traffic', 'containerConcurrency', 'run.googleapis.com/ingress', 'autoscaling.knative.dev/maxScale']) {
+  for (const source of ['gcloud functions describe', 'run.googleapis.com/v2', 'trafficStatuses', 'maxInstanceRequestConcurrency', 'currently observed ingress', 'scaling.maxInstanceCount']) {
     assert.ok(capture.includes(source), `capture source ${source}`);
   }
-  assert.match(capture, /not been exercised against live Production/);
+  assert.match(capture, /UNVERIFIED expectation/);
+  assert.match(capture, /omitted `executionEnvironment`/);
+  assert.match(capture, /intentionally rejects that missing value/);
   assert.match(runbook, /assertBaselineMatchesPinned/);
 });
 
@@ -870,7 +874,7 @@ test('an unchanged reviewed plan passes the execution gate, and the real reposit
   assert.deepEqual(SAFETY_CRITICAL_PLAN_FILES, release.executionFreeze.reviewedReleasePlan.safetyCriticalFiles);
 });
 
-test('a plan edited after review fails the gate even though every changed path is plan-only', async () => {
+test('SECONDARY digest rejects changed safety-critical bytes after an external Git bootstrap', async () => {
   const reviewedDigest = await computeReleasePlanDigest(repoRoot);
   const cases = [
     // The edit must be valid enough to pass assertReleasePlan, proving the DIGEST (not the validator) refuses it.
@@ -986,7 +990,7 @@ test('the four pins are separate: the digest and reviewed SHA are never stored i
   assert.equal(release.executionFreeze.reviewedReleasePlan.reviewedReleasePlanSha, undefined);
   assert.notEqual(release.runtimeTargetSourceSha, release.rollbackBaseline.sourceCommit);
   const pin = runbook.slice(runbook.indexOf('## Reviewed release-plan pin'), runbook.indexOf('## Runtime target includes PR #42'));
-  for (const text of ['runtime target source', 'reviewed release plan', 'execution freeze', 'live Production rollback baseline', 'recorded outside this repository', 'must equal the reviewed release-plan SHA', 'new independent review', 'computeReleasePlanDigest', 'assertExecutionFreeze', '`config/deployment-manifest.json`', '`scripts/deployment-manifest.mjs`', '`docs/production-user-permissions-v2-promotion.md`', '`tests/production-promotion-v2.test.mjs`', 'weakened snapshot assertion', 'changed rollback method', 'changed Function selector']) {
+  for (const text of ['runtime target source', 'reviewed release plan', 'execution freeze', 'live Production rollback baseline', 'recorded outside this repository', 'must equal the reviewed release-plan SHA', 'new independent review', 'computeReleasePlanDigest', 'assertExecutionFreeze', '`config/deployment-manifest.json`', '`scripts/deployment-manifest.mjs`', '`docs/production-user-permissions-v2-promotion.md`', '`tests/production-promotion-v2.test.mjs`', 'weakened snapshot assertion', 'rollback method', 'Function selector']) {
     assert.ok(pin.includes(text) || runbook.includes(text), `runbook states: ${text}`);
   }
   assert.match(runbook, /\| Reviewed release-plan SHA and digest \|/);
@@ -1080,4 +1084,181 @@ test('baseline inventory arithmetic is enforced: live 17 = 9 managed + 8 preserv
     }
   }
   assert.doesNotThrow(() => assertReleasePlan(manifest, ID));
+});
+
+// Trust boundary 1: construction reads API GET output, never requested template state.
+function observedResources(fn, normalizedRecord) {
+  const serviceName = `projects/${PROJECT}/locations/us-central1/services/${fn.toLowerCase()}`;
+  const name = `${serviceName}/revisions/${normalizedRecord.revision}`;
+  const service = {
+    name: serviceName, etag: 'observed-etag', generation: '7', observedGeneration: '7', reconciling: false,
+    terminalCondition: { state: 'CONDITION_SUCCEEDED' }, latestReadyRevision: name, latestCreatedRevision: name,
+    ingress: 'INGRESS_TRAFFIC_ALL', trafficStatuses: [{ revision: name, percent: 100 }], invokerIamDisabled: false,
+    // Deliberately different requested state. It must never supply Revision config or serving traffic.
+    template: { serviceAccount: 'wrong@example.com', timeout: '999s' }, traffic: [{ revision: 'unready', percent: 100 }],
+  };
+  return {
+    functionResource: { state: 'ACTIVE', buildConfig: { runtime: normalizedRecord.runtime }, environment: 'GEN_2',
+      updateTime: normalizedRecord.updateTime, serviceConfig: { service: serviceName, revision: normalizedRecord.revision } },
+    service, serviceAfter: structuredClone(service),
+    revision: { name, service: serviceName, serviceAccount: normalizedRecord.serviceAccount, timeout: '60.0s',
+      maxInstanceRequestConcurrency: 80, scaling: { maxInstanceCount: 20 }, executionEnvironment: 'EXECUTION_ENVIRONMENT_GEN2',
+      containers: [{ resources: { limits: { cpu: '1000m', memory: '256Mi' } } }] },
+    iamPolicy: { bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] },
+    ...(normalizedRecord.sourceTreeDigest ? { sourceTreeDigest: normalizedRecord.sourceTreeDigest } : {}),
+  };
+}
+function coherentMutation(resources, edit) {
+  edit(resources); resources.serviceAfter = structuredClone(resources.service); return resources;
+}
+
+test('observed evidence uses reconciled Service GET and exact immutable Revision GET, with explicit normalization', () => {
+  const fn = 'saveDashboardProject';
+  assert.deepEqual(buildObservedFunctionRecord(observedResources(fn, baselineRecord(fn))), baselineRecord(fn));
+  const resources = observedResources(fn, baselineRecord(fn));
+  resources.revision.containers[0].resources.limits.memory = '1Gi';
+  assert.equal(buildObservedFunctionRecord(resources).memory, '1024Mi');
+});
+
+test('requested ingress all / observed ingress internal fails BOTH rollback and forward deployment', () => {
+  const fn = 'saveDashboardProject';
+  for (const [snapshot, check] of [
+    [restoredSnapshot(), snap => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), snap)],
+    [afterSnapshot(), snap => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), snap)],
+  ]) {
+    const resources = coherentMutation(observedResources(fn, snapshot[fn]), r => {
+      r.service.template.ingress = 'INGRESS_TRAFFIC_ALL';
+      r.service.ingress = 'INGRESS_TRAFFIC_INTERNAL_ONLY';
+    });
+    snapshot[fn] = buildObservedFunctionRecord(resources);
+    assert.equal(snapshot[fn].ingress, 'ALLOW_INTERNAL_ONLY', 'observed ingress wins over requested configuration');
+    assert.throws(() => check(snapshot), /ingress/);
+  }
+});
+
+test('reconciling, generation lag, failed terminal condition, unready creation and traffic splits fail before evidence is accepted', () => {
+  for (const edit of [
+    r => { r.service.reconciling = true; },
+    r => { r.service.observedGeneration = '6'; },
+    r => { r.service.terminalCondition.state = 'CONDITION_FAILED'; },
+    r => { r.service.latestCreatedRevision = `${r.service.name}/revisions/unready`; },
+    r => { r.service.trafficStatuses[0].percent = 99; },
+    r => { r.service.trafficStatuses.push({ revision: 'other', percent: 1 }); },
+    r => { r.revision.name = `${r.service.name}/revisions/wrong`; },
+    r => { r.functionResource.serviceConfig.revision = 'other'; },
+    r => { delete r.revision.timeout; },
+    r => { delete r.revision.executionEnvironment; },
+    r => { r.service.ingress = 'INGRESS_TRAFFIC_UNSPECIFIED'; },
+    r => { r.service.invokerIamDisabled = true; },
+    r => { r.iamPolicy.bindings[0].condition = { expression: 'true' }; },
+  ]) expectFail(() => buildObservedFunctionRecord(coherentMutation(observedResources('saveDashboardProject', baselineRecord('saveDashboardProject')), edit)));
+  const resources = observedResources('saveDashboardProject', baselineRecord('saveDashboardProject'));
+  resources.serviceAfter.etag = 'concurrent-update';
+  expectFail(() => buildObservedFunctionRecord(resources));
+});
+
+test('flattened snapshots cannot bypass reconciliation checks in forward deployment or full rollback', () => {
+  for (const [field, value] of [['reconciling', true], ['observedGeneration', '6'], ['terminalConditionState', 'CONDITION_FAILED'], ['latestCreatedRevision', 'unready'], ['executionEnvironment', 'EXECUTION_ENVIRONMENT_GEN1']]) {
+    for (const fn of SEVEN) {
+      const restored = restoredSnapshot(); restored[fn][field] = value;
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field}`);
+      const after = afterSnapshot(); after[fn][field] = value;
+      expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), `${fn}.${field}`);
+    }
+  }
+});
+
+// Trust boundary 2: execute the operator's shell block OUTSIDE the checkout. No repository validator is imported
+// by this harness before HEAD and tracked cleanliness are proved. The throwaway validator only writes a sentinel.
+const externalBootstrap = runbook.match(/# BEGIN EXTERNAL CONTROL PLANE BOOTSTRAP\n([\s\S]*?)# END EXTERNAL CONTROL PLANE BOOTSTRAP/)?.[1];
+async function bootstrapFixture() {
+  const holder = await mkdtemp(join(tmpdir(), 'external-release-bootstrap-'));
+  const root = join(holder, 'checkout'); await mkdir(join(root, 'scripts'), { recursive: true });
+  const marker = join(holder, 'validator-imported');
+  await writeFile(join(root, 'scripts/deployment-manifest.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(process.env.EXTERNAL_TEST_MARKER, 'IMPORTED'); export const assertExecutionFreeze = () => true;\n`);
+  for (const path of [...SAFETY_CRITICAL_PLAN_FILES.filter(p => p !== 'scripts/deployment-manifest.mjs'), 'README.md']) {
+    await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), 'reviewed fixture\n');
+  }
+  const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  git('init'); git('config', 'user.name', 'Bootstrap Test'); git('config', 'user.email', 'bootstrap@example.invalid');
+  git('add', '.'); git('commit', '-m', 'reviewed tree'); const reviewed = git('rev-parse', 'HEAD'); git('checkout', '--detach', reviewed);
+  const run = (pin = reviewed) => spawnSync('bash', ['-c', externalBootstrap], { cwd: holder, encoding: 'utf8',
+    env: { ...process.env, RELEASE_CHECKOUT: root, REVIEWED_RELEASE_PLAN_SHA: pin, EXTERNAL_TEST_MARKER: marker } });
+  const imported = async () => readFile(marker, 'utf8').then(() => true, () => false);
+  return { holder, root, marker, reviewed, git, run, imported };
+}
+
+test('external bootstrap exact reviewed detached SHA passes before first repository import', async () => {
+  assert.ok(externalBootstrap);
+  const fixture = await bootstrapFixture();
+  try { assert.equal(fixture.run().status, 0); assert.equal(await fixture.imported(), true); }
+  finally { await rm(fixture.holder, { recursive: true, force: true }); }
+});
+
+test('different freeze SHA and dirty tracked checkout fail BEFORE repository code is imported', async () => {
+  const fixture = await bootstrapFixture();
+  try {
+    assert.notEqual(fixture.run('d'.repeat(40)).status, 0); assert.equal(await fixture.imported(), false);
+    await writeFile(join(fixture.root, 'README.md'), 'dirty tracked content');
+    assert.notEqual(fixture.run().status, 0); assert.equal(await fixture.imported(), false);
+  } finally { await rm(fixture.holder, { recursive: true, force: true }); }
+});
+
+test('circular trust attack: self-modified validator drops all SHA/digest enforcement; external bootstrap still refuses before import', async () => {
+  const fixture = await bootstrapFixture();
+  try {
+    await writeFile(join(fixture.root, 'scripts/deployment-manifest.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(process.env.EXTERNAL_TEST_MARKER, 'ATTACK RAN'); export const assertExecutionFreeze = () => true; export const computeReleasePlanDigest = () => 'FAKE';\n`);
+    // Both dirty and committed attacks are refused by Git, regardless of the validator's return value.
+    assert.notEqual(fixture.run().status, 0); assert.equal(await fixture.imported(), false);
+    fixture.git('add', '.'); fixture.git('commit', '-m', 'remove all enforcement');
+    assert.notEqual(fixture.git('rev-parse', 'HEAD'), fixture.reviewed);
+    assert.notEqual(fixture.run().status, 0); assert.equal(await fixture.imported(), false);
+  } finally { await rm(fixture.holder, { recursive: true, force: true }); }
+});
+
+test('every tracked post-review edit needs a new external approval: manifest, validator, runbook, pin tests and unrelated file', async () => {
+  for (const path of [...SAFETY_CRITICAL_PLAN_FILES, 'README.md']) {
+    const fixture = await bootstrapFixture();
+    try {
+      await writeFile(join(fixture.root, path), 'post-review edit'); fixture.git('add', '.'); fixture.git('commit', '-m', 'post-review edit');
+      assert.notEqual(fixture.git('rev-parse', 'HEAD'), fixture.reviewed, path);
+      assert.notEqual(fixture.run().status, 0, path); assert.equal(await fixture.imported(), false, path);
+    } finally { await rm(fixture.holder, { recursive: true, force: true }); }
+  }
+});
+
+test('requested template settings cannot substitute for wrong or missing immutable Revision settings', () => {
+  const fn = 'saveDashboardProject';
+  for (const edit of [
+    r => { r.revision.serviceAccount = 'wrong@example.com'; },
+    r => { r.revision.timeout = '120s'; },
+    r => { r.revision.maxInstanceRequestConcurrency = 40; },
+    r => { r.revision.scaling.maxInstanceCount = 10; },
+    r => { r.revision.containers[0].resources.limits.cpu = '2'; },
+    r => { r.revision.containers[0].resources.limits.memory = '512Mi'; },
+    r => { r.revision.executionEnvironment = 'EXECUTION_ENVIRONMENT_GEN1'; },
+    r => { delete r.revision.serviceAccount; },
+    r => { delete r.revision.scaling; },
+  ]) {
+    const restored = restoredSnapshot();
+    const resources = observedResources(fn, restored[fn]);
+    resources.service.template = structuredClone(resources.revision); // correct requested template never rescues wrong Revision
+    edit(resources);
+    assert.throws(() => {
+      restored[fn] = buildObservedFunctionRecord(resources);
+      assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored);
+    }, DeploymentManifestError);
+  }
+});
+
+test('external bootstrap Git read failure also prevents repository import', async () => {
+  const fixture = await bootstrapFixture();
+  try {
+    const bin = join(fixture.holder, 'trusted-git-test'); await mkdir(bin);
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    await writeFile(join(bin, 'git'), `#!/bin/bash\nfor arg in "$@"; do if [[ "$arg" == status ]]; then exit 42; fi; done\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    const result = spawnSync('bash', ['-c', externalBootstrap], { cwd: fixture.holder, encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RELEASE_CHECKOUT: fixture.root, REVIEWED_RELEASE_PLAN_SHA: fixture.reviewed, EXTERNAL_TEST_MARKER: fixture.marker } });
+    assert.notEqual(result.status, 0); assert.equal(await fixture.imported(), false);
+  } finally { await rm(fixture.holder, { recursive: true, force: true }); }
 });

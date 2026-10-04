@@ -100,32 +100,58 @@ safety-critical release-plan files are exactly:
 - `tests/deployment-manifest.test.mjs`
 - `tests/production-promotion-v2.test.mjs`
 
-**Recording (Control Plane, once, after the final reviewed PR #41 state is merged).** From a clean checkout of the
-merge commit, record the commit SHA and the plan digest in the review record (not in this repository):
+**Post-merge lifecycle (future authorization required).** Independently review PR #41, then merge only after
+Control Plane approval. Obtain the resulting main merge SHA and verify that its tree contains exactly the approved
+PR tree / expected plan (`git diff --exit-code <approved-pr-head> <resulting-merge-sha> --`). If merge resolution or
+base movement changes that tree, review the resulting tree before approval. Control Plane records the immutable
+post-merge commit externally as `REVIEWED_RELEASE_PLAN_SHA`, plus an optional secondary five-file digest. Neither
+pin is stored in this repository. Any later commit, even a runbook/test/manifest-only commit, requires a new
+independent review and a new pin. Execution freeze MUST equal reviewed release-plan SHA exactly.
+
+### Layer 0 — external Control Plane bootstrap
+
+The operator must use Git/shell/release orchestration OUTSIDE repository code, with an independently trusted copy
+of the following bootstrap. Do not execute a bootstrap file loaded from the checkout being verified. The pin is
+supplied from the external Control Plane approval record. Create a fresh detached checkout at that pin using Git;
+then execute this block from the trusted operator shell. No repository JavaScript may run before these checks.
 
 ```bash
-git rev-parse HEAD
+# BEGIN EXTERNAL CONTROL PLANE BOOTSTRAP
+set -euo pipefail
+: "${REVIEWED_RELEASE_PLAN_SHA:?external Control Plane pin required}"
+: "${RELEASE_CHECKOUT:?fresh detached checkout required}"
+[[ "$REVIEWED_RELEASE_PLAN_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+actual_head=$(git -C "$RELEASE_CHECKOUT" rev-parse --verify HEAD)
+[[ "$actual_head" == "$REVIEWED_RELEASE_PLAN_SHA" ]] || { echo 'STOP: unreviewed HEAD' >&2; exit 1; }
+if git -C "$RELEASE_CHECKOUT" symbolic-ref -q HEAD >/dev/null; then
+  echo 'STOP: checkout must be detached' >&2; exit 1
+fi
+tracked_state=$(git -C "$RELEASE_CHECKOUT" status --porcelain --untracked-files=no)
+[[ -z "$tracked_state" ]] || { echo 'STOP: dirty tracked checkout' >&2; exit 1; }
+cd "$RELEASE_CHECKOUT"
+# FIRST repository-code import, only after external Git checks have passed.
+node --input-type=module -e "await import('./scripts/deployment-manifest.mjs');"
+# END EXTERNAL CONTROL PLANE BOOTSTRAP
 ```
 
-```bash
-node --input-type=module -e "import { computeReleasePlanDigest } from './scripts/deployment-manifest.mjs'; console.log(await computeReleasePlanDigest('.'));"
-```
+A self-modified validator cannot bypass this root of trust: its changed committed SHA or dirty tracked working tree
+is rejected before import. The operator must hold this clean checkout unchanged throughout execution; any detected
+edit requires STOP and a new bootstrap/review as applicable. Re-run the external Git checks before each mutation stage.
 
-**Gate (execution time).** Run from a clean checkout of the freeze SHA (`git status --porcelain` empty). Feed the
-recorded `reviewedReleasePlanSha` and `reviewedReleasePlanDigest`, the freeze SHA (`git rev-parse HEAD`), the checkout
-root (`planRoot`) and the changed paths to `assertExecutionFreeze`. It fails closed unless **all** of these hold:
+### Layer 1 — SECONDARY repository defense-in-depth
 
-1. the freeze SHA equals the recorded reviewed release-plan SHA;
-2. the digest computed from the frozen checkout equals the recorded reviewed digest (any byte changed in any
-   safety-critical file after review fails here, including a changed Function selector, a weakened snapshot assertion
-   or a changed rollback method);
-3. the manifest in use is the manifest of the frozen checkout, and the release plan validates;
-4. the reviewed release-plan SHA is not the runtime target source, and the recorded runtime target source equals
-   `runtimeTargetSourceSha`;
-5. no runtime-relevant path changed between the runtime target source and the freeze.
+Only after Layer 0 succeeds, `computeReleasePlanDigest` and `assertExecutionFreeze` may be used. Feed the recorded
+`reviewedReleasePlanSha` and `reviewedReleasePlanDigest`, actual freeze SHA, `planRoot` and changed paths to the
+validator. These checks are SECONDARY evidence, never the first trust anchor, and tests of the imported validator
+alone do not establish trust in that validator. The optional externally recorded digest becomes mandatory if
+`assertExecutionFreeze` is used. It rejects a changed Function selector, weakened snapshot assertion or changed
+rollback method. The manifest in use must match the frozen checkout and pass semantic validation.
 
-If the plan must change after review for any reason, **STOP**: it needs a new independent review and a new recorded
-SHA and digest. A passing gate for an older pin never carries over to a newer commit.
+The five-file digest covers `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`, this runbook,
+`tests/deployment-manifest.test.mjs` and `tests/production-promotion-v2.test.mjs`. Runtime-target validation compares
+against the older approved runtime target source and requires re-baseline for runtime-relevant differences. This
+comparison permits already reviewed plan differences FROM THE RUNTIME TARGET; it is never an escape hatch for
+post-review edits. ALL tracked post-review edits require new approval, regardless of file or content.
 
 ## Runtime target includes PR #42
 
@@ -211,7 +237,7 @@ source; do not assume either:
 git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>
 ```
 
-Feed the listed paths, the freeze SHA, the checkout root and the recorded reviewed SHA/digest to `assertExecutionFreeze`.
+FIRST perform Layer 0 external Git bootstrap above. Only then feed the listed paths, the freeze SHA, the checkout root and the recorded reviewed SHA/digest to `assertExecutionFreeze` (SECONDARY evidence).
 Runtime integrity: only `docs/`, `tests/`, `config/deployment-manifest.json` and `scripts/deployment-manifest.mjs` may
 differ from the runtime target source (planning/runbook/test files, verified here, not assumed). Any other path —
 `functions/`, `firestore.rules`, `index.html`, `js/`, build or env scripts, lockfiles, workflows, or anything unknown —
@@ -368,28 +394,50 @@ One record per Function, every field **required** and normalized (validated by `
 rollback record additionally carries `sourceTreeDigest`). Capture is read-only. Sources are the Cloud Functions API
 describe of the Gen 2 Function and the Cloud Run service that backs it (same name, lower-cased):
 
-| Field | Source | Normalized value |
-|---|---|---|
-| `runtime` | Functions describe `buildConfig.runtime` | `nodejs20` / `nodejs22` |
-| `generation` | Functions describe `environment` | exactly `GEN_2` (anything else fails) |
-| `updateTime` | Functions describe `updateTime` | RFC 3339 timestamp |
-| `revision` | Cloud Run `status.latestReadyRevisionName` | revision name |
-| `serviceAccount` | Cloud Run `spec.template.spec.serviceAccountName` | service account email |
-| `invoker` | Cloud Run IAM policy (`roles/run.invoker`) | `allUsers`, or the explicit token `none`; never empty |
-| `memory`, `cpu` | Cloud Run `spec.template.spec.containers[0].resources.limits` | `256Mi` (Mi/Gi), `1` (decimal string) |
-| `timeoutSeconds` | Cloud Run `spec.template.spec.timeoutSeconds` | positive integer |
-| `maxInstanceRequestConcurrency` | Cloud Run `spec.template.spec.containerConcurrency` | positive integer |
-| `maxInstanceCount` | Cloud Run template annotation `autoscaling.knative.dev/maxScale` | positive integer |
-| `ingress` | Cloud Run annotation `run.googleapis.com/ingress` | `ALLOW_ALL` / `ALLOW_INTERNAL_ONLY` / `ALLOW_INTERNAL_AND_GCLB` |
-| `trafficRevision`, `trafficPercent` | Cloud Run `status.traffic` | the revision holding the traffic and its percent; **a split or a non-latest revision is not 100% on the latest ready revision and fails** |
-| `sourceTreeDigest` (rollback only) | the deployed source archive, digested as above | 64-hex SHA-256 |
+Use `buildObservedFunctionRecord` to construct each normalized record from saved authoritative GET responses;
+never fill fields from desired Service templates. Capture Service twice (before and after the Revision, Function,
+IAM and archive reads). Require identical Service generation, etag, ready/created revisions and trafficStatuses
+across those reads; if any changed, discard the evidence and recapture. Keep raw JSON and timestamps externally.
 
-Capture a Function by `gcloud functions describe <name> --gen2 --region us-central1 --project project-manager-dashboar-a067f --format=json`
-and `gcloud run services describe <name-lowercased> --region us-central1 --project project-manager-dashboar-a067f --format=json`.
-Any value that cannot be read from these sources, or does not parse to the normalized form, is a **STOP**: do not
-default it, round it or copy it from the baseline. These field mappings are documented here and enforced by the
-validators; they have not been exercised against live Production by this change, so the first Stage 0 capture must
-match the pinned baseline (`assertBaselineMatchesPinned`) before anything else proceeds.
+| Field | Authoritative source | Normalized value |
+|---|---|---|
+| `runtime`, `generation`, `updateTime` | Cloud Functions v2 GET `buildConfig.runtime`, `environment`, `updateTime`; state ACTIVE and `serviceConfig.revision` must match fetched Revision | Node runtime, `GEN_2`, timestamp |
+| `revision`, `latestCreatedRevision` | Cloud Run v2 Service GET `latestReadyRevision`, `latestCreatedRevision` | both identify the same exact fetched Revision |
+| `reconciling`, `serviceGeneration`, `observedGeneration`, `terminalConditionState` | Cloud Run v2 Service GET `reconciling`, `generation`, `observedGeneration`, `terminalCondition.state` | false; equal positive generation strings; `CONDITION_SUCCEEDED` |
+| `ingress` | Cloud Run v2 Service GET `ingress` (currently observed ingress on output) | `ALLOW_ALL`, `ALLOW_INTERNAL_ONLY`, `ALLOW_INTERNAL_AND_GCLB`; UNSPECIFIED fails |
+| `trafficRevision`, `trafficPercent` | Cloud Run v2 Service GET `trafficStatuses` | exactly one observed target, exact ready Revision, 100%; requested `traffic` is never evidence |
+| `serviceAccount` | exact Cloud Run v2 Revision GET `serviceAccount` | explicit email, never Service.template |
+| `memory`, `cpu` | Revision `containers[0].resources.limits` | memory in Mi (Gi converted exactly), CPU decimal string (millicores converted exactly) |
+| `timeoutSeconds` | Revision `timeout` | positive integral seconds (`60s` / `60.0s` → 60; fractional unsupported values fail) |
+| `maxInstanceRequestConcurrency` | Revision `maxInstanceRequestConcurrency` | positive integer |
+| `maxInstanceCount` | Revision `scaling.maxInstanceCount` | positive integer; no template/default fallback |
+| `executionEnvironment` | Revision `executionEnvironment` | `EXECUTION_ENVIRONMENT_GEN2`, independently from Function generation |
+| `invoker` | Service getIamPolicy `roles/run.invoker` bindings, plus Service `invokerIamDisabled` explicitly false | unconditional `allUsers` or explicit `none`; conditional/unsupported principals fail |
+| `sourceTreeDigest` (rollback only) | deployed source archive identified by Cloud Functions resolved source provenance, digested as above | 64-hex SHA-256; cannot use the local candidate as deployed proof |
+
+Read Cloud Functions with `gcloud functions describe <name> --gen2 --region us-central1 --project project-manager-dashboar-a067f --format=json`.
+Use authorized REST GETs to `https://run.googleapis.com/v2/projects/project-manager-dashboar-a067f/locations/us-central1/services/<service>`;
+resolve `latestReadyRevision` and GET `https://run.googleapis.com/v2/<exact-latestReadyRevision>`.
+Fetch `https://run.googleapis.com/v2/<service-resource>:getIamPolicy` separately. Do not read Revision settings from
+`gcloud run services describe` template output. For v1-only evidence, active ingress is the output-only
+`run.googleapis.com/ingress-status`, never requested `run.googleapis.com/ingress`.
+
+The Service GET ingress/output and immutable Revision semantics are defined in the official
+[Service API](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services) and
+[Revision API](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services.revisions).
+Reconciliation must be complete: false `reconciling`, matching observed/request generations, successful terminal
+condition, identical latest-created/latest-ready revisions, and that Revision serving 100%. Unknown/missing output,
+failed reconciliation or desired-vs-observed mismatch fails closed. Requested ingress `all` with observed ingress
+`internal` cannot PASS, even if the requested Service.template matches the baseline.
+
+**Read-only evidence gap (2026-10-04).** REST GETs of all seven pinned pre-V2 Revision resources returned CPU `1`
+and memory `256Mi`, but omitted `executionEnvironment`; a v1 GET of `savedashboardproject-00007-hit` also omitted
+its execution-environment annotation. Therefore the additional `EXECUTION_ENVIRONMENT_GEN2` requirement is an
+UNVERIFIED expectation, not an observed rollback baseline fact. Do not infer it from Cloud Functions `GEN_2`,
+Service.template or API omission. The builder intentionally rejects that missing value. Full rollback readiness
+remains HOLD until Control Plane obtains authoritative evidence or independently reviews an appropriate contract.
+No rollback PASS or live readiness is claimed by the synthetic tests. Missing API fields must STOP Stage 0;
+do not invent defaults. `assertBaselineMatchesPinned` must pass before authorized deployment.
 
 ## Invoker strategy
 
@@ -478,7 +526,8 @@ cd .. && npx firebase deploy --only functions:createDashboardWeek,functions:save
 snapshot and the pinned baseline. For each of the seven, **every** item below must be read back as an explicit
 normalized value (a missing or unparseable value fails; nothing is inferred from absence):
 
-- runtime = `nodejs20`, generation = `GEN_2`;
+- Service reconciliation complete (`reconciling` false, `observedGeneration == generation`, `terminalConditionState` successful, `latestCreatedRevision == revision`);
+- runtime = `nodejs20`, generation = `GEN_2`, Revision executionEnvironment = `EXECUTION_ENVIRONMENT_GEN2`;
 - runtime service account = the default compute account;
 - invoker = `allUsers` (and Cloud Run IAM check not disabled);
 - memory = `256Mi`, CPU = `1`, timeout = `60` s, max instance request concurrency = `80`, max instances = `20`,
