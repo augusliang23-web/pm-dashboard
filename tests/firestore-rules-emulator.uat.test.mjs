@@ -474,4 +474,32 @@ test('userPermissionAudit is readable only by Admin and never client-writable', 
     await assertFails(deleteDoc(doc(client, 'userPermissionAudit/seed-audit')));
   }
 });
+
+test('week.release and project.manage overrides never grant draft-week reads (no strategyLayer exposure)', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    const roles = ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'];
+    await Promise.all([
+      ...roles.map(role => setDoc(doc(db, `users/${role}-release@example.com`), { role, displayName: role })),
+      ...roles.map(role => setDoc(doc(db, `userPermissions/${role}-release@example.com`), {
+        schemaVersion: 1, overrides: { 'week.release': true, 'project.manage': true, 'gantt.manage': true }, revision: 1,
+      })),
+      setDoc(doc(db, 'users/pm-release-off@example.com'), { role: 'pm', displayName: 'PM release off' }),
+      setDoc(doc(db, 'userPermissions/pm-release-off@example.com'), { overrides: { 'week.release': false } }),
+    ]);
+  });
+
+  for (const role of ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive']) {
+    const client = auth(`${role}-release-uid`, `${role}-release@example.com`);
+    await assertFails(getDoc(doc(client, 'weeks/draft-week')));
+    await assertFails(getDocs(query(collection(client, 'weeks'), orderBy('weekLabel'))));
+    await assertSucceeds(getDoc(doc(client, 'weeks/released-week')));
+    await assertFails(setDoc(doc(client, 'weeks/draft-week'), { isReleased: true }, { merge: true }));
+  }
+  // The PM baseline for reading drafts is independent of the release switch.
+  await assertSucceeds(getDoc(doc(auth('pm-release-off-uid', 'pm-release-off@example.com'), 'weeks/draft-week')));
+  // Permission documents stay read-protected from other users and never client-writable.
+  const holder = auth('engineering-release-uid', 'engineering-release@example.com');
+  await assertFails(setDoc(doc(holder, 'userPermissions/engineering-release@example.com'), { overrides: { 'week.release': false, 'gantt.manage': true } }));
+});
 }

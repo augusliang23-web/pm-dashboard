@@ -7,7 +7,7 @@ const server = require('../permission-registry');
 
 const ROLES = ['admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product', ' Admin ', 'PM', '', 'unknown', undefined];
 const VALUES = [undefined, true, false, null, 'true', 1];
-const CAPABILITY_KEYS = ['week.manage', 'permissions.manage', 'week.unknown', '', '__proto__'];
+const CAPABILITY_KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'permissions.manage', 'week.unknown', '', '__proto__'];
 
 async function browserRegistry() {
   return import(pathToFileURL(path.resolve(__dirname, '..', '..', 'js', 'permission-registry.mjs')).href);
@@ -16,6 +16,15 @@ async function browserRegistry() {
 test('Functions permission registry data matches the browser registry', async () => {
   const browser = await browserRegistry();
   assert.deepEqual(JSON.parse(JSON.stringify(server.CAPABILITIES)), JSON.parse(JSON.stringify(browser.CAPABILITIES)));
+});
+
+test('Functions and browser role defaults agree for every role and capability', async () => {
+  const browser = await browserRegistry();
+  for (const capability of CAPABILITY_KEYS) {
+    for (const role of ROLES) {
+      assert.equal(server.roleDefault(capability, role), browser.roleDefault(capability, role), `${capability} / ${JSON.stringify(role)}`);
+    }
+  }
 });
 
 test('Functions and browser resolvers agree for every role, capability and override value', async () => {

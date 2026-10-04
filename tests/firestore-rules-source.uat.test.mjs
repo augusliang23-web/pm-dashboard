@@ -109,6 +109,9 @@ test('Firestore draft week reads are limited to PM, Admin and effective week.man
     assert.match(rules, /function canReadDraftWeeks\(\)/);
     assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
     assert.match(rules, /allow read:\s*if hasDashboardAccess\(\)\s*&& \(canReadDraftWeeks\(\) \|\| canManageWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
+    // V1 is least-privilege: week.release / project.manage are PM-only (PM already reads drafts), so the rules add no
+    // release- or project-based draft read.
+    assert.doesNotMatch(rules, /canReleaseWeeks|week\.release|project\.manage/);
     assert.match(rules, /allow write: if false;/);
     // week.manage is read only from the server-stored userPermissions document of the signed-in email, and only
     // a boolean true counts; Admin keeps it by role.
