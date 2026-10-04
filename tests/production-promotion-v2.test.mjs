@@ -6,10 +6,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  DeploymentManifestError, assertLiveFunctionInventory, assertNonSelectedUnchanged, assertPostReleaseInventory,
-  assertPreservedFunctionsUnchanged, assertReleasePlan, buildFunctionsOnlyFlag, buildReleaseFunctionsOnlyFlag,
+  DeploymentManifestError, assertExecutionFreeze, assertFullRollbackVerified, assertLiveFunctionInventory, assertNonSelectedUnchanged,
+  assertPostReleaseInventory, assertPreservedFunctionsUnchanged, assertReleasePlan, assertSelectedFunctionsDeployed,
+  assertSnapshotComplete, buildFunctionsOnlyFlag, buildReleaseFunctionsOnlyFlag, expectedAfterNames, expectedBeforeNames,
   functionsAllowlistFor, functionsPreservedFor, loadDeploymentManifest, readSourceServiceAccounts, releaseFor,
-  validateManifestAgainstSource
+  runtimeRelevantChanges, validateManifestAgainstSource
 } from '../scripts/deployment-manifest.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -144,40 +145,6 @@ test('the Function code needs Firestore access only (roles/datastore.user is suf
   }
 });
 
-test('preserved Executive Functions: any change in revision, runtime, identity, invoker or update time fails the runbook check', () => {
-  const snapshot = {};
-  for (const fn of [...LIVE_BEFORE, ...EIGHT.filter(fn => !LIVE_BEFORE.includes(fn))]) {
-    snapshot[fn] = { runtime: 'nodejs20', revision: `${fn.toLowerCase()}-00001-aaa`, serviceAccount: 'default-compute', invoker: 'allUsers', updateTime: '2026-07-23T09:28:57Z' };
-  }
-  assert.equal(assertPreservedFunctionsUnchanged(manifest, 'prod', snapshot, structuredClone(snapshot)), true);
-  for (const field of ['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']) {
-    for (const fn of EXECUTIVE) {
-      const after = structuredClone(snapshot);
-      after[fn][field] = 'changed';
-      assert.throws(() => assertPreservedFunctionsUnchanged(manifest, 'prod', snapshot, after), error => error instanceof DeploymentManifestError && error.message.includes(fn));
-    }
-  }
-  const missing = structuredClone(snapshot);
-  delete missing.addExecutiveMilestoneUpdate;
-  assert.throws(() => assertPreservedFunctionsUnchanged(manifest, 'prod', snapshot, missing), DeploymentManifestError);
-});
-
-test('non-selected Functions (attention, presence scheduler, Executive) must be unchanged; selected ones may change', () => {
-  const before = Object.fromEntries(LIVE_BEFORE.map(fn => [fn, { runtime: 'nodejs20', revision: `${fn}-1`, serviceAccount: 'default-compute', invoker: 'allUsers', updateTime: 't0' }]));
-  const after = structuredClone(before);
-  for (const fn of EIGHT.filter(name => before[name])) after[fn] = { ...after[fn], runtime: 'nodejs22', revision: `${fn}-2`, serviceAccount: IDENTITIES[fn], updateTime: 't1' };
-  after.setUserPermissionOverrides = { runtime: 'nodejs22', revision: 'new-1', serviceAccount: 'pmdash-user-perms', invoker: 'allUsers', updateTime: 't1' };
-  assert.equal(assertNonSelectedUnchanged(manifest, ID, before, after), true);
-  for (const fn of ['setDashboardProjectAttention', 'aggregatePresenceSessions', 'setExecutiveRagOverride']) {
-    const tampered = structuredClone(after);
-    tampered[fn].runtime = 'nodejs22';
-    assert.throws(() => assertNonSelectedUnchanged(manifest, ID, before, tampered), error => error instanceof DeploymentManifestError && error.message.includes(fn));
-  }
-  const extra = structuredClone(after);
-  extra.syncProductionWeeksToUat = { runtime: 'nodejs22', revision: 'x', serviceAccount: 'x', invoker: 'x', updateTime: 'x' };
-  assert.throws(() => assertNonSelectedUnchanged(manifest, ID, before, extra), DeploymentManifestError);
-});
-
 test('the Production deploy flow never builds a wildcard or unscoped Functions deployment', () => {
   assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', []), DeploymentManifestError);
   assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', ['setDashboardProjectAttention', 'addExecutiveMilestoneUpdate']), DeploymentManifestError);
@@ -222,8 +189,8 @@ test('rollback baseline IDs are pinned in both the manifest and the runbook', ()
   assert.equal(release.rollback.hostingRelease, '1790984982984000');
   assert.equal(release.baseline.productionPagesSha, '932c6e2bda17acad9ffc8fc0153421dcd93410dd');
   assert.equal(release.baseline.iamEtag, 'BwZcleH3jJo=');
-  assert.equal(release.sourceMainSha, '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32');
-  for (const value of [release.rollback.rulesetId, release.rollback.hostingVersion, release.rollback.hostingRelease, release.baseline.productionPagesSha, release.sourceMainSha]) {
+  assert.equal(release.featureSourceMainSha, '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32');
+  for (const value of [release.rollback.rulesetId, release.rollback.hostingVersion, release.rollback.hostingRelease, release.baseline.productionPagesSha, release.featureSourceMainSha]) {
     assert.ok(runbook.includes(value), `${value} appears in the runbook`);
   }
   const sevenExisting = EIGHT.filter(fn => fn !== 'setUserPermissionOverrides');
@@ -267,4 +234,332 @@ test('PR #36 is recorded as superseded and PR #40 as a gated downstream surface'
 test('no stage in the runbook performs or claims a deployment', () => {
   assert.match(runbook, /\*\*This document performs nothing\.\*\*/);
   assert.doesNotMatch(runbook, /\bDEPLOYED\b|(?<!nothing here )has been deployed/);
+});
+
+
+// ── Snapshot completeness (fail-closed) ──────────────────────────────────────────────────────────────────────
+const PROJECT = 'project-manager-dashboar-a067f';
+const FIELDS = ['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime'];
+const beforeNames = expectedBeforeNames(manifest, ID);
+const afterNames = expectedAfterNames(manifest, ID);
+const record = (fn, over = {}) => ({
+  runtime: 'nodejs20', revision: `${fn.toLowerCase()}-00001-aaa`, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
+  invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', ...over,
+});
+const beforeSnapshot = () => Object.fromEntries(beforeNames.map(fn => [fn, record(fn)]));
+function afterSnapshot() {
+  const snap = Object.fromEntries(afterNames.map(fn => [fn, record(fn)]));
+  for (const fn of EIGHT) {
+    snap[fn] = record(fn, { runtime: 'nodejs22', revision: `${fn.toLowerCase()}-00002-bbb`, serviceAccount: `${IDENTITIES[fn]}@${PROJECT}.iam.gserviceaccount.com`, updateTime: '2026-10-10T01:00:00Z' });
+  }
+  return snap;
+}
+const expectFail = (fn, label) => assert.throws(fn, DeploymentManifestError, label);
+
+test('expected snapshot name sets are derived from the manifest: before = 9 managed + 8 preserved (17), after = 10 + 8 (18)', () => {
+  assert.equal(beforeNames.length, 17);
+  assert.equal(afterNames.length, 18);
+  assert.ok(!beforeNames.includes('setUserPermissionOverrides'));
+  assert.ok(afterNames.includes('setUserPermissionOverrides'));
+  assert.deepEqual(beforeNames, [...LIVE_BEFORE].sort());
+});
+
+test('valid complete before/after snapshots pass every assertion', () => {
+  const before = beforeSnapshot();
+  const after = afterSnapshot();
+  assert.equal(assertSnapshotComplete(manifest, ID, before, 'before'), true);
+  assert.equal(assertSnapshotComplete(manifest, ID, after, 'after'), true);
+  assert.equal(assertPreservedFunctionsUnchanged(manifest, ID, before, after), true);
+  assert.equal(assertNonSelectedUnchanged(manifest, ID, before, after), true);
+  assert.equal(assertSelectedFunctionsDeployed(manifest, ID, before, after), true);
+});
+
+test('snapshots made only of empty records {} are rejected (empty objects are not evidence)', () => {
+  const before = Object.fromEntries(beforeNames.map(fn => [fn, {}]));
+  const after = Object.fromEntries(afterNames.map(fn => [fn, {}]));
+  expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'));
+  expectFail(() => assertSnapshotComplete(manifest, ID, after, 'after'));
+  expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), 'preserved');
+  expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), 'non-selected');
+});
+
+test('a required field missing from before only, after only, or both is rejected for every field and Function kind', () => {
+  for (const fn of ['setDashboardProjectAttention', 'aggregatePresenceSessions', 'setExecutiveRagOverride', 'saveDashboardProject']) {
+    for (const field of FIELDS) {
+      const before = beforeSnapshot(); const after = afterSnapshot();
+      delete before[fn][field];
+      expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), `${fn}.${field} missing from before`);
+      expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), `${fn}.${field} missing from before`);
+      const before2 = beforeSnapshot(); const after2 = afterSnapshot();
+      delete after2[fn][field];
+      expectFail(() => assertNonSelectedUnchanged(manifest, ID, before2, after2), `${fn}.${field} missing from after`);
+      expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before2, after2), `${fn}.${field} missing from after`);
+      const before3 = beforeSnapshot(); const after3 = afterSnapshot();
+      delete before3[fn][field]; delete after3[fn][field];
+      expectFail(() => assertNonSelectedUnchanged(manifest, ID, before3, after3), `${fn}.${field} absent from both`);
+      expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before3, after3), `${fn}.${field} absent from both`);
+    }
+  }
+});
+
+test('invalid field values are rejected: empty, null, number, array, bad runtime, bad timestamp', () => {
+  const bad = { runtime: ['', null, 22, 'node20', 'nodejs'], revision: ['', null, 'Bad Revision!'], serviceAccount: ['', null, 'has space'], invoker: ['', null, undefined, 'all users'], updateTime: ['', 'yesterday', null, 5] };
+  for (const [field, values] of Object.entries(bad)) {
+    for (const value of values) {
+      const before = beforeSnapshot();
+      before.setDashboardProjectAttention[field] = value;
+      expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'), `${field}=${String(value)}`);
+    }
+  }
+  for (const malformed of [null, 'x', [], 7]) {
+    const before = beforeSnapshot();
+    before.aggregatePresenceSessions = malformed;
+    expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'), `record=${JSON.stringify(malformed)}`);
+  }
+  expectFail(() => assertSnapshotComplete(manifest, ID, null, 'before'));
+  expectFail(() => assertSnapshotComplete(manifest, ID, [], 'before'));
+});
+
+test('a non-selected, preserved or scheduler Function absent from BOTH snapshots is rejected', () => {
+  for (const fn of ['setDashboardProjectAttention', 'aggregatePresenceSessions', 'setExecutiveRagOverride', 'addExecutiveMilestoneUpdate', 'initializeExecutiveMilestoneLiveTimeline']) {
+    const before = beforeSnapshot(); const after = afterSnapshot();
+    delete before[fn]; delete after[fn];
+    expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), `${fn} absent from both (non-selected)`);
+    expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), `${fn} absent from both (preserved)`);
+  }
+  const before = beforeSnapshot(); const after = afterSnapshot();
+  delete after.setDashboardProjectAttention;
+  expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), 'removed during the release');
+});
+
+test('a selected Function missing from either snapshot, or a missing new Function, is rejected', () => {
+  const before = beforeSnapshot(); const after = afterSnapshot();
+  delete after.setUserPermissionOverrides;
+  expectFail(() => assertSnapshotComplete(manifest, ID, after, 'after'));
+  const before2 = beforeSnapshot(); delete before2.createDashboardWeek;
+  expectFail(() => assertSnapshotComplete(manifest, ID, before2, 'before'));
+  const before3 = beforeSnapshot(); before3.setUserPermissionOverrides = record('setUserPermissionOverrides');
+  expectFail(() => assertSnapshotComplete(manifest, ID, before3, 'before'), 'the new Function must be absent before the release');
+  assert.equal(assertSnapshotComplete(manifest, ID, before, 'before'), true);
+});
+
+test('unexpected, UAT-only and lookalike Functions in either snapshot are rejected', () => {
+  for (const extra of ['syncProductionWeeksToUat', 'getProductionWeekSyncStatus', 'restoreUatWeeksSnapshot', 'randomUnknownFunction', 'addExecutiveMilestoneUpdates']) {
+    const after = afterSnapshot(); after[extra] = record(extra);
+    expectFail(() => assertSnapshotComplete(manifest, ID, after, 'after'), `${extra} in after`);
+    expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, beforeSnapshot(), after), `${extra} in after (preserved check)`);
+    expectFail(() => assertNonSelectedUnchanged(manifest, ID, beforeSnapshot(), after), `${extra} in after (non-selected check)`);
+    const before = beforeSnapshot(); before[extra] = record(extra);
+    expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'), `${extra} in before`);
+  }
+});
+
+test('any change to a preserved or non-selected Function is rejected, and selected Functions may change', () => {
+  for (const fn of [...EXECUTIVE, 'setDashboardProjectAttention', 'aggregatePresenceSessions']) {
+    for (const field of FIELDS) {
+      const before = beforeSnapshot(); const after = afterSnapshot();
+      after[fn][field] = field === 'runtime' ? 'nodejs22' : field === 'updateTime' ? '2026-12-01T00:00:00Z' : `${after[fn][field]}-changed`;
+      expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), `${fn}.${field}`);
+      if (EXECUTIVE.includes(fn)) expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), `${fn}.${field}`);
+    }
+  }
+});
+
+test('selected Functions must end on nodejs22, their dedicated identity and a new revision', () => {
+  for (const [edit, label] of [
+    [(after) => { after.createDashboardWeek.runtime = 'nodejs20'; }, 'runtime'],
+    [(after) => { after.saveDashboardProject.serviceAccount = '842441149281-compute@developer.gserviceaccount.com'; }, 'identity'],
+    [(after) => { after.setDashboardWeekRelease.revision = 'setdashboardweekrelease-00001-aaa'; }, 'no new revision'],
+    [(after) => { after.setUserPermissionOverrides.serviceAccount = `pmdash-create-week@${PROJECT}.iam.gserviceaccount.com`; }, 'wrong identity'],
+  ]) {
+    const after = afterSnapshot(); edit(after);
+    expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), label);
+  }
+});
+
+// ── FULL rollback vs emergency traffic mitigation ────────────────────────────────────────────────────────────
+const pinned = release.rollbackBaseline;
+const SEVEN = EIGHT.filter(fn => fn !== 'setUserPermissionOverrides');
+function restoredSnapshot() {
+  const base = beforeSnapshot();
+  const restored = {};
+  for (const fn of beforeNames) restored[fn] = { ...base[fn] };
+  for (const fn of SEVEN) restored[fn] = { ...base[fn], revision: `${fn.toLowerCase()}-00003-ccc`, updateTime: '2026-10-12T00:00:00Z', sourceTreeDigest: pinned.sourceTreeDigest };
+  return restored;
+}
+
+test('FULL rollback = pinned baseline source + configuration redeployment: the manifest classifies traffic shifting as emergency mitigation only', () => {
+  assert.equal(pinned.fullRollbackMethod, 'PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT');
+  assert.equal(pinned.trafficShiftClassification, 'EMERGENCY_MITIGATION_ONLY');
+  assert.equal(pinned.sourceCommit, 'f4244beedacb9f6cc40addc533c3e8316e56aa96');
+  assert.equal(pinned.nodeEngine, '20');
+  assert.deepEqual(Object.keys(pinned.sourceGenerations).sort(), [...SEVEN].sort());
+  assert.deepEqual(Object.keys(release.baseline.priorRevisions).sort(), [...SEVEN].sort());
+  assert.equal(assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restoredSnapshot()), true);
+});
+
+test('a traffic-only restore (baseline revision serving) is never accepted as a full rollback', () => {
+  for (const fn of SEVEN) {
+    const restored = restoredSnapshot();
+    restored[fn].revision = beforeSnapshot()[fn].revision;
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn} traffic only`);
+  }
+});
+
+test('full rollback verification fails on any wrong runtime, identity, invoker, source identity or incomplete evidence', () => {
+  for (const fn of SEVEN) {
+    for (const [field, value] of [['runtime', 'nodejs22'], ['serviceAccount', `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`], ['invoker', 'none'], ['sourceTreeDigest', 'f'.repeat(64)]]) {
+      const restored = restoredSnapshot(); restored[fn][field] = value;
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field}`);
+    }
+    const missing = restoredSnapshot(); delete missing[fn].sourceTreeDigest;
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), missing), `${fn} no source read-back`);
+    const gone = restoredSnapshot(); delete gone[fn];
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), gone), `${fn} absent`);
+  }
+  for (const fn of [...EXECUTIVE, 'setDashboardProjectAttention', 'aggregatePresenceSessions']) {
+    const restored = restoredSnapshot(); restored[fn].revision = 'changed-00009-zzz';
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn} changed`);
+    const absent = restoredSnapshot(); delete absent[fn];
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), absent), `${fn} absent`);
+  }
+  expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), null));
+});
+
+test('the runbook never calls a traffic shift a rollback: it is emergency mitigation that proves no control-plane restoration', () => {
+  const state = runbook.slice(runbook.indexOf('## Rollback classification'), runbook.indexOf('## Partial-failure'));
+  assert.match(runbook, /EMERGENCY TRAFFIC MITIGATION/);
+  assert.match(runbook, /TRAFFIC_SHIFT = EMERGENCY_MITIGATION_ONLY/);
+  assert.match(runbook, /PINNED BASELINE SOURCE \+ CONFIG REDEPLOYMENT/);
+  for (const proof of ['service template', 'runtime configuration', 'runtime service account', 'control-plane metadata', 'deployment configuration', 'callable integration']) {
+    assert.ok(runbook.includes(proof), `mitigation does not prove ${proof}`);
+  }
+  assert.doesNotMatch(runbook, /Preferred restore for each existing Function/i);
+  const trafficLines = runbook.split('\n').filter(line => /update-traffic/.test(line));
+  assert.ok(trafficLines.length >= 1);
+  for (const line of trafficLines) {
+    const at = runbook.indexOf(line);
+    assert.match(runbook.slice(Math.max(0, at - 500), at), /Emergency mitigation/, 'a traffic command must sit under the emergency-mitigation label');
+  }
+  assert.match(state, /not a rollback/i);
+  assert.match(runbook, /f4244beedacb9f6cc40addc533c3e8316e56aa96/);
+  assert.match(runbook, /Node 20 deployability/);
+  assert.match(runbook, /STOP\.[^\n]*(silently|traffic-only)|do \*\*not\*\* fall back/i);
+});
+
+// ── Rollback state machine A–F (UI first once published) ─────────────────────────────────────────────────────
+function stateSection(letter) {
+  const start = runbook.indexOf(`### State ${letter} `);
+  assert.ok(start >= 0, `state ${letter} exists`);
+  const end = runbook.indexOf('\n### ', start + 5);
+  return runbook.slice(start, end < 0 ? undefined : end);
+}
+// First occurrence of each step must follow the first occurrence of the previous one (a step mentioned earlier than
+// its turn, for example rules before Hosting, is an ordering violation).
+const orderIn = (text, labels) => labels.reduce((cursor, label) => {
+  const at = text.indexOf(label);
+  assert.ok(at >= 0, `"${label}" must be present`);
+  assert.ok(at > cursor, `"${label}" must come after the previous step`);
+  return at;
+}, -1);
+
+test('rollback states A–F are all documented with the required ordering', () => {
+  for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) stateSection(letter);
+  orderIn(stateSection('E'), ['restore Firebase Hosting', 'confirm the old UI', 'keep `setUserPermissionOverrides` live', 'restore `userPermissions`', 'preserve `userPermissionAudit`', 'full rollback of the seven', 'restore Production rules', 'leave inert or delete `setUserPermissionOverrides`', 'identities']);
+  orderIn(stateSection('D'), ['verify `userPermissions`', 'full rollback of the seven', 'restore Production rules', 'new callable']);
+  orderIn(stateSection('F'), ['restore the `production-pages`', 'permission state', 'consumer Functions', 'permission callable']);
+  orderIn(stateSection('C'), ['full rollback of the seven', 'new callable', 'identities']);
+  orderIn(stateSection('B'), ['full rollback', 'inert']);
+  assert.match(stateSection('A'), /No application behavior changed/);
+  assert.match(stateSection('F'), /Do not roll back the healthy/);
+  assert.match(runbook, /restore\/disable that UI BEFORE removing backend capabilities/);
+});
+
+test('permission-state rollback captures the empty baseline, restores it through the audited callable and preserves audit', () => {
+  assert.match(runbook, /`userPermissions` collection is empty/);
+  assert.match(runbook, /capture and verify the baseline immediately before the release/i);
+  assert.match(runbook, /no stale override remains/i);
+  assert.match(runbook, /never delete `userPermissionAudit`/i);
+  assert.match(runbook, /Do not seed Production permissions/);
+});
+
+// ── Release-plan runtime validator (B2-1) and execution freeze (B2-2) ────────────────────────────────────────
+test('release plan validation rejects every unsafe safety-metadata edit', () => {
+  const mutate = edit => { const m = clone(); edit(m.releases[ID], m); return m; };
+  const rejected = [
+    ['short feature SHA', r => { r.featureSourceMainSha = '1c2ec79'; }],
+    ['non-hex feature SHA', r => { r.featureSourceMainSha = 'z'.repeat(40); }],
+    ['UAT environment', r => { r.environment = 'uat'; }],
+    ['unknown environment', r => { r.environment = 'staging'; }],
+    ['rules not required', r => { r.rulesDeployRequired = false; }],
+    ['UAT rules file', r => { r.rulesFile = 'firestore.uat.rules'; }],
+    ['hosting not required', r => { r.hostingDeployRequired = false; }],
+    ['pages not separate', r => { r.productionPages.separateReleaseSurface = false; }],
+    ['pages without hosting gate', r => { r.productionPages.mergeOnlyAfter = ['functions', 'rules', 'authenticatedSmoke']; }],
+    ['pages without smoke gate', r => { r.productionPages.mergeOnlyAfter = ['functions', 'rules', 'hosting']; }],
+    ['pages extra gate', r => { r.productionPages.mergeOnlyAfter.push('anything'); }],
+    ['broad role', r => { r.serviceAccountProjectRole = 'roles/owner'; }],
+    ['non-role', r => { r.serviceAccountProjectRole = 'datastore'; }],
+    ['new Function not in release', r => { r.newFunctions = ['brandNewFunction']; }],
+    ['untouched overlaps release', r => { r.untouchedManagedFunctions.push('createDashboardWeek'); }],
+    ['untouched not managed', r => { r.untouchedManagedFunctions = ['addExecutiveMilestoneUpdate']; }],
+    ['arithmetic: baseline managed', r => { r.baseline.liveManaged = 8; }],
+    ['arithmetic: baseline total', r => { r.baseline.liveFunctionCount = 18; }],
+    ['traffic shift as full rollback', r => { r.rollbackBaseline.fullRollbackMethod = 'CLOUD_RUN_TRAFFIC_SHIFT'; }],
+    ['traffic shift not mitigation', r => { r.rollbackBaseline.trafficShiftClassification = 'ROLLBACK'; }],
+    ['short rollback commit', r => { r.rollbackBaseline.sourceCommit = 'f4244be'; }],
+    ['bad source digest', r => { r.rollbackBaseline.sourceTreeDigest = 'abc'; }],
+    ['missing source generation', r => { delete r.rollbackBaseline.sourceGenerations.setDashboardWeekRelease; }],
+    ['extra source generation', r => { r.rollbackBaseline.sourceGenerations.setUserPermissionOverrides = '1'; }],
+    ['missing prior revision', r => { delete r.baseline.priorRevisions.saveDashboardProject; }],
+  ];
+  for (const [label, edit] of rejected) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
+  assert.doesNotThrow(() => assertReleasePlan(manifest, ID));
+});
+
+test('exact approved pins are asserted for this release (least-privilege role, keys, feature source)', () => {
+  assert.equal(release.serviceAccountProjectRole, 'roles/datastore.user');
+  assert.equal(release.serviceAccountMaxUserManagedKeys, 0);
+  assert.equal(release.environment, 'prod');
+  assert.equal(release.featureSourceMainSha, '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32');
+});
+
+test('execution freeze: only plan paths may differ from the approved feature source; anything else forces a re-baseline', () => {
+  const freezeSha = 'a'.repeat(40);
+  const ok = ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs', 'config/deployment-manifest.json', 'scripts/deployment-manifest.mjs'];
+  assert.equal(assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: ok }), true);
+  assert.equal(assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: [] }), true);
+  for (const path of ['functions/project-dashboard-writes.js', 'firestore.rules', 'index.html', 'js/permission-registry.mjs', 'package.json', 'firebase.json',
+    'scripts/build-hosting.mjs', '.github/workflows/ci.yml', 'docs/../index.html', 'config/other.json', 'unknown-new-file']) {
+    assert.deepEqual(runtimeRelevantChanges([path]), [path], path);
+    assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha, changedPaths: [...ok, path] }), DeploymentManifestError, path);
+  }
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: '2'.repeat(40), freezeSha, changedPaths: [] }), DeploymentManifestError);
+  assert.throws(() => assertExecutionFreeze(manifest, ID, { featureSourceSha: release.featureSourceMainSha, freezeSha: 'main', changedPaths: [] }), DeploymentManifestError);
+  assert.throws(() => runtimeRelevantChanges(['']), DeploymentManifestError);
+  assert.throws(() => runtimeRelevantChanges('docs/x.md'), DeploymentManifestError);
+});
+
+test('the runbook separates the approved feature source, the PR #41 candidate head and the future execution freeze', () => {
+  assert.match(runbook, /Approved feature source baseline/);
+  assert.match(runbook, /PR #41 release-plan candidate head/);
+  assert.match(runbook, /Execution freeze SHA/);
+  assert.doesNotMatch(runbook, /Verify `main` is still `1c2ec79/);
+  assert.match(runbook, /git diff --name-only 1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32/);
+  assert.match(runbook, /re-baseline/);
+});
+
+test('every runbook bash block that loops or runs IAM / service-account commands fails closed', () => {
+  const blocks = [...runbook.matchAll(/```bash\n([\s\S]*?)```/g)].map(match => match[1]);
+  const iamBlocks = blocks.filter(block => /gcloud (iam|projects add-iam-policy-binding)/.test(block));
+  assert.ok(iamBlocks.length >= 3, 'create, grant and verify blocks exist');
+  for (const block of iamBlocks) assert.match(block, /^set -euo pipefail$/m, 'IAM block must set -euo pipefail');
+  for (const block of blocks.filter(b => /\bfor\b[\s\S]*\bdo\b/.test(b))) assert.match(block, /^set -euo pipefail$/m, 'loops must set -euo pipefail');
+});
+
+test('the earlier local rules-test flake is recorded accurately, without claiming a root cause', () => {
+  assert.match(runbook, /one transient local failure/i);
+  assert.match(runbook, /exact cause unknown/i);
+  assert.match(runbook, /14\/14/);
+  assert.doesNotMatch(runbook, /root cause (was|is) /i);
 });

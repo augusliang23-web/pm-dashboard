@@ -80,7 +80,7 @@
     "userPermissionsV2": {
       "description": "Production promotion of User Permissions V2 (PR #39 on main 1c2ec79). Release plan only; the manifest never performs a deployment.",
       "environment": "prod",
-      "sourceMainSha": "1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32",
+      "featureSourceMainSha": "1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32",
       "functions": [
         "setUserPermissionOverrides",
         "createDashboardWeek",
@@ -155,6 +155,46 @@
         "rulesetId": "7ed64612-dc1c-4856-baf1-f627972046b6",
         "hostingVersion": "d8b102f996a1366b",
         "hostingRelease": "1790984982984000"
+      },
+      "executionFreeze": {
+        "rule": "The release runs from an explicitly recorded execution freeze SHA verified against featureSourceMainSha; any runtime-relevant path change since the feature source requires a re-baseline. Only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ (verified with git diff --name-only, never assumed).",
+        "planOnlyFiles": [
+          "config/deployment-manifest.json",
+          "scripts/deployment-manifest.mjs"
+        ],
+        "planOnlyPrefixes": [
+          "docs/",
+          "tests/"
+        ]
+      },
+      "rollbackBaseline": {
+        "fullRollbackMethod": "PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT",
+        "trafficShiftClassification": "EMERGENCY_MITIGATION_ONLY",
+        "sourceCommit": "f4244beedacb9f6cc40addc533c3e8316e56aa96",
+        "sourceTreeDigest": "e4e00a1d17b7f6ceceaf25288a830c220c2be854ff02295487c4bc951bdfcb11",
+        "sourceZipSha256": "0138d5864a6f1da3056a032535efdaef33374b1a09a64d1bcade767e70ed3123",
+        "sourceGenerations": {
+          "createDashboardWeek": "1789829964702697",
+          "saveDashboardWeekFields": "1789829963699468",
+          "saveDashboardProject": "1789829926382837",
+          "deleteDashboardProject": "1789829964511063",
+          "saveDashboardGanttTemplateSettings": "1789829964661401",
+          "saveDashboardGanttWindowSettings": "1789829964615634",
+          "setDashboardWeekRelease": "1789829964752030"
+        },
+        "nodeEngine": "20",
+        "runtime": "nodejs20",
+        "serviceAccount": "842441149281-compute@developer.gserviceaccount.com",
+        "invoker": "allUsers",
+        "config": {
+          "memory": "256Mi",
+          "cpu": "1",
+          "timeoutSeconds": 60,
+          "maxInstanceRequestConcurrency": 80,
+          "maxInstanceCount": 20,
+          "ingress": "ALLOW_ALL"
+        },
+        "node20DeployBlockedAfter": "2026-10-30"
       }
     }
   }

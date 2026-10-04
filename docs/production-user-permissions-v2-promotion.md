@@ -8,14 +8,16 @@ This runbook **supersedes PR #36** (see *PR #36 disposition*). The machine-reada
 `config/deployment-manifest.json` under `releases.userPermissionsV2` and is pinned by
 `tests/production-promotion-v2.test.mjs`.
 
-Rule for every stage: **failure → STOP → roll back to the last verified compatible state** (see *Rollback state
-machine*). There is no automatic recovery; each step advances only on recorded evidence.
+Rule for every stage: **failure → STOP → roll back to the last verified compatible state** (see *Rollback classification* and
+*Rollback states*). There is no automatic recovery; each step advances only on recorded evidence.
 
 ## Source and live baseline
 
 | Item | Value |
 |---|---|
-| Canonical source | `main` @ `1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32` (merge of PR #39). If `main` moves before the freeze, re-baseline. |
+| Approved feature source baseline | `main` @ `1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32` (merge of PR #39). This is the runtime source the plan was derived from and reviewed against. |
+| PR #41 release-plan candidate head | the head of this PR (confirm at freeze). It differs from the feature source baseline only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
+| Execution freeze SHA | **recorded and independently verified before the release starts**, after this PR merges (it will not equal `1c2ec79…`). Verified against the feature source baseline as described in Stage 0. |
 | Live Production Functions (2026-10-04) | **17** = 9 MANAGED + 8 PRESERVED Executive; all `nodejs20`, Gen 2, `us-central1`, default compute runtime identity |
 | `setUserPermissionOverrides` | **absent** in Production |
 | Live ruleset | `7ed64612-dc1c-4856-baf1-f627972046b6` (predates `userPermissions` / `userPermissionAudit`) |
@@ -93,7 +95,7 @@ difference **fails the runbook** (STOP).
 
 | Candidate | Pin (confirm at freeze) | Required evidence |
 |---|---|---|
-| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` @ `1c2ec79…` | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
+| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` (feature source baseline `1c2ec79…`) | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
 | PR #40 (`production-pages`) | head SHA at freeze (`83787c81…` when this was written); base `production-pages` @ `932c6e2…` | **No GitHub CI exists on `production-pages`.** Accepted only on reproducible local evidence at the pinned SHA (570 tests, rules 10/10, binding audit, asset closure). Never describe it as "CI PASS". |
 
 ## Production GO prerequisites (unresolved — do not start until each is closed)
@@ -103,7 +105,7 @@ difference **fails the runbook** (STOP).
 3. Authorization to grant each exactly `roles/datastore.user`.
 4. A fresh Production before-snapshot (Stage 0) matching *Source and live baseline*.
 5. Final pinned SHAs for this PR and PR #40.
-6. A release window inside the Node 20 deploy-support period (see *Node 20 rollback viability*).
+6. A release window in which the documented FULL rollback path is still executable (Node 20 deployability — see *Full-rollback executability*).
 7. The authenticated acceptance path (A or B, Stage 11) decided before the release starts.
 8. A fresh confirmation that Vercel project `nextjs-boilerplate` remains disconnected from this repository.
 
@@ -127,26 +129,62 @@ Every command names `--project project-manager-dashboar-a067f` explicitly. Each 
 verification; a failed verification triggers the matching *Partial-failure* path.
 
 ### Stage 0 — Freeze and before-snapshot (read-only)
-Functions inventory (name, runtime, revision, update time, runtime SA, invoker, state) for all 17;
-`assertLiveFunctionInventory(manifest, 'prod', live)` → 9 managed + 8 preserved + 0 unexpected; ruleset ID;
-Hosting live release/version; `production-pages` head; project IAM policy and etag; service-account list; the
-`userPermissions` / `userPermissionAudit` counts (expected 0 / 0). Verify `main` is still `1c2ec79…`; if it moved, STOP.
-
-### Stage 1 — Runtime identities and least-privilege IAM
-Create the eight service accounts (display name `PM Dashboard <purpose>`), e.g.:
+**Execution freeze.** Record the freeze SHA (the commit the release will be run from) and verify it against the
+approved feature source baseline; do not assume it:
 
 ```bash
-for sa in pmdash-user-perms pmdash-create-week pmdash-week-fields pmdash-save-project pmdash-delete-project pmdash-gantt-template pmdash-gantt-window pmdash-week-release; do gcloud iam service-accounts create "$sa" --project=project-manager-dashboar-a067f --display-name="PM Dashboard $sa"; done
+git diff --name-only 1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32 <freeze-sha>
+```
+
+Feed the listed paths to `assertExecutionFreeze`. Only `docs/`, `tests/`, `config/deployment-manifest.json` and
+`scripts/deployment-manifest.mjs` may differ (planning/runbook/test files, verified here, not assumed). Any other path
+— `functions/`, `firestore.rules`, `index.html`, `js/`, build or env scripts, lockfiles, workflows, or anything unknown —
+is runtime-relevant and requires a **re-baseline** before the release can continue.
+
+**Snapshot.** Capture the complete Functions snapshot for all 17 live Functions
+(`{runtime, revision, serviceAccount, invoker, updateTime}` per Function; an empty field is an explicit token such as
+invoker `none`, never a missing property) and validate it with
+`assertSnapshotComplete(manifest, 'userPermissionsV2', before, 'before')`: the exact expected set (9 managed + 8
+preserved, `setUserPermissionOverrides` absent), every field present and valid. Also record:
+`assertLiveFunctionInventory(manifest, 'prod', live)` → 9 managed + 8 preserved + 0 unexpected; ruleset ID; Hosting
+live release/version; `production-pages` head; project IAM policy and etag; service-account list; and the
+`userPermissions` / `userPermissionAudit` baseline (expected 0 / 0; capture and verify the baseline immediately
+before the release, and again before Stage 2).
+
+**Full-rollback executability.** Record the checks in *Full-rollback executability*. If any fails: **STOP**.
+
+### Stage 1 — Runtime identities and least-privilege IAM
+Create the eight service accounts (display name `PM Dashboard <purpose>`). Every block fails immediately on any error:
+
+```bash
+set -euo pipefail
+for sa in pmdash-user-perms pmdash-create-week pmdash-week-fields pmdash-save-project pmdash-delete-project pmdash-gantt-template pmdash-gantt-window pmdash-week-release; do
+  gcloud iam service-accounts create "$sa" --project=project-manager-dashboar-a067f --display-name="PM Dashboard $sa" || { echo "FAILED creating $sa" >&2; exit 1; }
+done
 ```
 
 Grant exactly one role to each:
 
 ```bash
-for sa in pmdash-user-perms pmdash-create-week pmdash-week-fields pmdash-save-project pmdash-delete-project pmdash-gantt-template pmdash-gantt-window pmdash-week-release; do gcloud projects add-iam-policy-binding project-manager-dashboar-a067f --member="serviceAccount:$sa@project-manager-dashboar-a067f.iam.gserviceaccount.com" --role="roles/datastore.user" --condition=None; done
+set -euo pipefail
+for sa in pmdash-user-perms pmdash-create-week pmdash-week-fields pmdash-save-project pmdash-delete-project pmdash-gantt-template pmdash-gantt-window pmdash-week-release; do
+  gcloud projects add-iam-policy-binding project-manager-dashboar-a067f --member="serviceAccount:$sa@project-manager-dashboar-a067f.iam.gserviceaccount.com" --role="roles/datastore.user" --condition=None --quiet >/dev/null || { echo "FAILED granting $sa" >&2; exit 1; }
+done
 ```
 
-Verify the project IAM diff is **exactly eight added `roles/datastore.user` bindings** and nothing else, and that
-each account has **zero user-managed keys**. Stop on any other difference.
+Verify zero user-managed keys on each account (non-zero fails):
+
+```bash
+set -euo pipefail
+for sa in pmdash-user-perms pmdash-create-week pmdash-week-fields pmdash-save-project pmdash-delete-project pmdash-gantt-template pmdash-gantt-window pmdash-week-release; do
+  keys=$(gcloud iam service-accounts keys list --iam-account="$sa@project-manager-dashboar-a067f.iam.gserviceaccount.com" --managed-by=user --format='value(name)' --project=project-manager-dashboar-a067f | wc -l | tr -d ' ')
+  [ "$keys" = "0" ] || { echo "$sa has $keys user-managed keys" >&2; exit 1; }
+done
+```
+
+Verify the project IAM diff is **exactly eight added `roles/datastore.user` bindings** and nothing else. Stop on any
+other difference, or if any command above failed partway (no partial continuation: record what exists and go to
+State A).
 
 ### Stage 2 — Deploy exactly the eight Functions
 `buildReleaseFunctionsOnlyFlag(manifest, 'userPermissionsV2')` must return the selector above. Then:
@@ -164,7 +202,7 @@ concurrency unchanged for the seven existing ones. Invoker contract below. Unaut
 `userPermissions` / `userPermissionAudit` unchanged (0 / 0). **Do not create any permission grant at this stage.**
 
 ### Stage 4 — Verify the eight Executive Functions and every non-selected Function are unchanged
-`assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged` against the Stage 0 snapshot: revision,
+capture the complete after-snapshot (`assertSnapshotComplete(…, 'after')`: exactly 10 managed + 8 preserved, all fields valid), then run `assertSelectedFunctionsDeployed`, `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged` against the Stage 0 snapshot (incomplete evidence fails closed): revision,
 runtime, service account, invoker and update time identical for the eight Executive Functions,
 `aggregatePresenceSessions` and `setDashboardProjectAttention`. Any difference → STOP.
 
@@ -259,91 +297,202 @@ No `userPermissions` migration is required: the collection is empty, and a missi
 **Do not seed Production permissions during the release**, and do not create test override documents outside an
 authorized Stage 11 Path A.
 
-## Node 20 rollback viability
+## Rollback classification
 
-Rollback for the seven existing Functions prefers shifting Cloud Run traffic back to the retained prior revision
-(Node 20, default compute identity — still present). If a source redeploy is ever needed, it runs on **Node 20**, which
-is valid **only while Google Cloud still allows Node 20 deploys (until 2026-10-30)**. Verify before Stage 2 and keep margin
-for a rollback after the soak starts. A historical source archive is **not** an executable rollback by itself; if
-neither traffic shift nor a Node 20 redeploy is available, the release must **HOLD**.
+For the seven existing Gen 2 Functions there are two distinct things. They must never be conflated.
 
-## Rollback state machine
+### `TRAFFIC_SHIFT = EMERGENCY_MITIGATION_ONLY`
 
-Stored grants become honored by the seven updated Functions as soon as Stage 2 completes; the UI only mirrors that.
-Roll back in this order, with recorded evidence before each step:
+Shifting Cloud Run traffic to the retained prior revision is **EMERGENCY TRAFFIC MITIGATION**: it may restore request
+execution to an earlier revision quickly, and it is allowed for that purpose only. It is **not a rollback**, and it
+must not be reported as one. Traffic mitigation alone does **not** prove restoration of:
 
-1. **STOP** all further release steps.
-2. **Preserve evidence:** Function revisions, ruleset, Hosting version, `production-pages` SHA, IAM state, and
-   `userPermissions` / `userPermissionAudit` state.
-3. **Keep `setUserPermissionOverrides` deployed** while any updated Function still honors overrides; it is the only
-   audited way to reset grants.
-4. **Reset grants** created during the release through the audited callable (`null`) and verify role defaults;
-   retain `userPermissionAudit`.
-5. **Restore the seven existing Functions** to their prior revisions (see *Rollback references*).
-6. **Verify** the restored Functions enforce the prior contract: Admin-only create/delete project, Gantt and week
-   fields; Admin/PM release; non-Admin denied. (Once restored, stored overrides are inert — including a PM's stored
-   Release OFF, so a PM can release again exactly as before the release.)
-7. **Roll back the UI and rules as far as the release progressed, UI first:** `production-pages` (revert the PR #40 merge
-   to `932c6e2…`), then Firebase Hosting (version `d8b102f996a1366b`, release `1790984982984000`), then Firestore rules
-   (ruleset `7ed64612-dc1c-4856-baf1-f627972046b6`).
-8. **`setUserPermissionOverrides` has no prior revision.** After step 6 it is functionally inert (no restored Function
-   reads overrides, and no UI calls it). Either **leave it deployed but unused**, or **delete it** only after steps 4–7,
-   if removing the feature completely: `npx firebase functions:delete setUserPermissionOverrides --region us-central1 --project project-manager-dashboar-a067f`.
-   Never delete it while an updated Function still honors overrides.
-9. Only after no deployed Function uses the eight runtime identities may the accounts and their
-   `roles/datastore.user` bindings be removed.
-10. **Never delete `userPermissionAudit`** as normal rollback.
+- the Function service template,
+- runtime configuration,
+- the runtime service account,
+- Function control-plane metadata,
+- deployment configuration,
+- callable integration / invoker configuration.
 
-**Rejected sequence:** deleting `setUserPermissionOverrides` while updated Functions remain live (grants honored with
-no audited way to reset them).
+A Function whose serving revision was only shifted is still managed by the new deployment's control-plane state and
+remains **UNVERIFIED**. A traffic shift is therefore followed by the full rollback below; it never replaces it.
 
-## Partial-failure paths
-
-All paths stop immediately; none advances "to make state symmetrical".
-
-- **Failure during Stage 1 (identities/IAM):** nothing is deployed; remove only identities created so far, with their
-  bindings, after recording evidence.
-- **Failure during Stage 2 (some Functions updated):** do not deploy the rest. Reset any grants, restore the updated
-  existing Functions to their prior revisions, verify the prior contract, then decide whether to remove
-  `setUserPermissionOverrides` (step 8).
-- **Failure after Stage 3/4 verification:** same as above; rules, Hosting and Pages have not changed.
-- **Failure after rules (Stage 5) or Hosting (Stage 6):** reset grants, restore the seven Functions and verify, roll
-  back Hosting to the prior version, then rules to the prior ruleset.
-- **Failure after PR #40 (Stage 9 onwards):** reset grants → restore and verify the seven Functions → revert PR #40's
-  merge on `production-pages` → roll back Hosting → roll back rules → optionally handle `setUserPermissionOverrides` →
-  remove identities last.
-
-## Rollback references (recorded 2026-10-04)
-
-| Surface | Reference |
-|---|---|
-| `setUserPermissionOverrides` | New Function: no prior revision. Inert/delete per state-machine step 8. |
-| `createDashboardWeek` | Prior revision `createdashboardweek-00005-yap`; source generation `1789829964702697`. |
-| `saveDashboardWeekFields` | Prior revision `savedashboardweekfields-00005-yul`; source generation `1789829963699468`. |
-| `saveDashboardProject` | Prior revision `savedashboardproject-00007-hit`; source generation `1789829926382837`. |
-| `deleteDashboardProject` | Prior revision `deletedashboardproject-00005-rix`; source generation `1789829964511063`. |
-| `saveDashboardGanttTemplateSettings` | Prior revision `savedashboardgantttemplatesettings-00004-fix`; source generation `1789829964661401`. |
-| `saveDashboardGanttWindowSettings` | Prior revision `savedashboardganttwindowsettings-00002-pir`; source generation `1789829964615634`. |
-| `setDashboardWeekRelease` | Prior revision `setdashboardweekrelease-00005-qey`; source generation `1789829964752030`. |
-
-Prior revisions are retained as Cloud Run revisions. Preferred restore for each existing Function (revision names
-as above; for `createDashboardWeek`, for example):
+Emergency mitigation (example for `createDashboardWeek`; one service at a time, revision names from the manifest):
 
 ```bash
+set -euo pipefail
 gcloud run services update-traffic createdashboardweek --to-revisions=createdashboardweek-00005-yap=100 --region=us-central1 --project=project-manager-dashboar-a067f
 ```
 
-Fallback: redeploy the reviewed pre-release source (`gs://gcf-v2-sources-842441149281-us-central1/<Function>/function-source.zip`
-at the generation above), Node 20 only while allowed.
+### FULL rollback = `PINNED BASELINE SOURCE + CONFIG REDEPLOYMENT`
+
+The authoritative complete rollback of each existing Function is a redeployment of the **pinned baseline source with the
+baseline configuration**, followed by read-back verification.
+
+**Pinned baseline (reproduced from live evidence, not assumed).** All seven live source archives are byte-identical
+(SHA-256 `0138d5864a6f1da3056a032535efdaef33374b1a09a64d1bcade767e70ed3123`) and their file tree is exactly `functions/`
+at commit `f4244beedacb9f6cc40addc533c3e8316e56aa96` (also `fa3234b782948ce35651b29f47a6c3e1e3ffe0d1`). Tree digest
+(`sourceTreeDigest`): `e4e00a1d17b7f6ceceaf25288a830c220c2be854ff02295487c4bc951bdfcb11`, computed as
+`find . -type f | sort | xargs shasum -a256 | shasum -a256` over the extracted source (no `node_modules`).
+Deployed generations in `gs://gcf-v2-sources-842441149281-us-central1/<Function>/function-source.zip`:
+
+| Function | Source generation | Baseline revision |
+|---|---|---|
+| `createDashboardWeek` | `1789829964702697` | `createdashboardweek-00005-yap` |
+| `saveDashboardWeekFields` | `1789829963699468` | `savedashboardweekfields-00005-yul` |
+| `saveDashboardProject` | `1789829926382837` | `savedashboardproject-00007-hit` |
+| `deleteDashboardProject` | `1789829964511063` | `deletedashboardproject-00005-rix` |
+| `saveDashboardGanttTemplateSettings` | `1789829964661401` | `savedashboardgantttemplatesettings-00004-fix` |
+| `saveDashboardGanttWindowSettings` | `1789829964615634` | `savedashboardganttwindowsettings-00002-pir` |
+| `setDashboardWeekRelease` | `1789829964752030` | `setdashboardweekrelease-00005-qey` |
+
+**Baseline configuration (live, all seven):** runtime `nodejs20` (engine `"20"`), Gen 2, `us-central1`, runtime service
+account `842441149281-compute@developer.gserviceaccount.com`, invoker `allUsers → roles/run.invoker`, 256Mi / 1 CPU,
+timeout 60s, concurrency 80, max instances 20, ingress `ALLOW_ALL`, default `onCall()` options (no custom identity).
+
+**Procedure.** In a clean worktree checked out at `f4244beedacb9f6cc40addc533c3e8316e56aa96` (a worktree separate from
+the release source), with its own lockfile, deploy exactly the seven existing Functions by name:
+
+```bash
+set -euo pipefail
+git worktree add ../prod-rollback-baseline f4244beedacb9f6cc40addc533c3e8316e56aa96
+cd ../prod-rollback-baseline/functions && npm ci
+cd .. && npx firebase deploy --only functions:createDashboardWeek,functions:saveDashboardWeekFields,functions:saveDashboardProject,functions:deleteDashboardProject,functions:saveDashboardGanttTemplateSettings,functions:saveDashboardGanttWindowSettings,functions:setDashboardWeekRelease --project project-manager-dashboar-a067f --non-interactive
+```
+
+**Read-back verification (required before the rollback counts).** For each of the seven, against the Stage 0 baseline
+snapshot (`assertFullRollbackVerified`):
+
+- runtime = `nodejs20`;
+- runtime service account = the default compute account;
+- invoker = `allUsers` (and Cloud Run IAM check not disabled);
+- a **new** live revision is serving 100% of traffic (a redeploy happened — the baseline revision name is not accepted);
+- source identity: the deployed source archive's `sourceTreeDigest` equals the pinned digest above;
+- expected endpoint behavior: an unauthenticated POST returns HTTP 401 `unauthenticated`, a non-Admin is denied
+  project create/delete, Gantt and week-field writes, and Admin/PM release behaves as before.
+
+The eight Executive Functions, `aggregatePresenceSessions` and `setDashboardProjectAttention` must be unchanged
+throughout (`assertPreservedFunctionsUnchanged`, `assertNonSelectedUnchanged`).
+
+### Full-rollback executability (execution precondition)
+
+Before Production release begins, record **Node 20 deployability** and the other full-rollback prerequisites:
+
+- Node 20 is still deployable: `gcloud functions runtimes list --region=us-central1 --project=project-manager-dashboar-a067f`
+  lists `nodejs20` as deployable (at the time of writing it is `DEPRECATED`, not decommissioned; deploys are blocked
+  after **2026-10-30**). If `nodejs20` is no longer deployable: **STOP**. Do **not** fall back to traffic-only
+  mitigation and call it a rollback; the release does not start until an equivalent reviewed full-rollback path exists.
+- the pinned baseline commit is fetchable and `functions/` at that commit reproduces `sourceTreeDigest`;
+- the seven baseline source generations are still downloadable and hash to the pinned archive;
+- the rollback deploy principal can deploy the seven names (a dry read of IAM and CLI access, not a deployment).
+
+The 2026-10-30 date is a rollback-risk constraint only; it does not change the release scope.
+
+## Permission-state baseline and rollback
+
+The Production `userPermissions` collection is empty today (0 documents), and `userPermissionAudit` is empty. A missing
+document means the role default. Do not seed Production permissions.
+
+- **Capture and verify the baseline immediately before the release** (Stage 0 and again before Stage 2): record the
+  document count and, if any document exists, its full content. This is the state any rollback restores.
+- If a rollback occurs after **any** permission change, restore the collection to that captured baseline **through the
+  audited callable** (`setUserPermissionOverrides` with `null` for each key) while the callable is still live and while
+  at least the consumers that interpret overrides are still deployed; verify that no stale override remains (every
+  `userPermissions/{email}` read shows no override, or the captured baseline). Stale overrides must be gone **before**
+  consumers that interpret permissions differently are rolled back.
+- Retain `userPermissionAudit`; never delete `userPermissionAudit` as part of rollback.
+
+## Rollback states
+
+Core safety rule: once a user-facing UI that depends on the new backend has been published,
+**restore/disable that UI BEFORE removing backend capabilities it depends on.** Keep `setUserPermissionOverrides` available until permission
+overrides are restored to the baseline state. After a restored Function no longer reads overrides, stored overrides
+are inert (including a PM's stored Release OFF, so a PM can release again exactly as before the release).
+
+Common to every state: **STOP** further release steps; preserve evidence (Function snapshots, ruleset, Hosting
+version, `production-pages` SHA, IAM state, `userPermissions` / `userPermissionAudit` state); every Function restore
+means **FULL rollback** (never traffic-only), verified by read-back.
+
+### State A — IAM prepared, no Function deployed
+
+No application behavior changed. No UI or rules rollback is required. Either retain the unused identities for a retry
+or remove the eight `roles/datastore.user` bindings and accounts (only with Control Plane approval), verifying the IAM
+policy returns to etag `BwZcleH3jJo=`.
+
+### State B — Partial Functions deployment
+
+No new UI or rules are exposed yet. Steps: (1) stop; do not deploy the rest. (2) full rollback of every changed
+existing Function (those already updated; verify the others are still on the baseline). (3) If `setUserPermissionOverrides`
+was created it may remain **inert** until the cleanup is verified (nothing calls it). (4) Then optionally remove it.
+(5) Identities last, if the release is abandoned.
+
+### State C — All Functions deployed, rules not deployed
+
+The old UI and old rules are still live. Steps: (1) verify no permission override state was created (`userPermissions`
+equals the captured baseline, 0 documents). (2) If rollback is chosen: full rollback of the seven existing Functions
+and read-back verification. (3) Then leave the new callable inert or remove it. (4) runtime identities last / optional cleanup.
+
+### State D — Rules deployed, Firebase Hosting not deployed
+
+The old user UI is still live and does not call the new backend, so nothing user-facing depends on it. Compatibility:
+the new rules only add `userPermissions` / `userPermissionAudit` rules and the normalized Admin check; the old UI
+ignores them. Steps: (1) verify `userPermissions` and snapshot it; restore it to the baseline if necessary, preserving
+`userPermissionAudit`. (2) full rollback of the seven existing Functions and verify. (3) restore Production rules to
+ruleset `7ed64612-dc1c-4856-baf1-f627972046b6` and verify it is live. (4) Then handle the new callable (inert/delete)
+and identities last.
+
+### State E — Firebase Hosting published and smoke fails
+
+The new UI is user-facing. Stop exposure first. Required order:
+
+1. restore Firebase Hosting to the baseline version `d8b102f996a1366b` (release `1790984982984000`);
+2. if any other user-facing surface has already published (PR #40 / `production-pages`), restore it too, before moving on;
+3. confirm the old UI is being served (served `index.html` has no permission code; no `js/user-permissions-admin.mjs`);
+4. keep `setUserPermissionOverrides` live;
+5. restore `userPermissions` to the pre-release baseline through the audited callable and verify no stale override remains;
+6. preserve `userPermissionAudit`;
+7. full rollback of the seven existing Functions, verified by read-back;
+8. restore Production rules to `7ed64612-dc1c-4856-baf1-f627972046b6`;
+9. only then leave inert or delete `setUserPermissionOverrides` (never while it is still needed to restore permission state);
+10. identities cleanup last.
+
+### State F — production-pages publication failure
+
+PR #40 publishes only after backend and Hosting smoke PASS. If the `production-pages` publication itself fails:
+first restore the `production-pages` user-facing surface to its baseline (`932c6e2bda17acad9ffc8fc0153421dcd93410dd`, by
+reverting the PR #40 merge). Do not roll back the healthy Firebase backend and Hosting unnecessarily unless Control
+Plane explicitly chooses a full release rollback. If a full rollback is chosen: restore all user-facing surfaces first
+(`production-pages`, then Firebase Hosting), then the permission state (audited callable, baseline restored, audit
+retained), then the consumer Functions (full rollback of the seven) and rules, then the permission callable and
+identities.
+
+**Rejected sequences:** removing `setUserPermissionOverrides` while any user-facing UI or any Function still depends on
+it, or while overrides still differ from the baseline; restoring backend or rules before the published UI.
+
+## Partial-failure paths
+
+Each failure maps to a state above by how far the release progressed: Stage 1 → A; during Stage 2 → B; Stages 3–4 → C;
+Stage 5 → D; Stage 6 or 7 (Hosting published, smoke failing) → E; Stage 9 (`production-pages`) → F. All paths stop
+immediately and none advances to "make state symmetrical".
+
+## Other rollback references (recorded 2026-10-04)
 
 | Surface | Reference |
 |---|---|
-| Runtime identities / IAM | Remove the eight `roles/datastore.user` bindings and accounts only at step 9. |
+| `setUserPermissionOverrides` | `setUserPermissionOverrides` has no prior revision (new Function). Leave inert or delete per the state that applies. |
+| Runtime identities / IAM | Remove the eight `roles/datastore.user` bindings and accounts only after nothing uses them (last). |
 | Invoker | Standard `allUsers` binding; no invoker change is part of this release. |
 | Firestore rules | Prior ruleset `7ed64612-dc1c-4856-baf1-f627972046b6`. |
 | Firebase Hosting | Prior live version `d8b102f996a1366b` (release `1790984982984000`, "prod d345008"). |
 | `production-pages` | Prior head `932c6e2bda17acad9ffc8fc0153421dcd93410dd` (revert the PR #40 merge). |
 | Permission data | Reset overrides through `setUserPermissionOverrides` (`null`); never delete `userPermissionAudit`. |
+
+## Validation notes
+
+During candidate preparation one transient local failure occurred in the Production rules emulator suite (6 of 14
+tests), exact cause unknown. It did not reproduce: the candidate and the baseline each passed 14/14 in isolated runs,
+the exact-head GitHub `firestore-rules` job passed, and this PR changes no rules source. It is recorded as
+non-blocking historical evidence and is not a completed root-cause analysis; treat it as blocking only if it reproduces.
 
 ## PR #36 disposition
 

@@ -121,6 +121,32 @@ export function assertReleasePlan(manifest, id) {
   if (post.managed !== env.functionsAllowlist.length) problems.push('post-release managed count must equal the environment allowlist size');
   if (post.preserved !== preserved.size) problems.push('post-release preserved count must equal the preserved list size');
   if (release.baseline.liveManaged + (release.newFunctions || []).length !== post.managed) problems.push('baseline managed + new Functions must equal post-release managed');
+  // Critical safety metadata is validated at runtime, not only pinned by tests.
+  if (!/^[0-9a-f]{40}$/.test(release.featureSourceMainSha || '')) problems.push('featureSourceMainSha must be a full 40-character commit SHA');
+  if (release.environment !== 'prod') problems.push('this release plan must target the prod environment');
+  if (release.rulesDeployRequired !== true) problems.push('rulesDeployRequired must be true');
+  if (release.rulesFile !== env.firestoreRulesFile || release.rulesFile !== 'firestore.rules') problems.push('rulesFile must be the Production firestore.rules');
+  if (release.hostingDeployRequired !== true) problems.push('hostingDeployRequired must be true');
+  const pages = release.productionPages || {};
+  if (pages.separateReleaseSurface !== true) problems.push('Production Pages must be a separate release surface');
+  const prerequisites = ['functions', 'rules', 'hosting', 'authenticatedSmoke'];
+  if (!Array.isArray(pages.mergeOnlyAfter) || prerequisites.some(item => !pages.mergeOnlyAfter.includes(item)) || pages.mergeOnlyAfter.length !== prerequisites.length) {
+    problems.push(`Production Pages may merge only after: ${prerequisites.join(', ')}`);
+  }
+  if (!/^roles\/[a-z]+\.[a-z]+$/.test(release.serviceAccountProjectRole || '')) problems.push('serviceAccountProjectRole must be one predefined role');
+  const untouched = release.untouchedManagedFunctions || [];
+  for (const fn of untouched) if (!managed.has(fn)) problems.push(`untouched Function "${fn}" is not managed`);
+  const rollback = release.rollbackBaseline || {};
+  if (rollback.fullRollbackMethod !== 'PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT') problems.push('full rollback must be PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT');
+  if (rollback.trafficShiftClassification !== 'EMERGENCY_MITIGATION_ONLY') problems.push('traffic shifting must be classified EMERGENCY_MITIGATION_ONLY');
+  if (!/^[0-9a-f]{40}$/.test(rollback.sourceCommit || '')) problems.push('rollbackBaseline.sourceCommit must be a full commit SHA');
+  for (const key of ['sourceTreeDigest', 'sourceZipSha256']) if (!/^[0-9a-f]{64}$/.test(rollback[key] || '')) problems.push(`rollbackBaseline.${key} must be a SHA-256`);
+  const existingNames = (names || []).filter(fn => !(release.newFunctions || []).includes(fn));
+  for (const fn of existingNames) {
+    if (!/^\d+$/.test(rollback.sourceGenerations?.[fn] || '')) problems.push(`rollbackBaseline.sourceGenerations is missing "${fn}"`);
+    if (!release.baseline.priorRevisions?.[fn]) problems.push(`baseline.priorRevisions is missing "${fn}"`);
+  }
+  for (const fn of Object.keys(rollback.sourceGenerations || {})) if (!existingNames.includes(fn)) problems.push(`rollbackBaseline.sourceGenerations names non-release Function "${fn}"`);
   if (problems.length) throw new DeploymentManifestError(`Release "${id}" is invalid:\n- ${problems.join('\n- ')}`);
   return release;
 }
@@ -144,33 +170,174 @@ export function assertPostReleaseInventory(manifest, id, liveDeployedNames) {
   return result;
 }
 
-// Snapshot shape: { [functionName]: { runtime, revision, serviceAccount, invoker, updateTime } } read from the live project.
-const SNAPSHOT_FIELDS = ['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime'];
+// ── Live-state snapshots (fail-closed) ───────────────────────────────────────────────────────────────────────
+// A snapshot is { [functionName]: { runtime, revision, serviceAccount, invoker, updateTime } } read from the live
+// project. Evidence is only accepted when it is COMPLETE: the exact expected Function set is present (derived from
+// the manifest, never from the snapshot's own keys) and every record carries every comparison field with a valid
+// value. A field that is legitimately empty in GCP output must be modelled as an explicit token (for example
+// invoker "none"), never as a missing property. Two missing-or-empty records never compare equal.
+export const SNAPSHOT_FIELDS = Object.freeze(['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
+const SNAPSHOT_VALIDATORS = Object.freeze({
+  runtime: value => /^nodejs\d+$/.test(value),
+  revision: value => /^[a-z0-9][a-z0-9-]*$/.test(value),
+  serviceAccount: value => /^[A-Za-z0-9][A-Za-z0-9@._-]*$/.test(value),
+  invoker: value => /^[A-Za-z][A-Za-z0-9-]*$/.test(value),
+  updateTime: value => /^\d{4}-\d{2}-\d{2}T/.test(value) && !Number.isNaN(Date.parse(value)),
+});
+
+function isPlainRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Names that must be live before the release: managed MINUS the release's new Functions, PLUS preserved.
+export function expectedBeforeNames(manifest, id) {
+  const release = assertReleasePlan(manifest, id);
+  const env = manifest.environments[release.environment];
+  const added = new Set(release.newFunctions || []);
+  return [...env.functionsAllowlist.filter(fn => !added.has(fn)), ...env.functionsPreserveExisting].sort();
+}
+
+// Names that must be live after the release: every managed Function plus every preserved Function.
+export function expectedAfterNames(manifest, id) {
+  const release = assertReleasePlan(manifest, id);
+  const env = manifest.environments[release.environment];
+  return [...env.functionsAllowlist, ...env.functionsPreserveExisting].sort();
+}
+
+export function assertSnapshotComplete(manifest, id, snapshot, phase) {
+  if (!['before', 'after'].includes(phase)) throw new DeploymentManifestError(`Unknown snapshot phase "${phase}".`);
+  const label = `${phase} snapshot`;
+  if (!isPlainRecord(snapshot)) throw new DeploymentManifestError(`The ${label} must be an object keyed by Function name.`);
+  const release = releaseFor(manifest, id);
+  const env = manifest.environments[release.environment];
+  const expected = phase === 'before' ? expectedBeforeNames(manifest, id) : expectedAfterNames(manifest, id);
+  const present = Object.keys(snapshot);
+  const forbidden = new Set(neverDeployNames(env));
+  const problems = [];
+  for (const fn of expected) if (!present.includes(fn)) problems.push(`${fn}: missing from the ${label}`);
+  for (const fn of present) {
+    if (expected.includes(fn)) continue;
+    problems.push(`${fn}: ${forbidden.has(fn) ? 'forbidden UAT-only' : 'unexpected'} Function in the ${label}`);
+  }
+  for (const fn of expected) {
+    if (!(fn in snapshot)) continue;
+    const record = snapshot[fn];
+    if (!isPlainRecord(record)) { problems.push(`${fn}: malformed record in the ${label}`); continue; }
+    for (const field of SNAPSHOT_FIELDS) {
+      const value = record[field];
+      if (!Object.hasOwn(record, field)) problems.push(`${fn}.${field}: missing from the ${label}`);
+      else if (typeof value !== 'string' || !SNAPSHOT_VALIDATORS[field](value)) problems.push(`${fn}.${field}: invalid value in the ${label}`);
+    }
+  }
+  const expectedCount = expected.length;
+  if (!problems.length && present.length !== expectedCount) problems.push(`expected ${expectedCount} Functions, found ${present.length}`);
+  if (problems.length) throw new DeploymentManifestError(`Incomplete ${label}:\n- ${problems.join('\n- ')}`);
+  return true;
+}
+
 function snapshotDifferences(before, after, names) {
   const differences = [];
   for (const fn of names) {
-    if (!before[fn] || !after[fn]) { differences.push(`${fn}: missing from ${before[fn] ? 'the after' : 'the before'} snapshot`); continue; }
     for (const field of SNAPSHOT_FIELDS) if (before[fn][field] !== after[fn][field]) differences.push(`${fn}.${field}: ${before[fn][field]} -> ${after[fn][field]}`);
   }
   return differences;
 }
 
-// The Executive Functions (preserved) must be byte-for-byte unchanged by a Core release: revision, runtime, service
-// account, invoker and update time. Any difference, or a missing Function, is a failure.
-export function assertPreservedFunctionsUnchanged(manifest, environment, before, after) {
-  const differences = snapshotDifferences(before, after, functionsPreservedFor(manifest, environment));
+// The Executive Functions (preserved) must be unchanged by a Core release: revision, runtime, service account,
+// invoker and update time. Both snapshots must first be complete.
+export function assertPreservedFunctionsUnchanged(manifest, id, before, after) {
+  const release = releaseFor(manifest, id);
+  assertSnapshotComplete(manifest, id, before, 'before');
+  assertSnapshotComplete(manifest, id, after, 'after');
+  const differences = snapshotDifferences(before, after, functionsPreservedFor(manifest, release.environment));
   if (differences.length) throw new DeploymentManifestError(`Preserved Functions changed:\n- ${differences.join('\n- ')}`);
   return true;
 }
 
-// Every live Function outside the release (managed or preserved) must be unchanged after the release.
+// Every live Function outside the release (managed-but-untouched and preserved) must be unchanged. The compared set
+// is derived from the manifest and release plan, not from whatever the snapshots happen to contain.
 export function assertNonSelectedUnchanged(manifest, id, before, after) {
   const release = assertReleasePlan(manifest, id);
+  assertSnapshotComplete(manifest, id, before, 'before');
+  assertSnapshotComplete(manifest, id, after, 'after');
   const selected = new Set(release.functions);
-  const names = Object.keys(before).filter(fn => !selected.has(fn));
+  const names = expectedBeforeNames(manifest, id).filter(fn => !selected.has(fn));
   const differences = snapshotDifferences(before, after, names);
-  for (const fn of Object.keys(after)) if (!selected.has(fn) && !before[fn]) differences.push(`${fn}: appeared during the release`);
   if (differences.length) throw new DeploymentManifestError(`Non-selected Functions changed:\n- ${differences.join('\n- ')}`);
+  return true;
+}
+
+// After the release every selected Function runs the target runtime under its dedicated identity. (Existing ones must
+// also have a new revision; a new Function has no prior record.)
+export function assertSelectedFunctionsDeployed(manifest, id, before, after) {
+  const release = assertReleasePlan(manifest, id);
+  assertSnapshotComplete(manifest, id, before, 'before');
+  assertSnapshotComplete(manifest, id, after, 'after');
+  const problems = [];
+  for (const fn of release.functions) {
+    const record = after[fn];
+    if (record.runtime !== release.targetRuntime) problems.push(`${fn}: runtime ${record.runtime}, expected ${release.targetRuntime}`);
+    if (!record.serviceAccount.startsWith(`${release.runtimeServiceAccounts[fn]}@`)) problems.push(`${fn}: runtime identity ${record.serviceAccount}, expected ${release.runtimeServiceAccounts[fn]}@…`);
+    if (before[fn] && before[fn].revision === record.revision) problems.push(`${fn}: no new revision was created`);
+  }
+  if (problems.length) throw new DeploymentManifestError(`Selected Functions are not as planned:\n- ${problems.join('\n- ')}`);
+  return true;
+}
+
+// FULL rollback of the seven existing Functions = pinned baseline source + configuration REDEPLOYED, then read back.
+// Cloud Run traffic shifting is EMERGENCY MITIGATION ONLY and never satisfies this check: a restored Function must
+// carry a NEW revision (proof that a redeploy happened) whose runtime, identity and invoker equal the baseline and
+// whose source identity (`sourceTreeDigest`, a read-back of the deployed source) equals the pinned baseline source.
+export function assertFullRollbackVerified(manifest, id, baseline, restored) {
+  const release = assertReleasePlan(manifest, id);
+  const pinned = release.rollbackBaseline;
+  assertSnapshotComplete(manifest, id, baseline, 'before');
+  const existing = release.functions.filter(fn => !(release.newFunctions || []).includes(fn));
+  const problems = [];
+  if (!isPlainRecord(restored)) throw new DeploymentManifestError('The restored snapshot must be an object keyed by Function name.');
+  for (const fn of existing) {
+    const record = restored[fn];
+    if (!isPlainRecord(record)) { problems.push(`${fn}: missing or malformed in the restored snapshot`); continue; }
+    for (const field of [...SNAPSHOT_FIELDS, 'sourceTreeDigest']) {
+      if (typeof record[field] !== 'string' || !record[field] || (field !== 'sourceTreeDigest' && !SNAPSHOT_VALIDATORS[field](record[field]))) problems.push(`${fn}.${field}: missing or invalid`);
+    }
+    if (problems.some(problem => problem.startsWith(`${fn}.`))) continue;
+    if (record.revision === baseline[fn].revision) problems.push(`${fn}: revision equals the baseline revision — traffic shifting alone is EMERGENCY MITIGATION, not a full rollback`);
+    for (const field of ['runtime', 'serviceAccount', 'invoker']) if (record[field] !== baseline[fn][field]) problems.push(`${fn}.${field}: ${record[field]} != baseline ${baseline[fn][field]}`);
+    if (record.sourceTreeDigest !== pinned.sourceTreeDigest) problems.push(`${fn}.sourceTreeDigest does not equal the pinned baseline source`);
+  }
+  for (const fn of Object.keys(restored)) if (!existing.includes(fn) && !expectedAfterNames(manifest, id).includes(fn)) problems.push(`${fn}: unexpected Function in the restored snapshot`);
+  const others = expectedBeforeNames(manifest, id).filter(fn => !release.functions.includes(fn));
+  for (const fn of others) {
+    const record = restored[fn];
+    if (!isPlainRecord(record)) { problems.push(`${fn}: missing from the restored snapshot`); continue; }
+    for (const field of SNAPSHOT_FIELDS) if (record[field] !== baseline[fn][field]) problems.push(`${fn}.${field}: changed by the rollback`);
+  }
+  if (problems.length) throw new DeploymentManifestError(`Full rollback is not verified:\n- ${problems.join('\n- ')}`);
+  return true;
+}
+
+// ── Execution freeze vs approved feature source ─────────────────────────────────────────────────────────────
+// Only plan/test paths may differ between the approved feature source (`featureSourceMainSha`) and the execution
+// freeze. Everything else is runtime-relevant and requires a re-baseline. Fail-closed: unknown paths count as runtime.
+const PLAN_ONLY_FILES = new Set(['config/deployment-manifest.json', 'scripts/deployment-manifest.mjs']);
+const PLAN_ONLY_PREFIXES = ['docs/', 'tests/'];
+
+export function runtimeRelevantChanges(changedPaths) {
+  if (!Array.isArray(changedPaths) || changedPaths.some(path => typeof path !== 'string' || !path)) {
+    throw new DeploymentManifestError('Changed paths must be a list of non-empty path strings (from `git diff --name-only`).');
+  }
+  const isPlanOnly = path => !path.split('/').includes('..')
+    && (PLAN_ONLY_FILES.has(path) || PLAN_ONLY_PREFIXES.some(prefix => path.startsWith(prefix)));
+  return changedPaths.filter(path => !isPlanOnly(path));
+}
+
+export function assertExecutionFreeze(manifest, id, { featureSourceSha, freezeSha, changedPaths }) {
+  const release = assertReleasePlan(manifest, id);
+  if (featureSourceSha !== release.featureSourceMainSha) throw new DeploymentManifestError('The recorded feature source does not equal the approved feature source baseline.');
+  if (!/^[0-9a-f]{40}$/.test(freezeSha || '')) throw new DeploymentManifestError('The execution freeze must be a recorded full commit SHA.');
+  const runtime = runtimeRelevantChanges(changedPaths);
+  if (runtime.length) throw new DeploymentManifestError(`Runtime-relevant source changed since the approved feature source; re-baseline required:\n- ${runtime.join('\n- ')}`);
   return true;
 }
 
