@@ -1,13 +1,15 @@
 // Pins the User Permissions V2 Production promotion plan (config/deployment-manifest.json `releases.userPermissionsV2`
 // and docs/production-user-permissions-v2-promotion.md). Pure checks: nothing here talks to Firebase or deploys.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 import {
-  DeploymentManifestError, assertExecutionFreeze, assertFullRollbackVerified, assertLiveFunctionInventory, assertNonSelectedUnchanged,
+  CONFIG_FIELDS, DeploymentManifestError, SAFETY_CRITICAL_PLAN_FILES, SNAPSHOT_FIELDS, assertBaselineMatchesPinned, assertExecutionFreeze,
+  computeReleasePlanDigest, assertFullRollbackVerified, assertLiveFunctionInventory, assertNonSelectedUnchanged,
   assertPostReleaseInventory, assertPreservedFunctionsUnchanged, assertReleasePlan, assertSelectedFunctionsDeployed,
   assertSnapshotComplete, buildFunctionsOnlyFlag, buildReleaseFunctionsOnlyFlag, expectedAfterNames, expectedBeforeNames,
   functionsAllowlistFor, functionsPreservedFor, loadDeploymentManifest, readSourceServiceAccounts, releaseFor,
@@ -240,16 +242,23 @@ test('no stage in the runbook performs or claims a deployment', () => {
 
 // ── Snapshot completeness (fail-closed) ──────────────────────────────────────────────────────────────────────
 const PROJECT = 'project-manager-dashboar-a067f';
-const FIELDS = ['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime'];
+const FIELDS = [...SNAPSHOT_FIELDS];
 const beforeNames = expectedBeforeNames(manifest, ID);
 const afterNames = expectedAfterNames(manifest, ID);
-const record = (fn, over = {}) => ({
-  runtime: 'nodejs20', revision: `${fn.toLowerCase()}-00001-aaa`, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
-  invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', ...over,
-});
-const beforeSnapshot = () => Object.fromEntries(beforeNames.map(fn => [fn, record(fn)]));
+const record = (fn, over = {}) => {
+  const revision = over.revision ?? `${fn.toLowerCase()}-00001-aaa`;
+  return {
+    runtime: 'nodejs20', revision, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
+    invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', generation: 'GEN_2',
+    memory: '256Mi', cpu: '1', timeoutSeconds: 60, maxInstanceRequestConcurrency: 80, maxInstanceCount: 20, ingress: 'ALLOW_ALL',
+    trafficRevision: revision, trafficPercent: 100, ...over,
+  };
+};
+// The seven existing Functions read back as the pinned baseline: the revisions the plan pins.
+const baselineRecord = fn => record(fn, release.baseline.priorRevisions[fn] ? { revision: release.baseline.priorRevisions[fn] } : {});
+const beforeSnapshot = () => Object.fromEntries(beforeNames.map(fn => [fn, baselineRecord(fn)]));
 function afterSnapshot() {
-  const snap = Object.fromEntries(afterNames.map(fn => [fn, record(fn)]));
+  const snap = Object.fromEntries(afterNames.map(fn => [fn, baselineRecord(fn)]));
   for (const fn of EIGHT) {
     snap[fn] = record(fn, { runtime: 'nodejs22', revision: `${fn.toLowerCase()}-00002-bbb`, serviceAccount: `${IDENTITIES[fn]}@${PROJECT}.iam.gserviceaccount.com`, updateTime: '2026-10-10T01:00:00Z' });
   }
@@ -370,7 +379,7 @@ test('selected Functions must end on nodejs22, their dedicated identity and a ne
   for (const [edit, label] of [
     [(after) => { after.createDashboardWeek.runtime = 'nodejs20'; }, 'runtime'],
     [(after) => { after.saveDashboardProject.serviceAccount = '842441149281-compute@developer.gserviceaccount.com'; }, 'identity'],
-    [(after) => { after.setDashboardWeekRelease.revision = 'setdashboardweekrelease-00001-aaa'; }, 'no new revision'],
+    [(after) => { after.setDashboardWeekRelease.revision = after.setDashboardWeekRelease.trafficRevision = release.baseline.priorRevisions.setDashboardWeekRelease; }, 'no new revision'],
     [(after) => { after.setUserPermissionOverrides.serviceAccount = `pmdash-create-week@${PROJECT}.iam.gserviceaccount.com`; }, 'wrong identity'],
   ]) {
     const after = afterSnapshot(); edit(after);
@@ -385,7 +394,10 @@ function restoredSnapshot() {
   const base = beforeSnapshot();
   const restored = {};
   for (const fn of beforeNames) restored[fn] = { ...base[fn] };
-  for (const fn of SEVEN) restored[fn] = { ...base[fn], revision: `${fn.toLowerCase()}-00003-ccc`, updateTime: '2026-10-12T00:00:00Z', sourceTreeDigest: pinned.sourceTreeDigest };
+  for (const fn of SEVEN) {
+    const revision = `${fn.toLowerCase()}-00003-ccc`;
+    restored[fn] = { ...base[fn], revision, trafficRevision: revision, trafficPercent: 100, updateTime: '2026-10-12T00:00:00Z', sourceTreeDigest: pinned.sourceTreeDigest };
+  }
   return restored;
 }
 
@@ -402,7 +414,7 @@ test('FULL rollback = pinned baseline source + configuration redeployment: the m
 test('a traffic-only restore (baseline revision serving) is never accepted as a full rollback', () => {
   for (const fn of SEVEN) {
     const restored = restoredSnapshot();
-    restored[fn].revision = beforeSnapshot()[fn].revision;
+    restored[fn].revision = restored[fn].trafficRevision = beforeSnapshot()[fn].revision;
     expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn} traffic only`);
   }
 });
@@ -525,20 +537,41 @@ test('exact approved pins are asserted for this release (least-privilege role, k
   assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
 });
 
-test('execution freeze: only plan paths may differ from the approved runtime target source; anything else forces a re-baseline', () => {
-  const freezeSha = 'a'.repeat(40);
-  const ok = ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs', 'config/deployment-manifest.json', 'scripts/deployment-manifest.mjs'];
-  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: ok }), true);
-  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: [] }), true);
-  for (const path of ['functions/project-dashboard-writes.js', 'firestore.rules', 'index.html', 'js/permission-registry.mjs', 'package.json', 'firebase.json',
-    'scripts/build-hosting.mjs', '.github/workflows/ci.yml', 'docs/../index.html', 'config/other.json', 'unknown-new-file']) {
-    assert.deepEqual(runtimeRelevantChanges([path]), [path], path);
-    assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha, changedPaths: [...ok, path] }), DeploymentManifestError, path);
+// A throwaway copy of the safety-critical plan files, so "edits after review" can be applied without touching the repo.
+async function planCopy() {
+  const root = await mkdtemp(join(tmpdir(), 'plan-pin-'));
+  for (const path of SAFETY_CRITICAL_PLAN_FILES) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await cp(join(repoRoot, path), join(root, path));
   }
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: '2'.repeat(40), freezeSha, changedPaths: [] }), DeploymentManifestError);
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, freezeSha: 'main', changedPaths: [] }), DeploymentManifestError);
-  assert.throws(() => runtimeRelevantChanges(['']), DeploymentManifestError);
-  assert.throws(() => runtimeRelevantChanges('docs/x.md'), DeploymentManifestError);
+  return root;
+}
+const REVIEWED_SHA = 'c'.repeat(40);
+const PLAN_ONLY_PATHS = ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs', 'config/deployment-manifest.json', 'scripts/deployment-manifest.mjs'];
+async function freezeInputs(root, over = {}) {
+  return {
+    runtimeTargetSha: release.runtimeTargetSourceSha, reviewedReleasePlanSha: REVIEWED_SHA, reviewedReleasePlanDigest: await computeReleasePlanDigest(root),
+    freezeSha: REVIEWED_SHA, planRoot: root, changedPaths: PLAN_ONLY_PATHS, ...over,
+  };
+}
+const freezeManifest = async root => loadDeploymentManifest(root);
+
+test('execution freeze: only plan paths may differ from the approved runtime target source; anything else forces a re-baseline', async () => {
+  const root = await planCopy();
+  try {
+    const gate = over => freezeInputs(root, over).then(inputs => assertExecutionFreeze(manifest, ID, inputs));
+    assert.equal(await gate(), true);
+    assert.equal(await gate({ changedPaths: [] }), true);
+    for (const path of ['functions/project-dashboard-writes.js', 'firestore.rules', 'index.html', 'js/permission-registry.mjs', 'package.json', 'firebase.json',
+      'scripts/build-hosting.mjs', '.github/workflows/ci.yml', 'docs/../index.html', 'config/other.json', 'unknown-new-file']) {
+      assert.deepEqual(runtimeRelevantChanges([path]), [path], path);
+      await assert.rejects(gate({ changedPaths: [...PLAN_ONLY_PATHS, path] }), DeploymentManifestError, path);
+    }
+    await assert.rejects(gate({ runtimeTargetSha: '2'.repeat(40) }), DeploymentManifestError);
+    await assert.rejects(gate({ freezeSha: 'main' }), DeploymentManifestError);
+    assert.throws(() => runtimeRelevantChanges(['']), DeploymentManifestError);
+    assert.throws(() => runtimeRelevantChanges('docs/x.md'), DeploymentManifestError);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test('the runbook separates the approved runtime target source, the PR #41 candidate head and the future execution freeze', () => {
@@ -648,14 +681,17 @@ test('the live rollback baseline is NOT replaced by the new runtime target', () 
   assert.match(runbook, /live Production rollback baseline is \*\*not\*\* changed|rollback baseline is \*\*not\*\* changed/);
 });
 
-test('execution freeze is measured from the post-PR #42 target: the old 1c2ec79 target no longer passes, and PR #42 paths are runtime-relevant', () => {
-  const freezeSha = 'b'.repeat(40);
-  for (const path of ['functions/project-dashboard-writes.js', 'index.html', 'functions/test/project-visibility-authority.test.cjs']) {
-    assert.deepEqual(runtimeRelevantChanges([path]), [path]);
-  }
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32', freezeSha, changedPaths: [] }), DeploymentManifestError);
-  assert.equal(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: TARGET, freezeSha, changedPaths: ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs'] }), true);
-  assert.throws(() => assertExecutionFreeze(manifest, ID, { runtimeTargetSha: TARGET, freezeSha, changedPaths: ['functions/project-dashboard-writes.js'] }), DeploymentManifestError);
+test('execution freeze is measured from the post-PR #42 target: the old 1c2ec79 target no longer passes, and PR #42 paths are runtime-relevant', async () => {
+  const root = await planCopy();
+  try {
+    for (const path of ['functions/project-dashboard-writes.js', 'index.html', 'functions/test/project-visibility-authority.test.cjs']) {
+      assert.deepEqual(runtimeRelevantChanges([path]), [path]);
+    }
+    const gate = over => freezeInputs(root, over).then(inputs => assertExecutionFreeze(manifest, ID, inputs));
+    await assert.rejects(gate({ runtimeTargetSha: '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32' }), DeploymentManifestError);
+    assert.equal(await gate({ changedPaths: ['docs/production-user-permissions-v2-promotion.md', 'tests/production-promotion-v2.test.mjs'] }), true);
+    await assert.rejects(gate({ changedPaths: ['functions/project-dashboard-writes.js'] }), DeploymentManifestError);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test('release plan validation requires the runtime-target security contract and the PR #42 record', () => {
@@ -666,4 +702,329 @@ test('release plan validation requires the runtime-target security contract and 
     ['rules dropped', r => { r.runtimeTargetSecurityContracts.saveDashboardProject.rules = []; }],
     ['PR #42 not recorded', r => { r.runtimeTargetIncludedPullRequests = [39]; }],
   ]) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
+});
+
+// ── Final safety remediation, blocker 1: FULL rollback proves the complete runtime configuration ────────────────
+const CONFIG_WRONG = {
+  generation: 'GEN_1', memory: '512Mi', cpu: '2', timeoutSeconds: 540, maxInstanceRequestConcurrency: 1, maxInstanceCount: 100, ingress: 'ALLOW_INTERNAL_ONLY',
+  runtime: 'nodejs22', invoker: 'none', serviceAccount: `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`,
+};
+const NOT_NORMALIZED = {
+  generation: ['GEN_1', 'gen_2', 2, null], memory: ['256M', '256MB', '0Mi', 256, '', null], cpu: [1, '0', '1 ', '', null],
+  timeoutSeconds: ['60', 0, -1, 60.5, null, NaN], maxInstanceRequestConcurrency: ['80', 0, null], maxInstanceCount: ['20', 0, 1.5, null],
+  ingress: ['allow_all', 'ALL', '', null], trafficRevision: ['', 'Bad Rev', null], trafficPercent: [50, 0, '100', 101, null],
+};
+
+test('FULL rollback reads back the complete pinned configuration: runtime, Gen 2, identity, invoker, memory, CPU, timeout, concurrency, max instances, ingress', () => {
+  assert.deepEqual(CONFIG_FIELDS, ['memory', 'cpu', 'timeoutSeconds', 'maxInstanceRequestConcurrency', 'maxInstanceCount', 'ingress']);
+  assert.deepEqual(pinned.config, { memory: '256Mi', cpu: '1', timeoutSeconds: 60, maxInstanceRequestConcurrency: 80, maxInstanceCount: 20, ingress: 'ALLOW_ALL' });
+  assert.equal(pinned.generation, 'GEN_2');
+  assert.equal(assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restoredSnapshot()), true);
+  for (const field of ['generation', ...CONFIG_FIELDS, 'runtime', 'invoker', 'serviceAccount']) {
+    for (const fn of SEVEN) {
+      const restored = restoredSnapshot(); restored[fn][field] = CONFIG_WRONG[field];
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field} wrong`);
+    }
+  }
+});
+
+test('FULL rollback fails closed when any required configuration or serving field is missing or not normalized (nothing is inferred)', () => {
+  for (const field of [...FIELDS, 'sourceTreeDigest']) {
+    for (const fn of SEVEN) {
+      const restored = restoredSnapshot(); delete restored[fn][field];
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field} missing`);
+    }
+  }
+  for (const [field, values] of Object.entries(NOT_NORMALIZED)) {
+    for (const value of values) {
+      const restored = restoredSnapshot(); restored.createDashboardWeek[field] = value;
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `restored ${field}=${String(value)}`);
+    }
+  }
+  const noConfig = restoredSnapshot();
+  for (const field of CONFIG_FIELDS) delete noConfig.setDashboardWeekRelease[field];
+  expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), noConfig), 'absent configuration is never read as the default');
+  for (const digest of ['', 'e4e0', 'F'.repeat(64), null]) {
+    const restored = restoredSnapshot(); restored.saveDashboardProject.sourceTreeDigest = digest;
+    expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `digest ${digest}`);
+  }
+});
+
+test('FULL rollback requires the newly redeployed revision to serve 100% of traffic', () => {
+  for (const fn of SEVEN) {
+    for (const [label, edit] of [
+      ['split traffic', r => { r.trafficPercent = 50; }],
+      ['zero traffic', r => { r.trafficPercent = 0; }],
+      ['traffic on the baseline revision', r => { r.trafficRevision = release.baseline.priorRevisions[fn]; }],
+      ['traffic on an unrelated revision', r => { r.trafficRevision = `${fn.toLowerCase()}-00009-zzz`; }],
+      ['no traffic record', r => { delete r.trafficRevision; delete r.trafficPercent; }],
+    ]) {
+      const restored = restoredSnapshot(); edit(restored[fn]);
+      expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn} ${label}`);
+    }
+  }
+});
+
+test('the Stage 0 baseline must itself read back as the pinned rollback baseline, otherwise no rollback can verify', () => {
+  assert.equal(assertBaselineMatchesPinned(manifest, ID, beforeSnapshot()), true);
+  for (const fn of SEVEN) {
+    for (const field of ['generation', 'runtime', 'invoker', 'serviceAccount', ...CONFIG_FIELDS]) {
+      const baseline = beforeSnapshot(); baseline[fn][field] = CONFIG_WRONG[field];
+      expectFail(() => assertBaselineMatchesPinned(manifest, ID, baseline), `${fn}.${field} drifted from the pinned baseline`);
+      expectFail(() => assertFullRollbackVerified(manifest, ID, baseline, restoredSnapshot()), `${fn}.${field} baseline drift blocks rollback verification`);
+    }
+    const moved = beforeSnapshot(); moved[fn].revision = moved[fn].trafficRevision = `${fn.toLowerCase()}-00099-zzz`;
+    expectFail(() => assertBaselineMatchesPinned(manifest, ID, moved), `${fn} baseline revision is not the pinned revision`);
+  }
+});
+
+test('snapshots reject any Function whose latest ready revision is not serving 100% of traffic', () => {
+  for (const fn of ['setDashboardProjectAttention', 'setExecutiveRagOverride', 'saveDashboardProject']) {
+    for (const edit of [r => { r.trafficPercent = 60; }, r => { r.trafficRevision = 'older-00001-aaa'; }, r => { r.trafficPercent = 0; }]) {
+      const before = beforeSnapshot(); edit(before[fn]);
+      expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'), `${fn} before`);
+      const after = afterSnapshot(); edit(after[fn]);
+      expectFail(() => assertSnapshotComplete(manifest, ID, after, 'after'), `${fn} after`);
+    }
+  }
+});
+
+test('non-selected and preserved Functions: a changed configuration, ingress or traffic is a failure', () => {
+  for (const fn of [...EXECUTIVE, 'setDashboardProjectAttention', 'aggregatePresenceSessions']) {
+    for (const field of [...CONFIG_FIELDS, 'generation', 'trafficRevision', 'trafficPercent']) {
+      const after = afterSnapshot();
+      after[fn][field] = typeof after[fn][field] === 'number' ? after[fn][field] + 1 : `${after[fn][field]}x`;
+      expectFail(() => assertNonSelectedUnchanged(manifest, ID, beforeSnapshot(), after), `${fn}.${field}`);
+    }
+  }
+});
+
+test('forward deployment proves the intended configuration, not only runtime, identity and revision', () => {
+  const target = release.targetConfiguration;
+  assert.deepEqual(target.config, pinned.config, 'no source option changes the configuration; the intended values equal the baseline values');
+  assert.equal(target.invoker, 'allUsers');
+  assert.equal(target.generation, 'GEN_2');
+  assert.equal(target.runtime, 'nodejs22');
+  for (const fn of EIGHT) {
+    for (const field of ['generation', 'invoker', ...CONFIG_FIELDS]) {
+      const after = afterSnapshot(); after[fn][field] = CONFIG_WRONG[field];
+      expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), `${fn}.${field}`);
+      const missing = afterSnapshot(); delete missing[fn][field];
+      expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), missing), `${fn}.${field} missing`);
+    }
+    for (const edit of [r => { r.trafficPercent = 50; }, r => { r.trafficRevision = `${fn.toLowerCase()}-00001-aaa`; }]) {
+      const after = afterSnapshot(); edit(after[fn]);
+      expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), `${fn} not serving 100% on the new revision`);
+    }
+  }
+  assert.equal(assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), afterSnapshot()), true);
+});
+
+test('release plan validation requires explicit normalized pinned and intended configuration', () => {
+  const mutate = edit => { const m = clone(); edit(m.releases[ID]); return m; };
+  for (const [label, edit] of [
+    ['baseline memory missing', r => { delete r.rollbackBaseline.config.memory; }],
+    ['baseline ingress not an enum value', r => { r.rollbackBaseline.config.ingress = 'allow_all'; }],
+    ['baseline timeout as a string', r => { r.rollbackBaseline.config.timeoutSeconds = '60'; }],
+    ['baseline config removed', r => { delete r.rollbackBaseline.config; }],
+    ['baseline generation missing', r => { delete r.rollbackBaseline.generation; }],
+    ['baseline invoker missing', r => { delete r.rollbackBaseline.invoker; }],
+    ['target configuration removed', r => { delete r.targetConfiguration; }],
+    ['target invoker missing', r => { delete r.targetConfiguration.invoker; }],
+    ['target max instances missing', r => { delete r.targetConfiguration.config.maxInstanceCount; }],
+    ['target runtime differs from the target runtime', r => { r.targetConfiguration.runtime = 'nodejs20'; }],
+  ]) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
+});
+
+test('the runbook lists every configuration field in the rollback read-back and documents the snapshot capture sources', () => {
+  const readBack = runbook.slice(runbook.indexOf('**Read-back verification'), runbook.indexOf('### Full-rollback executability'));
+  for (const item of ['nodejs20', 'GEN_2', 'default compute account', 'allUsers', '`256Mi`', 'CPU = `1`', 'timeout = `60`', 'concurrency = `80`', 'max instances = `20`', 'ALLOW_ALL', 'new** live revision', '100% of traffic', 'sourceTreeDigest', 'nothing is inferred from absence']) {
+    assert.ok(readBack.includes(item), `rollback read-back lists ${item}`);
+  }
+  const capture = runbook.slice(runbook.indexOf('## Snapshot capture'), runbook.indexOf('## Invoker strategy'));
+  for (const field of [...SNAPSHOT_FIELDS, 'sourceTreeDigest']) assert.ok(capture.includes(`\`${field}\``), `capture documents ${field}`);
+  for (const source of ['gcloud functions describe', 'gcloud run services describe', 'status.traffic', 'containerConcurrency', 'run.googleapis.com/ingress', 'autoscaling.knative.dev/maxScale']) {
+    assert.ok(capture.includes(source), `capture source ${source}`);
+  }
+  assert.match(capture, /not been exercised against live Production/);
+  assert.match(runbook, /assertBaselineMatchesPinned/);
+});
+
+// ── Final safety remediation, blocker 2: the reviewed release plan is pinned separately from the runtime source ───
+async function mutatedPlan(file, edit) {
+  const root = await planCopy();
+  const path = join(root, file);
+  await writeFile(path, edit(await readFile(path, 'utf8')));
+  return root;
+}
+const passesGate = async (root, over = {}) => assertExecutionFreeze(manifest, ID, { ...(await freezeInputs(root, over)) });
+
+test('an unchanged reviewed plan passes the execution gate, and the real repository plan digests deterministically', async () => {
+  assert.equal(await computeReleasePlanDigest(repoRoot), await computeReleasePlanDigest(repoRoot));
+  assert.match(await computeReleasePlanDigest(repoRoot), /^[0-9a-f]{64}$/);
+  const root = await planCopy();
+  try {
+    assert.equal(await computeReleasePlanDigest(root), await computeReleasePlanDigest(repoRoot), 'a byte-identical copy has the same digest');
+    assert.equal(await passesGate(root), true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+  assert.deepEqual(SAFETY_CRITICAL_PLAN_FILES, release.executionFreeze.reviewedReleasePlan.safetyCriticalFiles);
+});
+
+test('a plan edited after review fails the gate even though every changed path is plan-only', async () => {
+  const reviewedDigest = await computeReleasePlanDigest(repoRoot);
+  const cases = [
+    // The edit must be valid enough to pass assertReleasePlan, proving the DIGEST (not the validator) refuses it.
+    ['altered Function selector (reordered)', 'config/deployment-manifest.json', text => { const m = JSON.parse(text); m.releases[ID].functions.reverse(); return JSON.stringify(m, null, 2); }],
+    ['altered Function identities (swapped, still unique pmdash-*)', 'config/deployment-manifest.json', text => { const m = JSON.parse(text); const a = m.releases[ID].runtimeServiceAccounts; [a.createDashboardWeek, a.saveDashboardWeekFields] = [a.saveDashboardWeekFields, a.createDashboardWeek]; return JSON.stringify(m, null, 2); }],
+    ['altered Function selector (a managed Function removed from untouched)', 'config/deployment-manifest.json', text => { const m = JSON.parse(text); m.releases[ID].untouchedManagedFunctions.pop(); return JSON.stringify(m, null, 2); }],
+    ['weakened snapshot assertion (new-revision check removed)', 'scripts/deployment-manifest.mjs', text => { assert.match(text, /no new revision was created/); return text.replace(/\n.*no new revision was created.*\n/, '\n'); }],
+    ['weakened snapshot assertion (traffic invariant removed)', 'scripts/deployment-manifest.mjs', text => text.replace("record.trafficPercent !== 100", 'false')],
+    ['weakened rollback assertion (digest comparison removed)', 'scripts/deployment-manifest.mjs', text => text.replace('record.sourceTreeDigest !== pinned.sourceTreeDigest', 'false')],
+    ['modified rollback method (manifest)', 'config/deployment-manifest.json', text => text.replace('PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT', 'CLOUD_RUN_TRAFFIC_SHIFT')],
+    ['modified rollback method (runbook)', 'docs/production-user-permissions-v2-promotion.md', text => text.replace('FULL rollback = `PINNED BASELINE SOURCE + CONFIG REDEPLOYMENT`', 'FULL rollback = traffic shift')],
+    ['modified runbook selector', 'docs/production-user-permissions-v2-promotion.md', text => text.replace('functions:setDashboardWeekRelease\n```', 'functions:setDashboardWeekRelease,functions:setDashboardProjectAttention\n```')],
+    ['weakened pin test', 'tests/production-promotion-v2.test.mjs', text => text.replace("assert.equal(flag.split(',').length, 8);", '')],
+    ['weakened manifest test', 'tests/deployment-manifest.test.mjs', text => `${text}\n`],
+    ['whitespace-only change', 'docs/production-user-permissions-v2-promotion.md', text => `${text} `],
+  ];
+  for (const [label, file, edit] of cases) {
+    const root = await mutatedPlan(file, edit);
+    try {
+      assert.notEqual(await computeReleasePlanDigest(root), reviewedDigest, `${label}: digest must change`);
+      const inputs = { runtimeTargetSha: release.runtimeTargetSourceSha, reviewedReleasePlanSha: REVIEWED_SHA, reviewedReleasePlanDigest: reviewedDigest, freezeSha: REVIEWED_SHA, planRoot: root, changedPaths: PLAN_ONLY_PATHS };
+      // The manifest handed to the gate is the one from the (edited) frozen checkout, exactly as at execution time.
+      let editedManifest = manifest;
+      try { editedManifest = await freezeManifest(root); } catch { /* an unparseable manifest is rejected by the digest first */ }
+      await assert.rejects(assertExecutionFreeze(editedManifest, ID, inputs), error => error instanceof DeploymentManifestError && /release plan digest/.test(error.message), label);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
+});
+
+test('a safety-critical plan file that is deleted after review fails closed', async () => {
+  for (const file of SAFETY_CRITICAL_PLAN_FILES) {
+    const root = await planCopy();
+    try {
+      const inputs = await freezeInputs(root);
+      await rm(join(root, file));
+      await assert.rejects(assertExecutionFreeze(manifest, ID, inputs), DeploymentManifestError, file);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
+});
+
+test('every safety-critical file is individually covered by the pin', async () => {
+  const reviewedDigest = await computeReleasePlanDigest(repoRoot);
+  for (const file of SAFETY_CRITICAL_PLAN_FILES) {
+    const root = await mutatedPlan(file, text => `${text}\n// changed after review\n`);
+    try {
+      assert.notEqual(await computeReleasePlanDigest(root), reviewedDigest, file);
+      await assert.rejects(assertExecutionFreeze(manifest, ID, { runtimeTargetSha: release.runtimeTargetSourceSha, reviewedReleasePlanSha: REVIEWED_SHA, reviewedReleasePlanDigest: reviewedDigest, freezeSha: REVIEWED_SHA, planRoot: root, changedPaths: [] }), /release plan digest/, file);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
+});
+
+test('the freeze SHA must equal the independently reviewed release-plan SHA, and both pins must be well formed', async () => {
+  const root = await planCopy();
+  try {
+    await assert.rejects(passesGate(root, { freezeSha: 'd'.repeat(40) }), /does not equal the independently reviewed release-plan SHA/);
+    for (const bad of [undefined, '', 'c'.repeat(39), 'main', 'C'.repeat(40), null]) {
+      await assert.rejects(passesGate(root, { reviewedReleasePlanSha: bad, freezeSha: bad }), DeploymentManifestError, `reviewed SHA ${String(bad)}`);
+    }
+    for (const bad of [undefined, '', 'a'.repeat(63), 'A'.repeat(64), null]) {
+      await assert.rejects(passesGate(root, { reviewedReleasePlanDigest: bad }), DeploymentManifestError, `reviewed digest ${String(bad)}`);
+    }
+    await assert.rejects(passesGate(root, { planRoot: undefined }), DeploymentManifestError, 'no checkout root');
+    await assert.rejects(passesGate(root, { reviewedReleasePlanSha: release.runtimeTargetSourceSha, freezeSha: release.runtimeTargetSourceSha }), /cannot be the runtime target source/);
+    await assert.rejects(passesGate(root, { reviewedReleasePlanDigest: '0'.repeat(64) }), /release plan digest/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('the manifest handed to the gate must be the manifest of the frozen checkout', async () => {
+  const root = await planCopy();
+  try {
+    const other = clone(); other.releases[ID].functions.reverse();
+    await assert.rejects(assertExecutionFreeze(other, ID, await freezeInputs(root)), /not the manifest of the frozen checkout/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('a new independent review can re-pin a changed plan: the new SHA and digest pass, the old pin never carries over', async () => {
+  const oldDigest = await computeReleasePlanDigest(repoRoot);
+  const root = await mutatedPlan('docs/production-user-permissions-v2-promotion.md', text => `${text}\nReviewed addendum.\n`);
+  try {
+    const newDigest = await computeReleasePlanDigest(root);
+    assert.notEqual(newDigest, oldDigest);
+    const newSha = 'e'.repeat(40);
+    assert.equal(await passesGate(root, { reviewedReleasePlanSha: newSha, reviewedReleasePlanDigest: newDigest, freezeSha: newSha }), true);
+    await assert.rejects(passesGate(root, { reviewedReleasePlanDigest: oldDigest }), /release plan digest/);
+    await assert.rejects(passesGate(root, { reviewedReleasePlanSha: newSha, reviewedReleasePlanDigest: newDigest, freezeSha: REVIEWED_SHA }), /does not equal the independently reviewed release-plan SHA/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('runtime integrity is still enforced independently of the plan pin', async () => {
+  const root = await planCopy();
+  try {
+    await assert.rejects(passesGate(root, { changedPaths: [...PLAN_ONLY_PATHS, 'functions/project-dashboard-writes.js'] }), /Runtime-relevant source changed/);
+    await assert.rejects(passesGate(root, { runtimeTargetSha: 'f'.repeat(40) }), /runtime target source/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('release plan validation requires the external reviewed-plan contract over the exact safety-critical files', () => {
+  const mutate = edit => { const m = clone(); edit(m.releases[ID]); return m; };
+  for (const [label, edit] of [
+    ['contract removed', r => { delete r.executionFreeze.reviewedReleasePlan; }],
+    ['not recorded outside the repository', r => { r.executionFreeze.reviewedReleasePlan.recordedOutsideRepository = false; }],
+    ['freeze need not equal the reviewed SHA', r => { r.executionFreeze.reviewedReleasePlan.freezeMustEqualReviewedSha = false; }],
+    ['manifest dropped from the safety-critical files', r => { r.executionFreeze.reviewedReleasePlan.safetyCriticalFiles.shift(); }],
+    ['runbook dropped from the safety-critical files', r => { r.executionFreeze.reviewedReleasePlan.safetyCriticalFiles = r.executionFreeze.reviewedReleasePlan.safetyCriticalFiles.filter(f => !f.startsWith('docs/')); }],
+    ['an extra file', r => { r.executionFreeze.reviewedReleasePlan.safetyCriticalFiles.push('README.md'); }],
+  ]) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
+});
+
+test('the four pins are separate: the digest and reviewed SHA are never stored in the repository, and the runbook distinguishes all four', async () => {
+  const digest = await computeReleasePlanDigest(repoRoot);
+  assert.ok(!JSON.stringify(manifest).includes(digest));
+  assert.ok(!runbook.includes(digest));
+  assert.equal(release.executionFreeze.reviewedReleasePlan.reviewedReleasePlanSha, undefined);
+  assert.notEqual(release.runtimeTargetSourceSha, release.rollbackBaseline.sourceCommit);
+  const pin = runbook.slice(runbook.indexOf('## Reviewed release-plan pin'), runbook.indexOf('## Runtime target includes PR #42'));
+  for (const text of ['runtime target source', 'reviewed release plan', 'execution freeze', 'live Production rollback baseline', 'recorded outside this repository', 'must equal the reviewed release-plan SHA', 'new independent review', 'computeReleasePlanDigest', 'assertExecutionFreeze', '`config/deployment-manifest.json`', '`scripts/deployment-manifest.mjs`', '`docs/production-user-permissions-v2-promotion.md`', '`tests/production-promotion-v2.test.mjs`', 'weakened snapshot assertion', 'changed rollback method', 'changed Function selector']) {
+    assert.ok(pin.includes(text) || runbook.includes(text), `runbook states: ${text}`);
+  }
+  assert.match(runbook, /\| Reviewed release-plan SHA and digest \|/);
+  assert.match(runbook, /\| Live Production rollback baseline \|/);
+});
+
+test('this remediation does not widen the release: still exactly eight Functions, eight identities, Executive preserved, UAT sync forbidden', () => {
+  assert.deepEqual(release.functions, EIGHT);
+  assert.deepEqual(release.runtimeServiceAccounts, IDENTITIES);
+  assert.deepEqual(functionsPreservedFor(manifest, 'prod'), [...EXECUTIVE].sort());
+  assert.deepEqual(manifest.environments.prod.functionsNeverDeploy.productionWeekSync, UAT_ONLY);
+  assert.equal(release.rulesDeployRequired, true);
+  assert.equal(release.hostingDeployRequired, true);
+  assert.equal(release.productionPages.pullRequest, 40);
+  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
+});
+
+test('every snapshot field must be an explicit normalized value (no "256M", numeric CPU, string numbers or lower-case enums)', () => {
+  for (const [field, values] of Object.entries(NOT_NORMALIZED)) {
+    for (const value of values) {
+      const before = beforeSnapshot(); before.setDashboardProjectAttention[field] = value;
+      expectFail(() => assertSnapshotComplete(manifest, ID, before, 'before'), `before ${field}=${String(value)}`);
+      const after = afterSnapshot(); after.setExecutiveRagOverride[field] = value;
+      expectFail(() => assertSnapshotComplete(manifest, ID, after, 'after'), `after ${field}=${String(value)}`);
+    }
+  }
+  for (const value of ['256Mi', '1Gi']) {
+    const before = beforeSnapshot(); before.setDashboardProjectAttention.memory = value;
+    assert.equal(assertSnapshotComplete(manifest, ID, before, 'before'), true, value);
+  }
+});
+
+test('forward deployment fails when an existing Function configuration changed during the redeploy, even if the new value looks valid', () => {
+  for (const [field, drifted] of [['memory', '512Mi'], ['cpu', '2'], ['timeoutSeconds', 120], ['maxInstanceRequestConcurrency', 40], ['maxInstanceCount', 50], ['ingress', 'ALLOW_INTERNAL_ONLY'], ['invoker', 'none']]) {
+    for (const fn of SEVEN) {
+      // before drifted from the intended value, after back at the intended value: the redeploy changed the configuration.
+      const before = beforeSnapshot(); before[fn][field] = drifted;
+      expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, before, afterSnapshot()), `${fn}.${field} changed by the redeploy`);
+    }
+  }
 });

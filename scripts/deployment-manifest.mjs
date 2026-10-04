@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -152,6 +153,20 @@ export function assertReleasePlan(manifest, id) {
     if (!release.baseline.priorRevisions?.[fn]) problems.push(`baseline.priorRevisions is missing "${fn}"`);
   }
   for (const fn of Object.keys(rollback.sourceGenerations || {})) if (!existingNames.includes(fn)) problems.push(`rollbackBaseline.sourceGenerations names non-release Function "${fn}"`);
+  const baselineConfig = rollback.config || {};
+  for (const field of CONFIG_FIELDS) if (!SNAPSHOT_VALIDATORS[field](baselineConfig[field])) problems.push(`rollbackBaseline.config.${field} must be an explicit normalized value`);
+  for (const field of ['runtime', 'serviceAccount', 'invoker', 'generation']) if (!SNAPSHOT_VALIDATORS[field](rollback[field])) problems.push(`rollbackBaseline.${field} must be an explicit normalized value`);
+  const target = release.targetConfiguration || {};
+  for (const field of ['runtime', 'invoker', 'generation', ...CONFIG_FIELDS]) {
+    const value = CONFIG_FIELDS.includes(field) ? target.config?.[field] : target[field];
+    if (!SNAPSHOT_VALIDATORS[field](value)) problems.push(`targetConfiguration.${field} must be an explicit normalized value`);
+  }
+  if (target.runtime !== release.targetRuntime) problems.push('targetConfiguration.runtime must equal the target runtime');
+  const review = release.executionFreeze?.reviewedReleasePlan;
+  if (!review || review.recordedOutsideRepository !== true || review.freezeMustEqualReviewedSha !== true
+    || JSON.stringify(review.safetyCriticalFiles) !== JSON.stringify(SAFETY_CRITICAL_PLAN_FILES)) {
+    problems.push('executionFreeze.reviewedReleasePlan must require an externally recorded reviewed SHA/digest equal to the freeze, over the exact safety-critical files');
+  }
   if (problems.length) throw new DeploymentManifestError(`Release "${id}" is invalid:\n- ${problems.join('\n- ')}`);
   return release;
 }
@@ -176,18 +191,39 @@ export function assertPostReleaseInventory(manifest, id, liveDeployedNames) {
 }
 
 // ── Live-state snapshots (fail-closed) ───────────────────────────────────────────────────────────────────────
-// A snapshot is { [functionName]: { runtime, revision, serviceAccount, invoker, updateTime } } read from the live
-// project. Evidence is only accepted when it is COMPLETE: the exact expected Function set is present (derived from
-// the manifest, never from the snapshot's own keys) and every record carries every comparison field with a valid
-// value. A field that is legitimately empty in GCP output must be modelled as an explicit token (for example
-// invoker "none"), never as a missing property. Two missing-or-empty records never compare equal.
-export const SNAPSHOT_FIELDS = Object.freeze(['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
+// A snapshot is { [functionName]: record } read from the live project. Evidence is only accepted when it is COMPLETE:
+// the exact expected Function set is present (derived from the manifest, never from the snapshot's own keys) and every
+// record carries EVERY field below with a normalized explicit value. Nothing is inferred from absence: a field that is
+// legitimately empty in GCP output must be modelled as an explicit token (for example invoker "none"), never as a
+// missing property, and a missing or malformed field is a failure. Two missing-or-empty records never compare equal.
+//
+// Authoritative read-back sources (see the runbook, "Snapshot capture"): the Cloud Functions API describe of the Gen 2
+// Function (`runtime`, `generation`, `updateTime`) and the Cloud Run service that backs it (serving revision, runtime
+// identity, resources, timeout, concurrency, max instances, ingress, traffic allocation, and the invoker IAM policy).
+export const IDENTITY_FIELDS = Object.freeze(['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
+export const CONFIG_FIELDS = Object.freeze(['memory', 'cpu', 'timeoutSeconds', 'maxInstanceRequestConcurrency', 'maxInstanceCount', 'ingress']);
+export const SERVING_FIELDS = Object.freeze(['generation', 'trafficRevision', 'trafficPercent']);
+export const SNAPSHOT_FIELDS = Object.freeze([...IDENTITY_FIELDS, ...CONFIG_FIELDS, ...SERVING_FIELDS]);
+
+const isString = value => typeof value === 'string';
+const isPositiveInteger = value => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+export const INGRESS_VALUES = Object.freeze(['ALLOW_ALL', 'ALLOW_INTERNAL_ONLY', 'ALLOW_INTERNAL_AND_GCLB']);
 const SNAPSHOT_VALIDATORS = Object.freeze({
-  runtime: value => /^nodejs\d+$/.test(value),
-  revision: value => /^[a-z0-9][a-z0-9-]*$/.test(value),
-  serviceAccount: value => /^[A-Za-z0-9][A-Za-z0-9@._-]*$/.test(value),
-  invoker: value => /^[A-Za-z][A-Za-z0-9-]*$/.test(value),
-  updateTime: value => /^\d{4}-\d{2}-\d{2}T/.test(value) && !Number.isNaN(Date.parse(value)),
+  runtime: value => isString(value) && /^nodejs\d+$/.test(value),
+  revision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
+  serviceAccount: value => isString(value) && /^[A-Za-z0-9][A-Za-z0-9@._-]*$/.test(value),
+  invoker: value => isString(value) && /^[A-Za-z][A-Za-z0-9-]*$/.test(value),
+  updateTime: value => isString(value) && /^\d{4}-\d{2}-\d{2}T/.test(value) && !Number.isNaN(Date.parse(value)),
+  // Normalized Cloud Run quantities: memory as Mi/Gi ("256Mi"), CPU as a decimal string ("1"); never "256M" or 1.
+  memory: value => isString(value) && /^[1-9]\d*(Mi|Gi)$/.test(value),
+  cpu: value => isString(value) && /^(0\.\d+|[1-9]\d*(\.\d+)?)$/.test(value),
+  timeoutSeconds: isPositiveInteger,
+  maxInstanceRequestConcurrency: isPositiveInteger,
+  maxInstanceCount: isPositiveInteger,
+  ingress: value => INGRESS_VALUES.includes(value),
+  generation: value => value === 'GEN_2',
+  trafficRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
+  trafficPercent: value => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100,
 });
 
 function isPlainRecord(value) {
@@ -231,7 +267,12 @@ export function assertSnapshotComplete(manifest, id, snapshot, phase) {
     for (const field of SNAPSHOT_FIELDS) {
       const value = record[field];
       if (!Object.hasOwn(record, field)) problems.push(`${fn}.${field}: missing from the ${label}`);
-      else if (typeof value !== 'string' || !SNAPSHOT_VALIDATORS[field](value)) problems.push(`${fn}.${field}: invalid value in the ${label}`);
+      else if (!SNAPSHOT_VALIDATORS[field](value)) problems.push(`${fn}.${field}: invalid value in the ${label}`);
+    }
+    // Serving state is evidence only when the latest ready revision carries 100% of traffic.
+    if (SNAPSHOT_FIELDS.every(field => Object.hasOwn(record, field)) && !problems.some(problem => problem.startsWith(`${fn}.`))) {
+      if (record.trafficRevision !== record.revision) problems.push(`${fn}.trafficRevision: ${record.trafficRevision} is not the latest ready revision ${record.revision}`);
+      if (record.trafficPercent !== 100) problems.push(`${fn}.trafficPercent: ${record.trafficPercent}, expected 100`);
     }
   }
   const expectedCount = expected.length;
@@ -272,18 +313,58 @@ export function assertNonSelectedUnchanged(manifest, id, before, after) {
   return true;
 }
 
-// After the release every selected Function runs the target runtime under its dedicated identity. (Existing ones must
-// also have a new revision; a new Function has no prior record.)
+// The configuration a Function must carry, as normalized explicit values: the pinned values of one record.
+const CONFIGURATION_FIELDS = Object.freeze(['runtime', 'serviceAccount', 'invoker', 'generation', ...CONFIG_FIELDS]);
+
+function configurationOf(source) {
+  return {
+    runtime: source.runtime, serviceAccount: source.serviceAccount, invoker: source.invoker, generation: source.generation,
+    ...Object.fromEntries(CONFIG_FIELDS.map(field => [field, source.config?.[field]])),
+  };
+}
+
+function configurationDifferences(label, record, expected) {
+  const problems = [];
+  for (const field of CONFIGURATION_FIELDS) {
+    if (record[field] !== expected[field]) problems.push(`${label}.${field}: ${record[field]} != ${expected[field]}`);
+  }
+  return problems;
+}
+
+// The live pre-release state of the seven existing Functions must BE the pinned rollback baseline. If Stage 0 reads
+// something else, the pinned FULL-rollback contract no longer describes Production and the release must not start.
+export function assertBaselineMatchesPinned(manifest, id, before) {
+  const release = assertReleasePlan(manifest, id);
+  assertSnapshotComplete(manifest, id, before, 'before');
+  const expected = configurationOf(release.rollbackBaseline);
+  const problems = [];
+  for (const fn of release.functions.filter(name => !(release.newFunctions || []).includes(name))) {
+    problems.push(...configurationDifferences(fn, before[fn], expected).map(item => `${item} (live baseline differs from the pinned rollback baseline)`));
+    if (before[fn].revision !== release.baseline.priorRevisions[fn]) problems.push(`${fn}.revision: ${before[fn].revision} != pinned baseline revision ${release.baseline.priorRevisions[fn]}`);
+  }
+  if (problems.length) throw new DeploymentManifestError(`The live baseline does not match the pinned rollback baseline:\n- ${problems.join('\n- ')}`);
+  return true;
+}
+
+// After the release every selected Function runs the target runtime under its dedicated identity, with the intended
+// complete runtime configuration, and its newly created revision serves 100% of traffic (enforced for every record by
+// assertSnapshotComplete: the latest ready revision carries 100%). (Existing ones must also
+// have a new revision and an UNCHANGED configuration; a new Function has no prior record.)
 export function assertSelectedFunctionsDeployed(manifest, id, before, after) {
   const release = assertReleasePlan(manifest, id);
   assertSnapshotComplete(manifest, id, before, 'before');
   assertSnapshotComplete(manifest, id, after, 'after');
+  const target = configurationOf(release.targetConfiguration);
   const problems = [];
   for (const fn of release.functions) {
     const record = after[fn];
     if (record.runtime !== release.targetRuntime) problems.push(`${fn}: runtime ${record.runtime}, expected ${release.targetRuntime}`);
     if (!record.serviceAccount.startsWith(`${release.runtimeServiceAccounts[fn]}@`)) problems.push(`${fn}: runtime identity ${record.serviceAccount}, expected ${release.runtimeServiceAccounts[fn]}@…`);
     if (before[fn] && before[fn].revision === record.revision) problems.push(`${fn}: no new revision was created`);
+    for (const field of ['invoker', 'generation', ...CONFIG_FIELDS]) {
+      if (record[field] !== target[field]) problems.push(`${fn}.${field}: ${record[field]} != intended ${target[field]}`);
+      if (before[fn] && record[field] !== before[fn][field]) problems.push(`${fn}.${field}: changed by the redeploy (${before[fn][field]} -> ${record[field]})`);
+    }
   }
   if (problems.length) throw new DeploymentManifestError(`Selected Functions are not as planned:\n- ${problems.join('\n- ')}`);
   return true;
@@ -291,24 +372,31 @@ export function assertSelectedFunctionsDeployed(manifest, id, before, after) {
 
 // FULL rollback of the seven existing Functions = pinned baseline source + configuration REDEPLOYED, then read back.
 // Cloud Run traffic shifting is EMERGENCY MITIGATION ONLY and never satisfies this check: a restored Function must
-// carry a NEW revision (proof that a redeploy happened) whose runtime, identity and invoker equal the baseline and
-// whose source identity (`sourceTreeDigest`, a read-back of the deployed source) equals the pinned baseline source.
+// carry a NEW revision (proof that a redeploy happened) that serves 100% of traffic, whose complete runtime
+// configuration (runtime, Gen 2, identity, invoker, memory, CPU, timeout, concurrency, max instances, ingress) is read
+// back and equals the pinned baseline, and whose source identity (`sourceTreeDigest`, a read-back of the deployed
+// source) equals the pinned baseline source. Anything missing or malformed fails; nothing is inferred.
 export function assertFullRollbackVerified(manifest, id, baseline, restored) {
   const release = assertReleasePlan(manifest, id);
   const pinned = release.rollbackBaseline;
-  assertSnapshotComplete(manifest, id, baseline, 'before');
+  assertBaselineMatchesPinned(manifest, id, baseline);
+  const expected = configurationOf(pinned);
   const existing = release.functions.filter(fn => !(release.newFunctions || []).includes(fn));
   const problems = [];
   if (!isPlainRecord(restored)) throw new DeploymentManifestError('The restored snapshot must be an object keyed by Function name.');
   for (const fn of existing) {
     const record = restored[fn];
     if (!isPlainRecord(record)) { problems.push(`${fn}: missing or malformed in the restored snapshot`); continue; }
-    for (const field of [...SNAPSHOT_FIELDS, 'sourceTreeDigest']) {
-      if (typeof record[field] !== 'string' || !record[field] || (field !== 'sourceTreeDigest' && !SNAPSHOT_VALIDATORS[field](record[field]))) problems.push(`${fn}.${field}: missing or invalid`);
+    for (const field of SNAPSHOT_FIELDS) {
+      if (!Object.hasOwn(record, field)) problems.push(`${fn}.${field}: missing from the restored snapshot`);
+      else if (!SNAPSHOT_VALIDATORS[field](record[field])) problems.push(`${fn}.${field}: invalid value in the restored snapshot`);
     }
+    if (typeof record.sourceTreeDigest !== 'string' || !/^[0-9a-f]{64}$/.test(record.sourceTreeDigest)) problems.push(`${fn}.sourceTreeDigest: missing or invalid`);
     if (problems.some(problem => problem.startsWith(`${fn}.`))) continue;
     if (record.revision === baseline[fn].revision) problems.push(`${fn}: revision equals the baseline revision — traffic shifting alone is EMERGENCY MITIGATION, not a full rollback`);
-    for (const field of ['runtime', 'serviceAccount', 'invoker']) if (record[field] !== baseline[fn][field]) problems.push(`${fn}.${field}: ${record[field]} != baseline ${baseline[fn][field]}`);
+    if (record.trafficRevision !== record.revision) problems.push(`${fn}.trafficRevision: ${record.trafficRevision} is not the newly redeployed revision ${record.revision}`);
+    if (record.trafficPercent !== 100) problems.push(`${fn}.trafficPercent: ${record.trafficPercent}, the redeployed revision must serve 100%`);
+    problems.push(...configurationDifferences(fn, record, expected).map(item => `${item} (pinned baseline)`));
     if (record.sourceTreeDigest !== pinned.sourceTreeDigest) problems.push(`${fn}.sourceTreeDigest does not equal the pinned baseline source`);
   }
   for (const fn of Object.keys(restored)) if (!existing.includes(fn) && !expectedAfterNames(manifest, id).includes(fn)) problems.push(`${fn}: unexpected Function in the restored snapshot`);
@@ -322,11 +410,27 @@ export function assertFullRollbackVerified(manifest, id, baseline, restored) {
   return true;
 }
 
-// ── Execution freeze vs approved runtime target source ─────────────────────────────────────────────────────────────
-// Only plan/test paths may differ between the approved runtime target source (`runtimeTargetSourceSha`) and the execution
-// freeze. Everything else is runtime-relevant and requires a re-baseline. Fail-closed: unknown paths count as runtime.
+// ── Release identities: runtime target source, reviewed release plan, execution freeze, live rollback baseline ────
+// 1. runtimeTargetSourceSha (in the manifest): the commit whose runtime-relevant source is approved for deployment.
+// 2. reviewed release plan: the exact commit (and content digest) of the safety-critical plan files that was
+//    independently approved. A commit cannot contain its own SHA, so it is recorded OUTSIDE the repository by the
+//    Control Plane after the final reviewed PR is merged, and handed to the execution gate as an input.
+// 3. execution freeze SHA: the commit the release is run from. It MUST EQUAL the reviewed release-plan SHA; any later
+//    commit, however small, needs a new independent review and a new recorded pin.
+// 4. live Production rollback baseline: the pinned live state (`rollbackBaseline`, `baseline`), unrelated to 1-3.
+//
+// Runtime integrity: only plan/test paths may differ between (1) and (3). Fail-closed: unknown paths count as runtime.
 const PLAN_ONLY_FILES = new Set(['config/deployment-manifest.json', 'scripts/deployment-manifest.mjs']);
 const PLAN_ONLY_PREFIXES = ['docs/', 'tests/'];
+
+// Release-plan integrity: every file whose content decides release scope, safety checks, rollback or their pins.
+export const SAFETY_CRITICAL_PLAN_FILES = Object.freeze([
+  'config/deployment-manifest.json',
+  'scripts/deployment-manifest.mjs',
+  'docs/production-user-permissions-v2-promotion.md',
+  'tests/deployment-manifest.test.mjs',
+  'tests/production-promotion-v2.test.mjs',
+]);
 
 export function runtimeRelevantChanges(changedPaths) {
   if (!Array.isArray(changedPaths) || changedPaths.some(path => typeof path !== 'string' || !path)) {
@@ -337,10 +441,31 @@ export function runtimeRelevantChanges(changedPaths) {
   return changedPaths.filter(path => !isPlanOnly(path));
 }
 
-export function assertExecutionFreeze(manifest, id, { runtimeTargetSha, freezeSha, changedPaths }) {
+// sha256 over each safety-critical file's path and exact bytes, in the fixed order above. A missing file throws, so a
+// deleted plan file can never produce a digest. Any byte change (including whitespace) changes the digest.
+export async function computeReleasePlanDigest(rootDir) {
+  const hash = createHash('sha256');
+  for (const path of SAFETY_CRITICAL_PLAN_FILES) {
+    let bytes;
+    try { bytes = await readFile(join(rootDir, path)); } catch { throw new DeploymentManifestError(`Safety-critical release-plan file is missing: ${path}`); }
+    hash.update(`${path}\0${createHash('sha256').update(bytes).digest('hex')}\n`);
+  }
+  return hash.digest('hex');
+}
+
+export async function assertExecutionFreeze(manifest, id, { runtimeTargetSha, reviewedReleasePlanSha, reviewedReleasePlanDigest, freezeSha, planRoot, changedPaths }) {
+  const sha = value => /^[0-9a-f]{40}$/.test(value || '');
+  if (!sha(reviewedReleasePlanSha)) throw new DeploymentManifestError('The reviewed release-plan SHA must be a recorded full commit SHA (recorded by the Control Plane after the final reviewed merge).');
+  if (!/^[0-9a-f]{64}$/.test(reviewedReleasePlanDigest || '')) throw new DeploymentManifestError('The reviewed release-plan digest must be a recorded SHA-256.');
+  if (!sha(freezeSha)) throw new DeploymentManifestError('The execution freeze must be a recorded full commit SHA.');
+  if (typeof planRoot !== 'string' || !planRoot) throw new DeploymentManifestError('The execution gate needs the root of the frozen checkout to digest the release plan.');
+  if (freezeSha !== reviewedReleasePlanSha) throw new DeploymentManifestError('The execution freeze SHA does not equal the independently reviewed release-plan SHA; a changed plan needs a new independent review and a new recorded pin.');
+  const digest = await computeReleasePlanDigest(planRoot);
+  if (digest !== reviewedReleasePlanDigest) throw new DeploymentManifestError('The release plan digest of the frozen checkout does not equal the independently reviewed release plan digest (a safety-critical plan file changed after review).');
+  if (JSON.stringify(manifest) !== JSON.stringify(await loadDeploymentManifest(planRoot))) throw new DeploymentManifestError('The manifest in use is not the manifest of the frozen checkout.');
   const release = assertReleasePlan(manifest, id);
+  if (reviewedReleasePlanSha === release.runtimeTargetSourceSha) throw new DeploymentManifestError('The reviewed release-plan SHA cannot be the runtime target source; the plan files differ from it.');
   if (runtimeTargetSha !== release.runtimeTargetSourceSha) throw new DeploymentManifestError('The recorded runtime target source does not equal the approved runtime target source.');
-  if (!/^[0-9a-f]{40}$/.test(freezeSha || '')) throw new DeploymentManifestError('The execution freeze must be a recorded full commit SHA.');
   const runtime = runtimeRelevantChanges(changedPaths);
   if (runtime.length) throw new DeploymentManifestError(`Runtime-relevant source changed since the approved runtime target source; re-baseline required:\n- ${runtime.join('\n- ')}`);
   return true;

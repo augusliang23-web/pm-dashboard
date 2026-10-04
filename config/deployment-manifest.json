@@ -117,6 +117,19 @@
         "setUserPermissionOverrides"
       ],
       "targetRuntime": "nodejs22",
+      "targetConfiguration": {
+        "runtime": "nodejs22",
+        "invoker": "allUsers",
+        "generation": "GEN_2",
+        "config": {
+          "memory": "256Mi",
+          "cpu": "1",
+          "timeoutSeconds": 60,
+          "maxInstanceRequestConcurrency": 80,
+          "maxInstanceCount": 20,
+          "ingress": "ALLOW_ALL"
+        }
+      },
       "runtimeServiceAccounts": {
         "setUserPermissionOverrides": "pmdash-user-perms",
         "createDashboardWeek": "pmdash-create-week",
@@ -179,7 +192,7 @@
         "hostingRelease": "1790984982984000"
       },
       "executionFreeze": {
-        "rule": "The release runs from an explicitly recorded execution freeze SHA verified against runtimeTargetSourceSha (main 57ef1caa); any runtime-relevant path change since that source requires another re-baseline. Only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ (verified with git diff --name-only, never assumed).",
+        "rule": "Four separate identities. (1) runtimeTargetSourceSha (main 57ef1caa) is the approved runtime source: only docs/, tests/, config/deployment-manifest.json and scripts/deployment-manifest.mjs may differ from it (verified with git diff --name-only, never assumed). (2) The reviewed release plan is the exact commit and content digest of the safety-critical plan files that the Control Plane independently approved; it is recorded OUTSIDE this repository after the final reviewed merge. (3) The execution freeze SHA must EQUAL the reviewed release-plan SHA, and the digest of the frozen checkout must equal the recorded reviewed digest; any later edit to the manifest, the validator, the runbook or the pin tests requires a new independent review. (4) The live Production rollback baseline (baseline, rollbackBaseline) is pinned separately and is unrelated to (1)-(3).",
         "planOnlyFiles": [
           "config/deployment-manifest.json",
           "scripts/deployment-manifest.mjs"
@@ -187,7 +200,18 @@
         "planOnlyPrefixes": [
           "docs/",
           "tests/"
-        ]
+        ],
+        "reviewedReleasePlan": {
+          "recordedOutsideRepository": true,
+          "freezeMustEqualReviewedSha": true,
+          "safetyCriticalFiles": [
+            "config/deployment-manifest.json",
+            "scripts/deployment-manifest.mjs",
+            "docs/production-user-permissions-v2-promotion.md",
+            "tests/deployment-manifest.test.mjs",
+            "tests/production-promotion-v2.test.mjs"
+          ]
+        }
       },
       "rollbackBaseline": {
         "fullRollbackMethod": "PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT",
@@ -216,7 +240,8 @@
           "maxInstanceCount": 20,
           "ingress": "ALLOW_ALL"
         },
-        "node20DeployBlockedAfter": "2026-10-30"
+        "node20DeployBlockedAfter": "2026-10-30",
+        "generation": "GEN_2"
       }
     }
   }

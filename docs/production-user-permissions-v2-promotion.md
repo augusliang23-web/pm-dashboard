@@ -16,8 +16,10 @@ Rule for every stage: **failure → STOP → roll back to the last verified comp
 | Item | Value |
 |---|---|
 | Approved runtime target source | `main` @ `57ef1caad37c186adfe8536b6cb22d6302fdfc21` (includes PR #39 and PR #42). **`PRODUCTION_TARGET_SOURCE = 57ef1caad37c186adfe8536b6cb22d6302fdfc21`.** The Production release intentionally includes PR #42. |
-| PR #41 release-plan commits | the head of this PR (confirm at freeze). It differs from the runtime target source only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
-| Execution freeze SHA | **recorded and independently verified before the release starts**, after this PR merges (it will necessarily differ from `57ef1caa…` because plan files changed). Verified against the runtime target source as described in Stage 0; any runtime-relevant change after `57ef1caa…` requires another re-baseline. |
+| PR #41 release-plan commits | the head of this PR while under review. It differs from the runtime target source only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
+| Reviewed release-plan SHA and digest | **the exact commit (and the content digest of the safety-critical plan files) that the Control Plane independently approved.** A commit cannot contain its own SHA, so both are **recorded outside this repository by the Control Plane after the final reviewed PR #41 state is merged** (see *Reviewed release-plan pin*). Never edited into this repository. |
+| Execution freeze SHA | the commit the release runs from. It **must equal the reviewed release-plan SHA exactly**; it necessarily differs from `57ef1caa…` because plan files changed. Any later commit, however small, changes it and requires a new independent review and a new recorded pin. Runtime integrity is verified separately against the runtime target source (Stage 0); any runtime-relevant change after `57ef1caa…` requires another re-baseline. |
+| Live Production rollback baseline | the pinned live state in *FULL rollback* below (`f4244be…` source, configuration, revisions). It is **independent of the three identities above**: it changes only if live Production itself changes. |
 | Live Production Functions (2026-10-04) | **17** = 9 MANAGED + 8 PRESERVED Executive; all `nodejs20`, Gen 2, `us-central1`, default compute runtime identity |
 | `setUserPermissionOverrides` | **absent** in Production |
 | Live ruleset | `7ed64612-dc1c-4856-baf1-f627972046b6` (predates `userPermissions` / `userPermissionAudit`) |
@@ -80,6 +82,50 @@ re-identified, re-runtimed or re-invoked:
 Validation: capture `{runtime, revision, serviceAccount, invoker, updateTime}` for every Function in Stage 0 and
 compare after each Function stage with `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged`. Any
 difference **fails the runbook** (STOP).
+
+## Reviewed release-plan pin
+
+Four things are pinned and must never be conflated: the **runtime target source** (`57ef1caa…`, what is deployed), the
+**reviewed release plan** (the safety-critical plan files exactly as independently approved), the **execution freeze
+SHA** (what the release runs from) and the **live Production rollback baseline** (what a rollback restores).
+
+The runtime target source proves the *runtime* did not change. It does **not** prove the plan did:
+`config/deployment-manifest.json` and `scripts/deployment-manifest.mjs` control release scope and safety checks, and
+this runbook controls the rollback method, so a later edit to any of them is **not** treated as harmless. The
+safety-critical release-plan files are exactly:
+
+- `config/deployment-manifest.json`
+- `scripts/deployment-manifest.mjs`
+- `docs/production-user-permissions-v2-promotion.md`
+- `tests/deployment-manifest.test.mjs`
+- `tests/production-promotion-v2.test.mjs`
+
+**Recording (Control Plane, once, after the final reviewed PR #41 state is merged).** From a clean checkout of the
+merge commit, record the commit SHA and the plan digest in the review record (not in this repository):
+
+```bash
+git rev-parse HEAD
+```
+
+```bash
+node --input-type=module -e "import { computeReleasePlanDigest } from './scripts/deployment-manifest.mjs'; console.log(await computeReleasePlanDigest('.'));"
+```
+
+**Gate (execution time).** Run from a clean checkout of the freeze SHA (`git status --porcelain` empty). Feed the
+recorded `reviewedReleasePlanSha` and `reviewedReleasePlanDigest`, the freeze SHA (`git rev-parse HEAD`), the checkout
+root (`planRoot`) and the changed paths to `assertExecutionFreeze`. It fails closed unless **all** of these hold:
+
+1. the freeze SHA equals the recorded reviewed release-plan SHA;
+2. the digest computed from the frozen checkout equals the recorded reviewed digest (any byte changed in any
+   safety-critical file after review fails here, including a changed Function selector, a weakened snapshot assertion
+   or a changed rollback method);
+3. the manifest in use is the manifest of the frozen checkout, and the release plan validates;
+4. the reviewed release-plan SHA is not the runtime target source, and the recorded runtime target source equals
+   `runtimeTargetSourceSha`;
+5. no runtime-relevant path changed between the runtime target source and the freeze.
+
+If the plan must change after review for any reason, **STOP**: it needs a new independent review and a new recorded
+SHA and digest. A passing gate for an older pin never carries over to a newer commit.
 
 ## Runtime target includes PR #42
 
@@ -157,23 +203,31 @@ Every command names `--project project-manager-dashboar-a067f` explicitly. Each 
 verification; a failed verification triggers the matching *Partial-failure* path.
 
 ### Stage 0 — Freeze and before-snapshot (read-only)
-**Execution freeze.** Record the freeze SHA (the commit the release will be run from) and verify it against the
-approved runtime target source; do not assume it:
+**Execution freeze.** Record the freeze SHA (the commit the release will be run from). It must equal the reviewed
+release-plan SHA (*Reviewed release-plan pin*), and runtime integrity is verified against the approved runtime target
+source; do not assume either:
 
 ```bash
 git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>
 ```
 
-Feed the listed paths to `assertExecutionFreeze`. Only `docs/`, `tests/`, `config/deployment-manifest.json` and
-`scripts/deployment-manifest.mjs` may differ (planning/runbook/test files, verified here, not assumed). Any other path
-— `functions/`, `firestore.rules`, `index.html`, `js/`, build or env scripts, lockfiles, workflows, or anything unknown —
-is runtime-relevant and requires a **re-baseline** before the release can continue.
+Feed the listed paths, the freeze SHA, the checkout root and the recorded reviewed SHA/digest to `assertExecutionFreeze`.
+Runtime integrity: only `docs/`, `tests/`, `config/deployment-manifest.json` and `scripts/deployment-manifest.mjs` may
+differ from the runtime target source (planning/runbook/test files, verified here, not assumed). Any other path —
+`functions/`, `firestore.rules`, `index.html`, `js/`, build or env scripts, lockfiles, workflows, or anything unknown —
+is runtime-relevant and requires a **re-baseline** before the release can continue. Release-plan integrity: the freeze
+SHA and the digest of the safety-critical plan files must equal the independently reviewed pin; a plan edited after
+review fails the gate even though its paths are plan-only.
 
-**Snapshot.** Capture the complete Functions snapshot for all 17 live Functions
-(`{runtime, revision, serviceAccount, invoker, updateTime}` per Function; an empty field is an explicit token such as
-invoker `none`, never a missing property) and validate it with
+**Snapshot.** Capture the complete Functions snapshot for all 17 live Functions, exactly as in *Snapshot capture*
+(per Function: `runtime`, `generation`, `revision`, `serviceAccount`, `invoker`, `updateTime`, `memory`, `cpu`,
+`timeoutSeconds`, `maxInstanceRequestConcurrency`, `maxInstanceCount`, `ingress`, `trafficRevision`, `trafficPercent`;
+an empty field is an explicit token such as invoker `none`, never a missing property) and validate it with
 `assertSnapshotComplete(manifest, 'userPermissionsV2', before, 'before')`: the exact expected set (9 managed + 8
-preserved, `setUserPermissionOverrides` absent), every field present and valid. Also record:
+preserved, `setUserPermissionOverrides` absent), every field present, normalized and valid, and the latest ready
+revision serving 100% of traffic. Then run `assertBaselineMatchesPinned`: the seven existing Functions must read back
+exactly as the pinned rollback baseline (configuration and baseline revision); a difference means the pinned FULL
+rollback no longer describes Production and the release does not start. Also record:
 `assertLiveFunctionInventory(manifest, 'prod', live)` → 9 managed + 8 preserved + 0 unexpected; ruleset ID; Hosting
 live release/version; `production-pages` head; project IAM policy and etag; service-account list; and the
 `userPermissions` / `userPermissionAudit` baseline (expected 0 / 0; capture and verify the baseline immediately
@@ -224,14 +278,16 @@ npx firebase deploy --only functions:setUserPermissionOverrides,functions:create
 If the deploy fails midway, **do not retry or "finish" the set**; go to *Partial-failure paths*.
 
 ### Stage 3 — Verify runtime, identities and invokers
-For each of the eight: ACTIVE, GEN_2, `us-central1`, `nodejs22`, the exact runtime identity above, memory/timeout/
-concurrency unchanged for the seven existing ones. Invoker contract below. Unauthenticated POST to each → HTTP 401
+For each of the eight: ACTIVE, GEN_2, `us-central1`, `nodejs22`, the exact runtime identity above, and the complete
+intended configuration (`targetConfiguration` in the manifest: memory, CPU, timeout, concurrency, max instances,
+ingress, invoker) read back, with the seven existing ones **unchanged** from their Stage 0 values and the newly created
+revision of each serving 100% of traffic. Invoker contract below. Unauthenticated POST to each → HTTP 401
 `unauthenticated` from the application layer (never a platform 403). Deployed source equals the pinned SHA.
 `userPermissions` / `userPermissionAudit` unchanged (0 / 0). **Do not create any permission grant at this stage.**
 
 ### Stage 4 — Verify the eight Executive Functions and every non-selected Function are unchanged
-capture the complete after-snapshot (`assertSnapshotComplete(…, 'after')`: exactly 10 managed + 8 preserved, all fields valid), then run `assertSelectedFunctionsDeployed`, `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged` against the Stage 0 snapshot (incomplete evidence fails closed): revision,
-runtime, service account, invoker and update time identical for the eight Executive Functions,
+capture the complete after-snapshot (`assertSnapshotComplete(…, 'after')`: exactly 10 managed + 8 preserved, all fields valid), then run `assertSelectedFunctionsDeployed` (runtime, identity, new revision, the full configuration and 100% serving traffic), `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged` against the Stage 0 snapshot (incomplete evidence fails closed): every snapshot field (revision,
+runtime, service account, invoker, update time, configuration and traffic) identical for the eight Executive Functions,
 `aggregatePresenceSessions` and `setDashboardProjectAttention`. Any difference → STOP.
 
 ### Stage 5 — Deploy Production rules only
@@ -305,6 +361,35 @@ IAM diff exactly the eight Stage 1 bindings.
 
 ### Stage 13 — Soak
 Start the approved Production soak only after Stages 0–12 are recorded as passing.
+
+## Snapshot capture (authoritative read-back sources)
+
+One record per Function, every field **required** and normalized (validated by `assertSnapshotComplete`; the
+rollback record additionally carries `sourceTreeDigest`). Capture is read-only. Sources are the Cloud Functions API
+describe of the Gen 2 Function and the Cloud Run service that backs it (same name, lower-cased):
+
+| Field | Source | Normalized value |
+|---|---|---|
+| `runtime` | Functions describe `buildConfig.runtime` | `nodejs20` / `nodejs22` |
+| `generation` | Functions describe `environment` | exactly `GEN_2` (anything else fails) |
+| `updateTime` | Functions describe `updateTime` | RFC 3339 timestamp |
+| `revision` | Cloud Run `status.latestReadyRevisionName` | revision name |
+| `serviceAccount` | Cloud Run `spec.template.spec.serviceAccountName` | service account email |
+| `invoker` | Cloud Run IAM policy (`roles/run.invoker`) | `allUsers`, or the explicit token `none`; never empty |
+| `memory`, `cpu` | Cloud Run `spec.template.spec.containers[0].resources.limits` | `256Mi` (Mi/Gi), `1` (decimal string) |
+| `timeoutSeconds` | Cloud Run `spec.template.spec.timeoutSeconds` | positive integer |
+| `maxInstanceRequestConcurrency` | Cloud Run `spec.template.spec.containerConcurrency` | positive integer |
+| `maxInstanceCount` | Cloud Run template annotation `autoscaling.knative.dev/maxScale` | positive integer |
+| `ingress` | Cloud Run annotation `run.googleapis.com/ingress` | `ALLOW_ALL` / `ALLOW_INTERNAL_ONLY` / `ALLOW_INTERNAL_AND_GCLB` |
+| `trafficRevision`, `trafficPercent` | Cloud Run `status.traffic` | the revision holding the traffic and its percent; **a split or a non-latest revision is not 100% on the latest ready revision and fails** |
+| `sourceTreeDigest` (rollback only) | the deployed source archive, digested as above | 64-hex SHA-256 |
+
+Capture a Function by `gcloud functions describe <name> --gen2 --region us-central1 --project project-manager-dashboar-a067f --format=json`
+and `gcloud run services describe <name-lowercased> --region us-central1 --project project-manager-dashboar-a067f --format=json`.
+Any value that cannot be read from these sources, or does not parse to the normalized form, is a **STOP**: do not
+default it, round it or copy it from the baseline. These field mappings are documented here and enforced by the
+validators; they have not been exercised against live Production by this change, so the first Stage 0 capture must
+match the pinned baseline (`assertBaselineMatchesPinned`) before anything else proceeds.
 
 ## Invoker strategy
 
@@ -388,13 +473,18 @@ cd ../prod-rollback-baseline/functions && npm ci
 cd .. && npx firebase deploy --only functions:createDashboardWeek,functions:saveDashboardWeekFields,functions:saveDashboardProject,functions:deleteDashboardProject,functions:saveDashboardGanttTemplateSettings,functions:saveDashboardGanttWindowSettings,functions:setDashboardWeekRelease --project project-manager-dashboar-a067f --non-interactive
 ```
 
-**Read-back verification (required before the rollback counts).** For each of the seven, against the Stage 0 baseline
-snapshot (`assertFullRollbackVerified`):
+**Read-back verification (required before the rollback counts).** Capture the restored snapshot exactly as in
+*Snapshot capture* (plus `sourceTreeDigest`) and run `assertFullRollbackVerified` against the Stage 0 baseline
+snapshot and the pinned baseline. For each of the seven, **every** item below must be read back as an explicit
+normalized value (a missing or unparseable value fails; nothing is inferred from absence):
 
-- runtime = `nodejs20`;
+- runtime = `nodejs20`, generation = `GEN_2`;
 - runtime service account = the default compute account;
 - invoker = `allUsers` (and Cloud Run IAM check not disabled);
-- a **new** live revision is serving 100% of traffic (a redeploy happened — the baseline revision name is not accepted);
+- memory = `256Mi`, CPU = `1`, timeout = `60` s, max instance request concurrency = `80`, max instances = `20`,
+  ingress = `ALLOW_ALL` (the pinned baseline configuration above);
+- a **new** live revision (the baseline revision name is not accepted) exists, is the latest ready revision, and is
+  serving **100% of traffic** (`trafficRevision` equals the new revision, `trafficPercent` = 100);
 - source identity: the deployed source archive's `sourceTreeDigest` equals the pinned digest above;
 - expected endpoint behavior: an unauthenticated POST returns HTTP 401 `unauthenticated`, a non-Admin is denied
   project create/delete, Gantt and week-field writes, and Admin/PM release behaves as before.
