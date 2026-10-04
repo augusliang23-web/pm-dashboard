@@ -99,6 +99,23 @@ function canMutateProject({ actor, project }) {
   return normalized(actor?.role) === 'pm' && ownerOrDeputyMatches(project, actor);
 }
 
+// Project visibility (Active / Hidden / Archived) is an Admin-only editor control, and every non-Admin role only ever
+// sees Active projects. The browser hides the control, but a callable payload can still carry the field, so the server
+// holds the line: a non-Admin may save a project only with its current visibility (new projects start Active).
+// Missing, empty and 'active' all mean Active, exactly as the readers treat them. project.manage (create/delete)
+// and ownership-based editing never imply this authority.
+function effectiveVisibility(value) {
+  return value === undefined || value === null || value === '' || value === 'active' ? 'active' : value;
+}
+
+function assertVisibilityAuthority(actor, draft, liveProject) {
+  if (normalized(actor?.role) === 'admin') return;
+  if (!Object.prototype.hasOwnProperty.call(draft, 'visibility')) return;
+  if (effectiveVisibility(draft.visibility) !== effectiveVisibility(liveProject?.visibility)) {
+    throw securityError('permission-denied', 'visibility-admin-only', 'Only administrators can change project visibility.');
+  }
+}
+
 function assertDraftWeek(week) {
   if (week?.isReleased === true) {
     throw securityError('failed-precondition', 'released-week', 'Released reporting weeks cannot be changed.');
@@ -322,6 +339,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
     if (!canCreateProject(actor)) {
       throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to create projects.');
     }
+    assertVisibilityAuthority(actor, draft, undefined);
     if (projects.some(project => String(project?.code || '').trim() === code)) {
       throw securityError('already-exists', 'conflict', 'A project with this code already exists in the reporting week.');
     }
@@ -336,6 +354,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
     if (!canMutateProject({ actor, project: liveProject })) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
     }
+    assertVisibilityAuthority(actor, draft, liveProject);
     assertProjectRevision(liveProject, data.expectedRevision);
     committedProject = { ...mergePreservingUnknown(withProjectEditorRowIds(liveProject), draft), code };
   }

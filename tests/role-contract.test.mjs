@@ -10,9 +10,10 @@ import { dashboardSource } from './helpers/dashboard-source.mjs';
 const production = dashboardSource('production');
 const uat = dashboardSource('uat');
 // Frozen UAT rendering. Last deliberately changed by the User Permissions switch redesign and the week.release,
-// gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page);
+// gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
+// then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only);
 // any other UAT drift fails.
-const originalUatHash = '845a4aa1a69c75ac6b4fd0af65e293cd9a93a444d8f5a9edbb798b4c47c07775';
+const originalUatHash = '382901a8c5551ca15670d5af4a47c9907fad14f6edfd265da363527015a97fca';
 
 const validRoles = new Map([
   ['admin', 'admin'],
