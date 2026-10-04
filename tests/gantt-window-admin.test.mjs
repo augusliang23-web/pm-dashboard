@@ -16,12 +16,12 @@ test('Admin-only Gantt window settings UI is an accessible trapped dialog', () =
   assert.ok(dashboard.includes('openAccessibleModal(document.getElementById(\'ganttWindowOverlay\'))'));
 });
 
-test('window handlers recheck Admin role and auth-owned session', () => {
+test('window handlers recheck the effective gantt.manage capability and auth-owned session', () => {
   const start = dashboard.indexOf('// GANTT WINDOW SETTINGS');
   const end = dashboard.indexOf('// END GANTT WINDOW SETTINGS', start);
   const source = dashboard.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(source.includes("currentRole !== 'admin'"));
+  assert.ok(source.includes("!canCurrentUser('gantt.manage')"));
   assert.ok(source.includes('isGanttWindowSessionCurrent(session)'));
   assert.ok(source.includes('session.authUid === (currentUser?.uid || \'\')'));
   assert.ok(source.includes("document.getElementById('ganttWindowOverlay').classList.contains('open')"));
@@ -110,7 +110,7 @@ test('a single Preview control lets the admin pick any project and render the dr
   const end = dashboard.indexOf('// END GANTT WINDOW SETTINGS', start);
   const source = dashboard.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(source.includes("currentRole !== 'admin'"));
+  assert.ok(source.includes("!canCurrentUser('gantt.manage')"));
   assert.ok(source.includes('isGanttWindowSessionCurrent(session)'));
   assert.ok(source.includes('fetchOnePagerPreviewHtml('));
   assert.ok(source.includes('validateGanttWindowConfig(collectGanttWindowDraft())'));

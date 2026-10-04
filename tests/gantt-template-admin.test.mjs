@@ -18,12 +18,12 @@ test('Admin-only template settings UI is an accessible trapped dialog', () => {
   assert.ok(dashboard.includes('modalReturnFocus.focus()'));
 });
 
-test('template handlers recheck Admin role and auth-owned session', () => {
+test('template handlers recheck the effective gantt.manage capability and auth-owned session', () => {
   const start = dashboard.indexOf('// GANTT TEMPLATE SETTINGS');
   const end = dashboard.indexOf('// END GANTT TEMPLATE SETTINGS', start);
   const source = dashboard.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(source.includes("currentRole !== 'admin'"));
+  assert.ok(source.includes("!canCurrentUser('gantt.manage')"));
   assert.ok(source.includes('isGanttTemplateSessionCurrent(session)'));
   assert.ok(source.includes('session.authUid === (currentUser?.uid || \'\')'));
   assert.ok(source.includes("document.getElementById('ganttTemplateOverlay').classList.contains('open')"));
