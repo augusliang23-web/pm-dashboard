@@ -54,8 +54,8 @@ PM and other users: no User Permissions button, and a direct open does nothing.
 
 Per capability, with a temporary UAT-only target user (cleanup afterwards, audit retained):
 
-- switch ON → saves automatically, state shows ON, history shows "Off → On"; the user sees the control after
-  reloading the dashboard; the backend call succeeds;
+- switch ON → saves automatically, state shows ON, history shows "Off → On"; the backend call succeeds immediately (the user's own controls appear on their next
+  dashboard load);
 - switch OFF → saves, history shows "On → Off"; the backend call is denied immediately, even before the user reloads;
 - `week.release`: a PM starts ON; Admin switches it OFF (denied), then ON again (the stored key is removed);
 - failure → the switch returns to its previous value with a plain message; a concurrent edit → latest settings are
@@ -70,3 +70,33 @@ editing other users' projects, Executive governance.
 
 Evidence to retain: audit IDs, per-step results, before/after Function inventory, confirmation that Production
 (Functions, IAM, rules, Hosting, data) and `production-pages` were not touched.
+
+## Authenticated E2E contract (revised)
+
+The E2E is split into three layers; only the first two are in scope for PR #39.
+
+1. **Capability authorization (in scope).** For each capability, with a temporary UAT-only target user and the same
+   session throughout: ON succeeds, OFF is refused immediately, ON again succeeds. Server enforcement reads the current
+   Firestore permission state on every request, so a change applies immediately (no reload or re-login). The page says
+   "Saved. The permission change applies immediately."
+2. **Release business prerequisite (in scope as authorization evidence only).** `setDashboardWeekRelease` also needs the
+   UAT Executive live timeline (`executiveMilestoneState/live`), which UAT does not have. That absence predates
+   PR #39 and is independent of it; **it is not initialized for this work and no Executive global state is changed.**
+   - PM with Release Week ON releasing an isolated temporary week may return `FAILED_PRECONDITION` (missing Executive
+     milestone state). That is accepted as authorization evidence because it is the known business precondition and
+     not `PERMISSION_DENIED`.
+   - PM with Release Week OFF, in the same session, must return `PERMISSION_DENIED` before reaching that prerequisite.
+   - After switching ON again, the same session must again reach the business layer (the same known precondition).
+   A full successful Release-to-audience is therefore **not** claimed by this E2E.
+3. **Executive global state (out of scope).** Initializing or changing the Executive timeline is a separate change.
+
+Release Revert success and released-week project protection are proven on an isolated, uniquely prefixed temporary
+released-week fixture, created only for that run (its own `isReleased = true`, never an existing business week) and
+deleted afterwards:
+
+- Revert to Draft succeeds for a PM with Release Week ON and is refused with it OFF;
+- create project and delete project on that released week are refused for a PM holding `project.manage`.
+
+The final targeted E2E proves: the Release permission gate ON/OFF/ON live, a successful Revert on the isolated released
+fixture, and released-week create/delete protection on the same fixture. Audit records from earlier E2E runs are
+retained; presence artifacts of temporary identities are removed by exact identity only.

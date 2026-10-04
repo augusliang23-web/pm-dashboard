@@ -416,3 +416,96 @@ test('both profiles render the User Permissions entry point and overlay from one
   const uatBlock = sliceBody(PROFILES.uat, '// ── USER PERMISSIONS (Admin only) ──', '// ── WEEK MANAGEMENT COMBINED LOGIC ──');
   assert.equal(prodBlock.replace(/isAdminVipPreview/g, 'PREVIEW'), uatBlock.replace(/isAdminExecutivePreview/g, 'PREVIEW'));
 });
+
+// ── Target-selection race: the selector and the displayed/saved target can never diverge, even mid-save.
+const selectorOf = dom => dom.element('userPermissionsUserSelect');
+const detailEmail = dom => dom.element('userPermissionsEmail').textContent;
+// Whenever the detail panel is visible, the selector must show exactly the target it describes.
+function assertTargetIdentity(dom, expectedEmail, label) {
+  assert.equal(dom.element('userPermissionsDetail').hidden, false, `${label}: detail visible`);
+  assert.equal(selectorOf(dom).value, expectedEmail, `${label}: selector value`);
+  assert.equal(detailEmail(dom), expectedEmail, `${label}: detail email`);
+}
+// The browser changes a native select's value before firing its change handler; mimic that.
+const chooseInBrowser = (dom, context, email) => { selectorOf(dom).value = email; return context.window.selectUserPermissionsUser(email); };
+
+for (const profile of Object.keys(PROFILES)) {
+  test(`${profile}: race - selecting another user while a save is pending is blocked, the selector stays on the saved user, and selecting works afterwards`, async () => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const { context, dom, calls } = makeContext(profile, {
+      permissions: { 'bonnie@example.test': { overrides: {}, revision: 1 } },
+      setOverrides: async (data, store) => { await gate; return successfulCallable(data, store); },
+    });
+    await openAndSelect(context, 'bonnie@example.test');
+    assertTargetIdentity(dom, 'bonnie@example.test', 'loaded');
+    assert.equal(selectorOf(dom).disabled, false);
+
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.equal(selectorOf(dom).disabled, true, 'the selector is locked while saving');
+    assert.equal(switchOf(dom, 'week.manage').disabled, true, 'switches stay locked');
+    const readsBefore = calls.reads.length;
+
+    // The native select is disabled, but a programmatic change event must also fail closed.
+    await chooseInBrowser(dom, context, 'eng@example.test');
+    await settle();
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after attempted switch');
+    assert.equal(calls.reads.length, readsBefore, 'no Engineering permission load began');
+    assert.match(dom.element('userPermissionsMessage').textContent, /Finish saving this change before selecting another user\./);
+    // A second switch cannot reach the wrong user either.
+    flip(dom, 'week.manage', true);
+    await settle();
+    assert.equal(calls.api.length, 1, 'only the pending save was sent');
+    assert.equal(calls.api[0].targetEmail, 'bonnie@example.test');
+
+    release();
+    await settle();
+    assert.equal(selectorOf(dom).disabled, false, 'the selector is usable again');
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after save');
+    assert.equal(stateOf(dom, 'gantt.manage'), 'ON');
+    assert.equal(calls.api.length, 1);
+    assert.match(dom.element('userPermissionsMessage').textContent, /^Saved\. The permission change applies immediately\.$/);
+    flip(dom, 'week.manage', true);
+    await settle();
+    assert.equal(calls.api[1].targetEmail, 'bonnie@example.test', 'the next switch still targets the displayed user');
+
+    await chooseInBrowser(dom, context, 'eng@example.test');
+    await settle();
+    assertTargetIdentity(dom, 'eng@example.test', 'after manual selection');
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.equal(calls.api.at(-1).targetEmail, 'eng@example.test');
+  });
+
+  test(`${profile}: race - a rejected save re-enables the selector and keeps selector and detail on the original user`, async () => {
+    let reject;
+    const gate = new Promise((_, fail) => { reject = fail; });
+    const { context, dom, calls } = makeContext(profile, { setOverrides: async () => { await gate; } });
+    await openAndSelect(context, 'bonnie@example.test');
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.equal(selectorOf(dom).disabled, true);
+    await chooseInBrowser(dom, context, 'eng@example.test');
+    await settle();
+    assertTargetIdentity(dom, 'bonnie@example.test', 'pending, attempted switch');
+    reject(new TypeError('Failed to fetch'));
+    await settle();
+    assert.equal(selectorOf(dom).disabled, false);
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after rejected save');
+    assert.equal(stateOf(dom, 'gantt.manage'), 'OFF', 'the switch was put back');
+    assert.equal(calls.api.length, 1);
+  });
+
+  test(`${profile}: race - the selector always follows the loaded target, including after a revision conflict reload`, async () => {
+    const { context, dom } = makeContext(profile, {
+      permissions: { 'bonnie@example.test': { overrides: {}, revision: 1 } },
+      setOverrides: async () => { throw Object.assign(new Error('conflict'), { code: 'functions/aborted', details: { reason: 'permission-revision-conflict' } }); },
+    });
+    await openAndSelect(context, 'bonnie@example.test');
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.equal(selectorOf(dom).disabled, false);
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after conflict reload');
+  });
+}

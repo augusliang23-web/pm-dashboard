@@ -12915,8 +12915,12 @@ function renderUserPermissionsUserOptions(selectedEmail = '') {
 function renderUserPermissionsTarget() {
   const target = userPermissionsTarget;
   const detail = document.getElementById('userPermissionsDetail');
+  const select = document.getElementById('userPermissionsUserSelect');
+  // The target cannot change while a save is in flight, and the selector always shows the target that is displayed.
+  select.disabled = userPermissionsSaving !== null;
   detail.hidden = !target;
   if (!target) return;
+  if (select.value !== target.email) select.value = target.email;
   document.getElementById('userPermissionsName').textContent = target.name;
   document.getElementById('userPermissionsEmail').textContent = target.email;
   document.getElementById('userPermissionsRole').textContent = roleLabel(target.role);
@@ -13024,7 +13028,15 @@ window.openUserPermissions = async () => {
 };
 
 window.selectUserPermissionsUser = async email => {
-  if (!canManageUserPermissions() || userPermissionsSaving) return;
+  if (!canManageUserPermissions()) return;
+  if (userPermissionsSaving) {
+    // Fail closed: a selection that slips through while saving (programmatic or browser edge case) is undone, so the
+    // visible user never differs from the target being saved. Nothing is queued.
+    const select = document.getElementById('userPermissionsUserSelect');
+    if (select) select.value = userPermissionsTarget?.email || '';
+    setUserPermissionsMessage('Finish saving this change before selecting another user.', { type: 'error' });
+    return;
+  }
   const sequence = ++userPermissionsSequence;
   userPermissionsTarget = null;
   renderUserPermissionsTarget();
@@ -13064,7 +13076,7 @@ window.setUserPermissionSwitch = async (capability, desiredOn) => {
       ...target, role: result?.role || target.role, revision: storedPermissionRevision(result), stored: storedPermissionState(result?.overrides),
     };
     userPermissionsSaving = null;
-    setUserPermissionsMessage(result?.changed ? 'Saved. The change applies the next time this person loads the dashboard.' : 'Already up to date.', { type: 'success' });
+    setUserPermissionsMessage(result?.changed ? 'Saved. The permission change applies immediately.' : 'Already up to date.', { type: 'success' });
     renderUserPermissionsTarget();
     const audit = await loadUserPermissionsAudit(target.email).catch(() => null);
     if (audit && sequence === userPermissionsSequence && userPermissionsTarget?.email === target.email) {
