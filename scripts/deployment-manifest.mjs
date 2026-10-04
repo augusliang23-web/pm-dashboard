@@ -260,6 +260,59 @@ export function normalizeCloudRunExecutionEnvironmentPolicy(value) {
   throw new DeploymentManifestError('Cloud Run execution-environment policy is malformed or unsupported.');
 }
 
+// Cloud Run v2 REST responses use ProtoJSON, which omits a field holding its default. For exactly two Service booleans
+// (`reconciling`, `invokerIamDisabled`) an omitted field therefore means false. Any other representation must be a real
+// boolean; null, strings, numbers and containers are malformed evidence. This is deliberately NOT a general
+// missing-as-default rule.
+function protoJsonBoolean(value, label) {
+  if (value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  throw new DeploymentManifestError(`Observed Function evidence: ${label} must be a boolean or omitted (ProtoJSON default false).`);
+}
+
+const SERVICE_RESOURCE = /^projects\/([^/]+)\/locations\/([^/]+)\/services\/([^/]+)$/;
+const SHORT_ID = /^[a-z][a-z0-9-]*$/;
+
+// Cloud Run v2 returns `Revision.service` as the SHORT service ID; the full resource path is also legitimate. Both
+// canonicalize to the exact service resource name from the authoritative Service. No suffix or prefix matching.
+function canonicalServiceName(value, serviceName) {
+  const expected = typeof serviceName === 'string' ? serviceName.match(SERVICE_RESOURCE) : null;
+  if (!expected || typeof value !== 'string') return undefined;
+  if (value === serviceName || value === expected[3]) return serviceName;
+  return undefined;
+}
+
+// `trafficStatuses[].revision` is a SHORT revision ID on the wire; a full Revision path is also accepted. Both
+// canonicalize to the short ID of that Service's revision. A path under any other service/project/location is rejected.
+function canonicalRevisionId(value, serviceName) {
+  if (typeof value !== 'string' || !value) return undefined;
+  const prefix = `${serviceName}/revisions/`;
+  if (value.startsWith(prefix)) {
+    const id = value.slice(prefix.length);
+    return SHORT_ID.test(id) ? id : undefined;
+  }
+  return SHORT_ID.test(value) ? value : undefined;
+}
+
+// Bracketed Service reads are compared semantically: the two approved ProtoJSON booleans compare by normalized value
+// and traffic revisions compare by canonical ID. Every other field must be present and byte-identical.
+const SERVICE_STABILITY_KEYS = ['name', 'etag', 'generation', 'observedGeneration', 'terminalCondition', 'latestReadyRevision', 'latestCreatedRevision', 'ingress'];
+function comparableServiceState(service, label) {
+  const comparable = {};
+  for (const key of SERVICE_STABILITY_KEYS) {
+    if (!Object.hasOwn(service, key)) throw new DeploymentManifestError(`Observed Function evidence: Service changed or evidence missing between capture reads: ${key}`);
+    comparable[key] = service[key];
+  }
+  comparable.reconciling = protoJsonBoolean(service.reconciling, `${label}.reconciling`);
+  comparable.invokerIamDisabled = protoJsonBoolean(service.invokerIamDisabled, `${label}.invokerIamDisabled`);
+  if (!Object.hasOwn(service, 'trafficStatuses')) throw new DeploymentManifestError('Observed Function evidence: Service changed or evidence missing between capture reads: trafficStatuses');
+  comparable.trafficStatuses = Array.isArray(service.trafficStatuses)
+    ? service.trafficStatuses.map(entry => (isPlainRecord(entry)
+      ? { ...entry, revision: canonicalRevisionId(entry.revision, service.name) ?? entry.revision } : entry))
+    : service.trafficStatuses;
+  return comparable;
+}
+
 // Normalize ONLY responses obtained by GET from the named authoritative resources. Service.template and
 // requested traffic are never read. Save these raw responses in the external evidence package alongside the record.
 // Cloud Run v2 Service.ingress on GET is documented as the currently observed ingress, not the requested input.
@@ -267,24 +320,29 @@ export function buildObservedFunctionRecord({ functionResource, service, service
   const fail = message => { throw new DeploymentManifestError(`Observed Function evidence: ${message}`); };
   const f = functionResource;
   if (!f || !service || !revision || !iamPolicy) fail('missing authoritative resource');
-  for (const key of ['name', 'etag', 'generation', 'observedGeneration', 'reconciling', 'terminalCondition', 'latestReadyRevision', 'latestCreatedRevision', 'trafficStatuses', 'ingress', 'invokerIamDisabled']) {
-    if (!serviceAfter || !Object.hasOwn(service, key) || JSON.stringify(service[key]) !== JSON.stringify(serviceAfter[key])) fail(`Service changed or evidence missing between capture reads: ${key}`);
+  if (!serviceAfter) fail('Service changed or evidence missing between capture reads: serviceAfter');
+  const first = comparableServiceState(service, 'service');
+  const second = comparableServiceState(serviceAfter, 'serviceAfter');
+  for (const key of Object.keys(first)) {
+    if (JSON.stringify(first[key]) !== JSON.stringify(second[key])) fail(`Service changed or evidence missing between capture reads: ${key}`);
   }
   const serviceName = service.name;
   if (!/^projects\/[^/]+\/locations\/[^/]+\/services\/[^/]+$/.test(serviceName || '')
     || f.serviceConfig?.service !== serviceName) fail('Function and Service identities disagree');
   const ready = service.latestReadyRevision;
   if (typeof ready !== 'string' || !ready.startsWith(`${serviceName}/revisions/`)
-    || revision.name !== ready || revision.service !== serviceName) fail('Revision is not the exact latestReadyRevision of this Service');
-  const revisionName = ready.split('/').at(-1);
+    || revision.name !== ready || canonicalServiceName(revision.service, serviceName) !== serviceName) fail('Revision is not the exact latestReadyRevision of this Service');
+  const revisionName = canonicalRevisionId(ready, serviceName);
+  if (!revisionName) fail('latestReadyRevision is not a well-formed Revision of this Service');
   if (f.state !== 'ACTIVE' || f.serviceConfig?.revision !== revisionName) fail('Function is not ACTIVE on the fetched serving Revision');
-  const createdName = service.latestCreatedRevision?.startsWith(`${serviceName}/revisions/`)
-    ? service.latestCreatedRevision.split('/').at(-1) : undefined;
+  const createdName = typeof service.latestCreatedRevision === 'string' && service.latestCreatedRevision.startsWith(`${serviceName}/revisions/`)
+    ? canonicalRevisionId(service.latestCreatedRevision, serviceName) : undefined;
   const traffic = service.trafficStatuses;
-  if (!Array.isArray(traffic) || traffic.length !== 1 || traffic[0].revision !== ready || traffic[0].percent !== 100) fail('observed trafficStatuses must allocate 100% to the fetched ready Revision');
+  if (!Array.isArray(traffic) || traffic.length !== 1 || !isPlainRecord(traffic[0]) || canonicalRevisionId(traffic[0].revision, serviceName) !== revisionName || traffic[0].percent !== 100) fail('observed trafficStatuses must allocate 100% to the fetched ready Revision');
   const ingress = { INGRESS_TRAFFIC_ALL: 'ALLOW_ALL', INGRESS_TRAFFIC_INTERNAL_ONLY: 'ALLOW_INTERNAL_ONLY', INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER: 'ALLOW_INTERNAL_AND_GCLB' }[service.ingress];
   if (!ingress) fail('observed Service ingress missing or unspecified');
-  if (service.invokerIamDisabled !== false) fail('IAM invocation checks must be explicitly enabled');
+  // Omitted means ProtoJSON false. This flag never replaces the getIamPolicy evidence that supplies the invoker principal.
+  if (first.invokerIamDisabled !== false) fail('IAM invocation checks must be enabled (invokerIamDisabled must be false)');
   if (!Array.isArray(iamPolicy.bindings)) fail('IAM policy bindings missing');
   const bindings = iamPolicy.bindings.filter(b => b.role === 'roles/run.invoker');
   if (bindings.some(b => b.condition || !Array.isArray(b.members) || b.members.some(m => m !== 'allUsers'))) fail('unsupported or conditional invoker IAM state');
@@ -305,7 +363,7 @@ export function buildObservedFunctionRecord({ functionResource, service, service
     memory, cpu, timeoutSeconds, maxInstanceRequestConcurrency: revision.maxInstanceRequestConcurrency,
     maxInstanceCount: revision.scaling?.maxInstanceCount, ingress,
     cloudRunExecutionEnvironmentPolicy: normalizeCloudRunExecutionEnvironmentPolicy(revision.executionEnvironment),
-    reconciling: service.reconciling, serviceGeneration: service.generation,
+    reconciling: first.reconciling, serviceGeneration: service.generation,
     observedGeneration: service.observedGeneration, terminalConditionState: service.terminalCondition?.state,
     latestCreatedRevision: createdName, trafficRevision: revisionName, trafficPercent: traffic[0].percent,
   };
