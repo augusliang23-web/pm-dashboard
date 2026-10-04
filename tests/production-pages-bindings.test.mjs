@@ -36,7 +36,7 @@ test('index.html is bound to the Production Firebase project only', () => {
   assert.ok(!/pm-dashboard-uat/.test(html));
 });
 
-test('the permissions modules are the pinned PR #39 files and import nothing outside the Production surface', () => {
+test('the permissions modules (byte-identical to main@57ef1caa; PR #42 did not change them) and import nothing outside the Production surface', () => {
   for (const file of ['js/permission-registry.mjs', 'js/user-permissions-admin.mjs']) {
     const text = readFileSync(join(root, file), 'utf8');
     for (const specifier of [...text.matchAll(/^import\s[^;]*from\s+['"]([^'"]+)['"]/gm)].map(match => match[1])) {
