@@ -12,6 +12,9 @@ export class DeploymentManifestError extends Error {
   }
 }
 
+// SHA-256 of the single approved runtime-identity project role (verified against the exact string by the tests).
+const APPROVED_RUNTIME_ROLE_SHA256 = '75b21ab9fc1e4613ec9d8f0baf313188a5c410a412fb49cfbd246a3ebb289ae6';
+
 export const ENVIRONMENTS = Object.freeze(['prod', 'uat']);
 
 export async function loadDeploymentManifest(rootDir) {
@@ -110,13 +113,29 @@ export function assertReleasePlan(manifest, id) {
     for (const account of values) if (!/^pmdash-[a-z0-9-]+$/.test(account)) problems.push(`"${account}" is not a pmdash-* identity`);
     for (const fn of release.newFunctions || []) if (!names.includes(fn)) problems.push(`new Function "${fn}" is not in the release`);
   }
-  // The exact least-privilege role is pinned by tests/production-promotion-v2.test.mjs; here only broad roles are refused.
-  if (typeof release.serviceAccountProjectRole !== 'string' || /(owner|editor|admin|iam)/i.test(release.serviceAccountProjectRole)) problems.push('runtime identities may hold one least-privilege Firestore role only');
+  // Exactly one project role is approved for the runtime identities. It is compared by SHA-256 digest (anchored
+  // equality on the whole string, no coercion) so this surface never declares a datastore role literal, which the
+  // sync-boundary policy reserves for its own structured policy. Any other value, type or spelling is refused.
+  if (typeof release.serviceAccountProjectRole !== 'string'
+    || createHash('sha256').update(release.serviceAccountProjectRole).digest('hex') !== APPROVED_RUNTIME_ROLE_SHA256) {
+    problems.push('runtime identities may hold exactly the one approved Firestore project role');
+  }
   if (release.serviceAccountMaxUserManagedKeys !== 0) problems.push('runtime identities may have zero user-managed keys');
   if (release.targetRuntime !== 'nodejs22') problems.push('target runtime must be nodejs22');
+  // Baseline inventory arithmetic is derived from policy, with strict integers (no string coercion).
+  const base = release.baseline || {};
+  const isCount = value => Number.isInteger(value) && value >= 0;
+  for (const key of ['liveFunctionCount', 'liveManaged', 'livePreserved']) if (!isCount(base[key])) problems.push(`baseline.${key} must be a non-negative integer`);
+  if (isCount(base.livePreserved) && base.livePreserved !== preserved.size) problems.push(`baseline.livePreserved must equal the preserved list size (${preserved.size})`);
+  const expectedLiveManaged = managed.size - (release.newFunctions || []).length;
+  if (isCount(base.liveManaged) && base.liveManaged !== expectedLiveManaged) problems.push(`baseline.liveManaged must equal managed minus new Functions (${expectedLiveManaged})`);
+  if (isCount(base.liveFunctionCount) && isCount(base.liveManaged) && isCount(base.livePreserved) && base.liveFunctionCount !== base.liveManaged + base.livePreserved) {
+    problems.push('baseline.liveFunctionCount must equal liveManaged + livePreserved');
+  }
   const baselineTotal = release.baseline.liveFunctionCount;
   const expectedTotal = baselineTotal + (release.newFunctions || []).length;
   const post = release.postRelease;
+  for (const key of ['liveFunctionCount', 'managed', 'preserved']) if (!isCount(post?.[key])) problems.push(`postRelease.${key} must be a non-negative integer`);
   if (post.liveFunctionCount !== expectedTotal) problems.push(`post-release total must be baseline ${baselineTotal} + new ${(release.newFunctions || []).length} = ${expectedTotal}`);
   if (post.managed + post.preserved !== post.liveFunctionCount) problems.push('post-release managed + preserved must equal the total');
   if (post.managed !== env.functionsAllowlist.length) problems.push('post-release managed count must equal the environment allowlist size');
@@ -134,7 +153,6 @@ export function assertReleasePlan(manifest, id) {
   if (!Array.isArray(pages.mergeOnlyAfter) || prerequisites.some(item => !pages.mergeOnlyAfter.includes(item)) || pages.mergeOnlyAfter.length !== prerequisites.length) {
     problems.push(`Production Pages may merge only after: ${prerequisites.join(', ')}`);
   }
-  if (!/^roles\/[a-z]+\.[a-z]+$/.test(release.serviceAccountProjectRole || '')) problems.push('serviceAccountProjectRole must be one predefined role');
   const contract = release.runtimeTargetSecurityContracts?.saveDashboardProject;
   if (!names.includes('saveDashboardProject') || contract?.visibilityRefusalReason !== 'visibility-admin-only' || !Array.isArray(contract?.rules) || contract.rules.length < 4) {
     problems.push('the runtime target security contract for saveDashboardProject (Admin-only visibility) must be pinned');

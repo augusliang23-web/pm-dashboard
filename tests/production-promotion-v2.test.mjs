@@ -1028,3 +1028,56 @@ test('forward deployment fails when an existing Function configuration changed d
     }
   }
 });
+
+
+// ── Final validator gaps: exact runtime role and complete baseline arithmetic ───────────────────────────────
+test('assertReleasePlan accepts exactly the approved runtime role and rejects every other role or type', () => {
+  const withRole = role => { const m = clone(); m.releases[ID].serviceAccountProjectRole = role; return m; };
+  assert.doesNotThrow(() => assertReleasePlan(withRole('roles/datastore.user'), ID));
+  for (const role of [
+    'roles/pubsub.publisher', 'roles/logging.viewer', 'roles/datastore.viewer', 'roles/datastore.owner', 'roles/editor', 'roles/owner',
+    'roles/iam.serviceAccountUser', 'roles/datastore', 'roles/datastore.user ', ' roles/datastore.user', 'ROLES/DATASTORE.USER',
+    'roles/datastore.user,roles/logging.viewer', 'datastore.user', '', 'x', null, undefined, 7, ['roles/datastore.user'], { role: 'roles/datastore.user' },
+  ]) {
+    assert.throws(() => assertReleasePlan(withRole(role), ID), DeploymentManifestError, `role ${JSON.stringify(role)}`);
+  }
+});
+
+test('validateManifestAgainstSource fails an otherwise valid manifest that uses a different project role', async () => {
+  await assert.doesNotReject(validateManifestAgainstSource(repoRoot, manifest));
+  for (const role of ['roles/pubsub.publisher', 'roles/logging.viewer', 'roles/datastore.viewer', 'roles/editor']) {
+    const wrong = clone();
+    wrong.releases[ID].serviceAccountProjectRole = role;
+    await assert.rejects(validateManifestAgainstSource(repoRoot, wrong), DeploymentManifestError, role);
+  }
+});
+
+test('the role validator keeps the sync-boundary policy intact: the script holds no datastore role literal', async () => {
+  const source = await readFile(join(repoRoot, 'scripts', 'deployment-manifest.mjs'), 'utf8');
+  assert.doesNotMatch(source, /roles\s*\/\s*datastore/i);
+  const boundary = await readFile(join(repoRoot, 'scripts', 'verify-production-sync-boundary.mjs'), 'utf8');
+  assert.match(boundary, /datastore-role-outside-policy/);
+});
+
+test('baseline inventory arithmetic is enforced: live 17 = 9 managed + 8 preserved, derived from policy, strict integers only', () => {
+  assert.deepEqual([release.baseline.liveFunctionCount, release.baseline.liveManaged, release.baseline.livePreserved], [17, 9, 8]);
+  assert.equal(release.baseline.livePreserved, functionsPreservedFor(manifest, 'prod').length);
+  assert.equal(release.baseline.liveManaged, functionsAllowlistFor(manifest, 'prod').length - release.newFunctions.length);
+  const mutate = (key, value) => { const m = clone(); m.releases[ID].baseline[key] = value; return m; };
+  const cases = {
+    livePreserved: [7, 0, 9, '8', -8, 8.5, null, undefined, NaN, [8]],
+    liveManaged: [8, 10, 0, '9', -9, 9.5, null, undefined, NaN],
+    liveFunctionCount: [16, 18, 0, '17', -17, 17.5, null, undefined, NaN],
+  };
+  for (const [key, values] of Object.entries(cases)) {
+    for (const value of values) assert.throws(() => assertReleasePlan(mutate(key, value), ID), DeploymentManifestError, `${key}=${String(value)}`);
+  }
+  // Post-release counts must also be strict integers (no string concatenation surprises).
+  for (const key of ['liveFunctionCount', 'managed', 'preserved']) {
+    for (const value of ['18', 18.5, -1, null]) {
+      const m = clone(); m.releases[ID].postRelease[key] = value;
+      assert.throws(() => assertReleasePlan(m, ID), DeploymentManifestError, `postRelease.${key}=${String(value)}`);
+    }
+  }
+  assert.doesNotThrow(() => assertReleasePlan(manifest, ID));
+});
