@@ -399,6 +399,29 @@ never fill fields from desired Service templates. Capture Service twice (before 
 IAM and archive reads). Require identical Service generation, etag, ready/created revisions and trafficStatuses
 across those reads; if any changed, discard the evidence and recapture. Keep raw JSON and timestamps externally.
 
+**Real Cloud Run v2 REST representations (observed read-only across all 17 Production Functions).** The builder
+accepts exactly these shapes and nothing looser:
+
+- `reconciling` and `invokerIamDisabled` are ProtoJSON booleans that the Service GET **omits when false**. For these two
+  fields only, omitted normalizes to `false`, explicit `false` is `false`, and explicit `true` fails. `null`, strings,
+  numbers, arrays and objects are malformed and fail. Missing-as-default is NOT applied to any other field. The serving
+  contract is unchanged (`reconciling === false`, `invokerIamDisabled === false`), and `invokerIamDisabled` never
+  replaces the `getIamPolicy` evidence that supplies the invoker principal.
+- `Revision.service` is the **short service ID**; the full `projects/<p>/locations/<l>/services/<s>` path is also
+  accepted. Both must canonicalize, by exact comparison, to the authoritative `Service.name`. A different service,
+  project or location, a suffix or prefix spoof, a malformed path and any non-string fail.
+- `trafficStatuses[].revision` is the **short revision ID**; the full Revision path of this Service is also accepted.
+  Exactly one observed target must canonicalize to the exact `latestReadyRevision` at 100%; any other revision, split
+  traffic or percent other than 100 fails. `latestReadyRevision`, `latestCreatedRevision` and `Revision.name` remain full
+  resource paths.
+- The two Service reads are compared **semantically**: the two approved booleans compare by normalized value (omitted
+  equals explicit `false`) and traffic revisions compare by canonical ID; every other stability field must be present and
+  identical. `executionEnvironment`, `scaling.maxInstanceCount` (Revision only) and Function generation are unchanged.
+
+This representation fix supersedes the earlier reviewed release-plan SHA/digest (`ddc6ee87…` /
+`48eff7a4…`) for execution only after it is independently reviewed and merged; the Control Plane must then record a new
+reviewed `REVIEWED_RELEASE_PLAN_SHA` and digest externally. Production execution remains unauthorized.
+
 | Field | Authoritative source | Normalized value |
 |---|---|---|
 | `functionRuntime`, `functionGeneration`, `updateTime` | Cloud Functions v2 GET `buildConfig.runtime`, `environment`, `updateTime`; state ACTIVE and `serviceConfig.revision` must match fetched Revision | Node runtime, `GEN_2`, timestamp |

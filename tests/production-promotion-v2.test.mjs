@@ -1167,6 +1167,146 @@ test('flattened snapshots cannot bypass reconciliation checks in forward deploym
   }
 });
 
+// ── Real Cloud Run v2 REST shapes (observed read-only in Production, all 17 Functions) ─────────────────────────────
+// ProtoJSON omits `reconciling` and `invokerIamDisabled` when false, Revision.service is the SHORT service ID, and
+// trafficStatuses[].revision is the SHORT revision ID. latestReadyRevision / latestCreatedRevision / Revision.name stay full paths.
+function productionShaped(fn, normalizedRecord) {
+  const resources = observedResources(fn, normalizedRecord);
+  const shortRevision = normalizedRecord.revision;
+  delete resources.service.reconciling; delete resources.service.invokerIamDisabled;
+  resources.service.trafficStatuses = [{ type: 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', revision: shortRevision, percent: 100 }];
+  resources.revision.service = fn.toLowerCase();
+  resources.serviceAfter = structuredClone(resources.service);
+  return resources;
+}
+const shapedMutation = (fn, edit, { both = true } = {}) => {
+  const resources = productionShaped(fn, baselineRecord(fn));
+  edit(resources);
+  if (both) resources.serviceAfter = structuredClone(resources.service);
+  return resources;
+};
+
+test('real Production-shaped REST fixtures normalize to the pinned baseline for all seven release Functions', () => {
+  for (const fn of SEVEN) {
+    const resources = productionShaped(fn, baselineRecord(fn));
+    assert.equal(Object.hasOwn(resources.service, 'reconciling'), false);
+    assert.equal(Object.hasOwn(resources.service, 'invokerIamDisabled'), false);
+    assert.deepEqual(buildObservedFunctionRecord(resources), baselineRecord(fn), fn);
+    assert.equal(buildObservedFunctionRecord(resources).reconciling, false, 'omitted reconciling is the ProtoJSON default false');
+  }
+});
+
+test('omitted vs explicit false for reconciling and invokerIamDisabled are equivalent, per read and across the bracket', () => {
+  const fn = 'saveDashboardProject';
+  const expected = baselineRecord(fn);
+  for (const [first, second] of [[undefined, undefined], [false, false], [undefined, false], [false, undefined]]) {
+    for (const key of ['reconciling', 'invokerIamDisabled']) {
+      const resources = shapedMutation(fn, r => { if (first !== undefined) r.service[key] = first; }, { both: false });
+      if (second !== undefined) resources.serviceAfter[key] = second;
+      assert.deepEqual(buildObservedFunctionRecord(resources), expected, `${key}: ${first}/${second}`);
+    }
+  }
+});
+
+test('reconciling and invokerIamDisabled reject true and every malformed representation', () => {
+  const fn = 'saveDashboardProject';
+  for (const key of ['reconciling', 'invokerIamDisabled']) {
+    for (const value of [true, null, 'false', 'true', 0, 1, [], [false], {}, { value: false }]) {
+      expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { r.service[key] = value; })), `${key}=${JSON.stringify(value)}`);
+      expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { r.serviceAfter = structuredClone(r.service); r.serviceAfter[key] = value; }, { both: false })), `${key} second read=${JSON.stringify(value)}`);
+    }
+  }
+});
+
+test('the missing-as-default rule is limited to the two approved booleans: every other Service key must be present and identical', () => {
+  const fn = 'saveDashboardProject';
+  for (const key of ['name', 'etag', 'generation', 'observedGeneration', 'terminalCondition', 'latestReadyRevision', 'latestCreatedRevision', 'trafficStatuses', 'ingress']) {
+    expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { delete r.service[key]; })), `missing ${key}`);
+    const second = shapedMutation(fn, () => {}, { both: false }); delete second.serviceAfter[key];
+    expectFail(() => buildObservedFunctionRecord(second), `missing ${key} in second read`);
+  }
+});
+
+test('two bracket reads that differ semantically are rejected', () => {
+  const fn = 'saveDashboardProject';
+  for (const edit of [
+    r => { r.serviceAfter.etag = 'concurrent'; },
+    r => { r.serviceAfter.generation = '8'; },
+    r => { r.serviceAfter.observedGeneration = '8'; },
+    r => { r.serviceAfter.reconciling = true; },
+    r => { r.serviceAfter.invokerIamDisabled = true; },
+    r => { r.serviceAfter.terminalCondition = { state: 'CONDITION_FAILED' }; },
+    r => { r.serviceAfter.latestReadyRevision = `${r.service.name}/revisions/${fn.toLowerCase()}-00099-zzz`; },
+    r => { r.serviceAfter.latestCreatedRevision = `${r.service.name}/revisions/${fn.toLowerCase()}-00099-zzz`; },
+    r => { r.serviceAfter.trafficStatuses[0].percent = 99; },
+    r => { r.serviceAfter.trafficStatuses[0].revision = 'someother-00001-aaa'; },
+    r => { r.serviceAfter.ingress = 'INGRESS_TRAFFIC_INTERNAL_ONLY'; },
+    r => { r.serviceAfter.name = `${r.service.name}x`; },
+  ]) expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, edit, { both: false })));
+  expectFail(() => buildObservedFunctionRecord({ ...productionShaped(fn, baselineRecord(fn)), serviceAfter: undefined }), 'missing second read');
+});
+
+test('Revision.service accepts only the short ID or the full path of THIS Service', () => {
+  const fn = 'saveDashboardProject';
+  const short = fn.toLowerCase();
+  const full = `projects/${PROJECT}/locations/us-central1/services/${short}`;
+  for (const value of [short, full]) {
+    assert.deepEqual(buildObservedFunctionRecord(shapedMutation(fn, r => { r.revision.service = value; })), baselineRecord(fn), value);
+  }
+  for (const value of [
+    'deletedashboardproject', `x${short}`, `${short}x`, `evil/${short}`, `${short}/`, `/${short}`, `${full}/`, `${full}/extra`, `x${full}`,
+    `projects/other-project/locations/us-central1/services/${short}`, `projects/${PROJECT}/locations/europe-west1/services/${short}`,
+    `projects/${PROJECT}/locations/us-central1/services/other`, `projects/${PROJECT}/services/${short}`,
+    `projects/${PROJECT}/locations/us-central1/services/${short}/revisions/${short}-00007-hit`,
+    '', null, undefined, 7, {}, [short], short.toUpperCase(),
+  ]) expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { r.revision.service = value; })), `Revision.service=${JSON.stringify(value)}`);
+});
+
+test('trafficStatuses revision accepts the short ID or full path of the ready Revision, mixed across reads, and nothing else', () => {
+  const fn = 'saveDashboardProject';
+  const baseline = baselineRecord(fn);
+  const full = `projects/${PROJECT}/locations/us-central1/services/${fn.toLowerCase()}/revisions/${baseline.revision}`;
+  for (const [first, second] of [[baseline.revision, baseline.revision], [full, full], [baseline.revision, full], [full, baseline.revision]]) {
+    const resources = shapedMutation(fn, r => { r.service.trafficStatuses[0].revision = first; }, { both: false });
+    resources.serviceAfter.trafficStatuses[0].revision = second;
+    assert.deepEqual(buildObservedFunctionRecord(resources), baseline, `${first} / ${second}`);
+  }
+  for (const value of [
+    `${fn.toLowerCase()}-00001-aaa`, 'other-00007-hit', `x${baseline.revision}`, `${baseline.revision}x`, `evil/${baseline.revision}`, `${full}/`,
+    `projects/${PROJECT}/locations/us-central1/services/otherservice/revisions/${baseline.revision}`,
+    `projects/other-project/locations/us-central1/services/${fn.toLowerCase()}/revisions/${baseline.revision}`,
+    '', null, undefined, 7, {}, [baseline.revision],
+  ]) expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { r.service.trafficStatuses[0].revision = value; })), `traffic revision=${JSON.stringify(value)}`);
+});
+
+test('Production-shaped serving state still rejects split traffic, partial percent, unready creation and Revision identity mismatch', () => {
+  const fn = 'saveDashboardProject';
+  const full = r => `${r.service.name}/revisions`;
+  for (const edit of [
+    r => { r.service.trafficStatuses.push({ type: 'TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION', revision: 'saveprevious-00001-aaa', percent: 1 }); r.service.trafficStatuses[0].percent = 99; },
+    r => { r.service.trafficStatuses.push({ revision: r.service.trafficStatuses[0].revision, percent: 0 }); },
+    r => { r.service.trafficStatuses[0].percent = 99; },
+    r => { r.service.trafficStatuses[0].percent = 0; },
+    r => { r.service.trafficStatuses[0].percent = '100'; },
+    r => { r.service.trafficStatuses = []; },
+    r => { r.service.latestCreatedRevision = `${full(r)}/${fn.toLowerCase()}-00008-new`; },
+    r => { r.revision.name = `${full(r)}/${fn.toLowerCase()}-00099-zzz`; },
+    r => { r.functionResource.serviceConfig.revision = `${fn.toLowerCase()}-00099-zzz`; },
+    r => { r.service.terminalCondition.state = 'CONDITION_RECONCILING'; },
+    r => { r.service.observedGeneration = '6'; },
+  ]) expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, edit)));
+});
+
+test('the Revision, not Service.template, still supplies maxInstanceCount, and executionEnvironment keeps its reviewed normalization', () => {
+  const fn = 'saveDashboardProject';
+  const resources = shapedMutation(fn, r => { r.service.template = { scaling: { maxInstanceCount: 999 } }; r.revision.scaling.maxInstanceCount = 20; });
+  const built = buildObservedFunctionRecord(resources);
+  assert.equal(built.maxInstanceCount, 20);
+  assert.equal(built.cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_UNSPECIFIED');
+  assert.equal(built.functionGeneration, 'GEN_2');
+  expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { delete r.revision.scaling; })), 'no Service.template fallback');
+});
+
 // Trust boundary 2: execute the operator's shell block OUTSIDE the checkout. No repository validator is imported
 // by this harness before HEAD and tracked cleanliness are proved. The throwaway validator only writes a sentinel.
 const externalBootstrap = runbook.match(/# BEGIN EXTERNAL CONTROL PLANE BOOTSTRAP\n([\s\S]*?)# END EXTERNAL CONTROL PLANE BOOTSTRAP/)?.[1];
