@@ -62,11 +62,11 @@ test('Production never deploys the Production-to-UAT sync Callables (Control Pla
   assert.deepEqual([...syncFunctions].sort(), [...prod.functionsNeverDeploy.productionWeekSync].sort());
 });
 
-test('Production keeps exactly the eight-function dashboard write/Gantt contract plus the shared presence scheduler', () => {
+test('Production manages exactly the eight-function dashboard write/Gantt contract, the Admin permission callable and the shared presence scheduler', () => {
   assert.deepEqual(functionsAllowlistFor(manifest, 'prod'), [
     'aggregatePresenceSessions', 'createDashboardWeek', 'deleteDashboardProject', 'saveDashboardGanttTemplateSettings',
     'saveDashboardGanttWindowSettings', 'saveDashboardProject', 'saveDashboardWeekFields', 'setDashboardProjectAttention',
-    'setDashboardWeekRelease'
+    'setDashboardWeekRelease', 'setUserPermissionOverrides'
   ].sort());
 });
 
@@ -197,10 +197,36 @@ test('this module never exposes a way to actually run a Functions deploy (source
   assert.doesNotMatch(source, /child_process|spawn|execFile|exec\(/, 'deployment-manifest.mjs must stay a pure allowlist/validator, not a deploy runner');
 });
 
-test('the Admin permission callable is UAT-managed and fail-closed for Production until its promotion gate', () => {
+test('the Admin permission callable is promoted to Production-managed without changing any other classification', () => {
   const prod = manifest.environments.prod;
   assert.ok(functionsAllowlistFor(manifest, 'uat').includes('setUserPermissionOverrides'));
-  assert.ok(!functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
-  assert.deepEqual(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, ['setUserPermissionOverrides']);
-  assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides']), DeploymentManifestError);
+  assert.ok(functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
+  assert.equal(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, undefined, 'the pending gate is retired');
+  assert.deepEqual(Object.keys(prod.functionsNeverDeploy), ['productionWeekSync']);
+  assert.deepEqual([...prod.functionsNeverDeploy.productionWeekSync].sort(),
+    ['getProductionWeekSyncStatus', 'restoreUatWeeksSnapshot', 'syncProductionWeeksToUat']);
+  assert.deepEqual([...prod.functionsPreserveExisting].sort(), [
+    'addExecutiveMilestoneUpdate', 'applyDirectExecutiveMilestoneChange', 'createExecutiveMilestoneChangeRequest',
+    'decideExecutiveMilestoneChangeRequest', 'initializeExecutiveMilestoneLiveTimeline', 'saveExecutiveMilestoneTimelineConfig',
+    'setExecutiveRagOverride', 'withdrawExecutiveMilestoneChangeRequest',
+  ]);
+});
+
+test('the User Permissions Production release selector is exactly three managed Functions and excludes Release/Revert', () => {
+  const selector = buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides', 'createDashboardWeek', 'saveDashboardWeekFields']);
+  assert.equal(selector, 'functions:setUserPermissionOverrides,functions:createDashboardWeek,functions:saveDashboardWeekFields');
+  assert.doesNotMatch(selector, /setDashboardWeekRelease|Executive|ProductionWeekSync|UatWeeksSnapshot/);
+  for (const denied of ['syncProductionWeeksToUat', 'getProductionWeekSyncStatus', 'restoreUatWeeksSnapshot', 'initializeExecutiveMilestoneLiveTimeline']) {
+    assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides', denied]), DeploymentManifestError);
+  }
+});
+
+test('after the User Permissions release the expected Production inventory is 10 managed plus 8 preserved', () => {
+  const prod = manifest.environments.prod;
+  const live = [...functionsAllowlistFor(manifest, 'prod'), ...prod.functionsPreserveExisting];
+  const result = assertLiveFunctionInventory(manifest, 'prod', live);
+  assert.equal(live.length, 18);
+  assert.equal(result.managed.length, 10);
+  assert.equal(result.preserved.length, 8);
+  assert.deepEqual(result.unexpected, []);
 });
