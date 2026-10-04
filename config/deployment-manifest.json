@@ -15,7 +15,8 @@
         "saveDashboardWeekFields",
         "createDashboardWeek",
         "saveDashboardGanttTemplateSettings",
-        "saveDashboardGanttWindowSettings"
+        "saveDashboardGanttWindowSettings",
+        "setUserPermissionOverrides"
       ],
       "functionsPreserveExisting": [
         "addExecutiveMilestoneUpdate",
@@ -32,9 +33,6 @@
           "syncProductionWeeksToUat",
           "getProductionWeekSyncStatus",
           "restoreUatWeeksSnapshot"
-        ],
-        "userPermissionsPendingProductionGate": [
-          "setUserPermissionOverrides"
         ]
       }
     },
@@ -72,10 +70,92 @@
   },
   "notes": [
     "This manifest is a source-of-truth allowlist only. It does not grant, prove, or perform any deployment.",
-    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11) plus the shared presence scheduler.",
+    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11), the shared presence scheduler, and the Admin permission callable setUserPermissionOverrides (moved from the pending gate by the User Permissions V2 promotion). Being allowlisted does NOT authorize deploying every managed Function: each release names its reviewed subset under `releases`.",
     "Production's functionsPreserveExisting explicitly permits the eight existing Executive Functions to remain live, but does not authorize deploying, updating, or deleting them as part of Core Production. Executive has a separate future release/security gate.",
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
-    "setUserPermissionOverrides (Admin User Permissions) is UAT-first: Production lists it under functionsNeverDeploy.userPermissionsPendingProductionGate until a separate Control Plane promotion moves it to the Production allowlist together with its pmdash-user-perms@ runtime identity.",
+    "setUserPermissionOverrides (Admin User Permissions) is Production-managed from the User Permissions V2 promotion onward; it deploys only with its dedicated pmdash-user-perms@ runtime identity as part of the reviewed `releases.userPermissionsV2` subset.",
     "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization."
-  ]
+  ],
+  "releases": {
+    "userPermissionsV2": {
+      "description": "Production promotion of User Permissions V2 (PR #39 on main 1c2ec79). Release plan only; the manifest never performs a deployment.",
+      "environment": "prod",
+      "sourceMainSha": "1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32",
+      "functions": [
+        "setUserPermissionOverrides",
+        "createDashboardWeek",
+        "saveDashboardWeekFields",
+        "saveDashboardProject",
+        "deleteDashboardProject",
+        "saveDashboardGanttTemplateSettings",
+        "saveDashboardGanttWindowSettings",
+        "setDashboardWeekRelease"
+      ],
+      "newFunctions": [
+        "setUserPermissionOverrides"
+      ],
+      "targetRuntime": "nodejs22",
+      "runtimeServiceAccounts": {
+        "setUserPermissionOverrides": "pmdash-user-perms",
+        "createDashboardWeek": "pmdash-create-week",
+        "saveDashboardWeekFields": "pmdash-week-fields",
+        "saveDashboardProject": "pmdash-save-project",
+        "deleteDashboardProject": "pmdash-delete-project",
+        "saveDashboardGanttTemplateSettings": "pmdash-gantt-template",
+        "saveDashboardGanttWindowSettings": "pmdash-gantt-window",
+        "setDashboardWeekRelease": "pmdash-week-release"
+      },
+      "serviceAccountProjectRole": "roles/datastore.user",
+      "serviceAccountMaxUserManagedKeys": 0,
+      "untouchedManagedFunctions": [
+        "aggregatePresenceSessions",
+        "setDashboardProjectAttention"
+      ],
+      "rulesDeployRequired": true,
+      "rulesFile": "firestore.rules",
+      "hostingDeployRequired": true,
+      "productionPages": {
+        "pullRequest": 40,
+        "separateReleaseSurface": true,
+        "mergeOnlyAfter": [
+          "functions",
+          "rules",
+          "hosting",
+          "authenticatedSmoke"
+        ]
+      },
+      "baseline": {
+        "liveFunctionCount": 17,
+        "liveManaged": 9,
+        "livePreserved": 8,
+        "rulesetId": "7ed64612-dc1c-4856-baf1-f627972046b6",
+        "hostingRelease": "1790984982984000",
+        "hostingVersion": "d8b102f996a1366b",
+        "hostingMessage": "prod d345008",
+        "iamEtag": "BwZcleH3jJo=",
+        "productionPagesSha": "932c6e2bda17acad9ffc8fc0153421dcd93410dd",
+        "runtime": "nodejs20",
+        "runtimeServiceAccount": "default-compute",
+        "priorRevisions": {
+          "createDashboardWeek": "createdashboardweek-00005-yap",
+          "saveDashboardWeekFields": "savedashboardweekfields-00005-yul",
+          "saveDashboardProject": "savedashboardproject-00007-hit",
+          "deleteDashboardProject": "deletedashboardproject-00005-rix",
+          "saveDashboardGanttTemplateSettings": "savedashboardgantttemplatesettings-00004-fix",
+          "saveDashboardGanttWindowSettings": "savedashboardganttwindowsettings-00002-pir",
+          "setDashboardWeekRelease": "setdashboardweekrelease-00005-qey"
+        }
+      },
+      "postRelease": {
+        "liveFunctionCount": 18,
+        "managed": 10,
+        "preserved": 8
+      },
+      "rollback": {
+        "rulesetId": "7ed64612-dc1c-4856-baf1-f627972046b6",
+        "hostingVersion": "d8b102f996a1366b",
+        "hostingRelease": "1790984982984000"
+      }
+    }
+  }
 }
