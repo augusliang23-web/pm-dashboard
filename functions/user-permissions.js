@@ -91,7 +91,7 @@ function planPermissionChange({ targetRole, current, changes }) {
   const entries = [];
   for (const [capability, value] of Object.entries(changes)) {
     const definition = CAPABILITIES[capability];
-    if (targetRole === 'admin' && definition.roleDefaults.includes('admin')) {
+    if (targetRole === 'admin' && definition.adminLocked === true && definition.roleDefaults.includes('admin')) {
       throw permissionError('failed-precondition', 'admin-capability-locked', `Admin access to ${definition.label} cannot be changed.`);
     }
     if (value === true && !definition.grantableRoles.includes(targetRole)) {

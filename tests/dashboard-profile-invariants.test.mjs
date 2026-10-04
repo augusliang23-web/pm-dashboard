@@ -54,6 +54,26 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   'saveWeekSummary',
   'createNewWeekFromManage',
   'initData',
+  // Delegable capabilities gantt.manage and project.manage (tests/delegated-capabilities-ui.test.mjs): the Gantt
+  // settings handlers recheck the effective gantt.manage capability instead of a raw Admin role, and the project
+  // editor's save/delete handlers honor the delete-only mode and the effective project.manage capability.
+  'isGanttTemplateSessionCurrent',
+  'openGanttTemplateSettings',
+  'addGanttTemplateRow',
+  'moveGanttTemplateRow',
+  'deleteGanttTemplateRow',
+  'saveGanttTemplateSettings',
+  'isGanttWindowSessionCurrent',
+  'openGanttWindowSettings',
+  'addGanttWindowOverrideRow',
+  'removeGanttWindowOverrideRow',
+  'saveGanttWindowSettings',
+  'previewGanttWindowSettings',
+  'saveProjEdit',
+  'deleteProject',
+  // Release Week capability (tests/week-release-visibility.test.mjs): the week banner's Release / Revert controls
+  // follow the effective week.release capability (Admin and PM by role default).
+  'renderNormal',
   // Production week release least-privilege hotfix: the week banner renders Release to VIP / Revert to Draft
   // for Admin/PM only (status stays visible) and toggleReleaseWeek fails closed for everyone else
   // (tests/week-release-visibility.test.mjs).

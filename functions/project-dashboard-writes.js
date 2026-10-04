@@ -105,16 +105,29 @@ function assertDraftWeek(week) {
   }
 }
 
-function canSetWeekRelease(role) {
-  return ['admin', 'pm'].includes(normalized(role));
+// Delegable capability checks accept the authenticated actor (role + server-read overrides). A bare role string
+// resolves the role default only, with no overrides.
+function asActor(actorOrRole) {
+  return typeof actorOrRole === 'string' ? { role: actorOrRole, permissionOverrides: {} } : actorOrRole;
 }
 
-function canDeleteProject(role) {
-  return normalized(role) === 'admin';
+// Effective week.release: Admin and PM by default; an Admin may switch it off for a PM or on for another working role.
+function canSetWeekRelease(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'week.release');
 }
 
-function canCreateProject(role) {
-  return normalized(role) === 'admin';
+// Effective project.manage: Admin by default. Covers creating and deleting projects only.
+function canDeleteProject(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'project.manage');
+}
+
+function canCreateProject(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'project.manage');
+}
+
+// Effective gantt.manage: Admin by default. Covers the default Gantt templates and the Gantt display window.
+function canManageGantt(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'gantt.manage');
 }
 
 // Raw-role Admin only: week fields outside the Manage Weeks workflow (the strategy layer).
@@ -306,8 +319,8 @@ function buildProjectPatch(week, data, actor, nowIso) {
   let targetIndex = -1;
 
   if (data.isNew === true) {
-    if (!canCreateProject(actor.role)) {
-      throw securityError('permission-denied', 'role-forbidden', 'Only administrators can create projects.');
+    if (!canCreateProject(actor)) {
+      throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to create projects.');
     }
     if (projects.some(project => String(project?.code || '').trim() === code)) {
       throw securityError('already-exists', 'conflict', 'A project with this code already exists in the reporting week.');
@@ -415,8 +428,8 @@ function normalizeGanttTemplateNames(value, label) {
 
 function buildGanttTemplateSettingsPatch(liveSettings, data, actor) {
   assertActor(actor);
-  if (normalized(actor.role) !== 'admin') {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update default Gantt templates.');
+  if (!canManageGantt(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Gantt permission is required to update default Gantt templates.');
   }
   assertBoundedJson(data);
   assertAllowedKeys(data, ['expectedRevision', 'config'], 'Gantt template request');
@@ -469,8 +482,8 @@ function normalizeGanttWindowOverrides(value) {
 
 function buildGanttWindowSettingsPatch(liveSettings, data, actor) {
   assertActor(actor);
-  if (normalized(actor.role) !== 'admin') {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can update the Gantt display window settings.');
+  if (!canManageGantt(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Gantt permission is required to update the Gantt display window settings.');
   }
   assertBoundedJson(data);
   assertAllowedKeys(data, ['expectedRevision', 'defaultMonths', 'overrides'], 'Gantt window request');
@@ -522,8 +535,8 @@ const deleteDashboardProject = dashboardOnCall('pmdash-delete-project@', async r
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'originalCode'], 'Project delete request');
-  if (!canDeleteProject(actor.role)) {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can delete projects.');
+  if (!canDeleteProject(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to delete projects.');
   }
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -582,8 +595,8 @@ const setDashboardWeekRelease = dashboardOnCall('pmdash-week-release@', async re
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'isReleased'], 'Week release request');
-  if (!canSetWeekRelease(actor.role)) {
-    throw securityError('permission-denied', 'role-forbidden', 'Only PMs and administrators can change release status.');
+  if (!canSetWeekRelease(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Release Week permission is required to change release status.');
   }
   if (typeof request.data.isReleased !== 'boolean') {
     throw securityError('invalid-argument', 'invalid-payload', 'Release state must be true or false.');
@@ -662,7 +675,7 @@ module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
   buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
   buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
-  canManageWeekFields, canManageWeeks, identityTokens, ownerOrDeputyMatches, ownershipTokens,
+  canManageWeekFields, canManageWeeks, canManageGantt, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,
