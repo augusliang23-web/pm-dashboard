@@ -62,11 +62,11 @@ test('Production never deploys the Production-to-UAT sync Callables (Control Pla
   assert.deepEqual([...syncFunctions].sort(), [...prod.functionsNeverDeploy.productionWeekSync].sort());
 });
 
-test('Production keeps exactly the eight-function dashboard write/Gantt contract plus the shared presence scheduler', () => {
+test('Production manages exactly ten Functions: the eight-function dashboard contract, the presence scheduler and the Admin permission callable', () => {
   assert.deepEqual(functionsAllowlistFor(manifest, 'prod'), [
     'aggregatePresenceSessions', 'createDashboardWeek', 'deleteDashboardProject', 'saveDashboardGanttTemplateSettings',
     'saveDashboardGanttWindowSettings', 'saveDashboardProject', 'saveDashboardWeekFields', 'setDashboardProjectAttention',
-    'setDashboardWeekRelease'
+    'setDashboardWeekRelease', 'setUserPermissionOverrides'
   ].sort());
 });
 
@@ -197,10 +197,11 @@ test('this module never exposes a way to actually run a Functions deploy (source
   assert.doesNotMatch(source, /child_process|spawn|execFile|exec\(/, 'deployment-manifest.mjs must stay a pure allowlist/validator, not a deploy runner');
 });
 
-test('the Admin permission callable is UAT-managed and fail-closed for Production until its promotion gate', () => {
+test('the Admin permission callable is managed in both environments and no longer sits behind a pending gate', () => {
   const prod = manifest.environments.prod;
   assert.ok(functionsAllowlistFor(manifest, 'uat').includes('setUserPermissionOverrides'));
-  assert.ok(!functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
-  assert.deepEqual(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, ['setUserPermissionOverrides']);
-  assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides']), DeploymentManifestError);
+  assert.ok(functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
+  assert.equal(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, undefined);
+  assert.deepEqual(Object.keys(prod.functionsNeverDeploy), ['productionWeekSync']);
+  assert.equal(buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides']), 'functions:setUserPermissionOverrides');
 });

@@ -15,7 +15,8 @@
         "saveDashboardWeekFields",
         "createDashboardWeek",
         "saveDashboardGanttTemplateSettings",
-        "saveDashboardGanttWindowSettings"
+        "saveDashboardGanttWindowSettings",
+        "setUserPermissionOverrides"
       ],
       "functionsPreserveExisting": [
         "addExecutiveMilestoneUpdate",
@@ -32,9 +33,6 @@
           "syncProductionWeeksToUat",
           "getProductionWeekSyncStatus",
           "restoreUatWeeksSnapshot"
-        ],
-        "userPermissionsPendingProductionGate": [
-          "setUserPermissionOverrides"
         ]
       }
     },
@@ -72,10 +70,182 @@
   },
   "notes": [
     "This manifest is a source-of-truth allowlist only. It does not grant, prove, or perform any deployment.",
-    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11) plus the shared presence scheduler.",
+    "Production's functionsAllowlist is the 8 dashboard write/Gantt Callables (the eight-function deployment contract, PROD PR #11), the shared presence scheduler, and the Admin permission callable setUserPermissionOverrides (moved from the pending gate by the User Permissions V2 promotion). Being allowlisted does NOT authorize deploying every managed Function: each release names its reviewed subset under `releases`.",
     "Production's functionsPreserveExisting explicitly permits the eight existing Executive Functions to remain live, but does not authorize deploying, updating, or deleting them as part of Core Production. Executive has a separate future release/security gate.",
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
-    "setUserPermissionOverrides (Admin User Permissions) is UAT-first: Production lists it under functionsNeverDeploy.userPermissionsPendingProductionGate until a separate Control Plane promotion moves it to the Production allowlist together with its pmdash-user-perms@ runtime identity.",
+    "setUserPermissionOverrides (Admin User Permissions) is Production-managed from the User Permissions V2 promotion onward; it deploys only with its dedicated pmdash-user-perms@ runtime identity as part of the reviewed `releases.userPermissionsV2` subset.",
     "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization."
-  ]
+  ],
+  "releases": {
+    "userPermissionsV2": {
+      "description": "Production promotion of User Permissions V2. Runtime target source is main 57ef1caa (PR #39 + PR #42). Release plan only; the manifest never performs a deployment.",
+      "environment": "prod",
+      "runtimeTargetSourceSha": "57ef1caad37c186adfe8536b6cb22d6302fdfc21",
+      "runtimeTargetIncludedPullRequests": [
+        39,
+        42
+      ],
+      "runtimeTargetSecurityContracts": {
+        "saveDashboardProject": {
+          "pullRequest": 42,
+          "visibilityRefusalReason": "visibility-admin-only",
+          "rules": [
+            "non-Admin project visibility cannot change (create must start Active; edit must echo the live visibility)",
+            "project.manage grants create/delete only and never visibility authority",
+            "ownership-based editing never grants visibility authority",
+            "Admin behavior is unchanged"
+          ],
+          "runtimeSourceFile": "functions/project-dashboard-writes.js",
+          "runtimeContractTest": "functions/test/project-visibility-authority.test.cjs"
+        }
+      },
+      "runtimeTargetHostingContract": {
+        "pullRequest": 42,
+        "conflictReload": "a failed conflict reload must not claim fresh settings; it hides stale detail and requires the Admin to reselect the user"
+      },
+      "functions": [
+        "setUserPermissionOverrides",
+        "createDashboardWeek",
+        "saveDashboardWeekFields",
+        "saveDashboardProject",
+        "deleteDashboardProject",
+        "saveDashboardGanttTemplateSettings",
+        "saveDashboardGanttWindowSettings",
+        "setDashboardWeekRelease"
+      ],
+      "newFunctions": [
+        "setUserPermissionOverrides"
+      ],
+      "targetRuntime": "nodejs22",
+      "targetConfiguration": {
+        "invoker": "allUsers",
+        "config": {
+          "memory": "256Mi",
+          "cpu": "1",
+          "timeoutSeconds": 60,
+          "maxInstanceRequestConcurrency": 80,
+          "maxInstanceCount": 20,
+          "ingress": "ALLOW_ALL"
+        },
+        "functionRuntime": "nodejs22",
+        "functionGeneration": "GEN_2",
+        "cloudRunExecutionEnvironmentPolicy": "EXECUTION_ENVIRONMENT_UNSPECIFIED"
+      },
+      "runtimeServiceAccounts": {
+        "setUserPermissionOverrides": "pmdash-user-perms",
+        "createDashboardWeek": "pmdash-create-week",
+        "saveDashboardWeekFields": "pmdash-week-fields",
+        "saveDashboardProject": "pmdash-save-project",
+        "deleteDashboardProject": "pmdash-delete-project",
+        "saveDashboardGanttTemplateSettings": "pmdash-gantt-template",
+        "saveDashboardGanttWindowSettings": "pmdash-gantt-window",
+        "setDashboardWeekRelease": "pmdash-week-release"
+      },
+      "serviceAccountProjectRole": "roles/datastore.user",
+      "serviceAccountMaxUserManagedKeys": 0,
+      "untouchedManagedFunctions": [
+        "aggregatePresenceSessions",
+        "setDashboardProjectAttention"
+      ],
+      "rulesDeployRequired": true,
+      "rulesFile": "firestore.rules",
+      "hostingDeployRequired": true,
+      "productionPages": {
+        "pullRequest": 40,
+        "separateReleaseSurface": true,
+        "mergeOnlyAfter": [
+          "functions",
+          "rules",
+          "hosting",
+          "authenticatedSmoke"
+        ]
+      },
+      "baseline": {
+        "liveFunctionCount": 17,
+        "liveManaged": 9,
+        "livePreserved": 8,
+        "rulesetId": "7ed64612-dc1c-4856-baf1-f627972046b6",
+        "hostingRelease": "1790984982984000",
+        "hostingVersion": "d8b102f996a1366b",
+        "hostingMessage": "prod d345008",
+        "iamEtag": "BwZcleH3jJo=",
+        "productionPagesSha": "932c6e2bda17acad9ffc8fc0153421dcd93410dd",
+        "runtime": "nodejs20",
+        "runtimeServiceAccount": "default-compute",
+        "priorRevisions": {
+          "createDashboardWeek": "createdashboardweek-00005-yap",
+          "saveDashboardWeekFields": "savedashboardweekfields-00005-yul",
+          "saveDashboardProject": "savedashboardproject-00007-hit",
+          "deleteDashboardProject": "deletedashboardproject-00005-rix",
+          "saveDashboardGanttTemplateSettings": "savedashboardgantttemplatesettings-00004-fix",
+          "saveDashboardGanttWindowSettings": "savedashboardganttwindowsettings-00002-pir",
+          "setDashboardWeekRelease": "setdashboardweekrelease-00005-qey"
+        }
+      },
+      "postRelease": {
+        "liveFunctionCount": 18,
+        "managed": 10,
+        "preserved": 8
+      },
+      "rollback": {
+        "rulesetId": "7ed64612-dc1c-4856-baf1-f627972046b6",
+        "hostingVersion": "d8b102f996a1366b",
+        "hostingRelease": "1790984982984000"
+      },
+      "executionFreeze": {
+        "rule": "Four separate identities: runtime target source 57ef1caa; external post-merge REVIEWED_RELEASE_PLAN_SHA; execution freeze exactly equal to that reviewed SHA; independently pinned live rollback baseline. Layer 0 is operator-controlled Git/shell outside repository code: exact actual HEAD and clean detached checkout, before importing any repository JavaScript. Any later commit, including plan-only edits, requires new approval and pin. Repository digest and runtime-target diff checks are SECONDARY defense-in-depth after bootstrap; plan-only paths describe differences from the older runtime target, never permission to edit after review.",
+        "planOnlyFiles": [
+          "config/deployment-manifest.json",
+          "scripts/deployment-manifest.mjs"
+        ],
+        "planOnlyPrefixes": [
+          "docs/",
+          "tests/"
+        ],
+        "reviewedReleasePlan": {
+          "recordedOutsideRepository": true,
+          "freezeMustEqualReviewedSha": true,
+          "safetyCriticalFiles": [
+            "config/deployment-manifest.json",
+            "scripts/deployment-manifest.mjs",
+            "docs/production-user-permissions-v2-promotion.md",
+            "tests/deployment-manifest.test.mjs",
+            "tests/production-promotion-v2.test.mjs"
+          ],
+          "externalBootstrapRequired": true
+        }
+      },
+      "rollbackBaseline": {
+        "fullRollbackMethod": "PINNED_BASELINE_SOURCE_PLUS_CONFIG_REDEPLOYMENT",
+        "trafficShiftClassification": "EMERGENCY_MITIGATION_ONLY",
+        "sourceCommit": "f4244beedacb9f6cc40addc533c3e8316e56aa96",
+        "sourceTreeDigest": "e4e00a1d17b7f6ceceaf25288a830c220c2be854ff02295487c4bc951bdfcb11",
+        "sourceZipSha256": "0138d5864a6f1da3056a032535efdaef33374b1a09a64d1bcade767e70ed3123",
+        "sourceGenerations": {
+          "createDashboardWeek": "1789829964702697",
+          "saveDashboardWeekFields": "1789829963699468",
+          "saveDashboardProject": "1789829926382837",
+          "deleteDashboardProject": "1789829964511063",
+          "saveDashboardGanttTemplateSettings": "1789829964661401",
+          "saveDashboardGanttWindowSettings": "1789829964615634",
+          "setDashboardWeekRelease": "1789829964752030"
+        },
+        "nodeEngine": "20",
+        "serviceAccount": "842441149281-compute@developer.gserviceaccount.com",
+        "invoker": "allUsers",
+        "config": {
+          "memory": "256Mi",
+          "cpu": "1",
+          "timeoutSeconds": 60,
+          "maxInstanceRequestConcurrency": 80,
+          "maxInstanceCount": 20,
+          "ingress": "ALLOW_ALL"
+        },
+        "node20DeployBlockedAfter": "2026-10-30",
+        "functionRuntime": "nodejs20",
+        "functionGeneration": "GEN_2",
+        "cloudRunExecutionEnvironmentPolicy": "EXECUTION_ENVIRONMENT_UNSPECIFIED"
+      }
+    }
+  }
 }
