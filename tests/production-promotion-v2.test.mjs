@@ -863,7 +863,7 @@ async function mutatedPlan(file, edit) {
 }
 const passesGate = async (root, over = {}) => assertExecutionFreeze(manifest, ID, { ...(await freezeInputs(root, over)) });
 
-test('an unchanged reviewed plan passes the execution gate, and the real repository plan digests deterministically', async () => {
+test('SECONDARY digest checks pass for identical reviewed content after an external trusted bootstrap', async () => {
   assert.equal(await computeReleasePlanDigest(repoRoot), await computeReleasePlanDigest(repoRoot));
   assert.match(await computeReleasePlanDigest(repoRoot), /^[0-9a-f]{64}$/);
   const root = await planCopy();
@@ -1175,7 +1175,7 @@ async function bootstrapFixture() {
   const holder = await mkdtemp(join(tmpdir(), 'external-release-bootstrap-'));
   const root = join(holder, 'checkout'); await mkdir(join(root, 'scripts'), { recursive: true });
   const marker = join(holder, 'validator-imported');
-  await writeFile(join(root, 'scripts/deployment-manifest.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(process.env.EXTERNAL_TEST_MARKER, 'IMPORTED'); export const assertExecutionFreeze = () => true;\n`);
+  await writeFile(join(root, 'scripts/deployment-manifest.mjs'), `${await readFile(join(repoRoot, 'scripts/deployment-manifest.mjs'), 'utf8')}\nimport { writeFileSync } from 'node:fs'; writeFileSync(process.env.EXTERNAL_TEST_MARKER, 'IMPORTED');\n`);
   for (const path of [...SAFETY_CRITICAL_PLAN_FILES.filter(p => p !== 'scripts/deployment-manifest.mjs'), 'README.md']) {
     await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), 'reviewed fixture\n');
   }
@@ -1207,7 +1207,19 @@ test('different freeze SHA and dirty tracked checkout fail BEFORE repository cod
 test('circular trust attack: self-modified validator drops all SHA/digest enforcement; external bootstrap still refuses before import', async () => {
   const fixture = await bootstrapFixture();
   try {
-    await writeFile(join(fixture.root, 'scripts/deployment-manifest.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(process.env.EXTERNAL_TEST_MARKER, 'ATTACK RAN'); export const assertExecutionFreeze = () => true; export const computeReleasePlanDigest = () => 'FAKE';\n`);
+    const validatorPath = join(fixture.root, 'scripts/deployment-manifest.mjs');
+    const original = await readFile(validatorPath, 'utf8');
+    assert.match(original, /freezeSha !== reviewedReleasePlanSha/);
+    assert.match(original, /digest !== reviewedReleasePlanDigest/);
+    const start = original.indexOf('export async function assertExecutionFreeze(');
+    const end = original.indexOf('// Dedicated runtime identities', start);
+    assert.ok(start >= 0 && end > start);
+    await writeFile(validatorPath, original.slice(0, start) + 'export async function assertExecutionFreeze() { return true; }\n\n' + original.slice(end));
+    // Prove the actual modified validator would accept a bogus freeze if imported directly (the former circular design).
+    const bypass = spawnSync(process.execPath, ['--input-type=module', '-e', "const m = await import('./scripts/deployment-manifest.mjs'); if (await m.assertExecutionFreeze({}, 'userPermissionsV2', { freezeSha: 'different' }) !== true) process.exit(1);"],
+      { cwd: fixture.root, encoding: 'utf8', env: { ...process.env, EXTERNAL_TEST_MARKER: fixture.marker } });
+    assert.equal(bypass.status, 0); assert.equal(await fixture.imported(), true);
+    await rm(fixture.marker);
     // Both dirty and committed attacks are refused by Git, regardless of the validator's return value.
     assert.notEqual(fixture.run().status, 0); assert.equal(await fixture.imported(), false);
     fixture.git('add', '.'); fixture.git('commit', '-m', 'remove all enforcement');
