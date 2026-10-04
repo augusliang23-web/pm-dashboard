@@ -13091,13 +13091,22 @@ window.setUserPermissionSwitch = async (capability, desiredOn) => {
       const reloadSequence = ++userPermissionsSequence;
       userPermissionsTarget = null;
       renderUserPermissionsTarget();
+      let reloaded = false;
       try {
-        await loadUserPermissionsTarget(target, reloadSequence);
+        reloaded = await loadUserPermissionsTarget(target, reloadSequence);
       } catch (reloadError) {
         console.error('User Permissions reload failed:', reloadError);
       }
       if (reloadSequence !== userPermissionsSequence) return;
-      setUserPermissionsMessage('These settings were changed by someone else. The latest settings are shown; please try again.', { type: 'error' });
+      if (reloaded) {
+        setUserPermissionsMessage('These settings were changed by someone else. The latest settings are shown; please try again.', { type: 'error' });
+        return;
+      }
+      // Fail closed: nothing is displayed, so the selector goes back to its placeholder (re-picking the same user must
+      // fire a change) and the message never claims fresh settings that were not loaded.
+      const select = document.getElementById('userPermissionsUserSelect');
+      if (select) select.value = '';
+      setUserPermissionsMessage('These settings were changed by someone else, and the latest settings could not be loaded. Select the user again to review them.', { type: 'error' });
       return;
     }
     setUserPermissionsMessage(getCallableErrorMessage(error, 'Unable to save this change. The switch was put back.'), { type: 'error' });

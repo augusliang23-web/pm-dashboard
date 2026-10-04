@@ -508,4 +508,147 @@ for (const profile of Object.keys(PROFILES)) {
     assert.equal(selectorOf(dom).disabled, false);
     assertTargetIdentity(dom, 'bonnie@example.test', 'after conflict reload');
   });
+
+  // ── Captured-target regression. Each user gets a distinct stored revision, so a callable payload that ever reached
+  // another user would show up in the email AND the revision.
+  const TARGET_PERMISSIONS = {
+    'bonnie@example.test': { overrides: {}, revision: 3 },
+    'eng@example.test': { overrides: {}, revision: 7 },
+    'vip@example.test': { overrides: {}, revision: 11 },
+  };
+  const untouched = (store, email) => JSON.stringify(store.permissions[email]) === JSON.stringify(TARGET_PERMISSIONS[email]);
+
+  test(`${profile}: race - the saved target is the one captured at click time, even if the selector already shows another user`, async () => {
+    const { context, dom, calls, store } = makeContext(profile, { permissions: TARGET_PERMISSIONS, setOverrides: successfulCallable });
+    await openAndSelect(context, 'bonnie@example.test');
+    assertTargetIdentity(dom, 'bonnie@example.test', 'loaded');
+    // The selector value drifts to another user without the change handler having run (programmatic / out-of-order event).
+    selectorOf(dom).value = 'eng@example.test';
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.equal(calls.api.length, 1, 'exactly one callable call');
+    assert.equal(calls.api[0].targetEmail, 'bonnie@example.test', 'the payload targets the displayed/captured user');
+    assert.equal(calls.api[0].expectedRevision, 3, 'with that user\'s revision, not the drifted selection\'s');
+    assert.ok(untouched(store, 'eng@example.test'), 'the drifted-to user was never written');
+    assert.equal(store.permissions['bonnie@example.test'].overrides['gantt.manage'], true);
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after save: the selector is reconciled to the saved target');
+  });
+
+  test(`${profile}: race - the callable payload is built only from the target captured at click time, never from the selector or later state`, () => {
+    const body = sliceBody(PROFILES[profile], 'window.setUserPermissionSwitch = async', '\n};\n');
+    // renderUserPermissionsTarget() reconciles a drifted selector before the payload is read, so a payload built from the
+    // selector would be indistinguishable in behavior; this pins the construction itself.
+    assert.match(body, /const target = userPermissionsTarget;\n/, 'the target is captured once, before anything else');
+    const beforeSend = body.slice(0, body.indexOf('await userPermissionsApi.setOverrides('));
+    assert.ok(beforeSend.length > 0 && body.includes('await userPermissionsApi.setOverrides('), 'the send is located');
+    assert.doesNotMatch(beforeSend, /userPermissionsUserSelect|userPermissionsUsers/, 'nothing before the send consults the selector or the user list');
+    const send = body.match(/await userPermissionsApi\.setOverrides\(\{([^}]*)\}\)/)?.[1];
+    assert.equal(send?.replace(/\s+/g, ' ').trim(), 'targetEmail: target.email, expectedRevision: target.revision, changes: change');
+    // Everything applied after the answer is tied to the same captured target and the session sequence.
+    assert.match(body, /userPermissionsTarget = \{\n\s+\.\.\.target, role: result\?\.role \|\| target\.role/);
+    assert.match(body, /await loadUserPermissionsAudit\(target\.email\)/);
+  });
+
+  for (const outcome of ['resolves', 'rejects']) {
+    test(`${profile}: race - while a save for User A is pending nothing is sent or queued for User B, and the save ${outcome}`, async () => {
+      let finish;
+      const gate = new Promise(resolve => { finish = resolve; });
+      const { context, dom, calls, store } = makeContext(profile, {
+        permissions: TARGET_PERMISSIONS,
+        setOverrides: async (data, liveStore) => {
+          await gate;
+          if (outcome === 'rejects') throw new TypeError('Failed to fetch');
+          return successfulCallable(data, liveStore);
+        },
+      });
+      await openAndSelect(context, 'bonnie@example.test');
+      flip(dom, 'gantt.manage', true);
+      await settle();
+      assert.equal(calls.api.length, 1);
+      const readsBefore = calls.reads.length;
+
+      // Every way of reaching for User B while A is in flight: direct call, browser-order change, rapid alternation,
+      // and a programmatic switch change after the selector value was moved.
+      await context.window.selectUserPermissionsUser('eng@example.test');
+      await chooseInBrowser(dom, context, 'eng@example.test');
+      for (const email of ['vip@example.test', 'eng@example.test', 'vip@example.test', 'eng@example.test', 'eng@example.test']) {
+        await context.window.selectUserPermissionsUser(email);
+      }
+      selectorOf(dom).value = 'eng@example.test';
+      await context.window.setUserPermissionSwitch('week.manage', true);
+      await context.window.setUserPermissionSwitch('project.manage', true);
+      flip(dom, 'week.manage', true);
+      await settle();
+      assert.equal(calls.api.length, 1, 'only User A\'s pending save exists');
+      assert.equal(calls.reads.length, readsBefore, 'no permission load began for User B');
+
+      finish();
+      await settle();
+      await new Promise(resolve => setTimeout(resolve, 25)); // a deferred retry or queued operation would surface here
+      await settle();
+      assert.equal(calls.api.length, 1, 'no queued or retried call appeared after the save settled');
+      assert.equal(calls.api[0].targetEmail, 'bonnie@example.test');
+      assert.equal(calls.api[0].expectedRevision, 3);
+      for (const other of ['eng@example.test', 'vip@example.test']) {
+        assert.ok(untouched(store, other), `${other} was never written`);
+        assert.equal(calls.reads.includes(`userPermissions/${other}`), false, `${other}'s permissions were never even loaded`);
+      }
+      assertTargetIdentity(dom, 'bonnie@example.test', `after the save ${outcome}`);
+      assert.equal(selectorOf(dom).disabled, false);
+      assert.equal(stateOf(dom, 'gantt.manage'), outcome === 'resolves' ? 'ON' : 'OFF');
+      assert.equal(stateOf(dom, 'week.manage'), 'OFF', 'the attempted out-of-turn switch changes were not applied either');
+      // Selecting User B deliberately afterwards works, and targets B with B's own revision.
+      await chooseInBrowser(dom, context, 'eng@example.test');
+      await settle();
+      assertTargetIdentity(dom, 'eng@example.test', 'after deliberate selection');
+      context.userPermissionsApi.setOverrides = async data => { calls.api.push(structuredClone(data)); return successfulCallable(data, store); };
+      flip(dom, 'gantt.manage', true);
+      await settle();
+      assert.equal(calls.api.length, 2);
+      assert.deepEqual([calls.api[1].targetEmail, calls.api[1].expectedRevision], ['eng@example.test', 7]);
+    });
+  }
+
+  test(`${profile}: a conflict whose reload fails never claims fresh settings, fails closed and lets the same user be selected again`, async () => {
+    const { context, dom, calls, store } = makeContext(profile, {
+      permissions: TARGET_PERMISSIONS,
+      setOverrides: async () => { throw Object.assign(new Error('conflict'), { code: 'functions/aborted', details: { reason: 'permission-revision-conflict' } }); },
+    });
+    await openAndSelect(context, 'bonnie@example.test');
+    const realGetDoc = context.getDoc;
+    context.getDoc = async () => { throw new Error('offline'); }; // the authoritative reload itself fails
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    const message = dom.element('userPermissionsMessage');
+    assert.doesNotMatch(message.textContent, /latest settings are shown/, 'must not claim settings that were not loaded');
+    assert.match(message.textContent, /changed by someone else, and the latest settings could not be loaded\. Select the user again/);
+    assert.ok(message.classList.contains('error'));
+    assert.equal(dom.element('userPermissionsDetail').hidden, true, 'nothing stale is displayed');
+    assert.equal(selectorOf(dom).value, '', 'selector returns to its placeholder so the same user can be picked again');
+    assert.equal(selectorOf(dom).disabled, false);
+    assert.equal(calls.api.length, 1, 'no automatic retry');
+    assert.ok(untouched(store, 'bonnie@example.test'), 'and nothing was written');
+    // Recovery: selecting the same user again loads authoritative state and clears the message.
+    context.getDoc = realGetDoc;
+    await chooseInBrowser(dom, context, 'bonnie@example.test');
+    await settle();
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after re-selecting the same user');
+    assert.equal(message.textContent, '');
+  });
+
+  test(`${profile}: a conflict whose reload succeeds still shows the latest settings and says so`, async () => {
+    const { context, dom } = makeContext(profile, {
+      permissions: TARGET_PERMISSIONS,
+      setOverrides: async (_data, liveStore) => {
+        liveStore.permissions['bonnie@example.test'] = { overrides: { 'project.manage': true }, revision: 4 };
+        throw Object.assign(new Error('conflict'), { code: 'functions/aborted', details: { reason: 'permission-revision-conflict' } });
+      },
+    });
+    await openAndSelect(context, 'bonnie@example.test');
+    flip(dom, 'gantt.manage', true);
+    await settle();
+    assert.match(dom.element('userPermissionsMessage').textContent, /changed by someone else\. The latest settings are shown/);
+    assertTargetIdentity(dom, 'bonnie@example.test', 'after a successful reload');
+    assert.equal(stateOf(dom, 'project.manage'), 'ON');
+  });
 }

@@ -21,7 +21,9 @@ separately authorized step; nothing here touches Production.
   UAT/shared rules therefore have no `week.release`/`project.manage` condition.
 - The capabilities are independent: `project.manage` implies neither `week.manage`, `week.release` nor draft reads.
 - Out of every capability: editing an existing project (owner/deputy, or Admin), an Admin editing any project, the
-  project visibility selector (Admin-only UI), Gantt viewing and per-project schedules, the strategy layer,
+  project visibility (Active / Hidden / Archived: Admin-only in the editor **and enforced by the server** — a non-Admin
+  may save a project only with its current visibility, new projects start Active, otherwise
+  `permission-denied` / `visibility-admin-only`), Gantt viewing and per-project schedules, the strategy layer,
   Production→UAT sync/restore, Executive governance and `permissions.manage` (never delegable).
 - A PM holding `project.manage` who may not edit a project (not owner/deputy, not Admin) gets a delete-only editor
   (Save hidden; the server still refuses edits by non-owners). Released weeks stay locked for create and delete.
@@ -42,8 +44,13 @@ functions:setUserPermissionOverrides,functions:saveDashboardProject,functions:de
    verify ACTIVE/GEN_2/us-central1, runtime SA per Function, unchanged invoker (`setUserPermissionOverrides` keeps
    its disabled invoker check; the others keep `allUsers`), unauthenticated probes return 401, non-selected
    Functions unchanged.
-3. **No Firestore rules deployment is required.** After this contract the UAT/shared rules files are identical to
-   `main`, and Production `firestore.rules` is unchanged.
+3. **No Firestore rules deployment is required for this UAT step.** PR #39 does not itself change any rules file: the
+   UAT/shared rules files and the Production `firestore.rules` are the same as on `main`.
+   **This is a statement about the source diff, not about live Production.** Live Production (Hosting Release #3, ruleset
+   `7ed64612-dc1c-4856-baf1-f627972046b6`) predates the `userPermissions` / `userPermissionAudit` rules and the
+   normalized Admin-role check that are already on `main`. The eventual Production promotion therefore **does** require
+   deploying the current Production `firestore.rules` (its own stage, with the prior ruleset recorded as the rollback
+   reference); it is not a no-op. Nothing in this document deploys rules.
 4. UAT Hosting through `npm run deploy:hosting:uat:dry` then `npm run deploy:hosting:uat`.
 
 ## Validation checklist
@@ -66,7 +73,8 @@ Per capability, with a temporary UAT-only target user (cleanup afterwards, audit
   editing another owner's project is still refused.
 
 Negative checks (must stay denied): `permissions.manage`, Production→UAT sync/restore, strategy-layer writes,
-editing other users' projects, Executive governance.
+editing other users' projects, setting a project to Hidden/Archived as a non-Admin (even with `project.manage`),
+Executive governance.
 
 Evidence to retain: audit IDs, per-step results, before/after Function inventory, confirmation that Production
 (Functions, IAM, rules, Hosting, data) and `production-pages` were not touched.
