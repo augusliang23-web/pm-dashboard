@@ -249,11 +249,11 @@ const afterNames = expectedAfterNames(manifest, ID);
 const record = (fn, over = {}) => {
   const revision = over.revision ?? `${fn.toLowerCase()}-00001-aaa`;
   return {
-    runtime: 'nodejs20', revision, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
-    invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', generation: 'GEN_2',
+    functionRuntime: 'nodejs20', revision, serviceAccount: '842441149281-compute@developer.gserviceaccount.com',
+    invoker: 'allUsers', updateTime: '2026-09-19T14:59:45Z', functionGeneration: 'GEN_2',
     memory: '256Mi', cpu: '1', timeoutSeconds: 60, maxInstanceRequestConcurrency: 80, maxInstanceCount: 20, ingress: 'ALLOW_ALL',
     trafficRevision: revision, trafficPercent: 100, reconciling: false, serviceGeneration: '7', observedGeneration: '7',
-    terminalConditionState: 'CONDITION_SUCCEEDED', latestCreatedRevision: revision, executionEnvironment: 'EXECUTION_ENVIRONMENT_GEN2', ...over,
+    terminalConditionState: 'CONDITION_SUCCEEDED', latestCreatedRevision: revision, cloudRunExecutionEnvironmentPolicy: 'EXECUTION_ENVIRONMENT_UNSPECIFIED', ...over,
   };
 };
 // The seven existing Functions read back as the pinned baseline: the revisions the plan pins.
@@ -262,7 +262,7 @@ const beforeSnapshot = () => Object.fromEntries(beforeNames.map(fn => [fn, basel
 function afterSnapshot() {
   const snap = Object.fromEntries(afterNames.map(fn => [fn, baselineRecord(fn)]));
   for (const fn of EIGHT) {
-    snap[fn] = record(fn, { runtime: 'nodejs22', revision: `${fn.toLowerCase()}-00002-bbb`, serviceAccount: `${IDENTITIES[fn]}@${PROJECT}.iam.gserviceaccount.com`, updateTime: '2026-10-10T01:00:00Z' });
+    snap[fn] = record(fn, { functionRuntime: 'nodejs22', revision: `${fn.toLowerCase()}-00002-bbb`, serviceAccount: `${IDENTITIES[fn]}@${PROJECT}.iam.gserviceaccount.com`, updateTime: '2026-10-10T01:00:00Z' });
   }
   return snap;
 }
@@ -315,7 +315,7 @@ test('a required field missing from before only, after only, or both is rejected
 });
 
 test('invalid field values are rejected: empty, null, number, array, bad runtime, bad timestamp', () => {
-  const bad = { runtime: ['', null, 22, 'node20', 'nodejs'], revision: ['', null, 'Bad Revision!'], serviceAccount: ['', null, 'has space'], invoker: ['', null, undefined, 'all users'], updateTime: ['', 'yesterday', null, 5] };
+  const bad = { functionRuntime: ['', null, 22, 'node20', 'nodejs'], revision: ['', null, 'Bad Revision!'], serviceAccount: ['', null, 'has space'], invoker: ['', null, undefined, 'all users'], updateTime: ['', 'yesterday', null, 5] };
   for (const [field, values] of Object.entries(bad)) {
     for (const value of values) {
       const before = beforeSnapshot();
@@ -370,7 +370,7 @@ test('any change to a preserved or non-selected Function is rejected, and select
   for (const fn of [...EXECUTIVE, 'setDashboardProjectAttention', 'aggregatePresenceSessions']) {
     for (const field of FIELDS) {
       const before = beforeSnapshot(); const after = afterSnapshot();
-      after[fn][field] = field === 'runtime' ? 'nodejs22' : field === 'updateTime' ? '2026-12-01T00:00:00Z' : `${after[fn][field]}-changed`;
+      after[fn][field] = field === 'functionRuntime' ? 'nodejs22' : field === 'updateTime' ? '2026-12-01T00:00:00Z' : `${after[fn][field]}-changed`;
       expectFail(() => assertNonSelectedUnchanged(manifest, ID, before, after), `${fn}.${field}`);
       if (EXECUTIVE.includes(fn)) expectFail(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), `${fn}.${field}`);
     }
@@ -379,7 +379,7 @@ test('any change to a preserved or non-selected Function is rejected, and select
 
 test('selected Functions must end on nodejs22, their dedicated identity and a new revision', () => {
   for (const [edit, label] of [
-    [(after) => { after.createDashboardWeek.runtime = 'nodejs20'; }, 'runtime'],
+    [(after) => { after.createDashboardWeek.functionRuntime = 'nodejs20'; }, 'functionRuntime'],
     [(after) => { after.saveDashboardProject.serviceAccount = '842441149281-compute@developer.gserviceaccount.com'; }, 'identity'],
     [(after) => { after.setDashboardWeekRelease.revision = after.setDashboardWeekRelease.trafficRevision = release.baseline.priorRevisions.setDashboardWeekRelease; }, 'no new revision'],
     [(after) => { after.setUserPermissionOverrides.serviceAccount = `pmdash-create-week@${PROJECT}.iam.gserviceaccount.com`; }, 'wrong identity'],
@@ -423,7 +423,7 @@ test('a traffic-only restore (baseline revision serving) is never accepted as a 
 
 test('full rollback verification fails on any wrong runtime, identity, invoker, source identity or incomplete evidence', () => {
   for (const fn of SEVEN) {
-    for (const [field, value] of [['runtime', 'nodejs22'], ['serviceAccount', `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`], ['invoker', 'none'], ['sourceTreeDigest', 'f'.repeat(64)]]) {
+    for (const [field, value] of [['functionRuntime', 'nodejs22'], ['serviceAccount', `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`], ['invoker', 'none'], ['sourceTreeDigest', 'f'.repeat(64)]]) {
       const restored = restoredSnapshot(); restored[fn][field] = value;
       expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field}`);
     }
@@ -679,7 +679,7 @@ test('the live rollback baseline is NOT replaced by the new runtime target', () 
     saveDashboardGanttTemplateSettings: 'savedashboardgantttemplatesettings-00004-fix',
     saveDashboardGanttWindowSettings: 'savedashboardganttwindowsettings-00002-pir', setDashboardWeekRelease: 'setdashboardweekrelease-00005-qey',
   });
-  assert.equal(release.rollbackBaseline.runtime, 'nodejs20');
+  assert.equal(release.rollbackBaseline.functionRuntime, 'nodejs20');
   assert.match(runbook, /live Production rollback baseline is \*\*not\*\* changed|rollback baseline is \*\*not\*\* changed/);
 });
 
@@ -708,11 +708,11 @@ test('release plan validation requires the runtime-target security contract and 
 
 // ── Final safety remediation, blocker 1: FULL rollback proves the complete runtime configuration ────────────────
 const CONFIG_WRONG = {
-  generation: 'GEN_1', memory: '512Mi', cpu: '2', timeoutSeconds: 540, maxInstanceRequestConcurrency: 1, maxInstanceCount: 100, ingress: 'ALLOW_INTERNAL_ONLY',
-  runtime: 'nodejs22', invoker: 'none', serviceAccount: `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`,
+  functionGeneration: 'GEN_1', memory: '512Mi', cpu: '2', timeoutSeconds: 540, maxInstanceRequestConcurrency: 1, maxInstanceCount: 100, ingress: 'ALLOW_INTERNAL_ONLY',
+  functionRuntime: 'nodejs22', invoker: 'none', serviceAccount: `pmdash-save-project@${PROJECT}.iam.gserviceaccount.com`,
 };
 const NOT_NORMALIZED = {
-  generation: ['GEN_1', 'gen_2', 2, null], memory: ['256M', '256MB', '0Mi', 256, '', null], cpu: [1, '0', '1 ', '', null],
+  functionGeneration: ['GEN_1', 'gen_2', 2, null], memory: ['256M', '256MB', '0Mi', 256, '', null], cpu: [1, '0', '1 ', '', null],
   timeoutSeconds: ['60', 0, -1, 60.5, null, NaN], maxInstanceRequestConcurrency: ['80', 0, null], maxInstanceCount: ['20', 0, 1.5, null],
   ingress: ['allow_all', 'ALL', '', null], trafficRevision: ['', 'Bad Rev', null], trafficPercent: [50, 0, '100', 101, null],
 };
@@ -720,9 +720,9 @@ const NOT_NORMALIZED = {
 test('FULL rollback reads back the complete pinned configuration: runtime, Gen 2, identity, invoker, memory, CPU, timeout, concurrency, max instances, ingress', () => {
   assert.deepEqual(CONFIG_FIELDS, ['memory', 'cpu', 'timeoutSeconds', 'maxInstanceRequestConcurrency', 'maxInstanceCount', 'ingress']);
   assert.deepEqual(pinned.config, { memory: '256Mi', cpu: '1', timeoutSeconds: 60, maxInstanceRequestConcurrency: 80, maxInstanceCount: 20, ingress: 'ALLOW_ALL' });
-  assert.equal(pinned.generation, 'GEN_2');
+  assert.equal(pinned.functionGeneration, 'GEN_2');
   assert.equal(assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restoredSnapshot()), true);
-  for (const field of ['generation', ...CONFIG_FIELDS, 'runtime', 'invoker', 'serviceAccount']) {
+  for (const field of ['functionGeneration', ...CONFIG_FIELDS, 'functionRuntime', 'invoker', 'serviceAccount']) {
     for (const fn of SEVEN) {
       const restored = restoredSnapshot(); restored[fn][field] = CONFIG_WRONG[field];
       expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field} wrong`);
@@ -770,7 +770,7 @@ test('FULL rollback requires the newly redeployed revision to serve 100% of traf
 test('the Stage 0 baseline must itself read back as the pinned rollback baseline, otherwise no rollback can verify', () => {
   assert.equal(assertBaselineMatchesPinned(manifest, ID, beforeSnapshot()), true);
   for (const fn of SEVEN) {
-    for (const field of ['generation', 'runtime', 'invoker', 'serviceAccount', ...CONFIG_FIELDS]) {
+    for (const field of ['functionGeneration', 'functionRuntime', 'invoker', 'serviceAccount', ...CONFIG_FIELDS]) {
       const baseline = beforeSnapshot(); baseline[fn][field] = CONFIG_WRONG[field];
       expectFail(() => assertBaselineMatchesPinned(manifest, ID, baseline), `${fn}.${field} drifted from the pinned baseline`);
       expectFail(() => assertFullRollbackVerified(manifest, ID, baseline, restoredSnapshot()), `${fn}.${field} baseline drift blocks rollback verification`);
@@ -793,7 +793,7 @@ test('snapshots reject any Function whose latest ready revision is not serving 1
 
 test('non-selected and preserved Functions: a changed configuration, ingress or traffic is a failure', () => {
   for (const fn of [...EXECUTIVE, 'setDashboardProjectAttention', 'aggregatePresenceSessions']) {
-    for (const field of [...CONFIG_FIELDS, 'generation', 'trafficRevision', 'trafficPercent']) {
+    for (const field of [...CONFIG_FIELDS, 'functionGeneration', 'trafficRevision', 'trafficPercent']) {
       const after = afterSnapshot();
       after[fn][field] = typeof after[fn][field] === 'number' ? after[fn][field] + 1 : `${after[fn][field]}x`;
       expectFail(() => assertNonSelectedUnchanged(manifest, ID, beforeSnapshot(), after), `${fn}.${field}`);
@@ -805,10 +805,10 @@ test('forward deployment proves the intended configuration, not only runtime, id
   const target = release.targetConfiguration;
   assert.deepEqual(target.config, pinned.config, 'no source option changes the configuration; the intended values equal the baseline values');
   assert.equal(target.invoker, 'allUsers');
-  assert.equal(target.generation, 'GEN_2');
-  assert.equal(target.runtime, 'nodejs22');
+  assert.equal(target.functionGeneration, 'GEN_2');
+  assert.equal(target.functionRuntime, 'nodejs22');
   for (const fn of EIGHT) {
-    for (const field of ['generation', 'invoker', ...CONFIG_FIELDS]) {
+    for (const field of ['functionGeneration', 'invoker', ...CONFIG_FIELDS]) {
       const after = afterSnapshot(); after[fn][field] = CONFIG_WRONG[field];
       expectFail(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), `${fn}.${field}`);
       const missing = afterSnapshot(); delete missing[fn][field];
@@ -829,12 +829,12 @@ test('release plan validation requires explicit normalized pinned and intended c
     ['baseline ingress not an enum value', r => { r.rollbackBaseline.config.ingress = 'allow_all'; }],
     ['baseline timeout as a string', r => { r.rollbackBaseline.config.timeoutSeconds = '60'; }],
     ['baseline config removed', r => { delete r.rollbackBaseline.config; }],
-    ['baseline generation missing', r => { delete r.rollbackBaseline.generation; }],
+    ['baseline generation missing', r => { delete r.rollbackBaseline.functionGeneration; }],
     ['baseline invoker missing', r => { delete r.rollbackBaseline.invoker; }],
     ['target configuration removed', r => { delete r.targetConfiguration; }],
     ['target invoker missing', r => { delete r.targetConfiguration.invoker; }],
     ['target max instances missing', r => { delete r.targetConfiguration.config.maxInstanceCount; }],
-    ['target runtime differs from the target runtime', r => { r.targetConfiguration.runtime = 'nodejs20'; }],
+    ['target runtime differs from the target runtime', r => { r.targetConfiguration.functionRuntime = 'nodejs20'; }],
   ]) assert.throws(() => assertReleasePlan(mutate(edit), ID), DeploymentManifestError, label);
 });
 
@@ -848,9 +848,9 @@ test('the runbook lists every configuration field in the rollback read-back and 
   for (const source of ['gcloud functions describe', 'run.googleapis.com/v2', 'trafficStatuses', 'maxInstanceRequestConcurrency', 'currently observed ingress', 'scaling.maxInstanceCount']) {
     assert.ok(capture.includes(source), `capture source ${source}`);
   }
-  assert.match(capture, /UNVERIFIED expectation/);
-  assert.match(capture, /omitted `executionEnvironment`/);
-  assert.match(capture, /intentionally rejects that missing value/);
+  assert.match(capture, /orthogonal/);
+  assert.match(capture, /EXECUTION_ENVIRONMENT_UNSPECIFIED/);
+  assert.match(capture, /must not infer the actual sandbox/);
   assert.match(runbook, /assertBaselineMatchesPinned/);
 });
 
@@ -1098,11 +1098,11 @@ function observedResources(fn, normalizedRecord) {
     template: { serviceAccount: 'wrong@example.com', timeout: '999s' }, traffic: [{ revision: 'unready', percent: 100 }],
   };
   return {
-    functionResource: { state: 'ACTIVE', buildConfig: { runtime: normalizedRecord.runtime }, environment: 'GEN_2',
+    functionResource: { state: 'ACTIVE', buildConfig: { runtime: normalizedRecord.functionRuntime }, environment: 'GEN_2',
       updateTime: normalizedRecord.updateTime, serviceConfig: { service: serviceName, revision: normalizedRecord.revision } },
     service, serviceAfter: structuredClone(service),
     revision: { name, service: serviceName, serviceAccount: normalizedRecord.serviceAccount, timeout: '60.0s',
-      maxInstanceRequestConcurrency: 80, scaling: { maxInstanceCount: 20 }, executionEnvironment: 'EXECUTION_ENVIRONMENT_GEN2',
+      maxInstanceRequestConcurrency: 80, scaling: { maxInstanceCount: 20 },
       containers: [{ resources: { limits: { cpu: '1000m', memory: '256Mi' } } }] },
     iamPolicy: { bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] },
     ...(normalizedRecord.sourceTreeDigest ? { sourceTreeDigest: normalizedRecord.sourceTreeDigest } : {}),
@@ -1147,7 +1147,6 @@ test('reconciling, generation lag, failed terminal condition, unready creation a
     r => { r.revision.name = `${r.service.name}/revisions/wrong`; },
     r => { r.functionResource.serviceConfig.revision = 'other'; },
     r => { delete r.revision.timeout; },
-    r => { delete r.revision.executionEnvironment; },
     r => { r.service.ingress = 'INGRESS_TRAFFIC_UNSPECIFIED'; },
     r => { r.service.invokerIamDisabled = true; },
     r => { r.iamPolicy.bindings[0].condition = { expression: 'true' }; },
@@ -1158,7 +1157,7 @@ test('reconciling, generation lag, failed terminal condition, unready creation a
 });
 
 test('flattened snapshots cannot bypass reconciliation checks in forward deployment or full rollback', () => {
-  for (const [field, value] of [['reconciling', true], ['observedGeneration', '6'], ['terminalConditionState', 'CONDITION_FAILED'], ['latestCreatedRevision', 'unready'], ['executionEnvironment', 'EXECUTION_ENVIRONMENT_GEN1']]) {
+  for (const [field, value] of [['reconciling', true], ['observedGeneration', '6'], ['terminalConditionState', 'CONDITION_FAILED'], ['latestCreatedRevision', 'unready'], ['cloudRunExecutionEnvironmentPolicy', 'EXECUTION_ENVIRONMENT_GEN1']]) {
     for (const fn of SEVEN) {
       const restored = restoredSnapshot(); restored[fn][field] = value;
       expectFail(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), `${fn}.${field}`);
@@ -1273,4 +1272,77 @@ test('external bootstrap Git read failure also prevents repository import', asyn
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RELEASE_CHECKOUT: fixture.root, REVIEWED_RELEASE_PLAN_SHA: fixture.reviewed, EXTERNAL_TEST_MARKER: fixture.marker } });
     assert.notEqual(result.status, 0); assert.equal(await fixture.imported(), false);
   } finally { await rm(fixture.holder, { recursive: true, force: true }); }
+});
+
+// Final generation correction: product generation, language runtime and sandbox policy have distinct authorities.
+test('Function GEN_1, missing and unreadable generation all fail, even with an explicit Cloud Run GEN2 sandbox', () => {
+  for (const value of ['GEN_1', undefined, null, 'UNREADABLE']) {
+    const resources = observedResources('saveDashboardProject', baselineRecord('saveDashboardProject'));
+    if (value === undefined) delete resources.functionResource.environment;
+    else resources.functionResource.environment = value;
+    resources.revision.executionEnvironment = 'EXECUTION_ENVIRONMENT_GEN2';
+    assert.throws(() => buildObservedFunctionRecord(resources), /functionGeneration/);
+  }
+});
+
+test('runtime comes from Function buildConfig: rollback rejects non-nodejs20 and forward rejects non-nodejs22', () => {
+  const fn = 'saveDashboardProject';
+  const restored = restoredSnapshot();
+  const old = observedResources(fn, restored[fn]); old.functionResource.buildConfig.runtime = 'nodejs22';
+  restored[fn] = buildObservedFunctionRecord(old);
+  assert.throws(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), /functionRuntime/);
+  const after = afterSnapshot();
+  const target = observedResources(fn, after[fn]); target.functionResource.buildConfig.runtime = 'nodejs20';
+  after[fn] = buildObservedFunctionRecord(target);
+  assert.throws(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), /runtime/);
+});
+
+test('omitted, zero-value and explicit UNSPECIFIED Revision policy pass rollback without inferring Function generation or selected sandbox', () => {
+  assert.equal(pinned.functionGeneration, 'GEN_2'); assert.equal(pinned.functionRuntime, 'nodejs20');
+  assert.equal(pinned.cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_UNSPECIFIED');
+  assert.equal(release.targetConfiguration.cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_UNSPECIFIED');
+  for (const value of [undefined, 0, 'EXECUTION_ENVIRONMENT_UNSPECIFIED']) {
+    const restored = restoredSnapshot();
+    for (const fn of SEVEN) {
+      const resources = observedResources(fn, restored[fn]);
+      if (value === undefined) delete resources.revision.executionEnvironment;
+      else resources.revision.executionEnvironment = value;
+      restored[fn] = buildObservedFunctionRecord(resources);
+      assert.equal(restored[fn].functionGeneration, 'GEN_2', 'only Function.environment provides product generation');
+      assert.equal(restored[fn].cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_UNSPECIFIED');
+      assert.notEqual(restored[fn].cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_GEN2');
+    }
+    assert.equal(assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), true);
+  }
+  for (const value of [null, '', 'unknown', 3]) {
+    const resources = observedResources('saveDashboardProject', baselineRecord('saveDashboardProject'));
+    resources.revision.executionEnvironment = value;
+    expectFail(() => buildObservedFunctionRecord(resources));
+  }
+});
+
+test('UNSPECIFIED rollback and target policies reject an explicit GEN1 or GEN2 sandbox while preserving Function GEN_2', () => {
+  const fn = 'saveDashboardProject';
+  for (const value of ['EXECUTION_ENVIRONMENT_GEN1', 'EXECUTION_ENVIRONMENT_GEN2']) {
+    const restored = restoredSnapshot();
+    const old = observedResources(fn, restored[fn]); old.revision.executionEnvironment = value;
+    restored[fn] = buildObservedFunctionRecord(old);
+    assert.equal(restored[fn].functionGeneration, 'GEN_2'); assert.equal(restored[fn].cloudRunExecutionEnvironmentPolicy, value);
+    assert.throws(() => assertFullRollbackVerified(manifest, ID, beforeSnapshot(), restored), /cloudRunExecutionEnvironmentPolicy/);
+    const after = afterSnapshot();
+    const target = observedResources(fn, after[fn]); target.revision.executionEnvironment = value;
+    after[fn] = buildObservedFunctionRecord(target);
+    assert.throws(() => assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), /cloudRunExecutionEnvironmentPolicy/);
+  }
+});
+
+test('omitted Revision policy passes observed forward deployment for all eight Functions', () => {
+  const after = afterSnapshot();
+  for (const fn of EIGHT) {
+    const resources = observedResources(fn, after[fn]);
+    assert.equal(Object.hasOwn(resources.revision, 'executionEnvironment'), false);
+    after[fn] = buildObservedFunctionRecord(resources);
+    assert.equal(after[fn].functionRuntime, 'nodejs22'); assert.equal(after[fn].functionGeneration, 'GEN_2');
+  }
+  assert.equal(assertSelectedFunctionsDeployed(manifest, ID, beforeSnapshot(), after), true);
 });

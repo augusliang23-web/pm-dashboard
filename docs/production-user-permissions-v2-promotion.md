@@ -79,7 +79,7 @@ re-identified, re-runtimed or re-invoked:
 7. `saveExecutiveMilestoneTimelineConfig`
 8. `setExecutiveRagOverride`
 
-Validation: capture `{runtime, revision, serviceAccount, invoker, updateTime}` for every Function in Stage 0 and
+Validation: capture `{functionRuntime, revision, serviceAccount, invoker, updateTime}` for every Function in Stage 0 and
 compare after each Function stage with `assertPreservedFunctionsUnchanged` and `assertNonSelectedUnchanged`. Any
 difference **fails the runbook** (STOP).
 
@@ -246,7 +246,7 @@ SHA and the digest of the safety-critical plan files must equal the independentl
 review fails the gate even though its paths are plan-only.
 
 **Snapshot.** Capture the complete Functions snapshot for all 17 live Functions, exactly as in *Snapshot capture*
-(per Function: `runtime`, `generation`, `revision`, `serviceAccount`, `invoker`, `updateTime`, `memory`, `cpu`,
+(per Function: `functionRuntime`, `functionGeneration`, `revision`, `serviceAccount`, `invoker`, `updateTime`, `memory`, `cpu`,
 `timeoutSeconds`, `maxInstanceRequestConcurrency`, `maxInstanceCount`, `ingress`, `trafficRevision`, `trafficPercent`;
 an empty field is an explicit token such as invoker `none`, never a missing property) and validate it with
 `assertSnapshotComplete(manifest, 'userPermissionsV2', before, 'before')`: the exact expected set (9 managed + 8
@@ -401,7 +401,7 @@ across those reads; if any changed, discard the evidence and recapture. Keep raw
 
 | Field | Authoritative source | Normalized value |
 |---|---|---|
-| `runtime`, `generation`, `updateTime` | Cloud Functions v2 GET `buildConfig.runtime`, `environment`, `updateTime`; state ACTIVE and `serviceConfig.revision` must match fetched Revision | Node runtime, `GEN_2`, timestamp |
+| `functionRuntime`, `functionGeneration`, `updateTime` | Cloud Functions v2 GET `buildConfig.runtime`, `environment`, `updateTime`; state ACTIVE and `serviceConfig.revision` must match fetched Revision | Node runtime, `GEN_2`, timestamp |
 | `revision`, `latestCreatedRevision` | Cloud Run v2 Service GET `latestReadyRevision`, `latestCreatedRevision` | both identify the same exact fetched Revision |
 | `reconciling`, `serviceGeneration`, `observedGeneration`, `terminalConditionState` | Cloud Run v2 Service GET `reconciling`, `generation`, `observedGeneration`, `terminalCondition.state` | false; equal positive generation strings; `CONDITION_SUCCEEDED` |
 | `ingress` | Cloud Run v2 Service GET `ingress` (currently observed ingress on output) | `ALLOW_ALL`, `ALLOW_INTERNAL_ONLY`, `ALLOW_INTERNAL_AND_GCLB`; UNSPECIFIED fails |
@@ -411,7 +411,7 @@ across those reads; if any changed, discard the evidence and recapture. Keep raw
 | `timeoutSeconds` | Revision `timeout` | positive integral seconds (`60s` / `60.0s` → 60; fractional unsupported values fail) |
 | `maxInstanceRequestConcurrency` | Revision `maxInstanceRequestConcurrency` | positive integer |
 | `maxInstanceCount` | Revision `scaling.maxInstanceCount` | positive integer; no template/default fallback |
-| `executionEnvironment` | Revision `executionEnvironment` | `EXECUTION_ENVIRONMENT_GEN2`, independently from Function generation |
+| `cloudRunExecutionEnvironmentPolicy` | exact ready Revision GET `executionEnvironment` | omitted / enum zero / explicit UNSPECIFIED → `EXECUTION_ENVIRONMENT_UNSPECIFIED`; explicit GEN1/GEN2 retained and compared to reviewed policy |
 | `invoker` | Service getIamPolicy `roles/run.invoker` bindings, plus Service `invokerIamDisabled` explicitly false | unconditional `allUsers` or explicit `none`; conditional/unsupported principals fail |
 | `sourceTreeDigest` (rollback only) | deployed source archive identified by Cloud Functions resolved source provenance, digested as above | 64-hex SHA-256; cannot use the local candidate as deployed proof |
 
@@ -430,14 +430,27 @@ condition, identical latest-created/latest-ready revisions, and that Revision se
 failed reconciliation or desired-vs-observed mismatch fails closed. Requested ingress `all` with observed ingress
 `internal` cannot PASS, even if the requested Service.template matches the baseline.
 
-**Read-only evidence gap (2026-10-04).** REST GETs of all seven pinned pre-V2 Revision resources returned CPU `1`
-and memory `256Mi`, but omitted `executionEnvironment`; a v1 GET of `savedashboardproject-00007-hit` also omitted
-its execution-environment annotation. Therefore the additional `EXECUTION_ENVIRONMENT_GEN2` requirement is an
-UNVERIFIED expectation, not an observed rollback baseline fact. Do not infer it from Cloud Functions `GEN_2`,
-Service.template or API omission. The builder intentionally rejects that missing value. Full rollback readiness
-remains HOLD until Control Plane obtains authoritative evidence or independently reviews an appropriate contract.
-No rollback PASS or live readiness is claimed by the synthetic tests. Missing API fields must STOP Stage 0;
-do not invent defaults. `assertBaselineMatchesPinned` must pass before authorized deployment.
+### Independent generation / runtime / sandbox contracts
+
+Cloud Functions product generation and Cloud Run execution-environment generation are orthogonal concepts.
+`functionGeneration` is proved ONLY by Cloud Functions v2 Function GET `environment == GEN_2`.
+`functionRuntime` is read separately from `buildConfig.runtime`: rollback requires `nodejs20`, forward requires
+`nodejs22`. A missing, unreadable or GEN_1 Function generation fails, regardless of the Revision sandbox setting.
+
+`cloudRunExecutionEnvironmentPolicy` is read ONLY from the actual latest-ready Revision GET `executionEnvironment`.
+An omitted or zero-value enum legitimately means no explicitly selected sandbox policy. Normalize it to the explicit
+`EXECUTION_ENVIRONMENT_UNSPECIFIED` policy. This must not infer the actual sandbox selected internally by Cloud Run
+and must not be converted into Function GEN_2 or sandbox GEN2. Malformed/unknown values (including null) still fail.
+
+The seven pinned baseline Revisions omitted this field in the 2026-10-04 read-only GETs. The Control Plane contract
+therefore pins rollback policy to `EXECUTION_ENVIRONMENT_UNSPECIFIED`, separately from Function `GEN_2` / `nodejs20`.
+The target source/deploy options do not explicitly select a sandbox, so the reviewed forward policy is also
+UNSPECIFIED, alongside Function `GEN_2` / `nodejs22`. Restoring or deploying an explicit GEN1 or GEN2 policy is drift
+against this pin and must fail unless separately reviewed under a new external release-plan SHA.
+
+There is no evidence gap merely because the Revision omits this sandbox policy field. All other required fields
+remain fail-closed; `assertBaselineMatchesPinned` must pass before authorized deployment. No live rollback or
+forward deployment was performed by this source-only correction.
 
 ## Invoker strategy
 
@@ -527,7 +540,8 @@ snapshot and the pinned baseline. For each of the seven, **every** item below mu
 normalized value (a missing or unparseable value fails; nothing is inferred from absence):
 
 - Service reconciliation complete (`reconciling` false, `observedGeneration == generation`, `terminalConditionState` successful, `latestCreatedRevision == revision`);
-- runtime = `nodejs20`, generation = `GEN_2`, Revision executionEnvironment = `EXECUTION_ENVIRONMENT_GEN2`;
+- `functionRuntime` = `nodejs20`, `functionGeneration` = `GEN_2` from Cloud Functions;
+- `cloudRunExecutionEnvironmentPolicy` = `EXECUTION_ENVIRONMENT_UNSPECIFIED` from the exact ready Revision (omitted/zero normalized), independent of Function generation;
 - runtime service account = the default compute account;
 - invoker = `allUsers` (and Cloud Run IAM check not disabled);
 - memory = `256Mi`, CPU = `1`, timeout = `60` s, max instance request concurrency = `80`, max instances = `20`,

@@ -118,9 +118,7 @@
       ],
       "targetRuntime": "nodejs22",
       "targetConfiguration": {
-        "runtime": "nodejs22",
         "invoker": "allUsers",
-        "generation": "GEN_2",
         "config": {
           "memory": "256Mi",
           "cpu": "1",
@@ -129,7 +127,9 @@
           "maxInstanceCount": 20,
           "ingress": "ALLOW_ALL"
         },
-        "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2"
+        "functionRuntime": "nodejs22",
+        "functionGeneration": "GEN_2",
+        "cloudRunExecutionEnvironmentPolicy": "EXECUTION_ENVIRONMENT_UNSPECIFIED"
       },
       "runtimeServiceAccounts": {
         "setUserPermissionOverrides": "pmdash-user-perms",
@@ -231,7 +231,6 @@
           "setDashboardWeekRelease": "1789829964752030"
         },
         "nodeEngine": "20",
-        "runtime": "nodejs20",
         "serviceAccount": "842441149281-compute@developer.gserviceaccount.com",
         "invoker": "allUsers",
         "config": {
@@ -243,8 +242,9 @@
           "ingress": "ALLOW_ALL"
         },
         "node20DeployBlockedAfter": "2026-10-30",
-        "generation": "GEN_2",
-        "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2"
+        "functionRuntime": "nodejs20",
+        "functionGeneration": "GEN_2",
+        "cloudRunExecutionEnvironmentPolicy": "EXECUTION_ENVIRONMENT_UNSPECIFIED"
       }
     }
   }

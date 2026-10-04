@@ -173,13 +173,14 @@ export function assertReleasePlan(manifest, id) {
   for (const fn of Object.keys(rollback.sourceGenerations || {})) if (!existingNames.includes(fn)) problems.push(`rollbackBaseline.sourceGenerations names non-release Function "${fn}"`);
   const baselineConfig = rollback.config || {};
   for (const field of CONFIG_FIELDS) if (!SNAPSHOT_VALIDATORS[field](baselineConfig[field])) problems.push(`rollbackBaseline.config.${field} must be an explicit normalized value`);
-  for (const field of ['runtime', 'serviceAccount', 'invoker', 'generation', 'executionEnvironment']) if (!SNAPSHOT_VALIDATORS[field](rollback[field])) problems.push(`rollbackBaseline.${field} must be an explicit normalized value`);
+  for (const field of ['functionRuntime', 'serviceAccount', 'invoker', 'functionGeneration', 'cloudRunExecutionEnvironmentPolicy']) if (!SNAPSHOT_VALIDATORS[field](rollback[field])) problems.push(`rollbackBaseline.${field} must be an explicit normalized value`);
   const target = release.targetConfiguration || {};
-  for (const field of ['runtime', 'invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]) {
+  for (const field of ['functionRuntime', 'invoker', 'functionGeneration', 'cloudRunExecutionEnvironmentPolicy', ...CONFIG_FIELDS]) {
     const value = CONFIG_FIELDS.includes(field) ? target.config?.[field] : target[field];
     if (!SNAPSHOT_VALIDATORS[field](value)) problems.push(`targetConfiguration.${field} must be an explicit normalized value`);
   }
-  if (target.runtime !== release.targetRuntime) problems.push('targetConfiguration.runtime must equal the target runtime');
+  if (rollback.functionRuntime !== 'nodejs20') problems.push('rollbackBaseline.functionRuntime must be nodejs20');
+  if (target.functionRuntime !== release.targetRuntime) problems.push('targetConfiguration.functionRuntime must equal the target runtime');
   const review = release.executionFreeze?.reviewedReleasePlan;
   if (!review || review.recordedOutsideRepository !== true || review.freezeMustEqualReviewedSha !== true || review.externalBootstrapRequired !== true
     || JSON.stringify(review.safetyCriticalFiles) !== JSON.stringify(SAFETY_CRITICAL_PLAN_FILES)) {
@@ -216,18 +217,19 @@ export function assertPostReleaseInventory(manifest, id, liveDeployedNames) {
 // missing property, and a missing or malformed field is a failure. Two missing-or-empty records never compare equal.
 //
 // Authoritative read-back sources (see the runbook, "Snapshot capture"): the Cloud Functions API describe of the Gen 2
-// Function (`runtime`, `generation`, `updateTime`) and the Cloud Run service that backs it (serving revision, runtime
+// Function (`functionRuntime`, `functionGeneration`, `updateTime`) and the Cloud Run service that backs it (serving revision, runtime
 // identity, resources, timeout, concurrency, max instances, ingress, traffic allocation, and the invoker IAM policy).
-export const IDENTITY_FIELDS = Object.freeze(['runtime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
+export const IDENTITY_FIELDS = Object.freeze(['functionRuntime', 'revision', 'serviceAccount', 'invoker', 'updateTime']);
 export const CONFIG_FIELDS = Object.freeze(['memory', 'cpu', 'timeoutSeconds', 'maxInstanceRequestConcurrency', 'maxInstanceCount', 'ingress']);
-export const SERVING_FIELDS = Object.freeze(['generation', 'trafficRevision', 'trafficPercent', 'reconciling', 'serviceGeneration', 'observedGeneration', 'terminalConditionState', 'latestCreatedRevision', 'executionEnvironment']);
+export const SERVING_FIELDS = Object.freeze(['functionGeneration', 'trafficRevision', 'trafficPercent', 'reconciling', 'serviceGeneration', 'observedGeneration', 'terminalConditionState', 'latestCreatedRevision', 'cloudRunExecutionEnvironmentPolicy']);
 export const SNAPSHOT_FIELDS = Object.freeze([...IDENTITY_FIELDS, ...CONFIG_FIELDS, ...SERVING_FIELDS]);
 
 const isString = value => typeof value === 'string';
 const isPositiveInteger = value => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+export const CLOUD_RUN_EXECUTION_ENVIRONMENT_POLICIES = Object.freeze(['EXECUTION_ENVIRONMENT_UNSPECIFIED', 'EXECUTION_ENVIRONMENT_GEN1', 'EXECUTION_ENVIRONMENT_GEN2']);
 export const INGRESS_VALUES = Object.freeze(['ALLOW_ALL', 'ALLOW_INTERNAL_ONLY', 'ALLOW_INTERNAL_AND_GCLB']);
 const SNAPSHOT_VALIDATORS = Object.freeze({
-  runtime: value => isString(value) && /^nodejs\d+$/.test(value),
+  functionRuntime: value => isString(value) && /^nodejs\d+$/.test(value),
   revision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
   serviceAccount: value => isString(value) && /^[A-Za-z0-9][A-Za-z0-9@._-]*$/.test(value),
   invoker: value => isString(value) && /^[A-Za-z][A-Za-z0-9-]*$/.test(value),
@@ -239,7 +241,7 @@ const SNAPSHOT_VALIDATORS = Object.freeze({
   maxInstanceRequestConcurrency: isPositiveInteger,
   maxInstanceCount: isPositiveInteger,
   ingress: value => INGRESS_VALUES.includes(value),
-  generation: value => value === 'GEN_2',
+  functionGeneration: value => value === 'GEN_2',
   trafficRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
   trafficPercent: value => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100,
   reconciling: value => value === false,
@@ -247,8 +249,16 @@ const SNAPSHOT_VALIDATORS = Object.freeze({
   observedGeneration: value => typeof value === 'string' && /^[1-9]\d*$/.test(value),
   terminalConditionState: value => value === 'CONDITION_SUCCEEDED',
   latestCreatedRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
-  executionEnvironment: value => value === 'EXECUTION_ENVIRONMENT_GEN2',
+  cloudRunExecutionEnvironmentPolicy: value => CLOUD_RUN_EXECUTION_ENVIRONMENT_POLICIES.includes(value),
 });
+
+// Cloud Functions product generation and Cloud Run sandbox selection are orthogonal. A zero/omitted
+// Revision enum means no explicit sandbox policy, NOT a GEN_2 Function or any inferred selected sandbox.
+export function normalizeCloudRunExecutionEnvironmentPolicy(value) {
+  if (value === undefined || value === 0 || value === 'EXECUTION_ENVIRONMENT_UNSPECIFIED') return 'EXECUTION_ENVIRONMENT_UNSPECIFIED';
+  if (CLOUD_RUN_EXECUTION_ENVIRONMENT_POLICIES.includes(value)) return value;
+  throw new DeploymentManifestError('Cloud Run execution-environment policy is malformed or unsupported.');
+}
 
 // Normalize ONLY responses obtained by GET from the named authoritative resources. Service.template and
 // requested traffic are never read. Save these raw responses in the external evidence package alongside the record.
@@ -290,11 +300,11 @@ export function buildObservedFunctionRecord({ functionResource, service, service
     ? `${Number.parseInt(rawMemory, 10) * (rawMemory.endsWith('Gi') ? 1024 : 1)}Mi` : undefined;
   const timeoutSeconds = typeof revision.timeout === 'string' && /^[1-9]\d*(?:\.0+)?s$/.test(revision.timeout) ? Number.parseFloat(revision.timeout) : undefined;
   const record = {
-    runtime: f.buildConfig?.runtime, generation: f.environment, updateTime: f.updateTime,
+    functionRuntime: f.buildConfig?.runtime, functionGeneration: f.environment, updateTime: f.updateTime,
     revision: revisionName, serviceAccount: revision.serviceAccount, invoker,
     memory, cpu, timeoutSeconds, maxInstanceRequestConcurrency: revision.maxInstanceRequestConcurrency,
     maxInstanceCount: revision.scaling?.maxInstanceCount, ingress,
-    executionEnvironment: revision.executionEnvironment,
+    cloudRunExecutionEnvironmentPolicy: normalizeCloudRunExecutionEnvironmentPolicy(revision.executionEnvironment),
     reconciling: service.reconciling, serviceGeneration: service.generation,
     observedGeneration: service.observedGeneration, terminalConditionState: service.terminalCondition?.state,
     latestCreatedRevision: createdName, trafficRevision: revisionName, trafficPercent: traffic[0].percent,
@@ -405,11 +415,11 @@ export function assertNonSelectedUnchanged(manifest, id, before, after) {
 }
 
 // The configuration a Function must carry, as normalized explicit values: the pinned values of one record.
-const CONFIGURATION_FIELDS = Object.freeze(['runtime', 'serviceAccount', 'invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]);
+const CONFIGURATION_FIELDS = Object.freeze(['functionRuntime', 'serviceAccount', 'invoker', 'functionGeneration', 'cloudRunExecutionEnvironmentPolicy', ...CONFIG_FIELDS]);
 
 function configurationOf(source) {
   return {
-    runtime: source.runtime, serviceAccount: source.serviceAccount, invoker: source.invoker, generation: source.generation, executionEnvironment: source.executionEnvironment,
+    functionRuntime: source.functionRuntime, serviceAccount: source.serviceAccount, invoker: source.invoker, functionGeneration: source.functionGeneration, cloudRunExecutionEnvironmentPolicy: source.cloudRunExecutionEnvironmentPolicy,
     ...Object.fromEntries(CONFIG_FIELDS.map(field => [field, source.config?.[field]])),
   };
 }
@@ -449,10 +459,10 @@ export function assertSelectedFunctionsDeployed(manifest, id, before, after) {
   const problems = [];
   for (const fn of release.functions) {
     const record = after[fn];
-    if (record.runtime !== release.targetRuntime) problems.push(`${fn}: runtime ${record.runtime}, expected ${release.targetRuntime}`);
+    if (record.functionRuntime !== release.targetRuntime) problems.push(`${fn}: runtime ${record.functionRuntime}, expected ${release.targetRuntime}`);
     if (record.serviceAccount !== `${release.runtimeServiceAccounts[fn]}@${manifest.environments[release.environment].firebaseProjectId}.iam.gserviceaccount.com`) problems.push(`${fn}: runtime identity ${record.serviceAccount}, expected ${release.runtimeServiceAccounts[fn]}@…`);
     if (before[fn] && before[fn].revision === record.revision) problems.push(`${fn}: no new revision was created`);
-    for (const field of ['invoker', 'generation', 'executionEnvironment', ...CONFIG_FIELDS]) {
+    for (const field of ['invoker', 'functionGeneration', 'cloudRunExecutionEnvironmentPolicy', ...CONFIG_FIELDS]) {
       if (record[field] !== target[field]) problems.push(`${fn}.${field}: ${record[field]} != intended ${target[field]}`);
       if (before[fn] && record[field] !== before[fn][field]) problems.push(`${fn}.${field}: changed by the redeploy (${before[fn][field]} -> ${record[field]})`);
     }
