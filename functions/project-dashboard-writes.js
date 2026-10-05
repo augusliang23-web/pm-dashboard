@@ -535,8 +535,9 @@ async function authenticatedActor(transaction, request) {
 }
 
 const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
+const selectedDashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount, maxInstances: 20 }, handler);
 
-const saveDashboardProject = dashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
+const saveDashboardProject = selectedDashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -550,7 +551,7 @@ const saveDashboardProject = dashboardOnCall('pmdash-save-project@', async reque
   };
 }));
 
-const deleteDashboardProject = dashboardOnCall('pmdash-delete-project@', async request => database().runTransaction(async transaction => {
+const deleteDashboardProject = selectedDashboardOnCall('pmdash-delete-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'originalCode'], 'Project delete request');
@@ -610,7 +611,7 @@ const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', asy
   };
 }));
 
-const setDashboardWeekRelease = dashboardOnCall('pmdash-week-release@', async request => database().runTransaction(async transaction => {
+const setDashboardWeekRelease = selectedDashboardOnCall('pmdash-week-release@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'isReleased'], 'Week release request');
@@ -638,7 +639,7 @@ const setDashboardWeekRelease = dashboardOnCall('pmdash-week-release@', async re
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const saveDashboardWeekFields = dashboardOnCall('pmdash-week-fields@', async request => database().runTransaction(async transaction => {
+const saveDashboardWeekFields = selectedDashboardOnCall('pmdash-week-fields@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
@@ -648,7 +649,7 @@ const saveDashboardWeekFields = dashboardOnCall('pmdash-week-fields@', async req
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
 
-const createDashboardWeek = dashboardOnCall('pmdash-create-week@', async request => database().runTransaction(async transaction => {
+const createDashboardWeek = selectedDashboardOnCall('pmdash-create-week@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   assertBoundedJson(request.data);
   assertAllowedKeys(request.data, ['weekId', 'weekLabel', 'weekDate', 'sourceWeekId'], 'Week creation request');
@@ -668,7 +669,7 @@ const createDashboardWeek = dashboardOnCall('pmdash-create-week@', async request
   return { week: { ...week, __documentId: weekId } };
 }));
 
-const saveDashboardGanttTemplateSettings = dashboardOnCall('pmdash-gantt-template@', async request => database().runTransaction(async transaction => {
+const saveDashboardGanttTemplateSettings = selectedDashboardOnCall('pmdash-gantt-template@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
   const snapshot = await transaction.get(settingsRef);
@@ -677,7 +678,7 @@ const saveDashboardGanttTemplateSettings = dashboardOnCall('pmdash-gantt-templat
   return { config: { system: patch.system, 'hardware-module': patch['hardware-module'] }, revision: patch.revision };
 }));
 
-const saveDashboardGanttWindowSettings = dashboardOnCall('pmdash-gantt-window@', async request => database().runTransaction(async transaction => {
+const saveDashboardGanttWindowSettings = selectedDashboardOnCall('pmdash-gantt-window@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
   const settingsRef = database().collection('dashboardSettings').doc('team-2-portfolio');
   const snapshot = await transaction.get(settingsRef);

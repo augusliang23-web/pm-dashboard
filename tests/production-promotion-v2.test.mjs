@@ -139,6 +139,43 @@ test('service-account plan: eight unique pmdash identities that match the dedica
   }
 });
 
+test('source identity parsing retains exact accounts for selected-only helpers and the inline 20-instance callable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'selected-runtime-accounts-'));
+  try {
+    await mkdir(join(root, 'functions'));
+    await writeFile(join(root, 'functions/project-dashboard-writes.js'), [
+      "const createDashboardWeek = selectedDashboardOnCall('pmdash-create-week@', handler);",
+      "const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', handler);",
+    ].join('\n'));
+    await writeFile(join(root, 'functions/user-permissions.js'),
+      "const setUserPermissionOverrides = onCall({ serviceAccount: 'pmdash-user-perms@', maxInstances: 20 }, handler);");
+    assert.deepEqual(await readSourceServiceAccounts(root), {
+      createDashboardWeek: 'pmdash-create-week',
+      setDashboardProjectAttention: 'pmdash-project-attn',
+      setUserPermissionOverrides: 'pmdash-user-perms',
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('source identity parsing does not accept lookalike helpers, malformed accounts or unsupported inline options', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'selected-runtime-accounts-'));
+  try {
+    await mkdir(join(root, 'functions'));
+    await writeFile(join(root, 'functions/project-dashboard-writes.js'), [
+      "const lookalike = selectedDashboardOnCallSpoof('pmdash-create-week@', handler);",
+      "const wrongPrincipal = selectedDashboardOnCall('pmdash-create-week@wrong-project', handler);",
+      "const missingPrincipal = selectedDashboardOnCall(null, handler);",
+    ].join('\n'));
+    await writeFile(join(root, 'functions/user-permissions.js'),
+      "const wrongLimit = onCall({ serviceAccount: 'pmdash-user-perms@', maxInstances: 100 }, handler);");
+    assert.deepEqual(await readSourceServiceAccounts(root), {});
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('the Function code needs Firestore access only (roles/datastore.user is sufficient)', async () => {
   for (const file of ['project-dashboard-writes.js', 'user-permissions.js']) {
     const text = await readFile(join(repoRoot, 'functions', file), 'utf8');
