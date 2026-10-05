@@ -840,7 +840,7 @@ test('release plan validation requires explicit normalized pinned and intended c
 
 test('the runbook lists every configuration field in the rollback read-back and documents the snapshot capture sources', () => {
   const readBack = runbook.slice(runbook.indexOf('**Read-back verification'), runbook.indexOf('### Full-rollback executability'));
-  for (const item of ['nodejs20', 'GEN_2', 'default compute account', 'allUsers', '`256Mi`', 'CPU = `1`', 'timeout = `60`', 'concurrency = `80`', 'max instances = `20`', 'ALLOW_ALL', 'new** live revision', '100% of traffic', 'sourceTreeDigest', 'nothing is inferred from absence']) {
+  for (const item of ['nodejs20', 'GEN_2', 'default compute account', 'allUsers', '`256Mi`', 'CPU = `1`', 'timeout = `60`', 'concurrency = `80`', 'max instances = `20`', 'ALLOW_ALL', 'new** live revision', '100% of traffic', 'sourceTreeDigest', 'other missing or unparseable evidence fails']) {
     assert.ok(readBack.includes(item), `rollback read-back lists ${item}`);
   }
   const capture = runbook.slice(runbook.indexOf('## Snapshot capture'), runbook.indexOf('## Invoker strategy'));
