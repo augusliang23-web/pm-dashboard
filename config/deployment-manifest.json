@@ -78,12 +78,13 @@
   ],
   "releases": {
     "userPermissionsV2": {
-      "description": "Production promotion of User Permissions V2. Runtime target source is main 57ef1caa (PR #39 + PR #42). Release plan only; the manifest never performs a deployment.",
+      "description": "Production promotion of User Permissions V2. Runtime target source is main d9acec2 (PR #39 + PR #42 + PR #45 maxInstances remediation). Release plan only; the manifest never performs a deployment.",
       "environment": "prod",
-      "runtimeTargetSourceSha": "57ef1caad37c186adfe8536b6cb22d6302fdfc21",
+      "runtimeTargetSourceSha": "d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6",
       "runtimeTargetIncludedPullRequests": [
         39,
-        42
+        42,
+        45
       ],
       "runtimeTargetSecurityContracts": {
         "saveDashboardProject": {
@@ -193,7 +194,7 @@
         "hostingRelease": "1790984982984000"
       },
       "executionFreeze": {
-        "rule": "Four separate identities: runtime target source 57ef1caa; external post-merge REVIEWED_RELEASE_PLAN_SHA; execution freeze exactly equal to that reviewed SHA; independently pinned live rollback baseline. Layer 0 is operator-controlled Git/shell outside repository code: exact actual HEAD and clean detached checkout, before importing any repository JavaScript. Any later commit, including plan-only edits, requires new approval and pin. Repository digest and runtime-target diff checks are SECONDARY defense-in-depth after bootstrap; plan-only paths describe differences from the older runtime target, never permission to edit after review.",
+        "rule": "Four separate identities: runtime target source d9acec2; external post-merge REVIEWED_RELEASE_PLAN_SHA; execution freeze exactly equal to that reviewed SHA; independently pinned live rollback baseline. Layer 0 is operator-controlled Git/shell outside repository code: exact actual HEAD and clean detached checkout, before importing any repository JavaScript. Any later commit, including plan-only edits, requires new approval and pin. Repository digest and runtime-target diff checks are SECONDARY defense-in-depth after bootstrap; plan-only paths describe differences from the older runtime target, never permission to edit after review.",
         "planOnlyFiles": [
           "config/deployment-manifest.json",
           "scripts/deployment-manifest.mjs"

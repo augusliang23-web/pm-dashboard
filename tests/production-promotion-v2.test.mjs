@@ -230,7 +230,7 @@ test('rollback baseline IDs are pinned in both the manifest and the runbook', ()
   assert.equal(release.rollback.hostingRelease, '1790984982984000');
   assert.equal(release.baseline.productionPagesSha, '932c6e2bda17acad9ffc8fc0153421dcd93410dd');
   assert.equal(release.baseline.iamEtag, 'BwZcleH3jJo=');
-  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
+  assert.equal(release.runtimeTargetSourceSha, 'd9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6');
   for (const value of [release.rollback.rulesetId, release.rollback.hostingVersion, release.rollback.hostingRelease, release.baseline.productionPagesSha, release.runtimeTargetSourceSha]) {
     assert.ok(runbook.includes(value), `${value} appears in the runbook`);
   }
@@ -573,7 +573,7 @@ test('exact approved pins are asserted for this release (least-privilege role, k
   assert.equal(release.serviceAccountProjectRole, 'roles/datastore.user');
   assert.equal(release.serviceAccountMaxUserManagedKeys, 0);
   assert.equal(release.environment, 'prod');
-  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
+  assert.equal(release.runtimeTargetSourceSha, 'd9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6');
 });
 
 // A throwaway copy of the safety-critical plan files, so "edits after review" can be applied without touching the repo.
@@ -613,12 +613,12 @@ test('SECONDARY runtime-target comparison permits reviewed plan differences from
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('the runbook separates the approved runtime target source, the PR #41 candidate head and the future execution freeze', () => {
+test('the runbook separates the approved runtime target source, the rebaseline candidate head and the future execution freeze', () => {
   assert.match(runbook, /Approved runtime target source/);
-  assert.match(runbook, /PR #41 release-plan commits/);
+  assert.match(runbook, /Release-plan candidate/);
   assert.match(runbook, /Execution freeze SHA/);
   assert.doesNotMatch(runbook, /Verify `main` is still `(1c2ec79|57ef1caa)/);
-  assert.match(runbook, /git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>/);
+  assert.match(runbook, /git diff --name-only d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6 <future-reviewed-release-plan-sha>/);
   assert.match(runbook, /re-baseline/);
 });
 
@@ -638,14 +638,14 @@ test('the earlier local rules-test flake is recorded accurately, without claimin
 });
 
 
-// ── Post-PR #42 runtime target ───────────────────────────────────────────────────────────────────────────────
-const TARGET = '57ef1caad37c186adfe8536b6cb22d6302fdfc21';
+// ── Post-PR #45 runtime target ───────────────────────────────────────────────────────────────────────────────
+const TARGET = 'd9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6';
 const writesSource = await readFile(join(repoRoot, 'functions', 'project-dashboard-writes.js'), 'utf8');
 
-test('the runtime target is main 57ef1caa (PR #39 + PR #42), recorded in the manifest and the runbook', () => {
+test('the runtime target is main d9acec2 (PR #39 + PR #42 + PR #45), recorded in the manifest and the runbook', () => {
   assert.equal(release.runtimeTargetSourceSha, TARGET);
-  assert.deepEqual(release.runtimeTargetIncludedPullRequests, [39, 42]);
-  assert.match(runbook, /PRODUCTION_TARGET_SOURCE = 57ef1caad37c186adfe8536b6cb22d6302fdfc21/);
+  assert.deepEqual(release.runtimeTargetIncludedPullRequests, [39, 42, 45]);
+  assert.match(runbook, /PRODUCTION_TARGET_SOURCE = d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6/);
   assert.match(runbook, /intentionally includes PR #42/);
   assert.doesNotMatch(runbook, /Approved feature source/);
 });
@@ -720,7 +720,24 @@ test('the live rollback baseline is NOT replaced by the new runtime target', () 
   assert.match(runbook, /live Production rollback baseline is \*\*not\*\* changed|rollback baseline is \*\*not\*\* changed/);
 });
 
-test('execution freeze is measured from the post-PR #42 target: the old 1c2ec79 target no longer passes, and PR #42 paths are runtime-relevant', async () => {
+test('post-PR #45 rebaseline accepts the new target and rejects old targets and every later PR #45 runtime path', async () => {
+  const root = await planCopy();
+  try {
+    const runtimeTargetSha = 'd9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6';
+    const gate = over => freezeInputs(root, { runtimeTargetSha, ...over }).then(inputs => assertExecutionFreeze(manifest, ID, inputs));
+    assert.equal(await gate({ changedPaths: PLAN_ONLY_PATHS }), true);
+    for (const oldTarget of ['57ef1caad37c186adfe8536b6cb22d6302fdfc21', '1c2ec79a4b92b3dbcc7670d95ec31b3bba021e32']) {
+      await assert.rejects(gate({ runtimeTargetSha: oldTarget }), /approved runtime target source/);
+    }
+    for (const path of ['functions/project-dashboard-writes.js', 'functions/user-permissions.js', 'functions/test/selected-callable-runtime-options.test.cjs']) {
+      assert.deepEqual(runtimeRelevantChanges([path]), [path], path);
+      await assert.rejects(gate({ changedPaths: [...PLAN_ONLY_PATHS, path] }), /Runtime-relevant source changed/, path);
+    }
+    await assert.rejects(gate({ reviewedReleasePlanSha: runtimeTargetSha, freezeSha: runtimeTargetSha }), /cannot be the runtime target source/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('execution freeze is measured from the post-PR #45 target: the old 1c2ec79 target no longer passes, and PR #42 paths are runtime-relevant', async () => {
   const root = await planCopy();
   try {
     for (const path of ['functions/project-dashboard-writes.js', 'index.html', 'functions/test/project-visibility-authority.test.cjs']) {
@@ -1042,7 +1059,7 @@ test('this remediation does not widen the release: still exactly eight Functions
   assert.equal(release.rulesDeployRequired, true);
   assert.equal(release.hostingDeployRequired, true);
   assert.equal(release.productionPages.pullRequest, 40);
-  assert.equal(release.runtimeTargetSourceSha, '57ef1caad37c186adfe8536b6cb22d6302fdfc21');
+  assert.equal(release.runtimeTargetSourceSha, 'd9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6');
 });
 
 test('every snapshot field must be an explicit normalized value (no "256M", numeric CPU, string numbers or lower-case enums)', () => {
