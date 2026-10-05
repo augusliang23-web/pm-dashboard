@@ -127,7 +127,7 @@ async function adminActor(transaction, request) {
   return { uid, email };
 }
 
-const setUserPermissionOverrides = onCall({ serviceAccount: 'pmdash-user-perms@' }, async request => database().runTransaction(async transaction => {
+const setUserPermissionOverrides = onCall({ serviceAccount: 'pmdash-user-perms@', maxInstances: 20 }, async request => database().runTransaction(async transaction => {
   const actor = await adminActor(transaction, request);
   const { targetEmail, expectedRevision, changes } = validatePermissionRequest(request.data);
 

@@ -668,7 +668,7 @@ export async function readSourceServiceAccounts(rootDir) {
   const found = {};
   for (const file of ['project-dashboard-writes.js', 'user-permissions.js']) {
     const text = await readFile(join(rootDir, 'functions', file), 'utf8');
-    for (const match of text.matchAll(/^const (\w+) = (?:dashboardOnCall\('([a-z0-9-]+)@'|onCall\(\{ serviceAccount: '([a-z0-9-]+)@' \})/gm)) {
+    for (const match of text.matchAll(/^const (\w+) = (?:(?:dashboardOnCall|selectedDashboardOnCall)\('([a-z0-9-]+)@'|onCall\(\{ serviceAccount: '([a-z0-9-]+)@'(?:, maxInstances: 20)? \})/gm)) {
       found[match[1]] = match[2] || match[3];
     }
   }
