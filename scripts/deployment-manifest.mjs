@@ -226,13 +226,18 @@ export const SNAPSHOT_FIELDS = Object.freeze([...IDENTITY_FIELDS, ...CONFIG_FIEL
 
 const isString = value => typeof value === 'string';
 const isPositiveInteger = value => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+// Exact, supported service-account email forms. No wildcard, substring, generic-SA token or case folding.
+// Other IAM principal kinds/forms require an explicitly reviewed representation before use.
+const SERVICE_ACCOUNT_INVOKER = /^serviceAccount:(?:[0-9]+-compute@developer\.gserviceaccount\.com|[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\.iam\.gserviceaccount\.com)$/;
+const isServiceAccountInvoker = value => typeof value === 'string' && value === value.trim() && SERVICE_ACCOUNT_INVOKER.test(value);
+const isObservedInvoker = value => value === 'allUsers' || value === 'none' || isServiceAccountInvoker(value);
 export const CLOUD_RUN_EXECUTION_ENVIRONMENT_POLICIES = Object.freeze(['EXECUTION_ENVIRONMENT_UNSPECIFIED', 'EXECUTION_ENVIRONMENT_GEN1', 'EXECUTION_ENVIRONMENT_GEN2']);
 export const INGRESS_VALUES = Object.freeze(['ALLOW_ALL', 'ALLOW_INTERNAL_ONLY', 'ALLOW_INTERNAL_AND_GCLB']);
 const SNAPSHOT_VALIDATORS = Object.freeze({
   functionRuntime: value => isString(value) && /^nodejs\d+$/.test(value),
   revision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
   serviceAccount: value => isString(value) && /^[A-Za-z0-9][A-Za-z0-9@._-]*$/.test(value),
-  invoker: value => isString(value) && /^[A-Za-z][A-Za-z0-9-]*$/.test(value),
+  invoker: isObservedInvoker,
   updateTime: value => isString(value) && /^\d{4}-\d{2}-\d{2}T/.test(value) && !Number.isNaN(Date.parse(value)),
   // Normalized Cloud Run quantities: memory as Mi/Gi ("256Mi"), CPU as a decimal string ("1"); never "256M" or 1.
   memory: value => isString(value) && /^[1-9]\d*(Mi|Gi)$/.test(value),
@@ -251,6 +256,34 @@ const SNAPSHOT_VALIDATORS = Object.freeze({
   latestCreatedRevision: value => isString(value) && /^[a-z0-9][a-z0-9-]*$/.test(value),
   cloudRunExecutionEnvironmentPolicy: value => CLOUD_RUN_EXECUTION_ENVIRONMENT_POLICIES.includes(value),
 });
+
+// Layer 1 represents the authoritative IAM policy; it does NOT grant deployment permission.
+// Selected Functions still compare this exact token to the pinned allUsers policy; untouched/preserved
+// Functions compare BEFORE/AFTER tokens exactly. Unsupported conditions/multiple principals fail closed.
+function normalizeObservedInvoker(iamPolicy) {
+  const fail = () => { throw new DeploymentManifestError('Observed Function evidence: unsupported, malformed, ambiguous or conditional invoker IAM state'); };
+  if (!isPlainRecord(iamPolicy) || !Array.isArray(iamPolicy.bindings)
+    || iamPolicy.bindings.some(b => !isPlainRecord(b) || typeof b.role !== 'string')) fail();
+  const bindings = iamPolicy.bindings.filter(b => b.role === 'roles/run.invoker');
+  if (bindings.length === 0) return 'none';
+  if (bindings.length !== 1) fail();
+  const binding = bindings[0];
+  if (Object.hasOwn(binding, 'condition') || !Array.isArray(binding.members) || binding.members.length !== 1) fail();
+  const principal = binding.members[0];
+  if (principal !== 'allUsers' && !isServiceAccountInvoker(principal)) fail();
+  return principal;
+}
+
+// RevisionScaling.maxInstanceCount is optional: the documented server default is 100, not the
+// selected rollback/forward pin of 20. Only omission has default semantics; malformed values fail.
+// Source: https://docs.cloud.google.com/run/docs/reference/rest/v2/RevisionScaling
+function normalizeRevisionMaxInstanceCount(scaling) {
+  if (scaling === undefined) return 100;
+  if (!isPlainRecord(scaling)) throw new DeploymentManifestError('Observed Function evidence: malformed Revision scaling');
+  if (!Object.hasOwn(scaling, 'maxInstanceCount')) return 100;
+  if (!isPositiveInteger(scaling.maxInstanceCount)) throw new DeploymentManifestError('Observed Function evidence: invalid Revision maxInstanceCount');
+  return scaling.maxInstanceCount;
+}
 
 // Cloud Functions product generation and Cloud Run sandbox selection are orthogonal. A zero/omitted
 // Revision enum means no explicit sandbox policy, NOT a GEN_2 Function or any inferred selected sandbox.
@@ -343,10 +376,7 @@ export function buildObservedFunctionRecord({ functionResource, service, service
   if (!ingress) fail('observed Service ingress missing or unspecified');
   // Omitted means ProtoJSON false. This flag never replaces the getIamPolicy evidence that supplies the invoker principal.
   if (first.invokerIamDisabled !== false) fail('IAM invocation checks must be enabled (invokerIamDisabled must be false)');
-  if (!Array.isArray(iamPolicy.bindings)) fail('IAM policy bindings missing');
-  const bindings = iamPolicy.bindings.filter(b => b.role === 'roles/run.invoker');
-  if (bindings.some(b => b.condition || !Array.isArray(b.members) || b.members.some(m => m !== 'allUsers'))) fail('unsupported or conditional invoker IAM state');
-  const invoker = bindings.some(b => b.members.includes('allUsers')) ? 'allUsers' : 'none';
+  const invoker = normalizeObservedInvoker(iamPolicy);
   if (!Array.isArray(revision.containers) || revision.containers.length !== 1) fail('expected one Revision container');
   const limits = revision.containers[0].resources?.limits || {};
   // Equivalent explicit units are normalized without rounding; absent values never become defaults.
@@ -361,7 +391,7 @@ export function buildObservedFunctionRecord({ functionResource, service, service
     functionRuntime: f.buildConfig?.runtime, functionGeneration: f.environment, updateTime: f.updateTime,
     revision: revisionName, serviceAccount: revision.serviceAccount, invoker,
     memory, cpu, timeoutSeconds, maxInstanceRequestConcurrency: revision.maxInstanceRequestConcurrency,
-    maxInstanceCount: revision.scaling?.maxInstanceCount, ingress,
+    maxInstanceCount: normalizeRevisionMaxInstanceCount(revision.scaling), ingress,
     cloudRunExecutionEnvironmentPolicy: normalizeCloudRunExecutionEnvironmentPolicy(revision.executionEnvironment),
     reconciling: first.reconciling, serviceGeneration: service.generation,
     observedGeneration: service.observedGeneration, terminalConditionState: service.terminalCondition?.state,

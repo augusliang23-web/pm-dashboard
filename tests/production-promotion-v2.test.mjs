@@ -1304,7 +1304,341 @@ test('the Revision, not Service.template, still supplies maxInstanceCount, and e
   assert.equal(built.maxInstanceCount, 20);
   assert.equal(built.cloudRunExecutionEnvironmentPolicy, 'EXECUTION_ENVIRONMENT_UNSPECIFIED');
   assert.equal(built.functionGeneration, 'GEN_2');
-  expectFail(() => buildObservedFunctionRecord(shapedMutation(fn, r => { delete r.revision.scaling; })), 'no Service.template fallback');
+  assert.equal(buildObservedFunctionRecord(shapedMutation(fn, r => { r.service.template.scaling = { maxInstanceCount: 20 }; delete r.revision.scaling; })).maxInstanceCount, 100, 'documented Revision default, no Service.template fallback');
+});
+
+
+// Sanitized authoritative Production GET fixtures captured 2026-10-05: identifiers/config only,
+// no environment variables, tokens, source credentials or business data. The pre-fix builder rejects
+// the scheduler principal and the Executive Revision's omitted scaling (the scheduler also omits it).
+const snapshotBlockerFixtures = {
+  "aggregatePresenceSessions": {
+    "functionResource": {
+      "state": "ACTIVE",
+      "environment": "GEN_2",
+      "updateTime": "2026-07-23T09:28:45.894582908Z",
+      "buildConfig": {
+        "runtime": "nodejs20"
+      },
+      "serviceConfig": {
+        "service": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions",
+        "revision": "aggregatepresencesessions-00001-joz"
+      }
+    },
+    "service": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions",
+      "etag": "\"CMW9h9MGEPjizc4C/cHJvamVjdHMvcHJvamVjdC1tYW5hZ2VyLWRhc2hib2FyLWEwNjdmL2xvY2F0aW9ucy91cy1jZW50cmFsMS9zZXJ2aWNlcy9hZ2dyZWdhdGVwcmVzZW5jZXNlc3Npb25z\"",
+      "generation": "1",
+      "observedGeneration": "1",
+      "terminalCondition": {
+        "type": "Ready",
+        "state": "CONDITION_SUCCEEDED",
+        "lastTransitionTime": "2026-07-23T09:28:45.540095Z"
+      },
+      "latestReadyRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions/revisions/aggregatepresencesessions-00001-joz",
+      "latestCreatedRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions/revisions/aggregatepresencesessions-00001-joz",
+      "ingress": "INGRESS_TRAFFIC_ALL",
+      "trafficStatuses": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "aggregatepresencesessions-00001-joz",
+          "percent": 100
+        }
+      ]
+    },
+    "revision": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions/revisions/aggregatepresencesessions-00001-joz",
+      "service": "aggregatepresencesessions",
+      "serviceAccount": "842441149281-compute@developer.gserviceaccount.com",
+      "timeout": "540s",
+      "maxInstanceRequestConcurrency": 80,
+      "containers": [
+        {
+          "resources": {
+            "limits": {
+              "cpu": "1",
+              "memory": "256Mi"
+            }
+          }
+        }
+      ]
+    },
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/run.invoker",
+          "members": [
+            "serviceAccount:842441149281-compute@developer.gserviceaccount.com"
+          ]
+        }
+      ]
+    },
+    "serviceAfter": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions",
+      "etag": "\"CMW9h9MGEPjizc4C/cHJvamVjdHMvcHJvamVjdC1tYW5hZ2VyLWRhc2hib2FyLWEwNjdmL2xvY2F0aW9ucy91cy1jZW50cmFsMS9zZXJ2aWNlcy9hZ2dyZWdhdGVwcmVzZW5jZXNlc3Npb25z\"",
+      "generation": "1",
+      "observedGeneration": "1",
+      "terminalCondition": {
+        "type": "Ready",
+        "state": "CONDITION_SUCCEEDED",
+        "lastTransitionTime": "2026-07-23T09:28:45.540095Z"
+      },
+      "latestReadyRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions/revisions/aggregatepresencesessions-00001-joz",
+      "latestCreatedRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/aggregatepresencesessions/revisions/aggregatepresencesessions-00001-joz",
+      "ingress": "INGRESS_TRAFFIC_ALL",
+      "trafficStatuses": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "aggregatepresencesessions-00001-joz",
+          "percent": 100
+        }
+      ]
+    }
+  },
+  "initializeExecutiveMilestoneLiveTimeline": {
+    "functionResource": {
+      "state": "ACTIVE",
+      "environment": "GEN_2",
+      "updateTime": "2026-07-23T09:28:45.049288752Z",
+      "buildConfig": {
+        "runtime": "nodejs20"
+      },
+      "serviceConfig": {
+        "service": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline",
+        "revision": "initializeexecutivemilestonelivetimeline-00001-cuw"
+      }
+    },
+    "service": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline",
+      "etag": "\"CMO9h9MGEMDhuJgD/cHJvamVjdHMvcHJvamVjdC1tYW5hZ2VyLWRhc2hib2FyLWEwNjdmL2xvY2F0aW9ucy91cy1jZW50cmFsMS9zZXJ2aWNlcy9pbml0aWFsaXplZXhlY3V0aXZlbWlsZXN0b25lbGl2ZXRpbWVsaW5l\"",
+      "generation": "1",
+      "observedGeneration": "1",
+      "terminalCondition": {
+        "type": "Ready",
+        "state": "CONDITION_SUCCEEDED",
+        "lastTransitionTime": "2026-07-23T09:28:44.736453Z"
+      },
+      "latestReadyRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline/revisions/initializeexecutivemilestonelivetimeline-00001-cuw",
+      "latestCreatedRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline/revisions/initializeexecutivemilestonelivetimeline-00001-cuw",
+      "ingress": "INGRESS_TRAFFIC_ALL",
+      "trafficStatuses": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "initializeexecutivemilestonelivetimeline-00001-cuw",
+          "percent": 100
+        }
+      ]
+    },
+    "revision": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline/revisions/initializeexecutivemilestonelivetimeline-00001-cuw",
+      "service": "initializeexecutivemilestonelivetimeline",
+      "serviceAccount": "842441149281-compute@developer.gserviceaccount.com",
+      "timeout": "60s",
+      "maxInstanceRequestConcurrency": 80,
+      "containers": [
+        {
+          "resources": {
+            "limits": {
+              "cpu": "1",
+              "memory": "256Mi"
+            }
+          }
+        }
+      ]
+    },
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/run.invoker",
+          "members": [
+            "allUsers"
+          ]
+        }
+      ]
+    },
+    "serviceAfter": {
+      "name": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline",
+      "etag": "\"CMO9h9MGEMDhuJgD/cHJvamVjdHMvcHJvamVjdC1tYW5hZ2VyLWRhc2hib2FyLWEwNjdmL2xvY2F0aW9ucy91cy1jZW50cmFsMS9zZXJ2aWNlcy9pbml0aWFsaXplZXhlY3V0aXZlbWlsZXN0b25lbGl2ZXRpbWVsaW5l\"",
+      "generation": "1",
+      "observedGeneration": "1",
+      "terminalCondition": {
+        "type": "Ready",
+        "state": "CONDITION_SUCCEEDED",
+        "lastTransitionTime": "2026-07-23T09:28:44.736453Z"
+      },
+      "latestReadyRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline/revisions/initializeexecutivemilestonelivetimeline-00001-cuw",
+      "latestCreatedRevision": "projects/project-manager-dashboar-a067f/locations/us-central1/services/initializeexecutivemilestonelivetimeline/revisions/initializeexecutivemilestonelivetimeline-00001-cuw",
+      "ingress": "INGRESS_TRAFFIC_ALL",
+      "trafficStatuses": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "initializeexecutivemilestonelivetimeline-00001-cuw",
+          "percent": 100
+        }
+      ]
+    }
+  }
+};
+const SCHEDULER_PRINCIPAL = 'serviceAccount:842441149281-compute@developer.gserviceaccount.com';
+const blockerFixture = fn => structuredClone(snapshotBlockerFixtures[fn]);
+function productionInventoryFixture() {
+  return Object.fromEntries(beforeNames.map(fn => [fn, buildObservedFunctionRecord(
+    snapshotBlockerFixtures[fn] ? blockerFixture(fn) : productionShaped(fn, baselineRecord(fn))
+  )]));
+}
+function productionAfterFixture(before) {
+  const after = afterSnapshot();
+  for (const fn of beforeNames.filter(fn => !SEVEN.includes(fn))) after[fn] = structuredClone(before[fn]);
+  return after;
+}
+
+test('scheduler exact service-account invoker normalizes without losing principal identity', () => {
+  const r = buildObservedFunctionRecord(blockerFixture('aggregatePresenceSessions'));
+  assert.equal(r.invoker, SCHEDULER_PRINCIPAL);
+  assert.equal(r.timeoutSeconds, 540);
+  assert.equal(r.maxInstanceCount, 100);
+});
+
+test('Executive omitted Revision scaling normalizes to documented 100, not missing evidence', () => {
+  const resources = blockerFixture('initializeExecutiveMilestoneLiveTimeline');
+  assert.equal(Object.hasOwn(resources.revision, 'scaling'), false);
+  assert.equal(buildObservedFunctionRecord(resources).maxInstanceCount, 100);
+});
+
+test('full 17-Function Production-shaped baseline keeps seven selected, two untouched and eight preserved separate', () => {
+  const before = productionInventoryFixture();
+  assert.equal(Object.keys(before).length, 17);
+  assert.equal(SEVEN.length, 7);
+  assert.equal(release.untouchedManagedFunctions.length, 2);
+  assert.equal(EXECUTIVE.length, 8);
+  assert.equal(assertSnapshotComplete(manifest, ID, before, 'before'), true);
+  assert.equal(assertBaselineMatchesPinned(manifest, ID, before), true);
+  const after = productionAfterFixture(before);
+  assert.equal(assertSelectedFunctionsDeployed(manifest, ID, before, after), true);
+  assert.equal(assertNonSelectedUnchanged(manifest, ID, before, after), true);
+  assert.equal(assertPreservedFunctionsUnchanged(manifest, ID, before, after), true);
+  const rollback = restoredSnapshot();
+  for (const fn of beforeNames.filter(fn => !SEVEN.includes(fn))) rollback[fn] = structuredClone(before[fn]);
+  assert.equal(assertFullRollbackVerified(manifest, ID, before, rollback), true);
+});
+
+test('changed scheduler principal, including project/prefix/suffix spoofs, fails untouched equality', () => {
+  const before = productionInventoryFixture();
+  for (const principal of [
+    'serviceAccount:arbitrary-build@project-manager-dashboar-a067f.iam.gserviceaccount.com',
+    'serviceAccount:arbitrary-build@another-project.iam.gserviceaccount.com',
+    'serviceAccount:1842441149281-compute@developer.gserviceaccount.com',
+    'serviceAccount:8424411492811-compute@developer.gserviceaccount.com',
+    'allUsers',
+  ]) {
+    const resources = blockerFixture('aggregatePresenceSessions');
+    resources.iamPolicy.bindings[0].members = [principal];
+    const after = productionAfterFixture(before);
+    // A different valid SA is representable, but representation is NOT release permission.
+    after.aggregatePresenceSessions = buildObservedFunctionRecord(resources);
+    assert.equal(after.aggregatePresenceSessions.invoker, principal);
+    assert.throws(() => assertNonSelectedUnchanged(manifest, ID, before, after), /aggregatePresenceSessions.invoker/);
+  }
+});
+
+test('unsupported, malformed, conditional or ambiguous invoker bindings fail normalization', () => {
+  for (const members of [
+    ['user:operator@example.com'], ['group:operators@example.com'],
+    ['allUsers', SCHEDULER_PRINCIPAL], [SCHEDULER_PRINCIPAL, 'serviceAccount:other-build@another-project.iam.gserviceaccount.com'],
+    ['serviceAccount:'], ['serviceAccount:*@project-manager-dashboar-a067f.iam.gserviceaccount.com'],
+    [`x${SCHEDULER_PRINCIPAL}`], [`${SCHEDULER_PRINCIPAL}.evil`], [`${SCHEDULER_PRINCIPAL}\n`], [` ${SCHEDULER_PRINCIPAL}`],
+    ['serviceAccount:842441149281-compute@developer.gserviceaccount.com/extra'],
+    ['', null, 7], [null], [7], [{}], [[]], [''], [], null, 'allUsers',
+  ]) {
+    const r = blockerFixture('aggregatePresenceSessions'); r.iamPolicy.bindings[0].members = members;
+    expectFail(() => buildObservedFunctionRecord(r), JSON.stringify(members));
+  }
+  for (const edit of [
+    r => { r.iamPolicy.bindings[0].condition = { expression: 'true' }; },
+    r => { r.iamPolicy.bindings[0].condition = null; },
+    r => { r.iamPolicy.bindings.push(structuredClone(r.iamPolicy.bindings[0])); },
+    r => { r.iamPolicy.bindings.push(null); },
+    r => { r.iamPolicy.bindings = null; },
+  ]) { const r = blockerFixture('aggregatePresenceSessions'); edit(r); expectFail(() => buildObservedFunctionRecord(r)); }
+});
+
+test('public selected baseline passes; representable service-account invoker cannot satisfy selected forward or rollback policy', () => {
+  const before = productionInventoryFixture();
+  for (const [snap, check] of [
+    [productionAfterFixture(before), s => assertSelectedFunctionsDeployed(manifest, ID, before, s)],
+    [restoredSnapshot(), s => assertFullRollbackVerified(manifest, ID, before, s)],
+  ]) {
+    for (const fn of beforeNames.filter(fn => !SEVEN.includes(fn))) snap[fn] = structuredClone(before[fn]);
+    assert.doesNotThrow(() => check(snap));
+    const r = productionShaped('saveDashboardProject', snap.saveDashboardProject);
+    r.iamPolicy.bindings[0].members = [SCHEDULER_PRINCIPAL];
+    snap.saveDashboardProject = buildObservedFunctionRecord(r);
+    assert.throws(() => check(snap), /invoker/);
+  }
+  const changedBefore = structuredClone(before); changedBefore.saveDashboardProject.invoker = SCHEDULER_PRINCIPAL;
+  assert.throws(() => assertBaselineMatchesPinned(manifest, ID, changedBefore), /invoker/);
+});
+
+test('single public, single exact SA and absent invoker binding have deterministic records', () => {
+  for (const [bindings, expected] of [
+    [[{role: 'roles/run.invoker', members: ['allUsers']}], 'allUsers'],
+    [[{role: 'roles/run.invoker', members: [SCHEDULER_PRINCIPAL]}], SCHEDULER_PRINCIPAL],
+    [[], 'none'],
+  ]) {
+    const r = blockerFixture('aggregatePresenceSessions'); r.iamPolicy.bindings = bindings;
+    assert.equal(buildObservedFunctionRecord(r).invoker, expected);
+  }
+});
+
+test('Revision maximum explicit 20 remains 20; omitted and explicit default 100 compare equally without template fallback', () => {
+  const fn = 'initializeExecutiveMilestoneLiveTimeline';
+  const r = blockerFixture(fn); r.service.template = { scaling: {maxInstanceCount: 20} }; r.serviceAfter = structuredClone(r.service);
+  assert.equal(buildObservedFunctionRecord(r).maxInstanceCount, 100);
+  r.revision.scaling = {}; assert.equal(buildObservedFunctionRecord(r).maxInstanceCount, 100);
+  r.revision.scaling = { maxInstanceCount: 100 }; assert.equal(buildObservedFunctionRecord(r).maxInstanceCount, 100);
+  const before = productionInventoryFixture(); const after = productionAfterFixture(before);
+  after[fn] = buildObservedFunctionRecord(r);
+  assert.equal(assertPreservedFunctionsUnchanged(manifest, ID, before, after), true);
+  r.revision.scaling.maxInstanceCount = 20; assert.equal(buildObservedFunctionRecord(r).maxInstanceCount, 20);
+  after[fn] = buildObservedFunctionRecord(r);
+  assert.throws(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), /maxInstanceCount/);
+});
+
+test('omitted maximum means 100 and fails selected expected-20 baseline, forward and full rollback', () => {
+  const fn = 'saveDashboardProject';
+  const before = productionInventoryFixture();
+  const r = productionShaped(fn, before[fn]); delete r.revision.scaling;
+  const changed = structuredClone(before); changed[fn] = buildObservedFunctionRecord(r);
+  assert.equal(changed[fn].maxInstanceCount, 100);
+  assert.throws(() => assertBaselineMatchesPinned(manifest, ID, changed), /maxInstanceCount/);
+  for (const [snap, check] of [
+    [productionAfterFixture(before), s => assertSelectedFunctionsDeployed(manifest, ID, before, s)],
+    [restoredSnapshot(), s => assertFullRollbackVerified(manifest, ID, before, s)],
+  ]) {
+    for (const name of beforeNames.filter(name => !SEVEN.includes(name))) snap[name] = structuredClone(before[name]);
+    const raw = productionShaped(fn, snap[fn]); delete raw.revision.scaling;
+    snap[fn] = buildObservedFunctionRecord(raw);
+    assert.throws(() => check(snap), /maxInstanceCount/);
+  }
+});
+
+test('Revision maximum rejects malformed containers and values rather than treating them as omitted', () => {
+  for (const scaling of [null, [], '100', 100, {maxInstanceCount: null}, {maxInstanceCount: '100'},
+    {maxInstanceCount: []}, {maxInstanceCount: {}}, {maxInstanceCount: -1}, {maxInstanceCount: 0},
+    {maxInstanceCount: Infinity}, {maxInstanceCount: NaN}, {maxInstanceCount: 1.5}, {maxInstanceCount: Number.MAX_SAFE_INTEGER + 1}]) {
+    const r = blockerFixture('initializeExecutiveMilestoneLiveTimeline'); r.revision.scaling = scaling;
+    expectFail(() => buildObservedFunctionRecord(r), String(scaling));
+  }
+});
+
+test('full real-shaped inventory detects observed config drift in selected, untouched and Executive governance categories', () => {
+  const before = productionInventoryFixture();
+  for (const fn of ['saveDashboardProject', 'aggregatePresenceSessions', 'initializeExecutiveMilestoneLiveTimeline']) {
+    const after = productionAfterFixture(before); after[fn].timeoutSeconds += 1;
+    if (SEVEN.includes(fn)) assert.throws(() => assertSelectedFunctionsDeployed(manifest, ID, before, after), /timeoutSeconds/);
+    else assert.throws(() => assertNonSelectedUnchanged(manifest, ID, before, after), /timeoutSeconds/);
+    if (EXECUTIVE.includes(fn)) assert.throws(() => assertPreservedFunctionsUnchanged(manifest, ID, before, after), /timeoutSeconds/);
+  }
 });
 
 // Trust boundary 2: execute the operator's shell block OUTSIDE the checkout. No repository validator is imported

@@ -404,7 +404,8 @@ accepts exactly these shapes and nothing looser:
 
 - `reconciling` and `invokerIamDisabled` are ProtoJSON booleans that the Service GET **omits when false**. For these two
   fields only, omitted normalizes to `false`, explicit `false` is `false`, and explicit `true` fails. `null`, strings,
-  numbers, arrays and objects are malformed and fail. Missing-as-default is NOT applied to any other field. The serving
+  numbers, arrays and objects are malformed and fail. This Service boolean rule is NOT a general missing-as-default rule;
+  the independent Revision maximum default is documented below. The serving
   contract is unchanged (`reconciling === false`, `invokerIamDisabled === false`), and `invokerIamDisabled` never
   replaces the `getIamPolicy` evidence that supplies the invoker principal.
 - `Revision.service` is the **short service ID**; the full `projects/<p>/locations/<l>/services/<s>` path is also
@@ -416,7 +417,8 @@ accepts exactly these shapes and nothing looser:
   resource paths.
 - The two Service reads are compared **semantically**: the two approved booleans compare by normalized value (omitted
   equals explicit `false`) and traffic revisions compare by canonical ID; every other stability field must be present and
-  identical. `executionEnvironment`, `scaling.maxInstanceCount` (Revision only) and Function generation are unchanged.
+  identical. Function generation and `executionEnvironment` retain their separate reviewed contracts. Revision scaling
+  uses only the documented rule below.
 
 This representation fix supersedes the earlier reviewed release-plan SHA/digest (`ddc6ee87…` /
 `48eff7a4…`) for execution only after it is independently reviewed and merged; the Control Plane must then record a new
@@ -433,10 +435,42 @@ reviewed `REVIEWED_RELEASE_PLAN_SHA` and digest externally. Production execution
 | `memory`, `cpu` | Revision `containers[0].resources.limits` | memory in Mi (Gi converted exactly), CPU decimal string (millicores converted exactly) |
 | `timeoutSeconds` | Revision `timeout` | positive integral seconds (`60s` / `60.0s` → 60; fractional unsupported values fail) |
 | `maxInstanceRequestConcurrency` | Revision `maxInstanceRequestConcurrency` | positive integer |
-| `maxInstanceCount` | Revision `scaling.maxInstanceCount` | positive integer; no template/default fallback |
+| `maxInstanceCount` | Revision `scaling.maxInstanceCount` | explicit positive integer, or **100** when Revision scaling / maximum is omitted (documented server default); no Service.template fallback |
 | `cloudRunExecutionEnvironmentPolicy` | exact ready Revision GET `executionEnvironment` | omitted / enum zero / explicit UNSPECIFIED → `EXECUTION_ENVIRONMENT_UNSPECIFIED`; explicit GEN1/GEN2 retained and compared to reviewed policy |
-| `invoker` | Service getIamPolicy `roles/run.invoker` bindings, plus Service `invokerIamDisabled` explicitly false | unconditional `allUsers` or explicit `none`; conditional/unsupported principals fail |
+| `invoker` | Service getIamPolicy `roles/run.invoker` bindings, plus Service `invokerIamDisabled` explicitly false | one unconditional exact `allUsers` or supported `serviceAccount:<exact-email>` principal, or explicit `none`; conditions, malformed/unsupported principals and multiple bindings/members fail |
 | `sourceTreeDigest` (rollback only) | deployed source archive identified by Cloud Functions resolved source provenance, digested as above | 64-hex SHA-256; cannot use the local candidate as deployed proof |
+
+**Representation is separate from release policy.** The resource builder records authoritative state for all
+17 Functions; it never grants permission to change that state. Governance remains 7 `MANAGED_SELECTED`,
+2 `MANAGED_UNTOUCHED`, 8 `PRESERVED_EXECUTIVE`; forbidden/unknown Functions fail inventory validation.
+`assertBaselineMatchesPinned`, `assertSelectedFunctionsDeployed` and `assertFullRollbackVerified` still enforce
+selected configuration pins. `assertNonSelectedUnchanged` / `assertPreservedFunctionsUnchanged` compare the
+complete normalized governed fields BEFORE/AFTER, without forcing untouched/preserved Functions to use selected config.
+
+- IAM GET supports one exact public principal or one exact Compute / project IAM service-account email (no wildcard,
+  substring match, case folding or generic service-account label). No invoker binding records `none`. Conditions
+  (even an explicit null condition), unsupported principal types and multiple relevant bindings/members fail closed.
+  `aggregatePresenceSessions` is **MANAGED_UNTOUCHED**: its observed
+  `serviceAccount:842441149281-compute@developer.gserviceaccount.com` token must remain exactly unchanged.
+  Any changed account/project, prefix/suffix spoof, extra member, user/group substitution or public/private change fails
+  normalization or BEFORE/AFTER comparison. Representing a valid different SA is never policy approval.
+  The selected seven rollback Functions and all eight forward targets still require **exactly `allUsers`**.
+- [Cloud Run RevisionScaling API](https://docs.cloud.google.com/run/docs/reference/rest/v2/RevisionScaling) specifies
+  optional Revision `maxInstanceCount` with server default **100**. Omitted Revision scaling / omitted maximum
+  normalizes to numeric **100**; explicit 100 compares equally. Explicit positive integers retain their value.
+  Null, strings, arrays, objects in the value position, zero, negative/fractional/non-finite/unsafe values fail.
+  No desired `Service.template` value is consulted. The preserved
+  `initializeExecutiveMilestoneLiveTimeline` Revision `initializeexecutivemilestonelivetimeline-00001-cuw`
+  omits scaling; represent its maximum as **100**, then enforce unchanged normalized state.
+  Selected maximum **20** remains strict: omission becomes **100** and fails baseline/forward/rollback policy.
+
+Sanitized 2026-10-05 Production GET fixtures reproduce both original 15/17 builder blockers (the scheduler also
+omits scaling). Before this correction the new regression tests fail on the exact service-account principal and
+omitted Revision maximum; the full 17-Function fixture now exercises all three governance categories and drift checks.
+This is validation-model remediation only; live Production is not known to be broken and is not changed by this patch.
+The external bootstrap below remains unchanged. A merge changes the reviewed release-plan SHA/digest and **invalidates
+the existing pin**: Control Plane must review and externally repin before any Production execution is authorized.
+Historical nodejs20 rollback lockfile vulnerabilities are a separate follow-up; do not modernize the pinned archive here.
 
 Read Cloud Functions with `gcloud functions describe <name> --gen2 --region us-central1 --project project-manager-dashboar-a067f --format=json`.
 Use authorized REST GETs to `https://run.googleapis.com/v2/projects/project-manager-dashboar-a067f/locations/us-central1/services/<service>`;
@@ -560,7 +594,7 @@ cd .. && npx firebase deploy --only functions:createDashboardWeek,functions:save
 **Read-back verification (required before the rollback counts).** Capture the restored snapshot exactly as in
 *Snapshot capture* (plus `sourceTreeDigest`) and run `assertFullRollbackVerified` against the Stage 0 baseline
 snapshot and the pinned baseline. For each of the seven, **every** item below must be read back as an explicit
-normalized value (a missing or unparseable value fails; nothing is inferred from absence):
+normalized value (only the narrowly documented API defaults above apply; other missing or unparseable evidence fails):
 
 - Service reconciliation complete (`reconciling` false, `observedGeneration == generation`, `terminalConditionState` successful, `latestCreatedRevision == revision`);
 - `functionRuntime` = `nodejs20`, `functionGeneration` = `GEN_2` from Cloud Functions;
