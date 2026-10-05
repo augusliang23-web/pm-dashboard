@@ -15,10 +15,10 @@ Rule for every stage: **failure → STOP → roll back to the last verified comp
 
 | Item | Value |
 |---|---|
-| Approved runtime target source | `main` @ `57ef1caad37c186adfe8536b6cb22d6302fdfc21` (includes PR #39 and PR #42). **`PRODUCTION_TARGET_SOURCE = 57ef1caad37c186adfe8536b6cb22d6302fdfc21`.** The Production release intentionally includes PR #42. |
-| PR #41 release-plan commits | the head of this PR while under review. It differs from the runtime target source only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
-| Reviewed release-plan SHA and digest | **the exact commit (and the content digest of the safety-critical plan files) that the Control Plane independently approved.** A commit cannot contain its own SHA, so both are **recorded outside this repository by the Control Plane after the final reviewed PR #41 state is merged** (see *Reviewed release-plan pin*). Never edited into this repository. |
-| Execution freeze SHA | the commit the release runs from. It **must equal the reviewed release-plan SHA exactly**; it necessarily differs from `57ef1caa…` because plan files changed. Any later commit, however small, changes it and requires a new independent review and a new recorded pin. Runtime integrity is verified separately against the runtime target source (Stage 0); any runtime-relevant change after `57ef1caa…` requires another re-baseline. |
+| Approved runtime target source | `main` @ `d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6` (includes PR #39, PR #42 and PR #45 maxInstances remediation). **`PRODUCTION_TARGET_SOURCE = d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6`.** The Production release intentionally includes PR #42. |
+| Release-plan candidate (PR #41 history) | the head of this rebaseline PR while under review. It differs from the runtime target source only by plan files (`docs/`, `tests/`, `config/deployment-manifest.json`, `scripts/deployment-manifest.mjs`). |
+| Reviewed release-plan SHA and digest | **the exact commit (and the content digest of the safety-critical plan files) that the Control Plane independently approved.** A commit cannot contain its own SHA, so both are **recorded outside this repository by the Control Plane after the final reviewed rebaseline PR is merged** (see *Reviewed release-plan pin*). Never edited into this repository. |
+| Execution freeze SHA | the commit the release runs from. It **must equal the reviewed release-plan SHA exactly**; it necessarily differs from `d9acec2…` because plan files changed. Any later commit, however small, changes it and requires a new independent review and a new recorded pin. Runtime integrity is verified separately against the runtime target source (Stage 0); any runtime-relevant change after `d9acec2…` requires another re-baseline. |
 | Live Production rollback baseline | the pinned live state in *FULL rollback* below (`f4244be…` source, configuration, revisions). It is **independent of the three identities above**: it changes only if live Production itself changes. |
 | Live Production Functions (2026-10-04) | **17** = 9 MANAGED + 8 PRESERVED Executive; all `nodejs20`, Gen 2, `us-central1`, default compute runtime identity |
 | `setUserPermissionOverrides` | **absent** in Production |
@@ -85,7 +85,7 @@ difference **fails the runbook** (STOP).
 
 ## Reviewed release-plan pin
 
-Four things are pinned and must never be conflated: the **runtime target source** (`57ef1caa…`, what is deployed), the
+Four things are pinned and must never be conflated: the **runtime target source** (`d9acec2…`, what is deployed), the
 **reviewed release plan** (the safety-critical plan files exactly as independently approved), the **execution freeze
 SHA** (what the release runs from) and the **live Production rollback baseline** (what a rollback restores).
 
@@ -100,7 +100,7 @@ safety-critical release-plan files are exactly:
 - `tests/deployment-manifest.test.mjs`
 - `tests/production-promotion-v2.test.mjs`
 
-**Post-merge lifecycle (future authorization required).** Independently review PR #41, then merge only after
+**Post-merge lifecycle (future authorization required).** Independently review this rebaseline PR, then merge only after
 Control Plane approval. Obtain the resulting main merge SHA and verify that its tree contains exactly the approved
 PR tree / expected plan (`git diff --exit-code <approved-pr-head> <resulting-merge-sha> --`). If merge resolution or
 base movement changes that tree, review the resulting tree before approval. Control Plane records the immutable
@@ -153,10 +153,10 @@ against the older approved runtime target source and requires re-baseline for ru
 comparison permits already reviewed plan differences FROM THE RUNTIME TARGET; it is never an escape hatch for
 post-review edits. ALL tracked post-review edits require new approval, regardless of file or content.
 
-## Runtime target includes PR #42
+## Runtime target includes PR #39, PR #42 and PR #45
 
-The runtime target source (`57ef1caa…`) is `1c2ec79…` plus PR #42 (`fix: enforce project visibility server-side and tighten User Permissions conflict handling`).
-Impact on the approved scope, proven from the diff `1c2ec79… → 57ef1caa…`:
+**Historical PR #42 evidence (superseded runtime target `57ef1caa…`).** That target was `1c2ec79…` plus PR #42 (`fix: enforce project visibility server-side and tighten User Permissions conflict handling`).
+Historical impact on the approved scope, proven from the diff `1c2ec79… → 57ef1caa…`:
 
 - Under `functions/`, PR #42 changes only `functions/project-dashboard-writes.js` (+19 lines: `effectiveVisibility`,
   `assertVisibilityAuthority`, and two calls inside `buildProjectPatch`) and adds a test. No change to `index.js`,
@@ -181,6 +181,22 @@ Admin to select the user again.
 The live Production rollback baseline is **not** changed by this: it describes the currently live source
 (`f4244be…`) and remains authoritative unless live Production itself changes.
 
+### PR #45 runtime-target rebaseline
+
+Production Stage 2 stopped before deployment at **0/8**. PR #45 was independently reviewed and merged as
+`d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6`; it is now the approved runtime target.
+The eight selected Functions explicitly encode `maxInstances: 20`. The other thirteen exported Functions retain
+their previous source options; permission / visibility business logic was unchanged.
+The accepted runtime-relevant delta from the historical PR #42 target is exactly
+`functions/project-dashboard-writes.js`, `functions/user-permissions.js` and
+`functions/test/selected-callable-runtime-options.test.cjs`. No other runtime-relevant path is accepted.
+
+This rebaseline changes only release-plan metadata, tests and documentation. The validator and its plan-only
+path policy remain unchanged: every later Function edit still requires a new runtime-target review / re-baseline.
+After this PR is independently reviewed and merged, record the resulting merge SHA and a new release-plan digest
+outside the repository. That future reviewed-plan SHA must differ from the runtime target and the execution
+freeze must equal it exactly. Rerun Final Production Preflight; Production Stage 2 remains unauthorized.
+
 ## Node 22 contract
 
 - Current Production runtime: **nodejs20** for all 17 Functions. Target runtime for the eight release Functions:
@@ -195,7 +211,7 @@ The live Production rollback baseline is **not** changed by this: it describes t
 
 | Candidate | Pin (confirm at freeze) | Required evidence |
 |---|---|---|
-| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` (runtime target source `57ef1caa…`) | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
+| This PR (`main` promotion) | head SHA of this PR at freeze; base `main` (runtime target source `d9acec2…`) | GitHub CI **5/5 success at that exact SHA** (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`) plus local: `npm run test:all`, `cd functions && npm test`, `npm run test:rules`, `node scripts/build-hosting.mjs --env prod` and `--env uat`, `npm run verify:sync-boundary`, `git diff --check` (Node 22). |
 | PR #40 (`production-pages`) | head SHA at freeze (`83787c81…` when this was written); base `production-pages` @ `932c6e2…` | **No GitHub CI exists on `production-pages`.** Accepted only on reproducible local evidence at the pinned SHA (570 tests, rules 10/10, binding audit, asset closure). Never describe it as "CI PASS". |
 
 ## Production GO prerequisites (unresolved — do not start until each is closed)
@@ -234,7 +250,7 @@ release-plan SHA (*Reviewed release-plan pin*), and runtime integrity is verifie
 source; do not assume either:
 
 ```bash
-git diff --name-only 57ef1caad37c186adfe8536b6cb22d6302fdfc21 <freeze-sha>
+git diff --name-only d9acec2e88a8ac80bc9df2cf90e4e2f1c7ec52f6 <future-reviewed-release-plan-sha>
 ```
 
 FIRST perform Layer 0 external Git bootstrap above. Only then feed the listed paths, the freeze SHA, the checkout root and the recorded reviewed SHA/digest to `assertExecutionFreeze` (SECONDARY evidence).
