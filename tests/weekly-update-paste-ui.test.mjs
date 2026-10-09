@@ -41,10 +41,13 @@ function harness({ session, editor = {}, confirmAnswer = true } = {}) {
   nodes.pe_weekly_actions.value = editor.weeklyActions ?? '';
   let editorPairs = (editor.riskActions ?? []).map(pair => ({ ...pair }));
   const calls = { confirm: 0, toasts: [], saves: 0 };
+  // Controllable fake timers: nothing runs until the test flushes them.
+  const timers = new Map();
+  let timerId = 0;
   const context = {
     console: { log() { throw new Error('must not log'); }, error() { throw new Error('must not log'); } },
-    setTimeout: fn => { fn(); return 1; },
-    clearTimeout() {},
+    setTimeout: (fn, delay = 0) => { timers.set(++timerId, { fn, delay }); return timerId; },
+    clearTimeout: id => { timers.delete(id); },
     Object, Array, String, Boolean,
     projectEditorSession: session,
     isProjectEditorSessionCurrent: candidate => Boolean(candidate) && candidate === context.projectEditorSession,
@@ -69,12 +72,31 @@ function harness({ session, editor = {}, confirmAnswer = true } = {}) {
   vm.createContext(context);
   vm.runInContext(`${onePaste}\nthis.resetWeeklyUpdatePaste = resetWeeklyUpdatePaste;`, context);
   context.resetWeeklyUpdatePaste(session);
-  const pasteText = text => {
-    nodes.pe_copilot_response.value = text;
+  const flush = () => {
+    for (const [id, timer] of [...timers]) {
+      timers.delete(id);
+      timer.fn();
+    }
+  };
+  // Browser order: paste event (value not yet changed) -> value changes -> input event.
+  const pasteEvent = text => {
     nodes.pe_copilot_response.listeners.paste();
+    nodes.pe_copilot_response.value = text;
+    nodes.pe_copilot_response.listeners.input({ inputType: 'insertFromPaste' });
+  };
+  const typeText = (text, inputType = 'insertText') => {
+    nodes.pe_copilot_response.value = text;
+    nodes.pe_copilot_response.listeners.input({ inputType });
+  };
+  const pasteText = text => {
+    pasteEvent(text);
+    flush();
   };
   const editorState = () => ({ highlight: nodes.pe_highlight.value, weeklyActions: nodes.pe_weekly_actions.value, riskActions: editorPairs });
-  return { context, nodes, calls, pasteText, editorState, apply: () => context.window.applyWeeklyUpdateDraft() };
+  return {
+    context, nodes, calls, timers, flush, pasteEvent, typeText, pasteText, editorState,
+    apply: () => context.window.applyWeeklyUpdateDraft(),
+  };
 }
 
 const SESSION = Object.freeze({ token: 'project-editor-1', weekId: 'W38-2026', weekLabel: 'W38 2026', code: 'SYS-001', manageOnly: false });
@@ -220,4 +242,117 @@ test('T14 the existing Save path is unchanged and still reads the same three edi
   assert.match(dashboard, /highlight: document\.getElementById\('pe_highlight'\)\.value,\n    weeklyActions: document\.getElementById\('pe_weekly_actions'\)\.value,\n    riskActions: riskActions,/);
   assert.match(dashboard, /const response = await projectDashboardApi\.saveProject\(\{/);
   assert.match(dashboard, /resetWeeklyUpdatePaste\(projectEditorSession\);\n  document\.getElementById\('pe_details'\)\.open = isNew;/);
+});
+
+// ── Stale preview regression (PR #47 review, P2) ──
+const OTHER = RESPONSE.replace('- Installer signed.', '- Second response highlight.');
+const STALE_ERROR = /changed since the preview|no longer matches/;
+
+function expectRejected(h, expectedSource) {
+  assert.deepEqual(h.editorState(), SAVED, 'the three editor fields are unchanged');
+  assert.equal(h.nodes.pe_copilot_response.value, expectedSource, 'the latest pasted source is preserved');
+  assert.equal(h.calls.toasts.length, 0, 'no success toast');
+}
+
+test('stale T01: editing the source then applying before the debounce cannot apply the old preview', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  const edited = RESPONSE.replace('- Firmware validated.', '- Firmware validated on rev B.');
+  h.typeText(edited);
+  assert.equal(h.timers.size, 1, 'debounced re-parse is still pending');
+  assert.equal(h.nodes.pe_weekly_paste_preview.hidden, true, 'old preview is hidden immediately');
+  h.apply();
+  expectRejected(h, edited);
+  assert.match(h.nodes.pe_weekly_paste_error.textContent, STALE_ERROR);
+});
+
+test('stale T02: clearing the source then applying immediately applies nothing', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  h.typeText('', 'deleteContentBackward');
+  h.apply();
+  expectRejected(h, '');
+});
+
+test('stale T03: replacing the source with invalid text invalidates the old preview at once', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  h.pasteEvent('not a weekly update');
+  assert.equal(h.nodes.pe_weekly_paste_preview.hidden, true);
+  assert.equal(h.nodes.pe_wu_highlight.value, '');
+  h.apply();
+  expectRejected(h, 'not a weekly update');
+  h.flush();
+  assert.match(h.nodes.pe_weekly_paste_error.textContent, /No <<<PM_WEEKLY_UPDATE_V1>>> block was found/);
+  h.apply();
+  expectRejected(h, 'not a weekly update');
+});
+
+test('stale T04/T05: a second paste blocks the old draft until it parses, then only the new content applies', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  h.pasteEvent(OTHER);
+  h.apply();
+  expectRejected(h, OTHER);
+  h.flush();
+  assert.equal(h.nodes.pe_weekly_paste_preview.hidden, false, 'fresh preview after parsing');
+  assert.match(h.nodes.pe_wu_highlight.value, /Second response highlight/);
+  h.apply();
+  assert.equal(h.editorState().highlight, '- Second response highlight.\n- Firmware validated.');
+});
+
+test('stale guard does not depend on events: a source changed without an input event is still rejected', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  h.nodes.pe_copilot_response.value = OTHER; // e.g. programmatic change, no event fired
+  h.apply();
+  expectRejected(h, OTHER);
+});
+
+test('stale T06: preview edits after a successful parse remain applicable', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  h.pasteText(RESPONSE);
+  h.nodes.pe_wu_weekly_actions.value = '- PM rewrote the action.';
+  h.apply();
+  assert.equal(h.editorState().weeklyActions, '- PM rewrote the action.');
+});
+
+test('stale T07/T09: unsaved manual edits still require confirmation; a stale reject keeps them and the source', () => {
+  const h = harness({ session: SESSION, editor: SAVED, confirmAnswer: false });
+  h.nodes.pe_highlight.value = 'Unsaved manual highlight';
+  h.pasteText(RESPONSE);
+  h.typeText(OTHER);
+  h.apply();
+  assert.equal(h.calls.confirm, 0, 'stale drafts are rejected before any overwrite prompt');
+  assert.equal(h.nodes.pe_highlight.value, 'Unsaved manual highlight');
+  assert.equal(h.nodes.pe_copilot_response.value, OTHER);
+  h.flush();
+  h.apply();
+  assert.equal(h.calls.confirm, 1, 'overwrite confirmation still runs for a fresh draft');
+  assert.equal(h.nodes.pe_highlight.value, 'Unsaved manual highlight');
+});
+
+test('stale T08: a pending re-parse cannot revive a draft after the session changes or ends', () => {
+  // Opening another project/week/editor runs resetWeeklyUpdatePaste (as openProjEdit does).
+  const reopened = harness({ session: SESSION, editor: SAVED });
+  reopened.pasteText(RESPONSE);
+  reopened.typeText(OTHER);
+  const next = Object.freeze({ ...SESSION, token: 'project-editor-2', code: 'SYS-002' });
+  reopened.context.projectEditorSession = next;
+  reopened.context.resetWeeklyUpdatePaste(next);
+  assert.equal(reopened.timers.size, 0, 'pending re-parse is cancelled');
+  reopened.flush();
+  reopened.apply();
+  expectRejected(reopened, '');
+
+  // The editor session ends (e.g. invalidated) while a re-parse is pending.
+  const ended = harness({ session: SESSION, editor: SAVED });
+  ended.pasteText(RESPONSE);
+  ended.typeText(OTHER);
+  ended.context.projectEditorSession = null;
+  ended.flush();
+  assert.equal(ended.nodes.pe_weekly_paste_preview.hidden, true);
+  ended.apply();
+  expectRejected(ended, OTHER);
+  assert.match(ended.nodes.pe_weekly_paste_error.textContent, /no longer matches the open project and week/);
 });

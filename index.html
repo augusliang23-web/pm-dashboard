@@ -13410,7 +13410,7 @@ function parseWeeklyUpdatePaste() {
     return;
   }
   setWeeklyUpdatePasteError('');
-  weeklyUpdateDraft = Object.freeze({ sessionToken: session.token, weekId: session.weekId, projectCode: session.code });
+  weeklyUpdateDraft = Object.freeze({ sessionToken: session.token, weekId: session.weekId, projectCode: session.code, source: raw });
   document.getElementById('pe_wu_highlight').value = result.values.highlight;
   document.getElementById('pe_wu_weekly_actions').value = result.values.weeklyActions;
   document.getElementById('pe_wu_risks').replaceChildren(...result.values.riskActions.map(renderWeeklyUpdatePreviewRisk));
@@ -13419,22 +13419,35 @@ function parseWeeklyUpdatePaste() {
   document.getElementById('pe_weekly_paste_preview').hidden = false;
 }
 
-// Parse right after a paste; for typing, wait until input settles.
-document.getElementById('pe_copilot_response').addEventListener('paste', () => {
+// Any change to the pasted source invalidates the current preview at once, so
+// Apply can never use a draft parsed from older text while a re-parse is
+// pending. Parse right after a paste; for typing, wait until input settles.
+function invalidateWeeklyUpdateDraft() {
   if (weeklyUpdateParseTimer) clearTimeout(weeklyUpdateParseTimer);
-  weeklyUpdateParseTimer = setTimeout(parseWeeklyUpdatePaste, 0);
-});
+  weeklyUpdateParseTimer = null;
+  clearWeeklyUpdatePreview();
+}
+function scheduleWeeklyUpdateParse(delay) {
+  invalidateWeeklyUpdateDraft();
+  weeklyUpdateParseTimer = setTimeout(parseWeeklyUpdatePaste, delay);
+}
+document.getElementById('pe_copilot_response').addEventListener('paste', () => scheduleWeeklyUpdateParse(0));
 document.getElementById('pe_copilot_response').addEventListener('input', event => {
-  if (event.inputType === 'insertFromPaste') return;
-  if (weeklyUpdateParseTimer) clearTimeout(weeklyUpdateParseTimer);
-  weeklyUpdateParseTimer = setTimeout(parseWeeklyUpdatePaste, 500);
+  scheduleWeeklyUpdateParse(event.inputType === 'insertFromPaste' ? 0 : 500);
 });
 
 window.applyWeeklyUpdateDraft = () => {
   const session = projectEditorSession;
-  if (!isProjectEditorSessionCurrent(session) || session.manageOnly || !isWeeklyUpdateDraftCurrent(weeklyUpdateDraft, session)) {
+  const source = document.getElementById('pe_copilot_response').value;
+  if (!isProjectEditorSessionCurrent(session) || session.manageOnly || !isWeeklyUpdateDraftCurrent(weeklyUpdateDraft, session, source)) {
+    // Keep the pasted source and the editor fields; only the stale preview goes.
+    const sourceChanged = weeklyUpdateDraft
+      ? weeklyUpdateDraft.source !== source
+      : Boolean(source.trim()) && isProjectEditorSessionCurrent(session);
     clearWeeklyUpdatePreview();
-    setWeeklyUpdatePasteError('This preview no longer matches the open project and week. Paste the Copilot response again. Nothing was changed.');
+    setWeeklyUpdatePasteError(sourceChanged
+      ? 'The pasted response changed since the preview. Wait for the new preview, then click Apply Weekly Update. Nothing was changed.'
+      : 'This preview no longer matches the open project and week. Paste the Copilot response again. Nothing was changed.');
     return;
   }
   const values = readWeeklyUpdatePreview();

@@ -221,11 +221,15 @@ test('T11 weeklyFieldsDiffer detects manual edits and ignores harmless differenc
 
 test('T16/T17 a parsed draft only applies in the same project, week and editor session', () => {
   const session = { token: 'project-editor-4', weekId: 'W38-2026', code: 'SYS-001' };
-  const draft = { sessionToken: 'project-editor-4', weekId: 'W38-2026', projectCode: 'SYS-001' };
-  assert.equal(isWeeklyUpdateDraftCurrent(draft, session), true);
-  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, code: 'SYS-002' }), false, 'other project');
-  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, weekId: 'W39-2026' }), false, 'other week');
-  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, token: 'project-editor-5' }), false, 'reopened editor');
-  assert.equal(isWeeklyUpdateDraftCurrent(null, session), false);
-  assert.equal(isWeeklyUpdateDraftCurrent(draft, null), false);
+  const draft = { sessionToken: 'project-editor-4', weekId: 'W38-2026', projectCode: 'SYS-001', source: 'pasted v1' };
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, session, 'pasted v1'), true);
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, code: 'SYS-002' }, 'pasted v1'), false, 'other project');
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, weekId: 'W39-2026' }, 'pasted v1'), false, 'other week');
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, { ...session, token: 'project-editor-5' }, 'pasted v1'), false, 'reopened editor');
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, session, 'pasted v2'), false, 'source changed since parsing');
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, session, ''), false, 'source cleared');
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, session), false, 'source must be supplied');
+  assert.equal(isWeeklyUpdateDraftCurrent({ ...draft, source: undefined }, session, undefined), false, 'draft without a source');
+  assert.equal(isWeeklyUpdateDraftCurrent(null, session, 'pasted v1'), false);
+  assert.equal(isWeeklyUpdateDraftCurrent(draft, null, 'pasted v1'), false);
 });

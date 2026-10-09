@@ -253,13 +253,16 @@ export function weeklyFieldsDiffer(left = {}, right = {}) {
 
 /**
  * A parsed draft may only be applied in the exact editor session (same
- * project, same week, same opening) it was parsed in.
+ * project, same week, same opening) it was parsed in, and only while the
+ * pasted source is still exactly the text it was parsed from.
  */
-export function isWeeklyUpdateDraftCurrent(draft, session) {
+export function isWeeklyUpdateDraftCurrent(draft, session, currentSource) {
   return Boolean(
     draft && session
     && draft.sessionToken === session.token
     && draft.weekId === session.weekId
     && draft.projectCode === session.code
+    && typeof draft.source === 'string'
+    && draft.source === currentSource
   );
 }
