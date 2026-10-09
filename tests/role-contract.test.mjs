@@ -11,9 +11,10 @@ const production = dashboardSource('production');
 const uat = dashboardSource('uat');
 // Frozen UAT rendering. Last deliberately changed by the User Permissions switch redesign and the week.release,
 // gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
-// then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only);
+// then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
+// then by the one-paste Copilot weekly update panel in the shared project editor;
 // any other UAT drift fails.
-const originalUatHash = '382901a8c5551ca15670d5af4a47c9907fad14f6edfd265da363527015a97fca';
+const originalUatHash = 'ae8936820b29843e236283e8714ac9243584f2fcf47707bc9158a8ffb475e4ed';
 
 const validRoles = new Map([
   ['admin', 'admin'],

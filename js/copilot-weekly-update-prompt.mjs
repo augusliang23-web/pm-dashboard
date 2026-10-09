@@ -1,4 +1,5 @@
 import { normalizeRiskActionRows } from './portfolio-core.mjs';
+import { WEEKLY_UPDATE_FORMAT, WEEKLY_UPDATE_SECTIONS } from './weekly-update-paste.mjs';
 
 const NONE_RECORDED = '(none recorded)';
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -340,30 +341,66 @@ function generateSection(context) {
   ];
 }
 
+function weekOverWeekTemplate(hasBaseline) {
+  return hasBaseline
+    ? [
+      'Topic:',
+      '...',
+      '',
+      'Last Week:',
+      '...',
+      '',
+      'This Week:',
+      '...',
+      '',
+      'Change:',
+      '...',
+      '',
+      'Evidence Confidence:',
+      'High / Medium / Low',
+    ]
+    : ['Not applicable - no previous weekly report is available.'];
+}
+
 function outputFormatSection(context) {
   const hasBaseline = Boolean(context.previousReport);
+  const [highlight, weeklyActions, riskActions] = WEEKLY_UPDATE_SECTIONS;
   return [
     'OUTPUT FORMAT:',
     '',
     hasBaseline
       ? "Use exactly this structure and write in the same language and tone as last week's report."
       : 'Use exactly this structure and write in concise, professional English.',
-    'Return only these sections, with no introduction, explanation, or closing remarks.',
     '',
-    '## HIGHLIGHT',
+    `Put sections 1-3 in ONE plain-text code block, using the ${WEEKLY_UPDATE_FORMAT} markers exactly as shown. The PM pastes that block into PM Dashboard, which reads it automatically:`,
     '',
+    `- ${highlight.id} fills the "${highlight.label}" field (section 1).`,
+    `- ${weeklyActions.id} fills the "${weeklyActions.label}" field (section 2).`,
+    `- ${riskActions.id} fills the "${riskActions.label}" table (section 3): each Risk becomes one row, its Risk / Blocker fills the Risk / Blocker column and its Required Action fills the Mitigation Actions column.`,
+    '',
+    'Marker rules:',
+    '',
+    '- Copy every <<<...>>> marker exactly, in English, each on its own line. Do not rename, translate, bold, or remove them.',
+    '- All three sections are required and must not be empty.',
+    '- Put nothing inside the block except the section content. Keep line breaks and "- " bullets.',
+    '- Output the block exactly once.',
+    '',
+    '```text',
+    `<<<${WEEKLY_UPDATE_FORMAT}>>>`,
+    '',
+    `<<<${highlight.id}>>>`,
     '- ...',
     '- ...',
     '- ...',
+    `<<<END_${highlight.id}>>>`,
     '',
-    '## WEEKLY KEY ACTIONS',
-    '',
+    `<<<${weeklyActions.id}>>>`,
     '- ...',
     '- ...',
     '- ...',
+    `<<<END_${weeklyActions.id}>>>`,
     '',
-    '## RISK / ACTION PAIRS',
-    '',
+    `<<<${riskActions.id}>>>`,
     '### Risk 1',
     '',
     'Primary: Yes / No',
@@ -383,27 +420,18 @@ function outputFormatSection(context) {
     '',
     'Required Action:',
     '...',
+    `<<<END_${riskActions.id}>>>`,
+    '',
+    `<<<END_${WEEKLY_UPDATE_FORMAT}>>>`,
+    '```',
+    '',
+    'After the code block, add section 4 for PM review only (it is not pasted into PM Dashboard):',
     '',
     '## WEEK-OVER-WEEK CHANGES',
     '',
-    ...(hasBaseline
-      ? [
-        'Topic:',
-        '...',
-        '',
-        'Last Week:',
-        '...',
-        '',
-        'This Week:',
-        '...',
-        '',
-        'Change:',
-        '...',
-        '',
-        'Evidence Confidence:',
-        'High / Medium / Low',
-      ]
-      : ['Not applicable - no previous weekly report is available.']),
+    ...weekOverWeekTemplate(hasBaseline),
+    '',
+    'Return only the code block and section 4, with no introduction, explanation, or closing remarks.',
   ];
 }
 

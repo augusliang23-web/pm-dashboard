@@ -111,17 +111,36 @@ test('the prompt requires week-over-week comparison, Microsoft 365 evidence and 
   assert.match(prompt, /Every Risk must have its own Required Action/);
 });
 
-test('the prompt has the fixed output structure including WEEK-OVER-WEEK CHANGES', () => {
+test('the prompt has the fixed V1 output contract followed by WEEK-OVER-WEEK CHANGES', () => {
   const prompt = promptFor();
-  const headings = ['## HIGHLIGHT', '## WEEKLY KEY ACTIONS', '## RISK / ACTION PAIRS', '### Risk 1', '### Risk 2', '## WEEK-OVER-WEEK CHANGES'];
+  const markers = [
+    '```text', '<<<PM_WEEKLY_UPDATE_V1>>>',
+    '<<<FIELD_1>>>', '<<<END_FIELD_1>>>',
+    '<<<FIELD_2>>>', '<<<END_FIELD_2>>>',
+    '<<<FIELD_3>>>', '### Risk 1', '### Risk 2', '<<<END_FIELD_3>>>',
+    '<<<END_PM_WEEKLY_UPDATE_V1>>>', '```', '## WEEK-OVER-WEEK CHANGES',
+  ];
   let cursor = prompt.indexOf('OUTPUT FORMAT:');
   assert.ok(cursor > 0);
-  for (const heading of headings) {
-    const next = prompt.indexOf(heading, cursor);
-    assert.ok(next >= cursor, `${heading} should appear in order`);
+  for (const marker of markers) {
+    const next = prompt.indexOf(marker, cursor);
+    assert.ok(next >= cursor, `${marker} should appear in order`);
     cursor = next;
   }
   assert.match(prompt, /Evidence Confidence:\nHigh \/ Medium \/ Low/);
+  for (const marker of ['<<<PM_WEEKLY_UPDATE_V1>>>', '<<<FIELD_1>>>', '<<<FIELD_2>>>', '<<<FIELD_3>>>']) {
+    assert.equal(prompt.split(marker).length - 1, 1, `${marker} appears once`);
+  }
+});
+
+test('the prompt explains each contract section using the actual editor field labels', () => {
+  const prompt = promptFor();
+  assert.match(prompt, /- FIELD_1 fills the "Highlight" field/);
+  assert.match(prompt, /- FIELD_2 fills the "Weekly Key Actions" field/);
+  assert.match(prompt, /- FIELD_3 fills the "Risk & Mitigation Actions" table/);
+  assert.match(prompt, /Required Action fills the Mitigation Actions column/);
+  assert.match(prompt, /All three sections are required and must not be empty\./);
+  assert.match(prompt, /Output the block exactly once\./);
 });
 
 test('the prompt sets approximate length limits and protects confirmed facts', () => {
@@ -131,7 +150,7 @@ test('the prompt sets approximate length limits and protects confirmed facts', (
   assert.match(prompt, /Keep each Risk \/ Blocker to 1-2 sentences, about 60 words or fewer, and each Required Action to one sentence, about 45 words or fewer\./);
   assert.match(prompt, /List at most 6 topics and keep each field to 1-2 sentences\./);
   assert.match(prompt, /Never drop a confirmed date, owner, or decision just to stay within them\./);
-  assert.match(prompt, /Return only these sections, with no introduction, explanation, or closing remarks\./);
+  assert.match(prompt, /Return only the code block and section 4, with no introduction, explanation, or closing remarks\./);
 });
 
 test('first report: no previous week produces the no-baseline instructions and does not crash', () => {
