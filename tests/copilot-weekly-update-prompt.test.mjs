@@ -67,7 +67,8 @@ test('every previous risk / action pair is included with its Primary flag, Prima
   assert.match(prompt, /Risk 1\n\nPrimary: Yes\n\nRisk \/ Blocker:\nInstaller unconfirmed\n\nRequired Action:\nObtain signed schedule/);
   assert.match(prompt, /Risk 2\n\nPrimary: No\n\nRisk \/ Blocker:\nSecondary supplier delay\n\nRequired Action:\nEscalate to procurement/);
   assert.match(prompt, /Risk 3\n\nPrimary: No\n\nRisk \/ Blocker:\nThermal margin thin\n\nRequired Action:\nRun derating test/);
-  assert.equal((prompt.match(/Primary: Yes\n\nRisk \/ Blocker:\n/g) || []).length, 1);
+  const lastWeek = prompt.slice(prompt.indexOf("LAST WEEK'S REPORT"), prompt.indexOf('YOUR TASK'));
+  assert.equal((lastWeek.match(/Primary: Yes\n\nRisk \/ Blocker:\n/g) || []).length, 1);
 });
 
 test('legacy projects without structured riskActions still expose their risks and actions', () => {
@@ -111,26 +112,74 @@ test('the prompt requires week-over-week comparison, Microsoft 365 evidence and 
   assert.match(prompt, /Every Risk must have its own Required Action/);
 });
 
-test('the prompt has the fixed V1 output contract followed by WEEK-OVER-WEEK CHANGES', () => {
+test('P05/P06/P07 the output is one V1 code block with only FIELD_1-3 and no separate week-over-week section', () => {
+  for (const prompt of [promptFor(), promptFor({ weeks: [{ weekLabel: 'W38 2026', weekDate: 'Sep 14 - Sep 18', projects: [currentProject] }] })]) {
+    const output = prompt.slice(prompt.indexOf('OUTPUT FORMAT:'));
+    const markers = [
+      '```text', '<<<PM_WEEKLY_UPDATE_V1>>>',
+      '<<<FIELD_1>>>', '<<<END_FIELD_1>>>',
+      '<<<FIELD_2>>>', '<<<END_FIELD_2>>>',
+      '<<<FIELD_3>>>', '### Risk 1', '### Risk 2', '<<<END_FIELD_3>>>',
+      '<<<END_PM_WEEKLY_UPDATE_V1>>>', '```',
+    ];
+    let cursor = 0;
+    for (const marker of markers) {
+      const next = output.indexOf(marker, cursor);
+      assert.ok(next >= cursor, `${marker} should appear in order`);
+      cursor = next;
+    }
+    assert.deepEqual([...new Set(prompt.match(/<<<[A-Z0-9_]+>>>/g))].sort(), [
+      '<<<END_FIELD_1>>>', '<<<END_FIELD_2>>>', '<<<END_FIELD_3>>>', '<<<END_PM_WEEKLY_UPDATE_V1>>>',
+      '<<<FIELD_1>>>', '<<<FIELD_2>>>', '<<<FIELD_3>>>', '<<<PM_WEEKLY_UPDATE_V1>>>',
+    ]);
+    for (const marker of ['<<<PM_WEEKLY_UPDATE_V1>>>', '<<<FIELD_1>>>', '<<<FIELD_2>>>', '<<<FIELD_3>>>']) {
+      assert.equal(prompt.split(marker).length - 1, 1, `${marker} appears once`);
+    }
+    assert.equal(output.split('```').length - 1, 2, 'exactly one code block');
+    assert.doesNotMatch(prompt, /## WEEK-OVER-WEEK CHANGES|4\. WEEK-OVER-WEEK|Evidence Confidence|Topic:\n|Last Week:\n|This Week:\n|Change:\n/);
+    assert.match(prompt, /Return only the code block, with no introduction, summary, week-over-week section, explanation, or closing remarks before or after it\./);
+  }
+});
+
+test('P01 Highlight asks for about 2-3 short, change-focused bullets without background', () => {
   const prompt = promptFor();
-  const markers = [
-    '```text', '<<<PM_WEEKLY_UPDATE_V1>>>',
-    '<<<FIELD_1>>>', '<<<END_FIELD_1>>>',
-    '<<<FIELD_2>>>', '<<<END_FIELD_2>>>',
-    '<<<FIELD_3>>>', '### Risk 1', '### Risk 2', '<<<END_FIELD_3>>>',
-    '<<<END_PM_WEEKLY_UPDATE_V1>>>', '```', '## WEEK-OVER-WEEK CHANGES',
-  ];
-  let cursor = prompt.indexOf('OUTPUT FORMAT:');
-  assert.ok(cursor > 0);
-  for (const marker of markers) {
-    const next = prompt.indexOf(marker, cursor);
-    assert.ok(next >= cursor, `${marker} should appear in order`);
-    cursor = next;
-  }
-  assert.match(prompt, /Evidence Confidence:\nHigh \/ Medium \/ Low/);
-  for (const marker of ['<<<PM_WEEKLY_UPDATE_V1>>>', '<<<FIELD_1>>>', '<<<FIELD_2>>>', '<<<FIELD_3>>>']) {
-    assert.equal(prompt.split(marker).length - 1, 1, `${marker} appears once`);
-  }
+  assert.match(prompt, /1\. HIGHLIGHT\n\nNormally 2-3 bullets, one short sentence each where possible: meaningful achievements and changes, critical decisions, and schedule changes, including progress versus last week when relevant\./);
+  assert.match(prompt, /Avoid historical project background, routine activity without impact, long technical explanations, and repeating information from the other fields\./);
+  assert.match(prompt, /- FAT completion moved one week due to supplier delay\./);
+  assert.doesNotMatch(prompt, /3-6/);
+});
+
+test('P02 Weekly Key Actions asks for about 2-4 verb-first actions without invented commitments', () => {
+  const prompt = promptFor();
+  assert.match(prompt, /2\. WEEKLY KEY ACTIONS\n\nNormally 2-4 actions, one concise sentence each, starting with a clear action verb/);
+  assert.match(prompt, /Do not repeat completed work from Highlight\./);
+  assert.match(prompt, /Include owners and deadlines only when supported by verified information\. Do not invent commitments\./);
+  assert.match(prompt, /- Finalize BMS communication mapping\./);
+});
+
+test('P03/P12 risks: top 2-3 by impact, Primary rules kept, never invented, explicit no-risk value', () => {
+  const prompt = promptFor();
+  assert.match(prompt, /3\. RISK \/ ACTION PAIRS\n\nNormally the top 2-3 active risks, ordered by business and delivery impact\. Keep an additional risk only when it is material\./);
+  assert.match(prompt, /Every Risk must have its own Required Action/);
+  assert.match(prompt, /Mark exactly one risk "Primary: Yes"/);
+  assert.match(prompt, /The PM makes the final decision\./);
+  assert.match(prompt, /Do not automatically carry forward last week's risks\./);
+  assert.match(prompt, /Never invent a risk to fill this section\. If no active risk is supported by evidence, write exactly "No active risks\." as the whole section\./);
+  assert.doesNotMatch(prompt, /1-4 active risks/);
+});
+
+test('P04/P09 with a previous report, the comparison logic stays and feeds the three fields', () => {
+  const prompt = promptFor();
+  assert.match(prompt, /LAST WEEK'S REPORT/);
+  assert.match(prompt, /last week's position -> new evidence -> what changed -> current status -> next action/);
+  for (const word of ['progressed', 'completed', 'remained unchanged', 'deteriorated', 'is newly identified']) assert.match(prompt, new RegExp(word));
+  assert.match(prompt, /put meaningful progress, completed items, newly introduced risks, and resolved issues directly where they belong\. Do not output the comparison as a separate section, and do not repeat unchanged background\./);
+});
+
+test('P10 without a previous report, no historical comparison is requested or implied', () => {
+  const prompt = promptFor({ weeks: [{ weekLabel: 'W38 2026', weekDate: 'Sep 14 - Sep 18', projects: [currentProject] }] });
+  assert.match(prompt, /do not describe or imply changes versus a previous week/);
+  assert.doesNotMatch(prompt, /progress versus last week|last week's risks|last week's position/);
 });
 
 test('the prompt explains each contract section using the actual editor field labels', () => {
@@ -143,14 +192,12 @@ test('the prompt explains each contract section using the actual editor field la
   assert.match(prompt, /Output the block exactly once\./);
 });
 
-test('the prompt sets approximate length limits and protects confirmed facts', () => {
+test('P11 the prompt targets a 30-second read and still protects confirmed facts', () => {
   const prompt = promptFor();
-  assert.match(prompt, /Keep each bullet to 1-2 sentences, about 40 words or fewer\./);
-  assert.match(prompt, /Keep each action to one sentence, about 33 words or fewer\./);
-  assert.match(prompt, /Keep each Risk \/ Blocker to 1-2 sentences, about 60 words or fewer, and each Required Action to one sentence, about 45 words or fewer\./);
-  assert.match(prompt, /List at most 6 topics and keep each field to 1-2 sentences\./);
-  assert.match(prompt, /Never drop a confirmed date, owner, or decision just to stay within them\./);
-  assert.match(prompt, /Return only the code block and section 4, with no introduction, explanation, or closing remarks\./);
+  assert.match(prompt, /understand in about 30 seconds: what changed this week, what needs to happen next, and the main risks/);
+  assert.match(prompt, /The counts above are guidance\. Never drop a confirmed critical development, date, owner, or decision just to meet them\./);
+  assert.match(prompt, /CONSISTENCY CHECK/);
+  assert.match(prompt, /no unsupported facts are introduced/);
 });
 
 test('first report: no previous week produces the no-baseline instructions and does not crash', () => {
@@ -161,7 +208,7 @@ test('first report: no previous week produces the no-baseline instructions and d
   assert.match(prompt, /Do not attempt week-over-week comparison where no baseline exists\./);
   assert.doesNotMatch(prompt, /LAST WEEK'S REPORT/);
   assert.doesNotMatch(prompt, /Previous Report Date/);
-  assert.match(prompt, /## WEEK-OVER-WEEK CHANGES\n\nNot applicable/);
+  assert.doesNotMatch(prompt, /WEEK-OVER-WEEK|Not applicable/);
 });
 
 test('a project that did not exist in the previous week gets the no-baseline prompt', () => {

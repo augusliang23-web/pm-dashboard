@@ -1,5 +1,5 @@
 import { normalizeRiskActionRows } from './portfolio-core.mjs';
-import { WEEKLY_UPDATE_FORMAT, WEEKLY_UPDATE_SECTIONS } from './weekly-update-paste.mjs';
+import { NO_ACTIVE_RISKS, WEEKLY_UPDATE_FORMAT, WEEKLY_UPDATE_SECTIONS } from './weekly-update-paste.mjs';
 
 const NONE_RECORDED = '(none recorded)';
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -284,47 +284,44 @@ function generateSection(context) {
   return [
     'GENERATE:',
     '',
+    'Write for a manager who should understand in about 30 seconds: what changed this week, what needs to happen next, and the main risks. Less text, same decision-making value.',
+    '',
+    hasBaseline
+      ? "Use your comparison with last week's report inside the three fields: put meaningful progress, completed items, newly introduced risks, and resolved issues directly where they belong. Do not output the comparison as a separate section, and do not repeat unchanged background."
+      : 'There is no previous weekly report: write the three fields from current evidence only and do not describe or imply changes versus a previous week.',
+    '',
     '1. HIGHLIGHT',
     '',
     hasBaseline
-      ? '3-6 concise, fact-based, executive-level bullets describing meaningful changes versus last week: completed milestones, meaningful progress, important decisions, clarified root causes, resolved blockers, confirmed responsibilities, technical findings, or major stakeholder alignment.'
-      : '3-6 concise, fact-based, executive-level bullets describing the most meaningful developments in the reporting period: completed milestones, meaningful progress, important decisions, clarified root causes, resolved blockers, confirmed responsibilities, technical findings, or major stakeholder alignment.',
-    'Describe the actual change, not just activity. Keep each bullet to 1-2 sentences, about 40 words or fewer.',
-    'Weaker: "Continued discussion with the supplier about installation."',
-    'Better: "Clarified that the original supplier engagement covered equipment supply only, explaining the gap in onsite installation responsibility."',
+      ? 'Normally 2-3 bullets, one short sentence each where possible: meaningful achievements and changes, critical decisions, and schedule changes, including progress versus last week when relevant.'
+      : 'Normally 2-3 bullets, one short sentence each where possible: meaningful achievements and changes, critical decisions, and schedule changes.',
+    'Avoid historical project background, routine activity without impact, long technical explanations, and repeating information from the other fields.',
+    'Examples:',
+    '- Completed Phase 2 EMS integration testing.',
+    '- Customer approved the revised commissioning plan.',
+    '- FAT completion moved one week due to supplier delay.',
     '',
     '2. WEEKLY KEY ACTIONS',
     '',
-    '3-6 execution-oriented actions describing the most important remaining work for the next reporting period, drawn from unresolved work, remaining blockers, dependencies, commitments, testing, validation, schedule recovery, and issue closure.',
-    'Prefer action verbs such as Confirm, Complete, Validate, Resolve, Finalize, Obtain, Close, Execute. Avoid "Follow up", "Continue discussion", and "Keep monitoring"; state the intended outcome instead.',
-    'Weaker: "Follow up with the supplier regarding installation resources."',
-    'Better: "Obtain final confirmation of the onsite installation team and mobilization schedule."',
-    'Keep each action to one sentence, about 33 words or fewer.',
+    'Normally 2-4 actions, one concise sentence each, starting with a clear action verb such as Confirm, Complete, Finalize, Validate, Resolve, Obtain, or Close.',
+    'Focus on outstanding work and next steps, prioritizing actions that affect delivery, milestones, dependencies, or decisions. Do not repeat completed work from Highlight. Avoid "Follow up", "Continue discussion", and "Keep monitoring"; state the intended outcome instead.',
+    'Include owners and deadlines only when supported by verified information. Do not invent commitments.',
+    'Examples:',
+    '- Finalize BMS communication mapping.',
+    '- Confirm customer FAT attendance.',
+    '- Complete remaining integration test cases.',
     '',
     '3. RISK / ACTION PAIRS',
     '',
-    '1-4 active risks. Each risk requires:',
-    '',
-    'Primary: Yes / No',
-    '',
-    'Risk / Blocker:',
-    '',
-    'Required Action:',
-    '',
-    'Every Risk must have its own Required Action; do not reuse one generic action for several risks.',
-    'Keep each Risk / Blocker to 1-2 sentences, about 60 words or fewer, and each Required Action to one sentence, about 45 words or fewer.',
+    'Normally the top 2-3 active risks, ordered by business and delivery impact. Keep an additional risk only when it is material.',
+    'Each risk has one concise Risk / Blocker description and one clear Required Action (shown as Mitigation Actions). Every Risk must have its own Required Action; do not reuse one generic action for several risks.',
     hasBaseline
-      ? "Do not automatically carry forward last week's risks. Reassess each one as: remains active, improved, resolved, replaced, or mitigation needs revision. Remove resolved risks from the active list."
+      ? "Do not automatically carry forward last week's risks. Reassess each one: keep it if still active, update it if it improved or changed, and remove it if resolved."
       : 'Include only risks that are supported by evidence.',
-    'Suggest exactly one Primary risk, considering schedule impact, customer impact, commissioning impact, technical readiness, cost impact, project dependency, and safety impact. The PM makes the final decision.',
+    `Never invent a risk to fill this section. If no active risk is supported by evidence, write exactly "${NO_ACTIVE_RISKS}" as the whole section.`,
+    'Mark exactly one risk "Primary: Yes", considering schedule impact, customer impact, commissioning impact, technical readiness, cost impact, project dependency, and safety impact. The PM makes the final decision.',
     '',
-    '4. WEEK-OVER-WEEK CHANGES',
-    '',
-    hasBaseline
-      ? 'A review section for the PM only; it is not pasted into the executive report. For each important topic give: Topic, Last Week, This Week, Change, and Evidence Confidence (High / Medium / Low). List at most 6 topics and keep each field to 1-2 sentences.'
-      : 'Not applicable: there is no previous weekly report, so write exactly "Not applicable - no previous weekly report is available."',
-    '',
-    'Length limits are approximate. Never drop a confirmed date, owner, or decision just to stay within them.',
+    'The counts above are guidance. Never drop a confirmed critical development, date, owner, or decision just to meet them.',
     '',
     'CONSISTENCY CHECK:',
     '',
@@ -341,27 +338,6 @@ function generateSection(context) {
   ];
 }
 
-function weekOverWeekTemplate(hasBaseline) {
-  return hasBaseline
-    ? [
-      'Topic:',
-      '...',
-      '',
-      'Last Week:',
-      '...',
-      '',
-      'This Week:',
-      '...',
-      '',
-      'Change:',
-      '...',
-      '',
-      'Evidence Confidence:',
-      'High / Medium / Low',
-    ]
-    : ['Not applicable - no previous weekly report is available.'];
-}
-
 function outputFormatSection(context) {
   const hasBaseline = Boolean(context.previousReport);
   const [highlight, weeklyActions, riskActions] = WEEKLY_UPDATE_SECTIONS;
@@ -372,7 +348,7 @@ function outputFormatSection(context) {
       ? "Use exactly this structure and write in the same language and tone as last week's report."
       : 'Use exactly this structure and write in concise, professional English.',
     '',
-    `Put sections 1-3 in ONE plain-text code block, using the ${WEEKLY_UPDATE_FORMAT} markers exactly as shown. The PM pastes that block into PM Dashboard, which reads it automatically:`,
+    `Return exactly ONE plain-text code block containing the ${WEEKLY_UPDATE_FORMAT} block below. The PM pastes it into PM Dashboard, which reads it automatically:`,
     '',
     `- ${highlight.id} fills the "${highlight.label}" field (section 1).`,
     `- ${weeklyActions.id} fills the "${weeklyActions.label}" field (section 2).`,
@@ -391,11 +367,9 @@ function outputFormatSection(context) {
     `<<<${highlight.id}>>>`,
     '- ...',
     '- ...',
-    '- ...',
     `<<<END_${highlight.id}>>>`,
     '',
     `<<<${weeklyActions.id}>>>`,
-    '- ...',
     '- ...',
     '- ...',
     `<<<END_${weeklyActions.id}>>>`,
@@ -403,7 +377,7 @@ function outputFormatSection(context) {
     `<<<${riskActions.id}>>>`,
     '### Risk 1',
     '',
-    'Primary: Yes / No',
+    'Primary: Yes',
     '',
     'Risk / Blocker:',
     '...',
@@ -413,7 +387,7 @@ function outputFormatSection(context) {
     '',
     '### Risk 2',
     '',
-    'Primary: Yes / No',
+    'Primary: No',
     '',
     'Risk / Blocker:',
     '...',
@@ -425,13 +399,7 @@ function outputFormatSection(context) {
     `<<<END_${WEEKLY_UPDATE_FORMAT}>>>`,
     '```',
     '',
-    'After the code block, add section 4 for PM review only (it is not pasted into PM Dashboard):',
-    '',
-    '## WEEK-OVER-WEEK CHANGES',
-    '',
-    ...weekOverWeekTemplate(hasBaseline),
-    '',
-    'Return only the code block and section 4, with no introduction, explanation, or closing remarks.',
+    'Return only the code block, with no introduction, summary, week-over-week section, explanation, or closing remarks before or after it.',
   ];
 }
 

@@ -5,6 +5,10 @@
 
 export const WEEKLY_UPDATE_FORMAT = 'PM_WEEKLY_UPDATE_V1';
 export const WEEKLY_UPDATE_MAX_LENGTH = 50000;
+// Explicit FIELD_3 value for "no active risk", so Copilot never has to invent one.
+// It maps to an empty riskActions list, which the editor, Save, Dashboard and PDF already support.
+export const NO_ACTIVE_RISKS = 'No active risks.';
+const NO_ACTIVE_RISKS_LINE = /^\**\s*No active risks\.?\s*\**$/i;
 
 /**
  * Stable contract sections -> the existing project fields they fill.
@@ -62,6 +66,7 @@ function classifyMarker(name) {
 
 /** Splits FIELD_3 into Risk / Required Action rows. Returns { ok, riskActions } or { ok:false, error }. */
 export function parseRiskActionSection(text) {
+  if (NO_ACTIVE_RISKS_LINE.test(normalizeText(text).trim())) return { ok: true, riskActions: [] };
   const lines = normalizeText(text).split('\n');
   const risks = [];
   let current = null;
@@ -79,7 +84,7 @@ export function parseRiskActionSection(text) {
     }
     if (!current) {
       if (!line) continue;
-      return fail(`${labelOf('FIELD_3')} must start with a "Risk 1" heading.`);
+      return fail(`${labelOf('FIELD_3')} must start with a "Risk 1" heading, or be exactly "${NO_ACTIVE_RISKS}"`);
     }
     const primary = line.match(PRIMARY_LABEL);
     const risk = !primary && line.match(RISK_LABEL);
@@ -106,7 +111,7 @@ export function parseRiskActionSection(text) {
     current[target].push(rawLine);
   }
 
-  if (!risks.length) return fail(`${labelOf('FIELD_3')} must contain at least one risk with a Required Action.`);
+  if (!risks.length) return fail(`${labelOf('FIELD_3')} must contain at least one risk with a Required Action, or exactly "${NO_ACTIVE_RISKS}"`);
   const riskActions = [];
   for (const [index, item] of risks.entries()) {
     const risk = tidyBlock(item.risk || []);
@@ -221,8 +226,10 @@ export function parseWeeklyUpdateResponse(input) {
 export function validateWeeklyUpdateValues(values = {}) {
   if (isEmptyContent(values.highlight)) return fail(`${labelOf('FIELD_1')} is empty.`);
   if (isEmptyContent(values.weeklyActions)) return fail(`${labelOf('FIELD_2')} is empty.`);
-  const pairs = Array.isArray(values.riskActions) ? values.riskActions : [];
-  if (!pairs.length) return fail(`${labelOf('FIELD_3')} needs at least one risk.`);
+  if (!Array.isArray(values.riskActions)) return fail(`${labelOf('FIELD_3')} is missing.`);
+  const pairs = values.riskActions;
+  // An empty list is the explicit "No active risks." result.
+  if (!pairs.length) return { ok: true };
   for (const [index, pair] of pairs.entries()) {
     if (isEmptyContent(pair?.risk)) return fail(`Risk ${index + 1} has no "Risk / Blocker" text.`);
     if (isEmptyContent(pair?.action)) return fail(`Risk ${index + 1} has no "Mitigation Actions" text.`);

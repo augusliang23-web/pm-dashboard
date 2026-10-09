@@ -356,3 +356,15 @@ test('stale T08: a pending re-parse cannot revive a draft after the session chan
   expectRejected(ended, OTHER);
   assert.match(ended.nodes.pe_weekly_paste_error.textContent, /no longer matches the open project and week/);
 });
+
+test('"No active risks." previews as a note and applies as an empty Risk & Mitigation Actions list', () => {
+  const h = harness({ session: SESSION, editor: SAVED });
+  const none = RESPONSE.replace(/<<<FIELD_3>>>[\s\S]*<<<END_FIELD_3>>>/, '<<<FIELD_3>>>\nNo active risks.\n<<<END_FIELD_3>>>');
+  h.pasteText(none);
+  assert.equal(h.nodes.pe_weekly_paste_preview.hidden, false);
+  assert.match(h.nodes.pe_wu_risks.children[0].textContent, /No active risks/);
+  h.apply();
+  assert.deepEqual(h.editorState().riskActions, [{ primary: true, risk: '', action: '' }], 'one blank row, like a project with no risks');
+  assert.equal(h.context.collectRiskActionPairs().length, 0, 'Save collects an empty riskActions list');
+  assert.equal(h.editorState().highlight, '- Installer signed.\n- Firmware validated.');
+});

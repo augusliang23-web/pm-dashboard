@@ -189,8 +189,6 @@ test('round trip: a response that follows the generated prompt template parses',
   const template = prompt.slice(prompt.indexOf('```text'), prompt.lastIndexOf('```') + 3);
   const filled = template
     .replace(/- \.\.\./g, '- Confirmed item')
-    .replace(/Primary: Yes \/ No/, 'Primary: Yes')
-    .replace(/Primary: Yes \/ No/, 'Primary: No')
     .replace(/\n\.\.\.\n/g, '\nDetail\n')
     .replace(/\n\.\.\.\n/g, '\nDetail\n');
   const result = parseWeeklyUpdateResponse(filled);
@@ -205,7 +203,8 @@ test('validateWeeklyUpdateValues checks PM-edited preview values before apply', 
   assert.equal(validateWeeklyUpdateValues(good).ok, true);
   assert.match(validateWeeklyUpdateValues({ ...good, highlight: ' ' }).error, /Highlight is empty/);
   assert.match(validateWeeklyUpdateValues({ ...good, weeklyActions: '' }).error, /Weekly Key Actions is empty/);
-  assert.match(validateWeeklyUpdateValues({ ...good, riskActions: [] }).error, /at least one risk/);
+  assert.equal(validateWeeklyUpdateValues({ ...good, riskActions: [] }).ok, true, 'explicit No active risks');
+  assert.match(validateWeeklyUpdateValues({ ...good, riskActions: undefined }).error, /is missing/);
   assert.match(validateWeeklyUpdateValues({ ...good, riskActions: [{ primary: true, risk: 'r', action: '' }] }).error, /Risk 1 has no "Mitigation Actions"/);
   assert.match(validateWeeklyUpdateValues({ ...good, riskActions: good.riskActions.map(pair => ({ ...pair, primary: false })) }).error, /exactly one risk as Primary/);
 });
@@ -232,4 +231,31 @@ test('T16/T17 a parsed draft only applies in the same project, week and editor s
   assert.equal(isWeeklyUpdateDraftCurrent({ ...draft, source: undefined }, session, undefined), false, 'draft without a source');
   assert.equal(isWeeklyUpdateDraftCurrent(null, session, 'pasted v1'), false);
   assert.equal(isWeeklyUpdateDraftCurrent(draft, null, 'pasted v1'), false);
+});
+
+test('FIELD_3 "No active risks." is an explicit, exact value that maps to an empty riskActions list', () => {
+  for (const f3 of ['No active risks.', 'no active risks', '**No active risks.**', '\n  No active risks.  \n']) {
+    const result = parseWeeklyUpdateResponse(block({ f3 }));
+    assert.equal(result.ok, true, `${JSON.stringify(f3)}: ${result.error}`);
+    assert.deepEqual(result.values.riskActions, []);
+  }
+  // Anything else that is not a proper risk row is still rejected (no guessing).
+  for (const f3 of ['None.', 'No active risks this week.', 'N/A', 'No active risks.\nRisk 1']) {
+    assert.equal(parseWeeklyUpdateResponse(block({ f3 })).ok, false, f3);
+  }
+  assert.match(parseWeeklyUpdateResponse(block({ f3: 'None.' })).error, /or be exactly "No active risks\."/);
+});
+
+test('P08 a response following the generated no-baseline prompt with no active risks parses', () => {
+  const prompt = buildWeeklyCopilotPrompt(buildPromptContext({
+    weeks: [], currentWeek: { weekLabel: 'W38 2026', weekDate: 'Sep 14 - Sep 18' }, project: { name: 'Demo' },
+  }));
+  assert.match(prompt, /write exactly "No active risks\." as the whole section/);
+  const template = prompt.slice(prompt.indexOf('```text'), prompt.lastIndexOf('```') + 3);
+  const filled = template
+    .replace(/- \.\.\./g, '- Confirmed item')
+    .replace(/<<<FIELD_3>>>[\s\S]*<<<END_FIELD_3>>>/, '<<<FIELD_3>>>\nNo active risks.\n<<<END_FIELD_3>>>');
+  const result = parseWeeklyUpdateResponse(filled);
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(result.values.riskActions, []);
 });

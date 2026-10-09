@@ -13413,7 +13413,14 @@ function parseWeeklyUpdatePaste() {
   weeklyUpdateDraft = Object.freeze({ sessionToken: session.token, weekId: session.weekId, projectCode: session.code, source: raw });
   document.getElementById('pe_wu_highlight').value = result.values.highlight;
   document.getElementById('pe_wu_weekly_actions').value = result.values.weeklyActions;
-  document.getElementById('pe_wu_risks').replaceChildren(...result.values.riskActions.map(renderWeeklyUpdatePreviewRisk));
+  const riskRows = result.values.riskActions.map(renderWeeklyUpdatePreviewRisk);
+  if (!riskRows.length) {
+    const none = document.createElement('div');
+    none.className = 'inline-field-guide';
+    none.textContent = 'No active risks. Applying leaves Risk & Mitigation Actions empty.';
+    riskRows.push(none);
+  }
+  document.getElementById('pe_wu_risks').replaceChildren(...riskRows);
   document.getElementById('pe_weekly_paste_status').textContent = `Read for ${session.weekLabel}. Review or edit below, then click Apply Weekly Update.`
     + (result.ignoredOutsideText ? ' Text outside the weekly update block was ignored.' : '');
   document.getElementById('pe_weekly_paste_preview').hidden = false;
@@ -13468,6 +13475,8 @@ window.applyWeeklyUpdateDraft = () => {
   document.getElementById('pe_weekly_actions').value = values.weeklyActions;
   document.getElementById('riskActionPairContainer').replaceChildren();
   values.riskActions.forEach(pair => addRiskActionPairRow(pair));
+  // "No active risks.": keep one blank row, exactly as the editor shows a project with no risks.
+  if (!values.riskActions.length) addRiskActionPairRow({ risk: '', action: '', primary: true });
   ensurePrimaryRiskActionPair();
   document.getElementById('pe_copilot_response').value = '';
   clearWeeklyUpdatePreview();
