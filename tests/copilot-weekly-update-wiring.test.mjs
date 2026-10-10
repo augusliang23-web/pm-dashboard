@@ -14,10 +14,10 @@ function extract(startMarker, endMarker) {
 }
 
 const fallback = extract('function copyTextWithLegacyFallback(text) {', '// Read-only: builds the prompt');
-const handler = extract('window.copyProjectCopilotWeeklyPrompt = async () => {', '\nfunction activeProjectsForWeek(week) {');
+const handler = extract('window.copyProjectCopilotWeeklyPrompt = async () => {', '// ── ONE-PASTE WEEKLY UPDATE ──');
 
-test('the project editor exposes a Copy Copilot Weekly Update Prompt button that is not a save control', () => {
-  assert.match(dashboard, /<button type="button" class="btn btn-ghost" id="pe_btn_copy_copilot_prompt" onclick="copyProjectCopilotWeeklyPrompt\(\)">Copy Copilot Weekly Update Prompt<\/button>/);
+test('the project editor exposes a Copy Weekly Update Prompt button that is not a save control', () => {
+  assert.match(dashboard, /<button type="button" class="btn btn-ghost" id="pe_btn_copy_copilot_prompt" onclick="copyProjectCopilotWeeklyPrompt\(\)">Copy Weekly Update Prompt<\/button>/);
   const button = dashboard.indexOf('id="pe_btn_copy_copilot_prompt"');
   assert.ok(button > dashboard.indexOf('id="pe_status"'));
   assert.ok(button < dashboard.indexOf('id="pe_highlight"'));

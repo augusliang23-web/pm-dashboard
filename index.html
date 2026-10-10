@@ -745,10 +745,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .list-editor .ft:focus { border-color:transparent; }
 .list-editor-hint { padding:4px 8px 6px; color:var(--muted); font-size:9px; line-height:1.35; }
 .risk-list-cell { min-width:0; }
+.weekly-paste { border:1px solid var(--border2); border-radius:8px; background:var(--s2); padding:10px 12px; margin-bottom:14px; }
+.weekly-paste-input { width:100%; box-sizing:border-box; font-family:'IBM Plex Mono', monospace; font-size:11px; resize:vertical; }
+.weekly-paste-preview { margin-top:10px; display:grid; gap:4px; }
+.weekly-paste-preview[hidden] { display:none; }
+.weekly-paste-preview .ft { width:100%; box-sizing:border-box; resize:vertical; background:#fff; }
+.weekly-paste-risk-head, .weekly-paste-risk { display:grid; grid-template-columns:96px minmax(0,1fr) minmax(0,1fr); gap:8px; align-items:start; }
+.weekly-paste-risk-head { font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.weekly-paste-risk { border:1px solid var(--border); border-radius:8px; background:#fff; padding:8px; margin-bottom:6px; }
+.weekly-paste-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .risk-list-cell .ft { width:100%; min-width:0; resize:vertical; box-sizing:border-box; }
 @media (max-width:760px) {
   .risk-pair-head { display:none; }
   .risk-pair-row { grid-template-columns:minmax(0,1fr) 34px; }
+  .weekly-paste-risk-head { display:none; }
+  .weekly-paste-risk { grid-template-columns:minmax(0,1fr); }
   .risk-primary-control { grid-column:1; }
   .risk-pair-delete { grid-column:2; grid-row:1; }
   .risk-list-cell { grid-column:1; }
@@ -2375,9 +2386,29 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention" title="Executive priority used in Overview"></select></div>
   </div>
   <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-    <button type="button" class="btn btn-ghost" id="pe_btn_copy_copilot_prompt" onclick="copyProjectCopilotWeeklyPrompt()">Copy Copilot Weekly Update Prompt</button>
+    <button type="button" class="btn btn-ghost" id="pe_btn_copy_copilot_prompt" onclick="copyProjectCopilotWeeklyPrompt()">Copy Weekly Update Prompt</button>
     <span class="inline-field-guide" style="margin:0;">Copies a prompt for Microsoft Copilot. Nothing is saved.</span>
   </div>
+  <section class="weekly-paste" id="pe_weekly_paste" aria-labelledby="pe_weekly_paste_label">
+    <label class="fl" id="pe_weekly_paste_label" for="pe_copilot_response">Paste Copilot Response</label>
+    <div class="inline-field-guide">Paste Copilot's whole reply once. It is checked automatically and previewed below. Nothing changes until you click Apply Weekly Update, and nothing is saved until you click Save.</div>
+    <textarea class="ft weekly-paste-input" id="pe_copilot_response" rows="3" spellcheck="false" autocomplete="off" data-editor-ignore-dirty aria-describedby="pe_weekly_paste_error" placeholder="Paste the full Copilot reply, including the &lt;&lt;&lt;PM_WEEKLY_UPDATE_V1&gt;&gt;&gt; block."></textarea>
+    <div class="resource-validation error" id="pe_weekly_paste_error" role="alert" aria-live="assertive"></div>
+    <div class="weekly-paste-preview" id="pe_weekly_paste_preview" hidden>
+      <div class="inline-field-guide" id="pe_weekly_paste_status" role="status"></div>
+      <div class="fg"><label class="fl" for="pe_wu_highlight">Highlight</label><textarea class="ft" id="pe_wu_highlight" rows="4"></textarea></div>
+      <div class="fg"><label class="fl" for="pe_wu_weekly_actions">Weekly Key Actions</label><textarea class="ft" id="pe_wu_weekly_actions" rows="4"></textarea></div>
+      <div class="fg">
+        <span class="fl">Risk &amp; Mitigation Actions</span>
+        <div class="weekly-paste-risk-head" aria-hidden="true"><span>Primary</span><span>Risk / Blocker</span><span>Mitigation Actions</span></div>
+        <div id="pe_wu_risks"></div>
+      </div>
+      <div class="weekly-paste-actions">
+        <button type="button" class="btn btn-primary" id="pe_btn_apply_weekly_update" onclick="applyWeeklyUpdateDraft()">Apply Weekly Update</button>
+        <span class="inline-field-guide" style="margin:0;">Replaces Highlight, Weekly Key Actions and Risk &amp; Mitigation Actions below. Then click Save.</span>
+      </div>
+    </div>
+  </section>
   <div class="fg"><label class="fl">Highlight</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Add accomplishments, decisions, or changes."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Add actions the team needs to execute next week."></textarea></div>
   <div class="fg">
@@ -2804,6 +2835,7 @@ import { downloadProfessionalPdf, fetchOnePagerPreviewHtml } from "./professiona
 import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
+import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
@@ -9821,6 +9853,7 @@ window.openProjEdit = (code, isNew = false) => {
       : (existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject)),
     originalProject: isNew ? null : p
   });
+  resetWeeklyUpdatePaste(projectEditorSession);
   document.getElementById('pe_details').open = isNew;
   openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
@@ -10578,6 +10611,179 @@ window.copyProjectCopilotWeeklyPrompt = async () => {
   }
   if (copied) showSaveToast('Copilot Weekly Update Prompt copied.');
   else showSaveToast('Unable to copy the prompt. Please try again.', { type: 'error' });
+};
+
+// ── ONE-PASTE WEEKLY UPDATE ──
+// The pasted Copilot reply is untrusted text: it is parsed by a pure module,
+// shown only through .value/.textContent, never logged, and never saved. Apply
+// only fills the editor fields; the normal Save (saveProjEdit) persists them.
+let weeklyUpdateDraft = null;
+let weeklyUpdateBaseline = null;
+let weeklyUpdateParseTimer = null;
+
+function readEditorWeeklyFields() {
+  return {
+    highlight: document.getElementById('pe_highlight').value,
+    weeklyActions: document.getElementById('pe_weekly_actions').value,
+    riskActions: collectRiskActionPairs()
+  };
+}
+
+function setWeeklyUpdatePasteError(message = '') {
+  const error = document.getElementById('pe_weekly_paste_error');
+  error.textContent = message;
+  error.classList.toggle('show', Boolean(message));
+}
+
+function clearWeeklyUpdatePreview() {
+  weeklyUpdateDraft = null;
+  document.getElementById('pe_weekly_paste_preview').hidden = true;
+  document.getElementById('pe_wu_highlight').value = '';
+  document.getElementById('pe_wu_weekly_actions').value = '';
+  document.getElementById('pe_wu_risks').replaceChildren();
+  document.getElementById('pe_weekly_paste_status').textContent = '';
+}
+
+// Called whenever the project editor opens, so a draft parsed for another
+// project, week, or earlier opening can never be shown or applied.
+function resetWeeklyUpdatePaste(session) {
+  if (weeklyUpdateParseTimer) clearTimeout(weeklyUpdateParseTimer);
+  weeklyUpdateParseTimer = null;
+  clearWeeklyUpdatePreview();
+  setWeeklyUpdatePasteError('');
+  document.getElementById('pe_copilot_response').value = '';
+  document.getElementById('pe_weekly_paste').hidden = !session || session.manageOnly;
+  // Snapshot of the weekly fields as loaded, to detect unsaved manual edits on Apply.
+  weeklyUpdateBaseline = session ? { token: session.token, values: readEditorWeeklyFields() } : null;
+}
+
+function renderWeeklyUpdatePreviewRisk(pair, index) {
+  const row = document.createElement('div');
+  row.className = 'weekly-paste-risk';
+  const primaryLabel = document.createElement('label');
+  primaryLabel.className = 'risk-primary-control';
+  const primary = document.createElement('input');
+  primary.type = 'radio';
+  primary.name = 'weeklyUpdatePreviewPrimary';
+  primary.className = 'wu-primary';
+  primary.checked = pair.primary === true;
+  primaryLabel.append(primary, ' Primary');
+  const cells = [['wu-risk', 'Risk / Blocker', pair.risk], ['wu-action', 'Mitigation Actions', pair.action]].map(([className, label, value]) => {
+    const area = document.createElement('textarea');
+    area.className = `ft ${className}`;
+    area.rows = 2;
+    area.setAttribute('aria-label', `Risk ${index + 1} ${label}`);
+    area.value = value;
+    return area;
+  });
+  row.append(primaryLabel, ...cells);
+  return row;
+}
+
+function readWeeklyUpdatePreview() {
+  return {
+    highlight: document.getElementById('pe_wu_highlight').value,
+    weeklyActions: document.getElementById('pe_wu_weekly_actions').value,
+    riskActions: Array.from(document.querySelectorAll('#pe_wu_risks .weekly-paste-risk')).map(row => ({
+      primary: row.querySelector('.wu-primary').checked === true,
+      risk: row.querySelector('.wu-risk').value,
+      action: row.querySelector('.wu-action').value
+    }))
+  };
+}
+
+function parseWeeklyUpdatePaste() {
+  if (weeklyUpdateParseTimer) clearTimeout(weeklyUpdateParseTimer);
+  weeklyUpdateParseTimer = null;
+  const session = projectEditorSession;
+  const raw = document.getElementById('pe_copilot_response').value;
+  clearWeeklyUpdatePreview();
+  if (!raw.trim()) {
+    setWeeklyUpdatePasteError('');
+    return;
+  }
+  if (!isProjectEditorSessionCurrent(session) || session.manageOnly) {
+    setWeeklyUpdatePasteError('The project editor session changed. Close and reopen the project before pasting.');
+    return;
+  }
+  const result = parseWeeklyUpdateResponse(raw);
+  if (!result.ok) {
+    setWeeklyUpdatePasteError(`${result.error} Nothing was changed.`);
+    return;
+  }
+  setWeeklyUpdatePasteError('');
+  weeklyUpdateDraft = Object.freeze({ sessionToken: session.token, weekId: session.weekId, projectCode: session.code, source: raw });
+  document.getElementById('pe_wu_highlight').value = result.values.highlight;
+  document.getElementById('pe_wu_weekly_actions').value = result.values.weeklyActions;
+  const riskRows = result.values.riskActions.map(renderWeeklyUpdatePreviewRisk);
+  if (!riskRows.length) {
+    const none = document.createElement('div');
+    none.className = 'inline-field-guide';
+    none.textContent = 'No active risks. Applying leaves Risk & Mitigation Actions empty.';
+    riskRows.push(none);
+  }
+  document.getElementById('pe_wu_risks').replaceChildren(...riskRows);
+  document.getElementById('pe_weekly_paste_status').textContent = `Read for ${session.weekLabel}. Review or edit below, then click Apply Weekly Update.`
+    + (result.ignoredOutsideText ? ' Text outside the weekly update block was ignored.' : '');
+  document.getElementById('pe_weekly_paste_preview').hidden = false;
+}
+
+// Any change to the pasted source invalidates the current preview at once, so
+// Apply can never use a draft parsed from older text while a re-parse is
+// pending. Parse right after a paste; for typing, wait until input settles.
+function invalidateWeeklyUpdateDraft() {
+  if (weeklyUpdateParseTimer) clearTimeout(weeklyUpdateParseTimer);
+  weeklyUpdateParseTimer = null;
+  clearWeeklyUpdatePreview();
+}
+function scheduleWeeklyUpdateParse(delay) {
+  invalidateWeeklyUpdateDraft();
+  weeklyUpdateParseTimer = setTimeout(parseWeeklyUpdatePaste, delay);
+}
+document.getElementById('pe_copilot_response').addEventListener('paste', () => scheduleWeeklyUpdateParse(0));
+document.getElementById('pe_copilot_response').addEventListener('input', event => {
+  scheduleWeeklyUpdateParse(event.inputType === 'insertFromPaste' ? 0 : 500);
+});
+
+window.applyWeeklyUpdateDraft = () => {
+  const session = projectEditorSession;
+  const source = document.getElementById('pe_copilot_response').value;
+  if (!isProjectEditorSessionCurrent(session) || session.manageOnly || !isWeeklyUpdateDraftCurrent(weeklyUpdateDraft, session, source)) {
+    // Keep the pasted source and the editor fields; only the stale preview goes.
+    const sourceChanged = weeklyUpdateDraft
+      ? weeklyUpdateDraft.source !== source
+      : Boolean(source.trim()) && isProjectEditorSessionCurrent(session);
+    clearWeeklyUpdatePreview();
+    setWeeklyUpdatePasteError(sourceChanged
+      ? 'The pasted response changed since the preview. Wait for the new preview, then click Apply Weekly Update. Nothing was changed.'
+      : 'This preview no longer matches the open project and week. Paste the Copilot response again. Nothing was changed.');
+    return;
+  }
+  const values = readWeeklyUpdatePreview();
+  const check = validateWeeklyUpdateValues(values);
+  if (!check.ok) {
+    setWeeklyUpdatePasteError(`${check.error} Nothing was changed.`);
+    return;
+  }
+  const current = readEditorWeeklyFields();
+  const baseline = weeklyUpdateBaseline?.token === session.token ? weeklyUpdateBaseline.values : null;
+  const hasManualEdits = !baseline || weeklyFieldsDiffer(current, baseline);
+  if (hasManualEdits && weeklyFieldsDiffer(current, values)
+    && !confirm('Highlight, Weekly Key Actions or Risk & Mitigation Actions have unsaved edits. Replace them with the Copilot update?')) {
+    return;
+  }
+  // All three fields are filled in one synchronous step from validated values.
+  document.getElementById('pe_highlight').value = values.highlight;
+  document.getElementById('pe_weekly_actions').value = values.weeklyActions;
+  document.getElementById('riskActionPairContainer').replaceChildren();
+  values.riskActions.forEach(pair => addRiskActionPairRow(pair));
+  // "No active risks.": keep one blank row, exactly as the editor shows a project with no risks.
+  if (!values.riskActions.length) addRiskActionPairRow({ risk: '', action: '', primary: true });
+  ensurePrimaryRiskActionPair();
+  document.getElementById('pe_copilot_response').value = '';
+  clearWeeklyUpdatePreview();
+  setWeeklyUpdatePasteError('');
+  showSaveToast('Weekly update applied. Review the fields, then click Save.');
 };
 
 function activeProjectsForWeek(week) {
