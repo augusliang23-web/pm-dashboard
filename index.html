@@ -190,6 +190,16 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-danger:hover { background: #C77D7D; }
 .btn-ghost { font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; background: var(--s1); color: var(--text-light); }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
+
+/* @uat-only begin unified-project-save-style */
+#projEditOverlay .unified-project-header { flex-wrap:wrap; gap:12px; align-items:center; }
+#projEditOverlay .project-save-actions { flex-wrap:wrap; justify-content:flex-end; gap:10px !important; }
+#projEditOverlay #pe_btn_save, #projEditOverlay #pe_btn_publish { width:auto; min-width:120px; min-height:42px; height:auto; padding:10px 16px; white-space:nowrap; flex-shrink:0; }
+#projEditOverlay .project-publication-guide { display:grid; gap:10px; margin:0 0 20px; padding:14px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+#projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+#projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
+#projEditOverlay #projectDraftManage { justify-self:start; }
+/* @uat-only end unified-project-save-style */
 </style>
 <style id="uatButtonSystem" media="not all">
 /* v2.2T button system: text actions use .btn plus one semantic variant. */
@@ -3090,7 +3100,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="overlay" id="myDraftsOverlay" role="dialog" aria-modal="true" aria-labelledby="myDraftsTitle">
   <div class="modal" style="max-width:850px;max-height:90vh;overflow:auto">
     <div class="modal-header"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
-    <p>Save Draft keeps your work here. Publish updates the selected week's Overview.</p>
+    <p>草稿可跨週保留。開啟編輯畫面後，可選擇存成草稿或存檔並發布。</p>
     <button class="btn btn-ghost" type="button" id="newProjectDraftBtn" onclick="openNewProjectDraft()">New Project Draft</button>
     <div id="myDraftsContent"></div>
   </div>
@@ -3130,9 +3140,9 @@ import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs"
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
 // @uat-only begin draft-imports
-import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=draft-publish-1";
-import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=draft-publish-1";
-import { mountProjectDraftsUi } from "./js/project-drafts-ui.mjs?v=draft-publish-1";
+import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=unified-save-publish-2";
+import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=unified-save-publish-2";
+import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks } from "./js/project-drafts-ui.mjs?v=unified-save-publish-2";
 // @uat-only end draft-imports
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
@@ -3289,6 +3299,8 @@ let projectEditorSessionSequence = 0;
 let draftEditorRecord;
 let draftOpening = false;
 let draftEditorOpenGeneration = 0;
+let draftEditorTargetWeekId = '';
+let draftEditorSaveIntent = 'draft';
 // @uat-only end draft-editor-state
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
@@ -10396,7 +10408,7 @@ async function saveCurrentWeekQuietly(project, riskFields) {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || !project) return;
   // @uat-only begin draft-risk-guard
-  if (IS_UAT_PROFILE && project.publication?.draftId) throw new Error('Edit in My Drafts, then Publish.');
+  if (IS_UAT_PROFILE) throw new Error('請在專案編輯畫面選擇「存成草稿」或「存檔並發布」。');
   // @uat-only end draft-risk-guard
   assertCurrentWeekEditable(week);
   const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
@@ -10983,8 +10995,8 @@ function findCurrentProject(code) {
 
 async function updateProjectAttention(code, attention) {
   // @uat-only begin draft-attention-guard
-  if (IS_UAT_PROFILE && findCurrentProject(code)?.publication?.draftId) {
-    showSaveToast('Edit in My Drafts, then Publish.'); render(); return false;
+  if (IS_UAT_PROFILE && findCurrentProject(code)) {
+    showSaveToast('請在專案編輯畫面更新 Attention，再選擇存成草稿或存檔並發布。'); render(); window.openProjEdit(code); return false;
   }
   // @uat-only end draft-attention-guard
   const selectedWeek = allWeeks[currentIdx];
@@ -12303,6 +12315,9 @@ function setProjectMutationControlsDisabled(disabled) {
     const control = document.getElementById(id);
     if (control) control.disabled = disabled;
   }
+  // @uat-only begin unified-project-save-controls
+  for (const id of ['pe_btn_publish','projectDraftTargetWeek','projectDraftManage']) { const control = document.getElementById(id); if (control) control.disabled = disabled; }
+  // @uat-only end unified-project-save-controls
 }
 
 function clearProjectMutationError() {
@@ -12376,7 +12391,13 @@ window.openProjEdit = (code, isNew = false) => {
     if (!draftOpening) {
       if (isNew) return window.openNewProjectDraft();
       const official = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
-      if (official?.publication?.draftId) return window.openManagedProjectDraft(official.publication.draftId);
+      const selectedWeek = allWeeks[currentIdx];
+      if (isWeekReleased(selectedWeek)) return;
+      const targetWeekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
+      if (official && canEditProject(official)) {
+        if (official.publication?.draftId) return window.openManagedProjectDraft(official.publication.draftId, targetWeekId);
+        return window.openExistingProjectDraft(code, targetWeekId);
+      }
       draftEditorRecord = undefined;
     }
     draftMode = draftOpening;
@@ -13729,14 +13750,13 @@ if (IS_UAT_PROFILE) {
   draftWorkspaceUi = mountProjectDraftsUi({
     root: document.getElementById('myDraftsContent'), controller: draftController,
     getWeeks: () => allWeeks,
-    canPublish: draft => currentRole === 'admin' || Boolean(draft.lastPublication) || canCurrentUser('project.manage'),
     onEdit: draft => beginDraftEditor(draft),
     canManage: () => canCurrentUser('project.manage'),
     onManage: (draft, weekId) => openDraftPublishedActions(draft, weekId),
     onPublished: async () => { render(); }
   });
   onAuthStateChanged(auth, () => {
-    draftController.reset(); draftEditorRecord = undefined;
+    draftController.reset(); draftEditorRecord = undefined; draftEditorTargetWeekId = ''; draftEditorSaveIntent = 'draft'; ++draftEditorOpenGeneration;
     document.getElementById('myDraftsOverlay')?.classList.remove('open');
     document.getElementById('projectDraftActionsOverlay')?.classList.remove('open');
     document.getElementById('myDraftsBtn').style.display = 'none';
@@ -13760,17 +13780,25 @@ window.openNewProjectDraft = async () => {
   if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
   syncDraftWorkspace();
   const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
-  await beginDraftEditor({ draftId:null, revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
+  await beginDraftEditor({ draftId:crypto.randomUUID(), revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
 };
-window.openManagedProjectDraft = async draftId => {
+window.openManagedProjectDraft = async (draftId, targetWeekId) => {
   if (!IS_UAT_PROFILE) return;
   syncDraftWorkspace();
-  try { const result = await draftController.open(draftId); if (result) await beginDraftEditor(result.draft); }
-  catch (error) { showSaveToast(error.message || 'Draft unavailable.'); }
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.open(draftId); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, targetWeekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || '無法開啟專案草稿。'); }
 };
-async function beginDraftEditor(draft) {
+window.openExistingProjectDraft = async (projectCode, weekId) => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.openSource({weekId,projectCode}); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, weekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || '無法開啟專案草稿。'); }
+};
+async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) {
   const uid = currentUser?.uid, email = getEmailKey(currentUser);
-  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = ++draftEditorOpenGeneration;
+  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = expectedOpeningGeneration ?? ++draftEditorOpenGeneration;
   if (!currentUser || !['admin','pm'].includes(role)) return;
   let options = [];
   if (currentRole === 'admin') {
@@ -13779,7 +13807,9 @@ async function beginDraftEditor(draft) {
   }
   if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
   closeModal('myDraftsOverlay', { force:true });
-  draftEditorRecord = draft; draftOpening = true;
+  draftEditorRecord = draft; draftEditorSaveIntent = 'draft';
+  draftEditorTargetWeekId = targetWeekId || draft.source?.weekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  draftOpening = true;
   try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
   if (currentRole === 'admin') {
     for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
@@ -13791,51 +13821,102 @@ async function beginDraftEditor(draft) {
   captureEditorBaseline(document.getElementById('projEditOverlay'));
 }
 function configureDraftEditor(draftMode) {
-  document.getElementById('pe_btn_save').textContent = draftMode ? 'Save Draft' : 'Save Changes';
-  document.getElementById('pe_btn_save').setAttribute('aria-label', draftMode ? 'Save Draft' : 'Save Project');
-  if (draftMode && !draftEditorRecord.draftId) document.getElementById('pe_details').open = true;
-  let back = document.getElementById('draftEditorBack');
-  if (!back) {
-    back = document.createElement('button'); back.id = 'draftEditorBack'; back.type = 'button'; back.className = 'btn btn-ghost'; back.textContent = 'Back to My Drafts';
-    back.onclick = () => { closeModal('projEditOverlay'); if (!document.getElementById('projEditOverlay').classList.contains('open')) window.openMyDrafts(); };
-    document.getElementById('pe_btn_save').before(back);
+  const save = document.getElementById('pe_btn_save');
+  const overlay = document.getElementById('projEditOverlay');
+  let publish = document.getElementById('pe_btn_publish');
+  let banner = document.getElementById('projectDraftPublicationStatus');
+  if (!draftMode) {
+    save.style.display = 'none';
+    if(publish)publish.style.display = 'none';
+    if(banner)banner.style.display = 'none';
+    return;
   }
-  back.style.display = draftMode ? '' : 'none';
-  document.getElementById('pe_code').disabled = draftMode && Boolean(draftEditorRecord.lastPublication);
-  for (const id of ['pe_owner','pe_deputy']) document.getElementById(id).disabled = draftMode && currentRole !== 'admin';
-  document.getElementById('pe_visibility').disabled = draftMode;
-  if (draftMode) {
-    document.getElementById('peTitle').textContent = 'Project Draft · Save here, then Publish from My Drafts';
-    document.getElementById('pe_btn_delete').style.display = 'none';
+  const record = draftEditorRecord;
+  document.getElementById('peTitle').textContent = '編輯專案';
+  overlay.querySelector('.modal-hdr').classList.add('unified-project-header');
+  save.parentElement.classList.add('project-save-actions');
+  save.className = 'btn btn-ghost'; save.textContent = '存成草稿'; save.title = '只保留編輯內容，不更新 Overview 或 PDF';
+  save.setAttribute('aria-label','存成草稿'); save.onclick = () => window.saveDraftProject();
+  if (!publish) {
+    publish = document.createElement('button'); publish.id = 'pe_btn_publish'; publish.type = 'button'; publish.className = 'btn btn-primary';
+    publish.textContent = '存檔並發布'; publish.setAttribute('aria-label','存檔並發布'); publish.onclick = () => window.saveAndPublishProjectDraft(); save.after(publish);
   }
+  save.style.display = ''; publish.style.display = '';
+  if (!banner) {
+    banner = document.createElement('section'); banner.id = 'projectDraftPublicationStatus'; banner.className = 'project-publication-guide';
+    const status = document.createElement('div'); status.id = 'projectDraftStatus'; status.setAttribute('role','status'); banner.append(status);
+    const help = document.createElement('div'); help.textContent = '存成草稿：只有編輯者看得到修改。存檔並發布：更新 Overview，PDF 使用相同正式內容。'; banner.append(help);
+    const label = document.createElement('label'); label.textContent = '發布到週次：';
+    const select = document.createElement('select'); select.id = 'projectDraftTargetWeek'; select.className = 'fs'; select.setAttribute('aria-label','發布到週次'); select.dataset.editorIgnoreDirty = 'true'; label.append(select); banner.append(label);
+    const manage = document.createElement('button'); manage.id = 'projectDraftManage'; manage.className = 'btn btn-ghost'; manage.type = 'button'; manage.textContent = '專案管理'; banner.append(manage);
+    overlay.querySelector('.modal-hdr').after(banner);
+    overlay.addEventListener('input',event=>{if(event.target.id !== 'projectDraftTargetWeek' && draftEditorRecord)document.getElementById('projectDraftStatus').textContent = '有尚未儲存的修改；請選擇儲存方式。';});
+  }
+  banner.style.display = '';
+  const select = document.getElementById('projectDraftTargetWeek');
+  const weeks = eligibleDraftWeeks(allWeeks,record); select.replaceChildren();
+  for (const week of weeks) select.add(new Option(week.label,week.id));
+  if (weeks.some(week=>week.id===draftEditorTargetWeekId)) select.value = draftEditorTargetWeekId;
+  else select.value = weeks.at(-1)?.id || '';
+  draftEditorTargetWeekId = select.value;
+  const canPublish = () => {
+    const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===select.value);
+    const live = target?.projects?.find(project=>project.publication?.draftId===record.draftId || (record.source?.weekId===select.value && project.code===record.source.projectCode));
+    return Boolean(target) && (!live?.visibility || live.visibility==='active') && (currentRole==='admin' || record.lastPublication || canCurrentUser('project.manage'));
+  };
+  publish.disabled = !canPublish(); select.onchange = () => {draftEditorTargetWeekId=select.value;publish.disabled=!canPublish();};
+  document.getElementById('projectDraftStatus').textContent = !weeks.length ? '目前沒有可發布週次，仍可存成草稿。' : record.lastPublication?.draftRevision === record.revision ? '最近儲存的內容已發布；新的修改可先存成草稿。' : record.lastPublication ? '有尚未發布的草稿；Overview 和 PDF 保留上次正式內容。' : '新專案尚未發布，尚未納入 Overview 或 PDF。';
+  const manage = document.getElementById('projectDraftManage');
+  manage.style.display = record.lastPublication && canCurrentUser('project.manage') ? '' : 'none';
+  manage.onclick = () => openDraftPublishedActions(draftEditorRecord,select.value || record.lastPublication?.weekId);
+  if(record.revision===0 && !record.source)document.getElementById('pe_details').open = true;
+  document.getElementById('pe_code').disabled = Boolean(record.lastPublication);
+  for(const id of ['pe_owner','pe_deputy'])document.getElementById(id).disabled = currentRole !== 'admin';
+  document.getElementById('pe_visibility').disabled = true;
+  document.getElementById('pe_btn_delete').style.display = 'none';
 }
+window.saveDraftProject = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'draft'; await window.saveProjEdit();
+};
+window.saveAndPublishProjectDraft = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'publish'; await window.saveProjEdit();
+};
 async function saveEditorProjectDraft(project, session) {
   const record = draftEditorRecord;
   if (!record || !isProjectEditorSessionCurrent(session)) return;
-  delete project.owner; delete project.deputy;
-  const input = { ...(record.draftId ? {draftId:record.draftId} : {}), expectedRevision:record.revision, project };
-  if (currentRole === 'admin') input.assignment = {ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+  const publishing = draftEditorSaveIntent === 'publish';
+  const weekId = document.getElementById('projectDraftTargetWeek')?.value || draftEditorTargetWeekId;
+  const week = allWeeks.find(item=>(item.__documentId || item.weekLabel.replace(/\s+/g,'-'))===weekId);
+  if(publishing && !week){showProjectMutationError(null,'目前沒有可發布的週次，仍可存成草稿。');return;}
+  let assignment;
+  if(currentRole==='admin'){
+    const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+    if((record.revision===0 && !record.source) || selected.ownerEmail!==record.assignment.ownerEmail || selected.deputyEmail!==record.assignment.deputyEmail)assignment=selected;
+  }
+  const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
   const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
   clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
   try {
-    const result = await draftController.save(input);
+    const result = publishing ? await draftController.publish(input) : await draftController.save(input);
     if (!result || !isProjectEditorSessionCurrent(session)) return;
     draftEditorRecord = result.draft;
     projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
     document.getElementById('projEditOverlay').dataset.editorBaseline = submittedBaseline;
-    showSaveToast('Draft saved. Overview is unchanged.');
-  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,'Draft was not saved. Your changes remain in this editor.'); }
+    showSaveToast(publishing?'已存檔並發布，Overview 與 PDF 使用這次的正式內容。':'已存成草稿，Overview 與 PDF 維持不變。');
+  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,publishing?'存檔與發布失敗，內容保留在編輯畫面。':'草稿尚未儲存，內容保留在編輯畫面。'); }
   finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
 }
 function openDraftPublishedActions(draft, weekId) {
   if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
   const week = allWeeks.find(w => (w.__documentId || w.weekLabel.replace(/\s+/g,'-')) === weekId);
-  const project = week?.projects?.find(p => p.publication?.draftId === draft.draftId);
+  const project = week?.projects?.find(p => p.publication?.draftId === draft.draftId || (draft.source?.weekId===weekId && p.code===draft.source.projectCode && !p.publication?.draftId));
   if (!project || week.isReleased === true) { showSaveToast('Select an unpublished week containing this project.'); return; }
   const authGeneration = authSessionGeneration;
   const revision = project.__revisionFingerprint || projectRevisionFingerprint(project);
   const message = document.getElementById('projectDraftActionsMessage');
-  message.textContent = `${project.name} · ${week.weekLabel}. These actions affect the published project. Draft content changes still require Publish.`;
+  message.textContent = `${project.name} · ${week.weekLabel}. These actions affect the published project. 內容修改請使用「存成草稿」或「存檔並發布」。`;
   const visibility = document.getElementById('draftVisibilityAction'), remove = document.getElementById('draftDeleteAction');
   visibility.style.display = currentRole === 'admin' ? '' : 'none';
   visibility.textContent = project.visibility === 'active' || !project.visibility ? 'Archive' : 'Restore Active';

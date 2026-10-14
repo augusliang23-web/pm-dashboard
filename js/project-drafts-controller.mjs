@@ -14,8 +14,9 @@ export function createProjectDraftsController({api,onState=()=>{}}) {
   }
   return {reset,setIdentity,
     refresh:({cursor}={})=>execute(()=>api.list({limit:25,...(cursor?{cursor}:{})}),r=>{state={...state,drafts:cursor?[...state.drafts,...r.drafts]:r.drafts,nextCursor:r.nextCursor};}),
+    openSource:source=>execute(()=>api.get({source}),r=>{state={...state,selected:r.draft};}),
     open:draftId=>execute(()=>api.get({draftId}),r=>{state={...state,selected:r.draft};}),
     save:input=>execute(()=>api.save(input),r=>{state={...state,selected:r.draft,drafts:[r.draft,...state.drafts.filter(d=>d.draftId!==r.draft.draftId)],message:'Draft saved. Overview is unchanged.'};}),
-    publish:input=>execute(()=>api.publish(input),r=>{state={...state,message:`Published to ${r.weekId} at ${r.publishedAt}.`};}),
+    publish:input=>execute(()=>api.publish(input),r=>{state={...state,...(r.draft?{selected:r.draft,drafts:[r.draft,...state.drafts.filter(d=>d.draftId!==r.draft.draftId)]}:{}),message:`Published to ${r.weekId} at ${r.publishedAt}.`};}),
   };
 }

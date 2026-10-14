@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { buildDraftSaveInput } from '../js/project-drafts-ui.mjs';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 const source=dashboardSource('uat');
 function extract(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 test('typing while Save Draft is pending remains dirty after the submitted revision is saved',async()=>{
  const pending=deferred(),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};
- const context=vm.createContext({draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+ const context=vm.createContext({buildDraftSaveInput,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
   isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},
   document:{getElementById:()=>overlay},serializeEditorState:()=>context.form,captureEditorBaseline:()=>{overlay.dataset.editorBaseline=context.form;},
   draftController:{save:()=>pending.promise},form:'submitted'});
@@ -18,7 +19,7 @@ test('typing while Save Draft is pending remains dirty after the submitted revis
 });
 test('delayed Admin directory request cannot reopen a draft after auth generation or role changes',async()=>{
  const pending=deferred();let opened=0;
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,
+ const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
   getEmailKey:u=>u?.email,getDocs:()=>pending.promise,collection:()=>null,db:{},normalizeDashboardRole:x=>x,
   closeModal(){},window:{openProjEdit(){opened++;}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
  vm.runInContext(extract('beginDraftEditor'),context);
@@ -28,7 +29,7 @@ test('delayed Admin directory request cannot reopen a draft after auth generatio
 });
 test('a newer editor opening supersedes an older pending opening in the same auth session',async()=>{
  const pending=[];const opened=[];
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,
+ const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
   getEmailKey:u=>u?.email,getDocs:()=>{const d=deferred();pending.push(d);return d.promise;},collection:()=>null,db:{},normalizeDashboardRole:x=>x,
   closeModal(){},window:{openProjEdit(code){opened.push(code);}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
  vm.runInContext(extract('beginDraftEditor'),context);

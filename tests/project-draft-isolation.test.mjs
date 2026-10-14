@@ -31,3 +31,12 @@ test('only explicit Publish changes official PDF values; later draft Save leaves
   assert.equal((await report()).week.projects[0].progress,65);
 });
 test('drafts never fill an empty official portfolio or PDF',async()=>{setup();await call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Private',progress:100}});assert.deepEqual(getOverviewProjects(official().projects,'all'),[]);assert.equal((await report()).availableProjectCount,0);});
+test('existing project working75 is excluded until current85 is saved and published, then Overview and PDF agree',async()=>{
+ setup([{code:'OLD',name:'Existing',owner:'Owner',projectLevel:'system',visibility:'active',progress:40,status:'green'}]);
+ let {draft}=await call('getDashboardProjectDraft',{source:{weekId:'W1',projectCode:'OLD'}});
+ ({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,source:draft.source,expectedRevision:0,project:{progress:75}}));
+ assert.equal(getOverviewProjects(official().projects,'all')[0].progress,40);assert.equal((await report()).week.projects[0].progress,40);
+ const {projectRevisionFingerprint}=require('../functions/project-dashboard-writes');
+ await call('publishDashboardProjectDraft',{draftId:draft.draftId,source:draft.source,expectedRevision:1,project:{progress:85},weekId:'W1',expectedPublishedRevision:projectRevisionFingerprint(official().projects[0])});
+ assert.equal(getOverviewProjects(official().projects,'all').length,1);assert.equal(getOverviewProjects(official().projects,'all')[0].progress,85);assert.equal((await report()).week.projects[0].progress,85);
+});

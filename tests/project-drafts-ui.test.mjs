@@ -7,13 +7,12 @@ test('Publish targets exclude reporting weeks before the latest publication',()=
  const weeks=[{weekLabel:'W9 2026'},{weekLabel:'W10 2026'},{weekLabel:'W1 2027'},{weekLabel:'invalid'}];
  assert.deepEqual(eligibleDraftWeeks(weeks,{lastPublication:{weekOrder:202610}}).map(w=>w.label),['W10 2026','W1 2027']);
 });
-test('Publish submits the displayed draft revision, never a silently fetched newer revision',async()=>{
+test('My Drafts resumes editing instead of exposing a separate publication step',async()=>{
  const {mountProjectDraftsUi}=await import('../js/project-drafts-ui.mjs');
- class Node {constructor(tag,text){this.tag=tag;this.children=[];this.value='';this.textContent=text||'';this.ownerDocument=doc;}append(...items){this.children.push(...items);if(this.tag==='select'&&!this.value)this.value=items[0]?.value||'';}replaceChildren(){this.children=[];}setAttribute(){}querySelector(tag){return this.children.find(n=>n.tag===tag)||this.children.map(n=>n.querySelector(tag)).find(Boolean);} }
- const doc={createElement:tag=>new Node(tag)},root=new Node('main');let submitted,opens=0;
- const controller={open:async()=>{opens++;return {draft:{draftId:'a',revision:99}};},publish:async input=>{submitted=input;return null;}};
- const ui=mountProjectDraftsUi({root,controller,getWeeks:()=>[{weekLabel:'W10 2026',projects:[]}],onEdit(){},onPublished(){}});
- ui.render({drafts:[{draftId:'a',revision:3,project:{}}]});
- const row=root.children.find(n=>n.tag==='article');row.children.find(n=>n.textContent==='Publish').onclick();
- await new Promise(r=>setImmediate(r));assert.equal(opens,0);assert.equal(submitted.expectedRevision,3);
+ class Node {constructor(tag,text){this.tag=tag;this.children=[];this.value='';this.textContent=text||'';this.ownerDocument=doc;}append(...items){this.children.push(...items);}replaceChildren(){this.children=[];}setAttribute(){} }
+ const doc={createElement:tag=>new Node(tag)},root=new Node('main');let edited;
+ const controller={open:async id=>({draft:{draftId:id,revision:3}})};
+ const ui=mountProjectDraftsUi({root,controller,onEdit:draft=>{edited=draft;}});ui.render({drafts:[{draftId:'a',revision:3,project:{}}]});
+ const row=root.children.find(node=>node.tag==='article');assert.equal(row.children.filter(node=>node.textContent==='Publish').length,0);
+ row.children.find(node=>node.textContent==='編輯專案').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(edited.revision,3);
 });

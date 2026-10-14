@@ -42,7 +42,7 @@ function buildSourceDraft({ actor, week, source, users }) {
   const safeProject = Object.fromEntries(PROJECT_KEYS.filter(key => Object.hasOwn(project, key)).map(key => [key, structuredClone(project[key])]));
   return {
     schemaVersion: 1, draftId: sourceDraftId(source), revision: 0,
-    project: safeProject,
+    project: {owner:'',deputy:'',...safeProject},
     source: { weekId: source.weekId, projectCode: source.projectCode, expectedRevision: publicationDigest(fingerprint) },
     assignment: { ownerEmail: owner.emails.length === 1 && !owner.ambiguous ? owner.emails[0] : '', deputyEmail: deputy.emails.length === 1 && !deputy.ambiguous ? deputy.emails[0] : '' },
     editorEmails,

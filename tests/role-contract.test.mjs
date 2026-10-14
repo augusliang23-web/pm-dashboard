@@ -14,8 +14,9 @@ const uat = dashboardSource('uat');
 // then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
 // then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
+// then unified for all projects by the explicit two-button user revision (same editor; atomic current-form save/publish).
 // any other UAT drift fails.
-const originalUatHash = "38f31cb3c53aff11bc6eea1ab4e8c82c19d2793721213d353d9dc233d468c717";
+const originalUatHash = "16b5e8b76e114eb1397a4e4bfce9e56ebdd3cefc000f45d9c90215d1b32d817d";
 
 const validRoles = new Map([
   ['admin', 'admin'],

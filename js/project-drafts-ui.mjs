@@ -3,46 +3,41 @@ export function draftPublicationState(draft){return !draft.lastPublication?'Neve
 export function eligibleDraftWeeks(weeks,draft){
   return weeks.filter(w=>{
     if(!w || w.isReleased===true)return false;
+    if(draft?.source && draft.lastPublication?.draftRevision===0 && (w.__documentId||w.weekLabel.replace(/\s+/g,'-'))!==draft.source.weekId)return false;
     if(!draft?.lastPublication)return true;
     const match=String(w.weekLabel || '').match(/^W(\d{1,2})\s+(\d{4})$/i);
     return match && Number(match[1])>=1 && Number(match[1])<=53 && Number(match[2])*100+Number(match[1])>=draft.lastPublication.weekOrder;
   }).map(w=>({id:w.__documentId||w.weekLabel.replace(/\s+/g,'-'),label:w.weekLabel}));
 }
 export function buildDraftPublicationInput(draft,weekId,week) {
-  const target=week?.projects?.find(p=>p.publication?.draftId===draft.draftId);
+  const target=week?.projects?.find(p=>p.publication?.draftId===draft.draftId || (draft.source?.weekId===weekId && p.code===draft.source.projectCode && !p.publication?.draftId));
   return {draftId:draft.draftId,expectedRevision:draft.revision,weekId,expectedPublishedRevision:target?(target.__revisionFingerprint || projectRevisionFingerprint(target)):null};
 }
-export function mountProjectDraftsUi({root,controller,onEdit,onPublished,getWeeks=()=>[],canPublish=()=>true,canManage=()=>false,onManage=()=>{}}) {
+export function buildDraftSaveInput({draft,project,assignment,weekId,week}) {
+  const {owner,deputy,...content}=project;
+  return {draftId:draft.draftId,expectedRevision:draft.revision,project:content,
+    ...(draft.source?{source:draft.source}:{}),...(assignment?{assignment}:{}),
+    ...(weekId?buildDraftPublicationInput(draft,weekId,week):{})};
+}
+export function mountProjectDraftsUi({root,controller,onEdit,canManage=()=>false,onManage=()=>{},getWeeks=()=>[]}) {
   const doc=root.ownerDocument;
   const node=(tag,text)=>{const n=doc.createElement(tag);if(text)n.textContent=text;return n;};
   const run=operation=>Promise.resolve().then(operation).catch(()=>{});
   function render(state){
-    const selected=root.querySelector('select')?.value;
     root.replaceChildren();
-    const message=node('p',state.error||state.message||'Drafts stay private to their editors. Save Draft does not update Overview.');message.setAttribute('role','status');root.append(message);
-    const refresh=node('button','Refresh');refresh.className='btn btn-ghost';refresh.disabled=state.busy;refresh.onclick=()=>run(()=>controller.refresh());root.append(refresh);
-    const label=node('label','Publish to week: '),weekSelect=node('select');weekSelect.className='fs';weekSelect.setAttribute('aria-label','Publish to week');
-    const weeks=eligibleDraftWeeks(getWeeks());for(const week of weeks){const option=node('option',week.label);option.value=week.id;weekSelect.append(option);}if(weeks.some(w=>w.id===selected))weekSelect.value=selected;
-    label.append(weekSelect);root.append(label);
-    if(!weeks.length)root.append(node('p','No unpublished week is available. You can still edit and save Drafts.'));
-    if(!state.drafts.length)root.append(node('p','No drafts yet. Use New Project to start.'));
+    const message=node('p',state.error||'草稿可跨週保留；請開啟編輯畫面，選擇「存成草稿」或「存檔並發布」。');message.setAttribute('role','status');root.append(message);
+    const refresh=node('button','重新整理');refresh.className='btn btn-ghost';refresh.disabled=state.busy;refresh.onclick=()=>run(()=>controller.refresh());root.append(refresh);
+    if(!state.drafts.length)root.append(node('p',state.busy?'載入中…':'目前沒有草稿。新增專案或編輯既有專案即可開始。'));
     for(const draft of state.drafts){
       const row=node('article');row.className='draft-list-row';
-      row.append(node('h4',`${draft.project.name||'Untitled project'} · ${draft.project.code||'No code'}`),node('p',draftPublicationState(draft)),node('p',`Working progress: ${draft.project.progress ?? 0}% · Overview changes only after Publish.`));
-      if(draft.lastPublication)row.append(node('p',`Last published: ${draft.lastPublication.weekId} · ${draft.lastPublication.publishedAt}`));
-      const edit=node('button','Edit Draft');edit.className='btn btn-ghost';edit.disabled=state.busy;edit.onclick=()=>run(async()=>{const result=await controller.open(draft.draftId);if(result)await onEdit(result.draft);});
-      const publish=node('button','Publish');publish.className='btn btn-primary';publish.disabled=state.busy||!eligibleDraftWeeks(getWeeks(),draft).some(w=>w.id===weekSelect.value)||!canPublish(draft);
-      weekSelect.addEventListener?.('change',()=>{publish.disabled=state.busy||!eligibleDraftWeeks(getWeeks(),draft).some(w=>w.id===weekSelect.value)||!canPublish(draft);});
-      publish.onclick=()=>run(async()=>{
-        // Publish the revision the PM reviewed; the server rejects a newer concurrent save.
-        const week=getWeeks().find(w=>(w.__documentId||w.weekLabel.replace(/\s+/g,'-'))===weekSelect.value);
-        const result=await controller.publish(buildDraftPublicationInput(draft,weekSelect.value,week));
-        if(result){await onPublished(result);await controller.refresh();}
-      });row.append(edit,publish);
-      if(draft.lastPublication && canManage()){const manage=node('button','Manage published project');manage.className='btn btn-ghost';manage.disabled=state.busy;manage.onclick=()=>run(()=>onManage(draft,weekSelect.value));row.append(manage);}
+      const label={ 'Never published':'尚未發布',Published:'已發布','Unpublished changes':'有尚未發布的修改'}[draftPublicationState(draft)];
+      row.append(node('h4',`${draft.project.name||'未命名專案'} · ${draft.project.code||'尚無代碼'}`),node('p',label),node('p',`草稿進度：${draft.project.progress ?? 0}%`));
+      if(draft.lastPublication?.publishedAt)row.append(node('p',`上次發布：${draft.lastPublication.weekId} · ${draft.lastPublication.publishedAt}`));
+      const edit=node('button','編輯專案');edit.className='btn btn-primary';edit.disabled=state.busy;edit.onclick=()=>run(async()=>{const result=await controller.open(draft.draftId);if(result)await onEdit(result.draft);});row.append(edit);
+      if(draft.lastPublication && canManage()){const manage=node('button','專案管理');manage.className='btn btn-ghost';manage.disabled=state.busy;manage.onclick=()=>run(()=>onManage(draft,draft.lastPublication.weekId));row.append(manage);}
       root.append(row);
     }
-    if(state.nextCursor){const more=node('button','Load more');more.className='btn btn-ghost';more.disabled=state.busy;more.onclick=()=>run(()=>controller.refresh({cursor:state.nextCursor}));root.append(more);}
+    if(state.nextCursor){const more=node('button','載入更多');more.className='btn btn-ghost';more.disabled=state.busy;more.onclick=()=>run(()=>controller.refresh({cursor:state.nextCursor}));root.append(more);}
   }
   return {render,dispose:()=>root.replaceChildren()};
 }

@@ -1,0 +1,25 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';
+import {dashboardSource} from './helpers/dashboard-source.mjs';
+import * as ui from '../js/project-drafts-ui.mjs';
+import {createProjectDraftsController} from '../js/project-drafts-controller.mjs';
+const source=dashboardSource('uat');
+function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
+test('current editor form is the payload for atomic Save and Publish, including a legacy source',()=>{
+ const draft={draftId:'legacy-a',revision:2,project:{progress:75},source:{weekId:'W1',projectCode:'OLD',expectedRevision:'digest'}};
+ const official={code:'OLD',progress:40};Object.defineProperty(official,'__revisionFingerprint',{value:'official-40'});
+ const result=ui.buildDraftSaveInput({draft,project:{code:'OLD',progress:85,owner:'untrusted'},weekId:'W1',week:{projects:[official]}});
+ assert.equal(result.project.progress,85);assert.equal('owner' in result.project,false);assert.equal(result.expectedPublishedRevision,'official-40');assert.equal(result.expectedRevision,2);assert.deepEqual(result.source,draft.source);
+});
+test('controller loads a source project and keeps the committed form revision after atomic publish',async()=>{
+ const requests=[];const controller=createProjectDraftsController({api:{get:async input=>{requests.push(input);return {draft:{draftId:'a',revision:0}};},publish:async()=>({draft:{draftId:'a',revision:1,project:{progress:85}},weekId:'W1',publishedAt:'now'})},onState:s=>requests.push(s)});
+ controller.setIdentity({uid:'u'});await controller.openSource({weekId:'W1',projectCode:'OLD'});await controller.publish({});
+ assert.ok(requests.some(x=>x.source?.projectCode==='OLD'));assert.equal(requests.at(-1).selected.revision,1);assert.equal(requests.at(-1).drafts[0].project.progress,85);
+});
+test('same editor offers both text actions and keeps later typing dirty during atomic publishing',async()=>{
+ let resolve;const pending=new Promise(r=>resolve=r),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};let sent;
+ const context=vm.createContext({draftEditorRecord:{draftId:'a',revision:2,assignment:{}},draftEditorSaveIntent:'publish',draftEditorTargetWeekId:'W1',allWeeks:[{__documentId:'W1',projects:[]}],currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+  buildDraftSaveInput:ui.buildDraftSaveInput,isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},serializeEditorState:()=>context.form,
+  document:{getElementById:id=>id==='projectDraftTargetWeek'?{value:'W1'}:overlay},draftController:{publish:input=>{sent=input;return pending;},save(){throw Error('must be one atomic request');}},form:'submitted'});
+ vm.runInContext(fn('saveEditorProjectDraft'),context);const operation=context.saveEditorProjectDraft({progress:85},session);context.form='typed later';resolve({draft:{draftId:'a',revision:3,project:{progress:85}}});await operation;
+ assert.equal(sent.project.progress,85);assert.equal(sent.weekId,'W1');assert.equal(overlay.dataset.editorBaseline,'submitted');assert.notEqual(context.form,overlay.dataset.editorBaseline);
+});
