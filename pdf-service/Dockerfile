@@ -47,5 +47,6 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 RUN node --input-type=module -e "import puppeteer from 'puppeteer'; const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }); await browser.close();"
 COPY src ./src
+RUN node src/verify-delivery-trends-package.mjs
 ENV NODE_ENV=production
 CMD ["node", "src/server.js"]
