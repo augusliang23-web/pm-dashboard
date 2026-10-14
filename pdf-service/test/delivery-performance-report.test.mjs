@@ -9,7 +9,7 @@ import { metricCard, reportPage } from '../src/report-components.js';
 import { completeOverviewReportFixture } from './report-fixtures.mjs';
 import { renderDeliveryTrendsPage } from '../../js/delivery-trends-view.mjs';
 import {
-  emptyContract, gapContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
+  emptyContract, gapContract, historicalOnlyContract, noScopeFlagContract, unavailableContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
   negativeContract, syntheticContract, zeroGainContract
 } from '../../tests/delivery-trends-synthetic-fixtures.mjs';
 
@@ -56,7 +56,7 @@ test('only the last 6 weeks are displayed', () => {
 
 test('empty portfolio and unsupported contract render safe messages', () => {
   assert.match(text(renderPortfolioDeliveryPerformancePages(emptyContract())), /No projects are available/);
-  assert.match(text(renderPortfolioDeliveryPerformancePages(null)), /unavailable or uses an unsupported contract version/);
+  assert.match(text(renderPortfolioDeliveryPerformancePages(null)), /unavailable for this reporting week or uses an unsupported contract version/);
 });
 
 test('synthetic provenance is disclosed; non-synthetic is not labelled', () => {
@@ -128,7 +128,33 @@ test('existing Overview report output and shared components are unaffected', () 
   const before = renderOverviewReportHtml(fixture);
   renderPortfolioDeliveryPerformancePages(syntheticContract());
   assert.equal(renderOverviewReportHtml(fixture), before);
-  assert.doesNotMatch(before, /Portfolio Delivery Performance|dp-table/);
+  assert.doesNotMatch(before.replace(/<style>[\s\S]*?<\/style>/, ''), /Portfolio Delivery Performance|dp-table/);
   assert.match(metricCard('A', '1', 'd'), /^<article class="card metric-card neutral">/);
   assert.match(reportPage({ section: 's', title: 'T' }), /data-report-section="s"/);
+});
+
+test('historical-only projects are not listed as current projects', () => {
+  const html = text(renderPortfolioDeliveryPerformancePages(historicalOnlyContract()));
+  assert.match(html, /Synthetic Project 1/);
+  assert.doesNotMatch(html, /Synthetic Historical Only/);
+});
+
+test('missing isInAnchorScope fails closed instead of listing every project', () => {
+  const html = renderPortfolioDeliveryPerformancePages(noScopeFlagContract());
+  assert.match(text(html), /current project list is unavailable/);
+  assert.doesNotMatch(html, /Synthetic Project 1/);
+  assert.equal((html.match(/data-pdf-split-unit/g) || []).length, 0);
+});
+
+test('an unavailable contract renders an explicit unavailable page, not numbers', () => {
+  const html = text(renderPortfolioDeliveryPerformancePages(unavailableContract()));
+  assert.match(html, /unavailable for this reporting week/);
+  assert.doesNotMatch(html, /Weekly Progress Gain/);
+});
+
+test('repeated warnings become one footnote with a count', () => {
+  const warnings = Array.from({ length: 12 }, (_, i) => ({ code: 'b', message: 'baseline unverified', weekId: `W${i}`, count: 1 }));
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract({ warnings }));
+  assert.equal((html.match(/baseline unverified/g) || []).length, 1);
+  assert.match(html, /baseline unverified \(12 weeks\)/);
 });

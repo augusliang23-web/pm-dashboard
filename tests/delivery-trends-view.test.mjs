@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DELIVERY_TRENDS_CSS, formatPct, formatPp, renderDeliveryPortfolioChanges, renderDeliveryProgressTrend,
+  DELIVERY_TRENDS_CSS, renderDeliveryWindowToggle, formatPct, formatPp, renderDeliveryPortfolioChanges, renderDeliveryProgressTrend,
   renderDeliveryProjectRows, renderDeliverySparkline, renderDeliverySummaryCards, renderDeliveryTrendsPage
 } from '../js/delivery-trends-view.mjs';
 import {
-  emptyContract, gapContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
+  emptyContract, gapContract, historicalOnlyContract, hostileContract, noScopeFlagContract, unavailableContract, largeContract, longNameContract, missingMetricsContract,
   negativeContract, syntheticContract, zeroGainContract
 } from './delivery-trends-synthetic-fixtures.mjs';
 
@@ -145,4 +145,61 @@ test('renderers never emit NaN, undefined or null text', () => {
     const html = renderDeliveryTrendsPage(contract);
     assert.doesNotMatch(html, /NaN|undefined|>null</);
   }
+});
+
+test('current project list uses isInAnchorScope only; historical-only projects move to Portfolio Changes', () => {
+  const contract = historicalOnlyContract();
+  const rows = renderDeliveryProjectRows(contract);
+  assert.equal((rows.match(/class="dt-row"/g) || []).length, 2);
+  assert.doesNotMatch(rows, /Synthetic Historical Only/);
+  const changes = renderDeliveryPortfolioChanges(contract);
+  assert.match(changes, /data-historical-only/);
+  assert.match(changes, /Synthetic Historical Only/);
+});
+
+test('missing isInAnchorScope fails closed and is never inferred', () => {
+  const rows = renderDeliveryProjectRows(noScopeFlagContract());
+  assert.match(text(rows), /current project list is unavailable/);
+  assert.equal((rows.match(/class="dt-row"/g) || []).length, 0);
+  const nullProgress = syntheticContract({ projects: [{ ...syntheticContract().projects[0], isInAnchorScope: undefined, currentCompletionPct: 80 }] });
+  assert.match(text(renderDeliveryProjectRows(nullProgress)), /unavailable/);
+});
+
+test('an unavailable engine result shows warnings and no metrics', () => {
+  const html = renderDeliveryTrendsPage(unavailableContract());
+  assert.match(text(html), /cannot be calculated/);
+  assert.match(text(html), /Reporting periods are unavailable/);
+  assert.doesNotMatch(html, /dt-cards/);
+});
+
+test('6-week and 12-week windows control sparkline and trend length', () => {
+  const labels = Array.from({ length: 12 }, (_, i) => `W${30 + i}`);
+  const contract = syntheticContract({
+    weeklySeries: labels.map((label, i) => ({ weekId: label, label, gainPp: i, comparableCount: 6 })),
+    projects: [{ ...syntheticContract().projects[0], trend: labels.map((label, i) => ({ weekId: label, label, progressPct: 10 + i })) }]
+  });
+  const six = renderDeliveryTrendsPage(contract, { windowWeeks: 6 });
+  const twelve = renderDeliveryTrendsPage(contract, { windowWeeks: 12 });
+  assert.equal((six.match(/class="dt-dot-point"/g) || []).length, 6);
+  assert.equal((twelve.match(/class="dt-dot-point"/g) || []).length, 12);
+  assert.equal((six.match(/class="dt-spark-dot/g) || []).length, 6);
+  assert.equal((twelve.match(/class="dt-spark-dot/g) || []).length, 12);
+  assert.match(six, /last 6 weeks/);
+  assert.match(twelve, /last 12 weeks/);
+});
+
+test('window toggle marks the active window accessibly', () => {
+  const html = renderDeliveryWindowToggle(12);
+  assert.match(html, /data-dt-window="12" onclick="setDeliveryTrendsWindow\(12\)"/);
+  assert.match(html, /class="active" aria-pressed="true" data-dt-window="12"/);
+  assert.match(html, /aria-pressed="false" data-dt-window="6"/);
+});
+
+test('repeated engine warnings are shown once with an occurrence count', () => {
+  const warnings = Array.from({ length: 12 }, (_, i) => ({ code: 'baseline-unverified', message: 'baseline unverified', weekId: `W${i}`, count: 1 }))
+    .concat([{ code: 'x', message: 'missing or invalid progress', weekId: 'W3', count: 1 }]);
+  const html = renderDeliveryTrendsPage(syntheticContract({ warnings }));
+  assert.equal((html.match(/class="dt-notice warning"/g) || []).length, 2);
+  assert.match(html, /baseline unverified \(12 weeks\)/);
+  assert.match(html, /missing or invalid progress</);
 });

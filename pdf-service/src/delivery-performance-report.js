@@ -2,7 +2,9 @@
 // Presentation only: every figure comes from the shared metrics contract. Missing values render as "N/A", never 0.
 import { dataTable, metricCard, reportPage, statusBadge } from './report-components.js';
 import { escapeHtml, reportDocument } from './report-html.js';
-import { REPORT_CSS } from './report-theme.js';
+import { DELIVERY_PERFORMANCE_CSS } from './report-theme.js';
+
+export { DELIVERY_PERFORMANCE_CSS };
 
 export const DELIVERY_PERFORMANCE_SECTION_ID = 'portfolio-delivery-performance';
 export const DELIVERY_TRENDS_CONTRACT_VERSION = 'delivery-trends/v1';
@@ -127,8 +129,18 @@ function changeText(value) {
   return `<span class="${cls}">${value > 0 ? '▲ ' : value < 0 ? '▼ ' : ''}${escapeHtml(formatPp(value))}</span>`;
 }
 
-function projectTable(contract) {
+// Current-scope listing mirrors the web view: only projects flagged isInAnchorScope === true are listed, and the
+// listing fails closed when the contract does not carry the flag. The flag is never inferred.
+function currentScopeProjects(contract) {
   const projects = list(contract.projects);
+  const flagged = projects.some(project => typeof obj(project).isInAnchorScope === 'boolean');
+  if (projects.length && !flagged) return null;
+  return projects.filter(project => obj(project).isInAnchorScope === true);
+}
+
+function projectTable(contract) {
+  const projects = currentScopeProjects(contract);
+  if (projects === null) return '<div class="empty-state">The current project list is unavailable because scope membership data (isInAnchorScope) is not provided yet.</div>';
   if (!projects.length) return '<div class="empty-state">No projects are available for this reporting week.</div>';
   const rows = projects.map(raw => {
     const project = obj(raw);
@@ -152,10 +164,13 @@ function footnotes(contract) {
     'N/A means no valid observation exists; it is never shown as zero.',
     'A project that is absent from a week is reported as a missing observation, not as completed.'
   ];
+  // One warning is emitted per affected week; list each distinct message once with its occurrence count.
+  const groups = new Map();
   list(contract.warnings).forEach(warning => {
     const text = typeof warning === 'string' ? warning : String(obj(warning).message ?? obj(warning).text ?? obj(warning).code ?? '');
-    if (text) notes.push(text);
+    if (text) groups.set(text, (groups.get(text) || 0) + 1);
   });
+  [...groups].forEach(([text, count]) => notes.push(count > 1 ? `${text} (${count} weeks)` : text));
   return `<div class="dp-footnotes">${notes.map((note, index) => `<div>${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
 }
 
@@ -168,10 +183,10 @@ export function renderPortfolioDeliveryPerformancePages(contract, { period = '' 
   const data = obj(contract);
   const synthetic = obj(data.provenance).source === 'synthetic';
   const banner = synthetic ? '<div class="dp-synthetic">Synthetic data for preview only. Not Production data.</div>' : '';
-  if (data.contractVersion !== DELIVERY_TRENDS_CONTRACT_VERSION) {
+  if (data.contractVersion !== DELIVERY_TRENDS_CONTRACT_VERSION || data.status === 'unavailable') {
     return reportPage({
       section: DELIVERY_PERFORMANCE_SECTION_ID, title: 'Portfolio Delivery Performance', kicker: 'Overview report · Delivery performance', period,
-      body: '<div class="empty-state">Delivery performance data is unavailable or uses an unsupported contract version.</div>'
+      body: '<div class="empty-state">Delivery performance data is unavailable for this reporting week or uses an unsupported contract version.</div>'
     });
   }
   const items = [
@@ -184,38 +199,8 @@ export function renderPortfolioDeliveryPerformancePages(contract, { period = '' 
   });
 }
 
-// Stylesheet for this section. The integration phase appends it to REPORT_CSS (report-theme.js).
-export const DELIVERY_PERFORMANCE_CSS = `
-  .dp-metrics { margin-bottom:3mm; }
-  .dp-synthetic { margin-bottom:2mm; padding:1.2mm 3mm; border:1px solid var(--yellow); background:var(--yellow-soft); color:#7a5a14; font-size:8pt; font-weight:700; }
-  .dp-mid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:3mm; margin-bottom:3mm; align-items:stretch; }
-  .dp-chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:3mm; }
-  .dp-chart-head h3, .dp-changes h3, .dp-projects h3 { margin-bottom:1.5mm; }
-  .dp-note { color:var(--muted); font-size:7pt; }
-  .dp-trend-svg { width:100%; height:27mm; display:block; }
-  .dp-line { fill:none; stroke:var(--blue); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  .dp-point { fill:#fff; stroke:var(--blue); stroke-width:1.6; }
-  .dp-zero { stroke:var(--line); stroke-dasharray:3 2; }
-  .dp-gap { stroke:var(--line); stroke-dasharray:2 2; }
-  .dp-axis { font-size:9.5px; fill:var(--ink); font-weight:700; } .dp-axis-sub { font-size:8px; fill:var(--muted); } .dp-value { font-size:9.5px; fill:var(--ink); font-weight:700; }
-  .dp-changes .dp-change { display:grid; grid-template-columns:1fr auto; gap:0 2mm; padding:1mm 0; border-bottom:1px solid var(--line); font-size:8pt; }
-  .dp-changes .dp-change small { grid-column:1 / -1; color:var(--muted); font-size:7pt; overflow-wrap:anywhere; }
-  .dp-table { table-layout:fixed; }
-  .dp-table th:nth-child(1) { width:30%; } .dp-table th:nth-child(2) { width:17%; } .dp-table th:nth-child(3) { width:11%; }
-  .dp-table th:nth-child(4) { width:14%; } .dp-table th:nth-child(5) { width:13%; } .dp-table th:nth-child(6) { width:15%; }
-  .dp-table th, .dp-table td { padding:1.3mm 2mm; }
-  .dp-table td { vertical-align:middle; overflow-wrap:anywhere; }
-  .dp-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .dp-pm { overflow-wrap:anywhere; }
-  .dp-spark { width:18mm; height:4.5mm; display:block; }
-  .dp-spark-line { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; } .dp-spark-dot { fill:var(--blue); }
-  .dp-na { color:var(--muted); }
-  .dp-footnotes { margin-top:2mm; color:var(--muted); font-size:7pt; line-height:1.4; }
-  .positive-value { color:var(--green); font-weight:700; } .negative-value { color:var(--red); font-weight:700; }
-`;
-
 // Self-contained document for previews and tests (no host Overview report needed).
 export function renderDeliveryPerformanceDocument(contract, { period = '' } = {}) {
   const html = reportDocument({ title: 'Portfolio Delivery Performance', period, reportKind: 'overview', body: renderPortfolioDeliveryPerformancePages(contract, { period }) });
-  return html.replace(REPORT_CSS, `${REPORT_CSS}${DELIVERY_PERFORMANCE_CSS}`);
+  return html;
 }

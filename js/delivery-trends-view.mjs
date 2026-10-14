@@ -69,6 +69,13 @@ function warningText(warning) {
   return String(obj(warning).message ?? obj(warning).text ?? obj(warning).code ?? '');
 }
 
+// The engine emits one warning per affected week; show each distinct message once with its occurrence count.
+export function groupWarnings(warnings) {
+  const groups = new Map();
+  list(warnings).map(warningText).filter(Boolean).forEach(text => groups.set(text, (groups.get(text) || 0) + 1));
+  return [...groups].map(([text, count]) => (count > 1 ? `${text} (${count} weeks)` : text));
+}
+
 function toneClass(tone) {
   return `dt-tone-${statusTone(tone)}`;
 }
@@ -92,8 +99,8 @@ export function renderDeliverySummaryCards(contract) {
   </section>`;
 }
 
-function trendPoints(trend) {
-  return list(trend).slice(-SPARK_WEEKS).map(point => {
+function trendPoints(trend, weeks = SPARK_WEEKS) {
+  return list(trend).slice(-weeks).map(point => {
     if (isNum(point)) return { label: '', value: point };
     const entry = obj(point);
     return { label: String(entry.label ?? entry.weekLabel ?? entry.weekId ?? ''), value: isNum(entry.progressPct) ? entry.progressPct : null };
@@ -101,8 +108,8 @@ function trendPoints(trend) {
 }
 
 // Sparkline scaled to each project's own range; null observations break the line (gaps are never zero).
-export function renderDeliverySparkline(trend, { width = 120, height = 32, name = '' } = {}) {
-  const points = trendPoints(trend);
+export function renderDeliverySparkline(trend, { width = 120, height = 32, name = '', weeks = SPARK_WEEKS } = {}) {
+  const points = trendPoints(trend, weeks);
   const observed = points.filter(point => point.value !== null);
   const aria = escapeHtml(`${name ? `${name} ` : ''}progress trend`);
   if (!observed.length) {
@@ -145,8 +152,21 @@ function statusBadgeMarkup(status) {
   return `<span class="dt-badge ${toneClass(tone)}">${escapeHtml(STATUS_LABELS[tone] || 'Not set')}</span>`;
 }
 
-export function renderDeliveryProjectRows(contract) {
+// The current project list is limited to projects the metrics engine marks as members of the anchor week's
+// authorized scope (projects[].isInAnchorScope === true). The flag is never inferred: when the contract does not
+// carry it, the listing fails closed instead of showing every historical project.
+export function selectCurrentScopeProjects(contract) {
   const projects = list(obj(contract).projects);
+  const flagged = projects.some(project => typeof obj(project).isInAnchorScope === 'boolean');
+  if (projects.length && !flagged) return { projects: [], scopeUnavailable: true };
+  return { projects: projects.filter(project => obj(project).isInAnchorScope === true), scopeUnavailable: false };
+}
+
+export function renderDeliveryProjectRows(contract, { sparkWeeks = SPARK_WEEKS } = {}) {
+  const { projects, scopeUnavailable } = selectCurrentScopeProjects(contract);
+  if (scopeUnavailable) {
+    return `<section class="dt-panel" data-dt-section="projects"><div class="dt-panel-head"><div class="dt-eyebrow">Individual Project Trends</div></div><div class="dt-empty" role="status">The current project list is unavailable because scope membership data (isInAnchorScope) is not provided yet.</div></section>`;
+  }
   if (!projects.length) {
     return `<section class="dt-panel" data-dt-section="projects"><div class="dt-panel-head"><div class="dt-eyebrow">Individual Project Trends</div></div><div class="dt-empty">No projects are available for this reporting week.</div></section>`;
   }
@@ -160,12 +180,12 @@ export function renderDeliveryProjectRows(contract) {
     return `<article class="dt-row" data-project="${escapeHtml(project.projectId ?? project.code ?? '')}">
       <div class="dt-row-id"><div class="dt-row-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div><div class="dt-row-pm">Project Manager: <span>${escapeHtml(manager || NA)}</span></div></div>
       <div class="dt-row-progress"><div class="dt-row-pct">${escapeHtml(formatPct(completion))}</div><div class="dt-track" role="img" aria-label="${escapeHtml(`${name} completion ${formatPct(completion)}`)}"><div class="dt-fill ${toneClass(tone)}" style="width:${clampWidth(completion)}%"></div></div></div>
-      <div class="dt-row-spark">${renderDeliverySparkline(project.trend, { name })}</div>
+      <div class="dt-row-spark">${renderDeliverySparkline(project.trend, { name, weeks: sparkWeeks })}</div>
       <div class="dt-row-change"><div class="dt-mini-label">Weekly change</div>${changeCell(project.weeklyChangePp)}${note}</div>
       <div class="dt-row-status">${statusBadgeMarkup(project.status)}</div>
     </article>`;
   }).join('');
-  return `<section class="dt-panel" data-dt-section="projects"><div class="dt-panel-head"><div><div class="dt-eyebrow">Individual Project Trends</div><div class="dt-title">Progress by project</div></div><div class="dt-note">${projects.length} ${projects.length === 1 ? 'project' : 'projects'} · last ${SPARK_WEEKS} weeks</div></div><div class="dt-rows">${rows}</div></section>`;
+  return `<section class="dt-panel" data-dt-section="projects"><div class="dt-panel-head"><div><div class="dt-eyebrow">Individual Project Trends</div><div class="dt-title">Progress by project</div></div><div class="dt-note">${projects.length} ${projects.length === 1 ? 'project' : 'projects'} · last ${sparkWeeks} weeks</div></div><div class="dt-rows">${rows}</div></section>`;
 }
 
 export function renderDeliveryProgressTrend(contract, { maxWeeks = 12 } = {}) {
@@ -212,7 +232,7 @@ export function renderDeliveryProgressTrend(contract, { maxWeeks = 12 } = {}) {
     return `<g><circle class="dt-dot-point" cx="${x}" cy="${y}" r="4"><title>${escapeHtml(text)}</title></circle><text class="dt-value-label" x="${x}" y="${(Number(y) - 9).toFixed(1)}" text-anchor="middle">${escapeHtml(formatPp(point.value))}</text>${labels}</g>`;
   }).join('');
   const zeroY = yOf(0).toFixed(1);
-  return `<section class="dt-panel" data-dt-section="trend">${head}<svg class="dt-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weekly progress gain trend"><line class="dt-zero" x1="${left}" y1="${zeroY}" x2="${width - right}" y2="${zeroY}"></line><text class="dt-axis-sub" x="${left - 6}" y="${(Number(zeroY) + 3).toFixed(1)}" text-anchor="end">0</text><path class="dt-trend-line" d="${path.trim()}"></path>${marks}</svg></section>`;
+  return `<section class="dt-panel" data-dt-section="trend">${head}<div class="dt-trend-scroll"><svg class="dt-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weekly progress gain trend"><line class="dt-zero" x1="${left}" y1="${zeroY}" x2="${width - right}" y2="${zeroY}"></line><text class="dt-axis-sub" x="${left - 6}" y="${(Number(zeroY) + 3).toFixed(1)}" text-anchor="end">0</text><path class="dt-trend-line" d="${path.trim()}"></path>${marks}</svg></div></section>`;
 }
 
 const CHANGE_GROUPS = [
@@ -242,29 +262,55 @@ export function renderDeliveryPortfolioChanges(contract) {
   const scopeLine = entered.length || exited.length
     ? `<div class="dt-scope-line">Scope change · entered: ${escapeHtml(entered.map(changeItemLabel).join(', ') || 'none')} · exited: ${escapeHtml(exited.map(changeItemLabel).join(', ') || 'none')}</div>`
     : '';
-  return `<section class="dt-panel" data-dt-section="changes"><div class="dt-panel-head"><div><div class="dt-eyebrow">Portfolio Changes</div><div class="dt-title">What changed in the portfolio</div></div></div><div class="dt-change-grid">${groups}</div>${scopeLine}</section>`;
+  const historicalOnly = list(obj(contract).projects).filter(project => obj(project).isInAnchorScope === false);
+  const historicalLine = historicalOnly.length
+    ? `<div class="dt-scope-line" data-historical-only>Observed earlier in this window, not in the current scope (${historicalOnly.length}): ${escapeHtml(historicalOnly.map(changeItemLabel).join(', '))}</div>`
+    : '';
+  return `<section class="dt-panel" data-dt-section="changes"><div class="dt-panel-head"><div><div class="dt-eyebrow">Portfolio Changes</div><div class="dt-title">What changed in the portfolio</div></div></div><div class="dt-change-grid">${groups}</div>${scopeLine}${historicalLine}</section>`;
 }
 
 export function renderDeliveryNotices(contract) {
   const data = obj(contract);
   const notices = [];
   if (isSyntheticContract(data)) notices.push(['synthetic', 'Synthetic data for preview only. Not Production data.']);
-  list(data.warnings).map(warningText).filter(Boolean).forEach(text => notices.push(['warning', text]));
+  groupWarnings(data.warnings).forEach(text => notices.push(['warning', text]));
   if (!notices.length) return '';
   return `<div class="dt-notices" role="status">${notices.map(([kind, text]) => `<div class="dt-notice ${kind}">${escapeHtml(text)}</div>`).join('')}</div>`;
 }
 
-export function renderDeliveryTrendsPage(contract) {
+function unavailableBox(message, warnings = []) {
+  const reasons = groupWarnings(warnings);
+  return `<div class="dt-empty" role="alert" data-dt-unavailable>${escapeHtml(message)}${reasons.length ? `<ul>${reasons.map(text => `<li>${escapeHtml(text)}</li>`).join('')}</ul>` : ''}</div>`;
+}
+
+export function renderDeliveryUnavailable(message = 'Delivery trends data is unavailable.', warnings = []) {
+  return `<div class="dt-page">${unavailableBox(message, warnings)}</div>`;
+}
+
+export function renderDeliveryWindowToggle(windowWeeks = 6) {
+  const button = weeks => `<button type="button" class="${weeks === windowWeeks ? 'active' : ''}" aria-pressed="${weeks === windowWeeks}" data-dt-window="${weeks}" onclick="setDeliveryTrendsWindow(${weeks})">${weeks} weeks</button>`;
+  return `<div class="dt-toolbar no-print"><div class="dt-window" role="group" aria-label="History window">${button(6)}${button(12)}</div></div>`;
+}
+
+export function renderDeliveryTrendsPage(contract, { windowWeeks } = {}) {
   const data = obj(contract);
   if (data.contractVersion !== DELIVERY_TRENDS_CONTRACT_VERSION) {
-    return `<div class="dt-page"><div class="dt-empty" role="alert">Delivery trends data is unavailable or uses an unsupported contract version.</div></div>`;
+    return renderDeliveryUnavailable('Delivery trends data is unavailable or uses an unsupported contract version.');
   }
-  return `<div class="dt-page" data-contract="${escapeHtml(data.contractVersion)}">${renderDeliveryNotices(data)}${renderDeliverySummaryCards(data)}${renderDeliveryProjectRows(data)}${renderDeliveryProgressTrend(data)}${renderDeliveryPortfolioChanges(data)}</div>`;
+  if (data.status === 'unavailable') {
+    return `<div class="dt-page">${renderDeliveryNotices({ provenance: data.provenance })}${unavailableBox('Delivery trends cannot be calculated for this reporting week.', data.warnings)}</div>`;
+  }
+  const weeks = isNum(windowWeeks) ? windowWeeks : Math.max(SPARK_WEEKS, list(data.weeklySeries).length);
+  return `<div class="dt-page" data-contract="${escapeHtml(data.contractVersion)}">${renderDeliveryNotices(data)}${renderDeliverySummaryCards(data)}${renderDeliveryProjectRows(data, { sparkWeeks: weeks })}${renderDeliveryProgressTrend(data, { maxWeeks: weeks })}${renderDeliveryPortfolioChanges(data)}</div>`;
 }
 
 // Isolated stylesheet reusing the dashboard's existing CSS variables. The integration phase adds it to the page.
 export const DELIVERY_TRENDS_CSS = `
 .dt-page { display:flex; flex-direction:column; gap:16px; }
+.dt-toolbar { display:flex; justify-content:flex-end; }
+.dt-window { display:flex; gap:3px; padding:3px; background:var(--s3); border-radius:7px; }
+.dt-window button { border:0; border-radius:5px; background:transparent; color:var(--text-light); padding:6px 12px; font:700 11px 'Noto Sans TC',sans-serif; cursor:pointer; }
+.dt-window button.active { background:var(--s1); color:var(--accent-hov); box-shadow:0 1px 4px rgba(0,0,0,.08); }
 .dt-notices { display:flex; flex-direction:column; gap:6px; }
 .dt-notice { border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--text-light); background:var(--s3); }
 .dt-notice.synthetic { border-color:var(--yellow); background:var(--ydim); color:#7A6428; font-weight:700; }
@@ -304,6 +350,7 @@ export const DELIVERY_TRENDS_CSS = `
 .dt-badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; background:var(--s3); }
 .dt-badge.dt-tone-green { background:var(--gdim); } .dt-badge.dt-tone-yellow { background:var(--ydim); } .dt-badge.dt-tone-red { background:var(--rdim); }
 .dt-trend-svg { width:100%; height:auto; max-height:240px; display:block; overflow:visible; }
+.dt-trend-scroll { overflow-x:auto; }
 .dt-zero { stroke:var(--border2); stroke-dasharray:4 3; }
 .dt-trend-line { fill:none; stroke:var(--blue); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
 .dt-dot-point { fill:#fff; stroke:var(--blue); stroke-width:2.5; }
@@ -317,5 +364,5 @@ export const DELIVERY_TRENDS_CSS = `
 .dt-change-group ul { margin:0; padding-left:16px; font-size:12px; color:var(--text); } .dt-change-group li { overflow-wrap:anywhere; }
 .dt-scope-line { margin-top:10px; font-size:11px; color:var(--text-light); overflow-wrap:anywhere; }
 @media (max-width:1000px) { .dt-cards, .dt-change-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .dt-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .dt-row-id { grid-column:1 / -1; } }
-@media (max-width:560px) { .dt-cards, .dt-change-grid { grid-template-columns:1fr; } .dt-row { grid-template-columns:1fr; gap:10px; } .dt-panel { padding:14px; } }
+@media (max-width:560px) { .dt-trend-svg { min-width:560px; } .dt-cards, .dt-change-grid { grid-template-columns:1fr; } .dt-row { grid-template-columns:1fr; gap:10px; } .dt-panel { padding:14px; } }
 `;
