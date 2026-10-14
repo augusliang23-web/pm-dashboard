@@ -1,3 +1,37 @@
+// Portfolio Delivery Performance section styles (delivery-performance-report.js).
+export const DELIVERY_PERFORMANCE_CSS = `
+  .dp-metrics { margin-bottom:2.5mm; }
+  .dp-health-list { margin-top:1.5mm; display:grid; gap:.7mm; font-size:8.5pt; }
+  .dp-health-item { display:flex; align-items:center; gap:1.6mm; white-space:nowrap; }
+  .dp-health-item i { font-style:normal; width:3mm; text-align:center; } .dp-health-item b { margin-left:auto; }
+  .dp-health-item.green i { color:var(--green); } .dp-health-item.yellow i { color:var(--yellow); } .dp-health-item.red i { color:var(--red); } .dp-health-item.neutral i { color:var(--muted); }
+  .dp-synthetic { margin-bottom:2mm; padding:1.2mm 3mm; border:1px solid var(--yellow); background:var(--yellow-soft); color:#7a5a14; font-size:8pt; font-weight:700; }
+  .dp-mid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:3mm; margin-bottom:2mm; align-items:stretch; }
+  .dp-chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:3mm; }
+  .dp-chart-head h3, .dp-changes h3, .dp-projects h3 { margin-bottom:1.5mm; }
+  .dp-note { color:var(--muted); font-size:7.5pt; }
+  .dp-trend-svg { width:100%; height:20mm; display:block; }
+  .dp-line { fill:none; stroke:var(--blue); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .dp-point { fill:#fff; stroke:var(--blue); stroke-width:1.6; }
+  .dp-zero { stroke:var(--line); stroke-dasharray:3 2; }
+  .dp-gap { stroke:var(--line); stroke-dasharray:2 2; }
+  .dp-axis { font-size:10px; fill:var(--ink); font-weight:700; } .dp-axis-sub { font-size:9px; fill:var(--muted); } .dp-value { font-size:10px; fill:var(--ink); font-weight:700; }
+  .dp-changes .dp-change { display:grid; grid-template-columns:1fr auto; gap:0 2mm; padding:1mm 0; border-bottom:1px solid var(--line); font-size:8pt; }
+  .dp-changes .dp-change small { grid-column:1 / -1; color:var(--muted); font-size:7pt; overflow-wrap:anywhere; }
+  .dp-table { table-layout:fixed; }
+  .dp-table th:nth-child(1) { width:30%; } .dp-table th:nth-child(2) { width:17%; } .dp-table th:nth-child(3) { width:11%; }
+  .dp-table th:nth-child(4) { width:14%; } .dp-table th:nth-child(5) { width:13%; } .dp-table th:nth-child(6) { width:15%; }
+  .dp-table th, .dp-table td { padding:1.15mm 2mm; }
+  .dp-table td { vertical-align:middle; overflow-wrap:anywhere; }
+  .dp-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .dp-pm { overflow-wrap:anywhere; }
+  .dp-spark { width:18mm; height:4.5mm; display:block; }
+  .dp-spark-line { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; } .dp-spark-dot { fill:var(--blue); }
+  .dp-na { color:var(--muted); }
+  .dp-footnotes { margin-top:0; color:var(--muted); font-size:7.5pt; line-height:1.4; }
+  .dp-table .positive-value { color:var(--green); font-weight:700; } .dp-table .negative-value { color:var(--red); font-weight:700; }
+`;
+
 export const REPORT_CSS = `
   @page { size: A4 landscape; margin:0; }
   :root {
@@ -407,4 +441,5 @@ export const REPORT_CSS = `
   .one-pager-risk-stack.dense .one-pager-required-action strong { font-size:5.6pt; padding:.6mm 1.2mm; }
   .one-pager-risk-stack.dense .one-pager-required-action p { font-size:7pt; line-height:1.2; }
   .one-pager-footer { display:flex; align-items:end; justify-content:space-between; color:var(--muted); font-size:6.6pt; }
+  ${DELIVERY_PERFORMANCE_CSS}
 `;
