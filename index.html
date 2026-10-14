@@ -3109,6 +3109,12 @@ import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, rec
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
 import { buildSwitchRows, createUserPermissionsApi, describeAuditEntries, isPermissionConflict, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState, switchChange } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
+// @uat-only begin deliveryPdfImport
+import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";
+// @uat-only end deliveryPdfImport
+// @uat-only begin weekOrderImport
+import { sortWeeksChronologically } from "./js/week-order.mjs";
+// @uat-only end weekOrderImport
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
@@ -6145,7 +6151,7 @@ function initData__uat(authGeneration, authUser) {
       return normalizedWeek;
     });
     if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
-    allWeeks = sortWeeksByLabel(fetchedWeeks);
+    allWeeks = sortWeeksChronologically(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
       currentIdx = allWeeks.length - 1;
@@ -11463,9 +11469,15 @@ function currentDeliveryTrendsState(windowWeeks = deliveryTrendsWindow) {
     anchorWeekId: allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekId,
     windowWeeks, overviewScope, role: currentRole,
     historyComplete: deliveryTrendsHistoryState.complete,
-    executivePerspective: isVipPerspective(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
+    executivePerspective: isDeliveryTrendsExecutive(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
     source: deliveryTrendsHistoryState.source, asOf: deliveryTrendsHistoryState.asOf
   });
+}
+
+// In the UAT profile isVipPerspective() is true only for an Admin previewing as Executive; a signed-in Executive (or
+// legacy VIP) is identified by role. Both are "executive-like" and never get Delivery Trends.
+function isDeliveryTrendsExecutive() {
+  return ['executive', 'vip'].includes(currentRole) || isVipPerspective();
 }
 
 function deliveryTrendsUserKey() {
@@ -11477,8 +11489,11 @@ function syncDeliveryTrendsView() {
   const view = document.getElementById('deliveryTrendsView');
   const button = document.getElementById('btnDeliveryTrends');
   if (!view) return;
+  // The shared .executive-hidden class does not hide controls for a signed-in Executive in the UAT profile, so the
+  // entry is hidden explicitly: Executive/VIP perspectives never get a Delivery Trends button.
+  if (button) button.style.display = isDeliveryTrendsExecutive() ? 'none' : '';
   // Delivery Trends never survives an Overview switch, an Executive perspective, or a different signed-in user.
-  if (isOverview || isVipPerspective() || deliveryTrendsOwner !== deliveryTrendsUserKey()) deliveryTrendsActive = false;
+  if (isOverview || isDeliveryTrendsExecutive() || deliveryTrendsOwner !== deliveryTrendsUserKey()) deliveryTrendsActive = false;
   if (!deliveryTrendsActive) {
     view.hidden = true;
     view.style.display = 'none';
@@ -11504,7 +11519,7 @@ function syncDeliveryTrendsView() {
 }
 
 window.toggleDeliveryTrends = () => {
-  if (!IS_UAT_PROFILE || isVipPerspective()) return;
+  if (!IS_UAT_PROFILE || isDeliveryTrendsExecutive()) return;
   deliveryTrendsActive = !deliveryTrendsActive;
   deliveryTrendsOwner = deliveryTrendsUserKey();
   if (deliveryTrendsActive) isOverview = false;
@@ -11533,6 +11548,20 @@ window.openOverviewPrintDialog = () => {
 };
 if (IS_UAT_PROFILE) loadDeliveryTrendsModule().catch(() => {});
 // @uat-only end deliveryTrendsView
+// @uat-only begin deliveryTrendsLogoutReset
+// Signing out (or any return to the login overlay) must not leave authorized Delivery Trends content in the page.
+if (IS_UAT_PROFILE) {
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (loginOverlay) {
+    new MutationObserver(() => {
+      if (getComputedStyle(loginOverlay).display === 'none') return;
+      deliveryTrendsActive = false;
+      deliveryTrendsOwner = null;
+      syncDeliveryTrendsView();
+    }).observe(loginOverlay, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
+}
+// @uat-only end deliveryTrendsLogoutReset
 // @uat-only begin toggleExecutivePreview
 window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;

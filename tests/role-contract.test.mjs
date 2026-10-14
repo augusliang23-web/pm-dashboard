@@ -16,9 +16,13 @@ const uat = dashboardSource('uat');
 // then by the V2.3 Delivery Trends page (UAT-only: navigation button, container, view-sync script, PDF option). The change is
 // proven to be exactly that feature: tests/delivery-trends-integration.test.mjs strips those additions and reproduces the
 // previous hash e83cb180...; Production is unchanged and no Production invariant exception was added;
+// then by the UAT-only chronological week ordering (js/week-order.mjs): reverting that one import block and one call
+// reproduces the accepted Delivery Trends hash 0ef4f40c... (tests/delivery-trends-integration.test.mjs). The same change set
+// contains three fixes found by the real-browser smoke tests (missing UAT import for the PDF option, explicit Executive/VIP
+// hiding of the entry, and clearing the page on sign-out), all reverted by that same test;
 // any other UAT drift fails.
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
-const originalUatHash = 'f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5';
+const originalUatHash = '4697d3b57883abfcdfb180ecf173ee31e68d6a6e383c849912d2008900f23547';
 
 const validRoles = new Map([
   ['admin', 'admin'],
