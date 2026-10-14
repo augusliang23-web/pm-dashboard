@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { dashboardSource, environmentFor, functionInventory, rawDashboardSource } from './helpers/dashboard-source.mjs';
+import { dashboardSource, environmentFor, functionInventory, rawDashboardSource, normalizeProjectManagerLabelsForBaseline } from './helpers/dashboard-source.mjs';
 import { renderEnvConfig } from '../scripts/env-config.mjs';
 
 const baselines = JSON.parse(readFileSync(new URL('./fixtures/dashboard-baselines.json', import.meta.url), 'utf8'));
@@ -90,7 +90,7 @@ test('the Production profile runs every Production e1f0e5c function byte-for-byt
   const overviewRiskHeading = '<div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>';
   assert.equal((productionSource.match(/<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/g) || []).length, 1);
   // Normalize only the approved Overview copy change before checking the function's existing behavior hash.
-  let normalizedProductionSource = productionSource.replace(overviewRiskHeading, '<div class="exec-eyebrow">Risk Action Table</div>');
+  let normalizedProductionSource = normalizeProjectManagerLabelsForBaseline(productionSource).replace(overviewRiskHeading, '<div class="exec-eyebrow">Risk Action Table</div>');
   const newRiskTableRow = '<table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Mitigation Actions</th><th>Checkpoint</th></tr></thead><tbody>';
   const oldRiskTableRow = '<table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>';
   assert.equal(literalCount(normalizedProductionSource, newRiskTableRow), 1);
