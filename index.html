@@ -2292,6 +2292,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label><input type="checkbox" value="project-portfolio" checked> Project portfolio</label>
         <label><input type="checkbox" value="resource-analytics" checked> Resource analytics</label>
         <label><input type="checkbox" value="budget-overview" checked> Budget overview</label>
+        <!-- @uat-only begin deliveryPerformanceOption -->
+        <label id="deliveryPerformanceOption" data-profile-only="uat" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> Portfolio delivery performance</label>
+        <!-- @uat-only end deliveryPerformanceOption -->
       </div>
       <div class="print-audience-field" id="executiveMilestoneAudienceField">
         <label for="executiveMilestoneAudienceView">Executive milestone visibility</label>
@@ -2391,6 +2394,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
       
+      <!-- @uat-only begin deliveryTrendsButton -->
+      <style>#btnDeliveryTrends { width:auto; padding:0 10px; gap:6px; font:700 11px 'Noto Sans TC',sans-serif; } @media (max-width:700px) { #btnDeliveryTrends .dt-nav-label { display:none; } #btnDeliveryTrends { padding:0; width:32px; } }</style>
+      <button class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends" onclick="toggleDeliveryTrends()" title="Delivery Trends" aria-label="Delivery Trends" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg><span class="dt-nav-label" aria-hidden="true">Trends</span>
+      </button>
+      <!-- @uat-only end deliveryTrendsButton -->
       <button class="btn-icon vip-hidden executive-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
@@ -2475,6 +2484,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="proj-grid" id="projGrid"></div>
   </div>
   <div id="execView" class="exec-view"></div>
+  <!-- @uat-only begin deliveryTrendsContainer -->
+  <div id="deliveryTrendsView" data-profile-only="uat" hidden style="display:none;" aria-label="Delivery Trends"></div>
+  <!-- @uat-only end deliveryTrendsContainer -->
 </div>
 
 <div class="overlay" id="projDetailOverlay" onclick="closeProjectOverlayFromBackdrop(event)">
@@ -4496,6 +4508,17 @@ function showDataLoadError__uat(error) {
     </div>`;
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+  // @uat-only begin deliveryTrendsErrorCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsErrorCleanup
 }
 // @profile-dispatcher
 function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
@@ -5392,6 +5415,17 @@ function quiesceDashboardForAuthTransition__uat() {
   allWeeks = [];
   currentIdx = -1;
   setDashboardAccessPending();
+  // @uat-only begin deliveryTrendsAuthCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsAuthCleanup
 }
 // @profile-dispatcher
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
@@ -6031,6 +6065,10 @@ function initData__uat(authGeneration, authUser) {
     weeksUnsub = null;
   }
 
+  // @uat-only begin deliveryTrendsRawHistoryReset
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  // @uat-only end deliveryTrendsRawHistoryReset
   const weeksRef = collection(db, "weeks");
   const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
@@ -6077,8 +6115,16 @@ function initData__uat(authGeneration, authUser) {
     window.render();
   });
 
-  weeksUnsub = onSnapshot(weeksQuery, snap => {
+  weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistorySnapshot
+    deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+    deliveryTrendsHistoryState = {
+      source: snap.docs.length ? 'uat' : 'synthetic',
+      complete: snap.metadata?.fromCache === false && snap.metadata?.hasPendingWrites === false,
+      asOf: new Date().toISOString()
+    };
+    // @uat-only end deliveryTrendsRawHistorySnapshot
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -6122,6 +6168,10 @@ function initData__uat(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistoryError
+    deliveryTrendsRawWeeks = [];
+    deliveryTrendsHistoryState = { source: null, complete: false };
+    // @uat-only end deliveryTrendsRawHistoryError
     showDataLoadError(error);
   });
 }
@@ -10008,6 +10058,7 @@ const render__uat = () => {
       btnOverview.classList.remove('active');
     }
   }
+  syncDeliveryTrendsView();
 };
 // @profile-dispatcher
 window.render = (...args) => (IS_UAT_PROFILE ? render__uat : render__prod)(...args);
@@ -11382,6 +11433,106 @@ window.setOverviewScope = scope => {
   }
   render();
 };
+// @uat-only begin deliveryTrendsView
+// Delivery Trends: an independent, UAT-only navigation destination. All metrics come from the shared engine via
+// js/delivery-trends-page.mjs; nothing here calculates progress. Production never shows the button or container.
+let deliveryTrendsRawWeeks = [];
+let deliveryTrendsHistoryState = { source: null, complete: false };
+let deliveryTrendsActive = false;
+let deliveryTrendsWindow = 6;
+let deliveryTrendsOwner = null;
+let deliveryTrendsModule = null;
+let deliveryTrendsLoading = null;
+
+function loadDeliveryTrendsModule() {
+  if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);
+  deliveryTrendsLoading = deliveryTrendsLoading || import('./js/delivery-trends-page.mjs').then(module => {
+    deliveryTrendsModule = module;
+    return module;
+  }).catch(error => {
+    deliveryTrendsLoading = null;
+    throw error;
+  });
+  return deliveryTrendsLoading;
+}
+
+function currentDeliveryTrendsState(windowWeeks = deliveryTrendsWindow) {
+  if (!deliveryTrendsModule) return { state: 'unavailable', reason: 'Delivery trends are still loading.' };
+  return deliveryTrendsModule.buildDeliveryTrendsState({
+    weeks: deliveryTrendsRawWeeks, currentIdx,
+    anchorWeekId: allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekId,
+    windowWeeks, overviewScope, role: currentRole,
+    historyComplete: deliveryTrendsHistoryState.complete,
+    executivePerspective: isVipPerspective(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
+    source: deliveryTrendsHistoryState.source, asOf: deliveryTrendsHistoryState.asOf
+  });
+}
+
+function deliveryTrendsUserKey() {
+  return currentUser?.uid || getEmailKey(currentUser) || null;
+}
+
+function syncDeliveryTrendsView() {
+  if (!IS_UAT_PROFILE) return;
+  const view = document.getElementById('deliveryTrendsView');
+  const button = document.getElementById('btnDeliveryTrends');
+  if (!view) return;
+  // Delivery Trends never survives an Overview switch, an Executive perspective, or a different signed-in user.
+  if (isOverview || isVipPerspective() || deliveryTrendsOwner !== deliveryTrendsUserKey()) deliveryTrendsActive = false;
+  if (!deliveryTrendsActive) {
+    view.hidden = true;
+    view.style.display = 'none';
+    view.replaceChildren();
+    if (button) { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); }
+    return;
+  }
+  document.getElementById('normalView').style.display = 'none';
+  document.getElementById('execView').style.display = 'none';
+  document.getElementById('portfolioToolbar').style.display = 'none';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  view.hidden = false;
+  view.style.display = 'block';
+  if (button) { button.classList.add('active'); button.setAttribute('aria-pressed', 'true'); }
+  if (!deliveryTrendsModule) {
+    view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="status">Loading delivery trends…</div></div>';
+    loadDeliveryTrendsModule().then(() => { if (deliveryTrendsActive) syncDeliveryTrendsView(); })
+      .catch(() => { view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="alert">Delivery trends could not be loaded.</div></div>'; });
+    return;
+  }
+  deliveryTrendsModule.installDeliveryTrendsStyles(document);
+  view.innerHTML = deliveryTrendsModule.renderDeliveryTrendsPageHtml(currentDeliveryTrendsState(), { windowWeeks: deliveryTrendsWindow });
+}
+
+window.toggleDeliveryTrends = () => {
+  if (!IS_UAT_PROFILE || isVipPerspective()) return;
+  deliveryTrendsActive = !deliveryTrendsActive;
+  deliveryTrendsOwner = deliveryTrendsUserKey();
+  if (deliveryTrendsActive) isOverview = false;
+  render();
+};
+
+window.setDeliveryTrendsWindow = weeks => {
+  deliveryTrendsWindow = Number(weeks) === 12 ? 12 : 6;
+  syncDeliveryTrendsView();
+};
+
+// PDF dialog support. (Browser-print integration is deferred: no user-accessible entry calls renderOverviewPrintReport.)
+function syncDeliveryPerformancePdfOption() {
+  const option = document.getElementById('deliveryPerformanceOption');
+  if (!option) return;
+  const available = isDeliveryPerformancePdfAvailable({ profile: IS_UAT_PROFILE ? 'uat' : 'production' });
+  option.hidden = !available;
+  option.style.display = available ? '' : 'none';
+  const input = option.querySelector('input');
+  if (!available && input) input.checked = false;
+}
+const baseOpenOverviewPrintDialog = window.openOverviewPrintDialog;
+window.openOverviewPrintDialog = () => {
+  baseOpenOverviewPrintDialog();
+  syncDeliveryPerformancePdfOption();
+};
+if (IS_UAT_PROFILE) loadDeliveryTrendsModule().catch(() => {});
+// @uat-only end deliveryTrendsView
 // @uat-only begin toggleExecutivePreview
 window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;

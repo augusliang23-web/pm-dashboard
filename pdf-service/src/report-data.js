@@ -6,6 +6,7 @@ import {
 import { validateExecutiveSummaryForPdf } from './executive-summary-brief.js';
 import { resolveGanttWindowSettings, sanitizeDraftGanttWindowSettings } from './gantt-window.js';
 import { verifyBearerToken } from './auth-error.js';
+import { calculateDeliveryTrends, normalizeDeliveryReportingPeriod, normalizeDeliveryProjectData } from './generated/delivery-trends.mjs';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -75,6 +76,66 @@ function executiveTimelineForReport(week, liveState) {
   return week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline || null;
 }
 
+
+// Bounded transport only: document-ID pagination is not chronological week ordering.
+export function createBoundedDeliveryHistoryReader({ db, documentIdField = '__name__', pageSize = 50, maxPages = 6 } = {}) {
+  if (!db || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50
+    || !Number.isInteger(maxPages) || maxPages < 1 || maxPages > 6) throw new TypeError('Invalid bounded history configuration.');
+  return async ({ publicationMode } = {}) => {
+    if (!['released','include-drafts'].includes(publicationMode)) throw new TypeError('Invalid history publication policy.');
+    const weeks = [];
+    let cursor = null;
+    for (let page = 0; page < maxPages; page++) {
+      let query = db.collection('weeks');
+      if (publicationMode === 'released') query = query.where('isReleased', '==', true);
+      query = query.orderBy(documentIdField).limit(pageSize);
+      if (cursor !== null) query = query.startAfter(cursor);
+      const snapshot = await query.get();
+      if (!Array.isArray(snapshot.docs) || snapshot.docs.length > pageSize) throw new Error('Invalid bounded history response.');
+      weeks.push(...snapshot.docs.map(document => ({ ...document.data(), weekId: document.id })));
+      if (snapshot.docs.length < pageSize) return { weeks, complete: true };
+      cursor = snapshot.docs.at(-1).id;
+    }
+    return { weeks, complete: false };
+  };
+}
+
+async function deliveryTrendsForReport({ request, week, access, adapters, overviewScope }) {
+  const publicationMode = ['vip','executive'].includes(access.role) ? 'released' : 'include-drafts';
+  const provenance = typeof adapters.getDeliveryTrendsProvenance === 'function' ? adapters.getDeliveryTrendsProvenance() : {};
+  const base = { ...provenance, anchorWeekId: request.weekId, windowWeeks: adapters.deliveryTrendsWindowWeeks ?? 6,
+    publicationMode, scope: { projectLevel: overviewScope === 'module' ? 'hardware-module' : overviewScope } };
+  const unavailable = code => {
+    const result = calculateDeliveryTrends({ ...base, weeks: [] });
+    result.warnings.push({ code, message: code.replaceAll('-', ' '), weekId: null, count: 1 });
+    return result;
+  };
+  if (typeof adapters.getDeliveryHistory !== 'function') return unavailable('history-reader-unavailable');
+  let history;
+  try { history = await adapters.getDeliveryHistory({ publicationMode }); }
+  catch { return unavailable('history-read-failed'); }
+  if (!history || history.complete !== true || !Array.isArray(history.weeks)) return unavailable('history-read-limit');
+  // Defensive publication filtering precedes normalization and all diagnostic generation.
+  const permitted = history.weeks.filter(item => item && (publicationMode !== 'released' || item.isReleased === true));
+  const anchor = permitted.find(item => item.weekId === request.weekId);
+  if (anchor && (anchor.version !== week.version || JSON.stringify(anchor.projects) !== JSON.stringify(week.projects))) {
+    return unavailable('anchor-revised-during-read');
+  }
+  const keyFor = project => typeof project?.projectId === 'string' && project.projectId.trim()
+    ? `id:${project.projectId.trim()}` : `code:${String(project?.code || '').trim().toLowerCase()}`;
+  if (Array.isArray(request.projectCodes)) {
+    const anchorScope = reportableOverviewProjects(week, overviewScope);
+    const fullSelection = anchorScope.length > 0 && anchorScope.every(project => request.projectCodes.includes(project?.code));
+    // All current projects means the portfolio history, including previously visible missing projects.
+    if (!fullSelection) base.scope.projectKeys = (Array.isArray(week.projects) ? week.projects : [])
+      .filter(project => request.projectCodes.includes(project?.code)).map(keyFor);
+  }
+  const weeks = permitted.map(item => ({ ...item, reportingPeriod: normalizeDeliveryReportingPeriod(item),
+    // Week-level authorization is already complete; scope is evaluated by the canonical engine.
+    projects: Array.isArray(item.projects) ? item.projects.map(normalizeDeliveryProjectData) : null }));
+  return calculateDeliveryTrends({ ...base, weeks });
+}
+
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const decodedToken = await verifyBearerToken(adapters, idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
@@ -105,6 +166,13 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
         .filter(item => !['vip', 'executive'].includes(access.role) || item.isReleased === true)
+        // New combined section uses ISO anchors; legacy standalone exports remain unchanged.
+        .filter(item => {
+          if (!request.sections.includes('portfolio-delivery-performance')) return true;
+          const anchor = normalizeDeliveryReportingPeriod(week);
+          const period = normalizeDeliveryReportingPeriod(item);
+          return anchor && period && (period.year < anchor.year || (period.year === anchor.year && period.week <= anchor.week));
+        })
         .map(item => selectOverviewProjects(activeOverviewWeek(item), request.projectCodes))
         .slice(-6);
     }
@@ -136,6 +204,9 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       projectSelectionIsPartial: selectedProjectCount < availableProjectCount,
       ganttWindowSettings
     };
+    if (request.sections.includes('portfolio-delivery-performance')) {
+      report.deliveryTrends = await deliveryTrendsForReport({ request, week, access, adapters, overviewScope });
+    }
     if (request.sections.includes('executive-milestones')) {
       report.executiveAudienceView = authorizeExecutiveAudienceView(user?.role, request.executiveAudienceView);
     }

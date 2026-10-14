@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPdfBuffer } from '../src/pdf-renderer.js';
 import {
-  DELIVERY_PERFORMANCE_SECTION_ID, renderDeliveryPerformanceDocument, renderPortfolioDeliveryPerformancePages
+  DELIVERY_PERFORMANCE_SECTION_ID, WARNING_MESSAGES, formatWeekLabel, renderDeliveryPerformanceDocument, renderPortfolioDeliveryPerformancePages
 } from '../src/delivery-performance-report.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
 import { metricCard, reportPage } from '../src/report-components.js';
 import { completeOverviewReportFixture } from './report-fixtures.mjs';
 import { renderDeliveryTrendsPage } from '../../js/delivery-trends-view.mjs';
 import {
-  emptyContract, gapContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
+  emptyContract, gapContract, historicalOnlyContract, noScopeFlagContract, unavailableContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
   negativeContract, syntheticContract, zeroGainContract
 } from '../../tests/delivery-trends-synthetic-fixtures.mjs';
 
@@ -56,7 +56,7 @@ test('only the last 6 weeks are displayed', () => {
 
 test('empty portfolio and unsupported contract render safe messages', () => {
   assert.match(text(renderPortfolioDeliveryPerformancePages(emptyContract())), /No projects are available/);
-  assert.match(text(renderPortfolioDeliveryPerformancePages(null)), /unavailable or uses an unsupported contract version/);
+  assert.match(text(renderPortfolioDeliveryPerformancePages(null)), /unavailable for this reporting week or uses an unsupported contract version/);
 });
 
 test('synthetic provenance is disclosed; non-synthetic is not labelled', () => {
@@ -102,6 +102,9 @@ test('PDF: typical 6-project portfolio fits on a single landscape page', { timeo
 test('PDF: 7-project portfolio stays within two pages', { timeout: 60000 }, async () => {
   const pdf = await renderPdfBuffer(renderDeliveryPerformanceDocument(largeContract(7), { period: 'W41 2026' }));
   assert.ok(physicalPageCount(pdf) <= 2, `pages=${physicalPageCount(pdf)}`);
+  const real = syntheticContract({ provenance: { source: "uat", anchorWeekId: "x", asOf: "y", windowWeeks: 6 }, projects: largeContract(7).projects, warnings: Array.from({ length: 4 }, () => ({ code: "baseline-unverified", message: "baseline unverified" })) });
+  const single = await renderPdfBuffer(renderDeliveryPerformanceDocument(real, { period: "W41 2026" }));
+  assert.equal(physicalPageCount(single), 1, "seven projects with notes fit one page when no preview banner is shown");
 });
 
 test('PDF: 14-project portfolio continues onto extra pages without clipping rows', { timeout: 60000 }, async () => {
@@ -128,7 +131,54 @@ test('existing Overview report output and shared components are unaffected', () 
   const before = renderOverviewReportHtml(fixture);
   renderPortfolioDeliveryPerformancePages(syntheticContract());
   assert.equal(renderOverviewReportHtml(fixture), before);
-  assert.doesNotMatch(before, /Portfolio Delivery Performance|dp-table/);
+  assert.doesNotMatch(before.replace(/<style>[\s\S]*?<\/style>/, ''), /Portfolio Delivery Performance|dp-table/);
   assert.match(metricCard('A', '1', 'd'), /^<article class="card metric-card neutral">/);
   assert.match(reportPage({ section: 's', title: 'T' }), /data-report-section="s"/);
+});
+
+test('historical-only projects are not listed as current projects', () => {
+  const html = text(renderPortfolioDeliveryPerformancePages(historicalOnlyContract()));
+  assert.match(html, /Synthetic Project 1/);
+  assert.doesNotMatch(html, /Synthetic Historical Only/);
+});
+
+test('missing isInAnchorScope fails closed instead of listing every project', () => {
+  const html = renderPortfolioDeliveryPerformancePages(noScopeFlagContract());
+  assert.match(text(html), /current project list is unavailable/);
+  assert.doesNotMatch(html, /Synthetic Project 1/);
+  assert.equal((html.match(/data-pdf-split-unit/g) || []).length, 0);
+});
+
+test('an unavailable contract renders an explicit unavailable page, not numbers', () => {
+  const html = text(renderPortfolioDeliveryPerformancePages(unavailableContract()));
+  assert.match(html, /unavailable for this reporting week/);
+  assert.doesNotMatch(html, /Weekly Progress Gain/);
+});
+
+test('repeated warnings become one plain-language footnote with a count', () => {
+  const warnings = Array.from({ length: 12 }, (_, i) => ({ code: 'baseline-unverified', message: 'baseline unverified', weekId: `W${i}`, count: 1 }));
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract({ warnings }));
+  assert.doesNotMatch(text(html), /baseline unverified/);
+  assert.match(html, /unverified baselines and should be interpreted with caution\. \(12 weeks\)/);
+});
+
+test('week labels and warning messages are identical to the web view', async () => {
+  const web = await import('../../js/delivery-trends-view.mjs');
+  assert.deepEqual({ ...WARNING_MESSAGES }, { ...web.WARNING_MESSAGES });
+  for (const entry of [{ label: '2026-W37' }, { label: '2026-W7' }, { reportingPeriod: { year: 2026, week: 5 } }, { label: 'Free text' }, {}]) {
+    assert.equal(formatWeekLabel(entry), web.formatWeekLabel(entry));
+  }
+});
+
+test('chart axis uses W37 2026 style labels', () => {
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract({ weeklySeries: [{ weekId: '2026-W36', label: '2026-W36', gainPp: 1, comparableCount: 3 }, { weekId: '2026-W37', label: '2026-W37', gainPp: 2, comparableCount: 3 }] }));
+  assert.match(html, />W36 2026</);
+  assert.doesNotMatch(html, />2026-W3\d</);
+});
+
+test('project health shows labelled counts with a shape and text per status', () => {
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract());
+  assert.match(text(html), /Project Health ● On Track 3 ▲ At Risk 2 ■ Critical 1/);
+  assert.doesNotMatch(text(renderPortfolioDeliveryPerformancePages(missingMetricsContract())), /Project Health ●/);
+  assert.match(text(renderPortfolioDeliveryPerformancePages(missingMetricsContract())), /Project Health N\/A/);
 });
