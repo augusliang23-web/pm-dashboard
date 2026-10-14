@@ -23,10 +23,10 @@ test('adapter requires explicit boolean authorization and fails closed on callba
  assert.throws(()=>adapt({weeks:[w(41)],...options({canReadWeek:()=>{throw new Error('SECRET')}})}), error=>!error.message.includes('SECRET'));
  assert.equal(adapt({weeks:[w(41)],...options({canReadProject:()=>1})}).weeks[0].projects.length,0);
 });
-test('document IDs survive normalization and labels never become reporting periods',()=>{
+test('document IDs survive normalization and explicit ISO labels supply reporting periods',()=>{
  const week={__documentId:'2026-W41',weekLabel:'W41 2026',isReleased:true,projects:[p()]};
  const data=adapt({weeks:[week],...options()});assert.equal(data.weeks[0].weekId,'2026-W41');
- assert.equal(calculateDeliveryTrends(data).status,'unavailable');
+ assert.deepEqual(data.weeks[0].reportingPeriod,{year:2026,week:41});
 });
 test('adapter does not mutate or carry sensitive unrelated fields',()=>{
  const project=p({progress:'',privateEmail:'secret@example.test',budget:{secret:1}});

@@ -474,8 +474,10 @@ export function buildOverviewReportModel({
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
   projectSelectionIsPartial = false,
-  ganttWindowSettings
+  ganttWindowSettings,
+  deliveryTrends
 } = {}) {
+  if (deliveryTrends !== undefined && deliveryTrends?.contractVersion !== 'delivery-trends/v1') throw new TypeError('Invalid delivery trends contract.');
   const anchorDate = resolveReportAnchorDate(week);
   const projects = scopedProjects(week.projects, overviewScope, { ganttWindowSettings, anchorDate });
   const attention = { action: [], monitor: [], strategy: [], watch: [] };
@@ -503,6 +505,7 @@ export function buildOverviewReportModel({
     quarterlyItems,
     resource: buildResourceSummary(projects),
     budget: buildBudgetSummary(projects),
-    trend: buildTrend(trendWeeks, overviewScope)
+    trend: buildTrend(trendWeeks, overviewScope),
+    ...(deliveryTrends === undefined ? {} : { deliveryTrends })
   };
 }

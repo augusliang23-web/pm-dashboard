@@ -38,9 +38,10 @@ inside the engine so entered/exited scope can be distinguished from missing obse
 Project owner/PM display metadata is retained only after authorization; other fields such as
 budgets, arbitrary email fields and unrelated records are not forwarded by the adapter.
 
-Actual legacy records need authoritative ISO periods supplied by the data-owning layer. No
-weekLabel guessing, schema writes or migration are included. A missing period makes the result
-unavailable. Source is never defaulted to Production. Unsupported policies/windows/scopes,
+Legacy records may supply explicit ISO periods or the validated stored W<number> <ISO-year>
+format produced by getIsoWeekData. The shared history normalizer rejects contradictory date/period
+evidence and never guesses a missing year. No schema writes or migration are included. Unresolvable
+period evidence makes the result unavailable. See HISTORY_PIPELINE.md. Source is never defaulted to Production. Unsupported policies/windows/scopes,
 malformed weeks and duplicate IDs/periods fail closed with generic warnings.
 
 ## Definitions
@@ -82,13 +83,16 @@ weeks are needed to calculate every displayed difference. Missing calendar slots
 with null weekId/gain/completion. Released filtering occurs before window selection. No comparison
 substitutes a non-consecutive week; withdrawn/draft records under released policy become gaps.
 Past values may change when the caller supplies revised historical data; result is tied to asOf.
+Record versions are exposed as weeklySeries[].recordVersion. isInAnchorScope represents current
+visibility/level/selection membership even when progress is missing; historical-only rows remain
+available with false membership and last in-scope display metadata.
 
 `weeklySeries[]` includes reportingPeriod, label, gainPp, comparableCount, projectsProgressedCount,
 currentCompletionPct, scopeProjectCount, validProgressCount, missingProgressCount, health, changes
 and comparison diagnostics. `weeklyProgressGainPp` is retained as an exact alias of gainPp.
 
 `projects[]` includes key, projectId, code, name, projectManager, status, identityConfidence,
-currentCompletionPct, weeklyChangePp, comparable, trend and diagnostic history. The project union
+currentCompletionPct, weeklyChangePp, comparable, isInAnchorScope, trend and diagnostic history. The project union
 covers the displayed scope history: no longer observed/out-of-scope projects have null current
 metrics and comparable false. `trend[]` has weekId/label/progressPct; diagnostic `history[]` retains
 period/completionPct/observation. Gaps are not filled, interpolated or treated as zero.
