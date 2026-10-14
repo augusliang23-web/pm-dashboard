@@ -13,7 +13,7 @@ The public contract retains every V1 Candidate field.
 - [x] Engine: write failing behavioral tests, implement calculateDeliveryTrends, verify.
 - [x] Adapter: write failing authorization/provenance/raw-value tests, implement, verify.
 - [x] Packaging: write failing parity/import/drift tests, add deterministic PDF copy and prebuild checks, verify.
-- [ ] Run root/PDF suites and Hosting builds; independently review; commit/push Draft PR.
+- [x] Run root/PDF suites and Hosting builds; independently review; commit/push Draft PR.
 
 ## Review focus
 Mixed ID/code history must never silently merge identities. Duplicate periods must fail closed.
@@ -35,3 +35,6 @@ Root suite: 1515 passed, 2 skipped before final packaging regression additions. 
 
 Final focused tests: 43 passed. Root: 1519 passed / 2 skipped / 0 failed. PDF full suite: 398 passed / 0 failed (Node 22 local). Both Hosting builds passed. Final independent review: PASS, no blockers.
 Initial native ARM Docker attempt failed existing Chromium x86 launcher (Rosetta ELF loader); retry explicitly targets linux/amd64, matching CI/Cloud Run architecture.
+
+Final packaging proof: linux/amd64 PDF Docker image built successfully; network-disabled container verified source checksum/import and produced delivery-trends/v1, synthetic gain +10pp. No cloud runtime executed.
+Draft PR: https://github.com/augusliang23-web/pm-dashboard/pull/51. Existing isolated worktree retained; original main remains 4d297213373255b227e492b0e4a2a0551b99e02d.
