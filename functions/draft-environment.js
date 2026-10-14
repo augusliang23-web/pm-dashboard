@@ -11,8 +11,8 @@ function assertDraftEnvironment(environment = process.env) {
 module.exports = { draftsEnabled, assertDraftEnvironment };
 
 function assertLegacyProjectWriteAllowed({environment=process.env,existingProject,isNew=false,visibilityOnly=false}) {
-  if(draftsEnabled(environment) && (isNew || (existingProject?.publication?.draftId && !visibilityOnly))) {
-    throw new HttpsError('failed-precondition','Edit in My Drafts, then Publish.',{reason:'draft-publish-required'});
+  if(draftsEnabled(environment) && (isNew || (existingProject && !visibilityOnly))) {
+    throw new HttpsError('failed-precondition','請在專案編輯畫面選擇「存成草稿」或「存檔並發布」。',{reason:'draft-publish-required'});
   }
 }
 module.exports.assertLegacyProjectWriteAllowed=assertLegacyProjectWriteAllowed;

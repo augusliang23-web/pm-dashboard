@@ -17,10 +17,10 @@ function assertDraftAccess(actor, draft, action) {
   if (draft && !draft.editorEmails?.includes(emailKey(actor.email))) fail('draft-forbidden','Draft permission is required.');
   if (((!draft && action === 'save') || action === 'first-publish') && !can('project.manage',{role:actor.role,overrides:actor.permissionOverrides})) fail('create-forbidden','Add / Delete Projects permission is required.');
 }
-function validateDraftInput(project, {publishing=false} = {}) {
+function validateDraftInput(project, {publishing=false,visibility='active'} = {}) {
   assertBoundedJson(project); assertAllowedKeys(project,PROJECT_KEYS,'Draft project');
   if ('progress' in project && (typeof project.progress !== 'number' || !Number.isFinite(project.progress) || project.progress < 0 || project.progress > 100)) fail('invalid-payload','Progress must be a number between 0 and 100.','invalid-argument');
-  if ('visibility' in project && project.visibility !== 'active') fail('visibility-admin-only','Drafts publish as Active; use the existing visibility administration after publication.');
+  if ('visibility' in project && project.visibility !== visibility) fail('visibility-admin-only','Drafts publish as Active; use the existing visibility administration after publication.');
   for (const key of ['name','code','owner','deputy','customer','location','highlight','weeklyActions','risk','next']) if (key in project && typeof project[key] !== 'string') fail('invalid-payload',`${key} must be text.`,'invalid-argument');
   for (const key of ['milestones','quarterlyMilestones','ganttWorkstreams','pdfSummaryLanes','riskActions','riskPairs','riskList','teamMembers']) if (key in project && !Array.isArray(project[key])) fail('invalid-payload',`${key} must be a list.`,'invalid-argument');
   for (const key of ['budget','dataStatus','resources']) if (key in project && (!project[key] || typeof project[key] !== 'object' || Array.isArray(project[key]))) fail('invalid-payload',`${key} must be an object.`,'invalid-argument');
@@ -52,21 +52,22 @@ function resolveAssignment({actor,existing,input,assignmentUsers={}}) {
   return {assignment,editorEmails:[...new Set(Object.values(assignment).filter(Boolean))],owner:labels.ownerEmail,deputy:labels.deputyEmail};
 }
 function buildDraftRecord({actor,existing=null,input,assignmentUsers,draftId,nowIso}) {
-  assertBoundedJson(input); assertAllowedKeys(input,['draftId','expectedRevision','project','assignment'],'Draft request');
+  assertBoundedJson(input); assertAllowedKeys(input,['draftId','expectedRevision','project','assignment','source'],'Draft request');
   assertDraftAccess(actor,existing,'save');
   if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== (existing?.revision || 0)) fail('conflict','Draft revision conflict. Reload before saving.','aborted');
   const assignment=resolveAssignment({actor,existing,input,assignmentUsers});
-  const provided=validateDraftInput(input.project);
+  const allowedVisibility=existing?.project.visibility || 'active';
+  const provided=validateDraftInput(input.project,{visibility:allowedVisibility});
   for (const key of ['owner','deputy']) if (key in provided && provided[key] !== assignment[key]) fail('assignment-forbidden','Project assignment must match the server-approved account.');
   if (existing?.lastPublication && 'code' in provided && provided.code !== existing.project.code) fail('code-locked','Published project code cannot be changed.');
-  const project=validateDraftInput({...mergePreservingUnknown(existing?.project || {name:'',code:'',progress:0,projectLevel:'system',visibility:'active'},provided),owner:assignment.owner,deputy:assignment.deputy});
-  return {schemaVersion:1,draftId,project,assignment:assignment.assignment,editorEmails:assignment.editorEmails,revision:(existing?.revision||0)+1,createdAt:existing?.createdAt||nowIso,createdBy:existing?.createdBy||actor.email,updatedAt:nowIso,updatedBy:actor.email,publicationTargets:existing?.publicationTargets||{},lastPublication:existing?.lastPublication||null};
+  const project=validateDraftInput({...mergePreservingUnknown(existing?.project || {name:'',code:'',progress:0,projectLevel:'system',visibility:'active'},provided),owner:assignment.owner,deputy:assignment.deputy},{visibility:allowedVisibility});
+  return {schemaVersion:1,draftId,project,assignment:assignment.assignment,editorEmails:assignment.editorEmails,revision:(existing?.revision||0)+1,...(existing?.source ? {source:existing.source} : {}),createdAt:existing?.createdAt||nowIso,createdBy:existing?.createdBy||actor.email,updatedAt:nowIso,updatedBy:actor.email,publicationTargets:existing?.publicationTargets||{},lastPublication:existing?.lastPublication||null};
 }
 function publicDraft(draft) {
   const {publicationTargets,...result}=draft;
   return structuredClone(result);
 }
-module.exports={emailKey,fail,assertDraftAccess,validateDraftInput,buildDraftRecord,publicDraft};
+module.exports={emailKey,fail,assertDraftAccess,validateDraftInput,buildDraftRecord,publicDraft,PROJECT_KEYS,publicationDigest,reportingWeekOrder};
 
 function publicationDigest(fingerprint) {
   return createHash('sha256').update(fingerprint).digest('hex');
@@ -84,13 +85,15 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   if(!week)fail('not-found','The target week no longer exists.','not-found');
   if(week.isReleased===true)fail('released-week','Published reporting weeks cannot be changed.','failed-precondition');
   if(input.expectedRevision!==draft.revision)fail('conflict','Draft revision conflict. Reload before publishing.','aborted');
-  const source=validateDraftInput(draft.project,{publishing:true});
-  if(!draft.assignment.ownerEmail)fail('assignment-forbidden','Select a Project Manager before publishing.','failed-precondition');
+  const source=validateDraftInput(draft.project,{publishing:true,visibility:draft.project.visibility || 'active'});
+  if(!draft.source && !draft.assignment.ownerEmail)fail('assignment-forbidden','Select a Project Manager before publishing.','failed-precondition');
   const projects=Array.isArray(week.projects)?week.projects:[];
-  const matches=projects.filter(p=>p.publication?.draftId===draft.draftId);
+  if(draft.source && !draft.createdAt && input.weekId!==draft.source.weekId)fail('conflict','An existing project must first publish to its source reporting week.','aborted');
+  const matches=projects.filter(p=>p.publication?.draftId===draft.draftId || (draft.source?.weekId===input.weekId && p.code===draft.source.projectCode && !p.publication?.draftId));
   if(matches.length>1)fail('conflict','Multiple official projects claim this draft.','aborted');
   const live=matches[0];
   const target=draft.publicationTargets?.[input.weekId];
+  if(draft.source && !Object.values(draft.publicationTargets||{}).some(t=>t.draftRevision>0) && input.weekId!==draft.source.weekId)fail('conflict','An existing project must first publish to its source reporting week.','aborted');
   if(!live && target)fail('conflict','The previous published target was removed or restored. Contact Admin.','aborted');
   if(projects.some(p=>p!==live&&String(p.code).trim()===source.code.trim()))fail('conflict','This code belongs to another project.','aborted');
   if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
