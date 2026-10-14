@@ -69,3 +69,24 @@ const listDashboardProjectDrafts=onCall(OPTIONS,async request=>{
   });
 });
 module.exports={safeId,requestData,readActor,readDraft,OPTIONS,getDashboardProjectDraft,saveDashboardProjectDraft,listDashboardProjectDrafts};
+
+const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
+  assertDraftEnvironment();
+  assertBoundedJson(request.data,{maxStringLength:256*1024});
+  assertAllowedKeys(request.data,['draftId','expectedRevision','weekId','expectedPublishedRevision'],'Publish request');
+  const data=request.data,db=getFirestore();
+  const weekId=safeId(data.weekId,'Week');
+  if(data.expectedPublishedRevision!==null && typeof data.expectedPublishedRevision!=='string')fail('invalid-payload','Official revision is required.','invalid-argument');
+  return db.runTransaction(async tx=>{
+    const actor=await readActor(tx,db,request),{ref,draft}=await readDraft(tx,db,actor,data.draftId);
+    const weekRef=db.collection('weeks').doc(weekId),snapshot=await tx.get(weekRef);
+    const {planDraftPublication}=require('./project-drafts-core');
+    const result=planDraftPublication({actor,draft,week:snapshot.exists?snapshot.data():null,input:data,nowIso:new Date().toISOString()});
+    if(!result.alreadyPublished){
+      tx.update(weekRef,result.weekPatch);tx.update(ref,result.draftPatch);
+      tx.create(db.collection('projectDraftPublicationAudit').doc(),result.audit);
+    }
+    return {weekId,project:result.project,projectRevision:result.projectRevision,draftRevision:draft.revision,publishedAt:result.publishedAt,alreadyPublished:result.alreadyPublished};
+  });
+});
+module.exports.publishDashboardProjectDraft=publishDashboardProjectDraft;

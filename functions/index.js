@@ -156,3 +156,4 @@ const projectDrafts = require('./project-drafts');
 exports.listDashboardProjectDrafts = projectDrafts.listDashboardProjectDrafts;
 exports.getDashboardProjectDraft = projectDrafts.getDashboardProjectDraft;
 exports.saveDashboardProjectDraft = projectDrafts.saveDashboardProjectDraft;
+exports.publishDashboardProjectDraft = projectDrafts.publishDashboardProjectDraft;

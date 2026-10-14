@@ -66,3 +66,43 @@ function publicDraft(draft) {
   return structuredClone(result);
 }
 module.exports={emailKey,fail,assertDraftAccess,validateDraftInput,buildDraftRecord,publicDraft};
+
+// Pure publication planner. The handler commits every returned patch in one transaction.
+function planDraftPublication({actor,draft,week,input,nowIso}) {
+  const {projectRevisionFingerprint,ownerOrDeputyMatches,updateProjectSectionMetadata}=require('./project-dashboard-writes');
+  const {withProjectEditorRowIds}=require('./project-data-merge.cjs');
+  assertDraftAccess(actor,draft,draft.lastPublication?'republish':'first-publish');
+  if(!week)fail('not-found','The target week no longer exists.','not-found');
+  if(week.isReleased===true)fail('released-week','Published reporting weeks cannot be changed.','failed-precondition');
+  if(input.expectedRevision!==draft.revision)fail('conflict','Draft revision conflict. Reload before publishing.','aborted');
+  const source=validateDraftInput(draft.project,{publishing:true});
+  if(!draft.assignment.ownerEmail)fail('assignment-forbidden','Select a Project Manager before publishing.','failed-precondition');
+  const projects=Array.isArray(week.projects)?week.projects:[];
+  const matches=projects.filter(p=>p.publication?.draftId===draft.draftId);
+  if(matches.length>1)fail('conflict','Multiple official projects claim this draft.','aborted');
+  const live=matches[0];
+  const target=draft.publicationTargets?.[input.weekId];
+  if(!live && target)fail('conflict','The previous published target was removed or restored. Contact Admin.','aborted');
+  if(projects.some(p=>p!==live&&String(p.code).trim()===source.code.trim()))fail('conflict','This code belongs to another project.','aborted');
+  if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
+  if(live && live.visibility && live.visibility!=='active')fail('visibility-admin-only','Hidden or archived projects cannot be republished through Drafts.');
+  const fingerprint=live?projectRevisionFingerprint(live):null;
+  if(target?.draftRevision===draft.revision && live && target.projectRevision===fingerprint) {
+    return {alreadyPublished:true,project:structuredClone(live),projectRevision:fingerprint,publishedAt:live.publication.publishedAt};
+  }
+  if(input.expectedPublishedRevision!==fingerprint)fail('conflict','The official project changed. Reload before publishing.','aborted');
+  // Metadata outside the editable project contract belongs to the server / future schema.
+  const publication={draftId:draft.draftId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email};
+  const project={...(live||{}),...withProjectEditorRowIds(source),code:source.code.trim(),publication};
+  const sectionUpdatedAt=updateProjectSectionMetadata(live||{},project,{editorName:actor.displayName,savedAt:nowIso});
+  if(sectionUpdatedAt)project.sectionUpdatedAt=sectionUpdatedAt;
+  const projectRevision=projectRevisionFingerprint(project);
+  const nextProjects=live?projects.map(p=>p===live?project:p):[...projects,project];
+  const version=Number.isSafeInteger(week.version)?week.version:0;
+  const lastPublication={weekId:input.weekId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email,projectRevision};
+  return {alreadyPublished:false,project,projectRevision,publishedAt:nowIso,
+    weekPatch:{projects:nextProjects,version:version+1,lastModifiedBy:actor.email},
+    draftPatch:{lastPublication,publicationTargets:{...draft.publicationTargets,[input.weekId]:{draftRevision:draft.revision,projectRevision}}},
+    audit:{draftId:draft.draftId,weekId:input.weekId,draftRevision:draft.revision,actorEmail:actor.email,actorUid:actor.uid,publishedAt:nowIso}};
+}
+module.exports.planDraftPublication=planDraftPublication;
