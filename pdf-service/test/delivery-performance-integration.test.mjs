@@ -86,3 +86,60 @@ test('the PDF stylesheet adds only scoped delivery rules to the shared theme', a
   const selectors = DELIVERY_PERFORMANCE_CSS.match(/[^{}]+(?=\{)/g).flatMap(group => group.split(',')).map(item => item.trim()).filter(Boolean);
   assert.ok(selectors.every(selector => /\.dp-/.test(selector)), selectors.filter(selector => !/\.dp-/.test(selector)).join(' | '));
 });
+
+// F-4 / F-5: the section states its real scope and any partial selection, from validated report information only.
+const scoped = extra => body(renderOverviewReportHtml({
+  ...completeOverviewReportFixture(), sections: [SECTION], deliveryTrends: syntheticContract(), ...extra
+}));
+const plain = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+test('scope line states the actual scope and selected-project count (all selected: no partial notice)', () => {
+  const html = plain(scoped({ overviewScope: 'all', projectSelectionApplied: true, projectSelectionIsPartial: false, availableProjectCount: 5, selectedProjectCount: 5 }));
+  assert.match(html, /Portfolio scope: All projects · Selected projects: 5(?! of)/);
+  assert.doesNotMatch(html, /selected projects only/);
+});
+
+test('partial selection shows "Selected projects: n of m" and the notice, never names of unselected projects', () => {
+  const raw = scoped({ overviewScope: 'all', projectSelectionApplied: true, projectSelectionIsPartial: true, availableProjectCount: 8, selectedProjectCount: 3 });
+  const html = plain(raw);
+  assert.match(html, /Portfolio scope: All projects · Selected projects: 3 of 8 — This report includes selected projects only\./);
+  assert.equal((raw.match(/data-dp-scope/g) || []).length, 1);
+  assert.doesNotMatch(raw, /Unselected|Secret/i);
+});
+
+test('every Overview scope has a truthful label', () => {
+  const labels = { system: 'System projects', 'hardware-module': 'Hardware modules', software: 'Software projects', all: 'All projects' };
+  for (const [scope, label] of Object.entries(labels)) {
+    assert.match(plain(scoped({ overviewScope: scope })), new RegExp(`Portfolio scope: ${label}`));
+  }
+  assert.match(plain(scoped({ overviewScope: 'module' })), /Portfolio scope: Hardware modules/);
+});
+
+test('without a validated project selection the counts are omitted instead of invented', () => {
+  const html = plain(scoped({ overviewScope: 'system', projectSelectionApplied: false, availableProjectCount: 9, selectedProjectCount: 9 }));
+  assert.match(html, /Portfolio scope: System projects/);
+  assert.doesNotMatch(html, /Selected projects:/);
+  assert.doesNotMatch(html, /selected projects only/);
+});
+
+test('invalid counts are ignored and an unknown scope shows the scope actually used', () => {
+  const bad = plain(scoped({ overviewScope: 'system', projectSelectionApplied: true, projectSelectionIsPartial: true, availableProjectCount: 'many', selectedProjectCount: -1 }));
+  assert.doesNotMatch(bad, /Selected projects:|NaN|undefined/);
+  assert.match(bad, /This report includes selected projects only/);
+  // An unknown scope is normalised by the report model to the scope the calculations really use (System).
+  assert.match(plain(scoped({ overviewScope: 'galaxy' })), /Portfolio scope: System projects/);
+});
+
+test('the scope explanation footnote tells users why Dashboard and PDF KPIs can differ, and the renderer does not recompute metrics', () => {
+  const html = plain(scoped({ overviewScope: 'all', projectSelectionApplied: true, availableProjectCount: 5, selectedProjectCount: 5 }));
+  assert.match(html, /can differ from the on-screen Delivery Trends page/);
+  assert.match(html, /Weekly Progress Gain \+2\.5pp/); // value comes straight from the supplied contract
+});
+
+test('the scope line does not push a normal six-project report onto a second page', { timeout: 120000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  const base = await renderPdfBuffer(renderOverviewReportHtml({ ...fixture, sections: ['health-focus'] }));
+  const real = syntheticContract({ provenance: { source: 'uat', anchorWeekId: 'x', asOf: 'y', windowWeeks: 6 } });
+  const withSection = await renderPdfBuffer(renderOverviewReportHtml({ ...fixture, sections: ['health-focus', SECTION], deliveryTrends: real, overviewScope: 'all', projectSelectionApplied: true, projectSelectionIsPartial: true, availableProjectCount: 8, selectedProjectCount: 6 }));
+  assert.equal(physicalPageCount(withSection) - physicalPageCount(base), 1);
+});
