@@ -32,6 +32,48 @@ function periodAt(start) {
   const year = new Date(start + 3 * DAY).getUTCFullYear();
   return { year, week: Math.floor((start - yearStart(year)) / WEEK) + 1 };
 }
+/** Existing stored W<number> <ISO-year> labels are explicit period evidence, not sort keys. */
+export function normalizeDeliveryReportingPeriod(record = {}) {
+  const match = /^W(\d{1,2}) (\d{4})$/.exec(text(record.weekLabel));
+  const labelPeriod = match ? { year: Number(match[2]), week: Number(match[1]) } : null;
+  const hasExplicit = record.reportingPeriod !== undefined && record.reportingPeriod !== null;
+  const period = hasExplicit ? record.reportingPeriod : labelPeriod;
+  const start = periodStart(period);
+  if (start === null) return null;
+  if (labelPeriod && (periodStart(labelPeriod) === null || labelPeriod.year !== period.year || labelPeriod.week !== period.week)) return null;
+  if (record.weekDate) {
+    const dates = /^([A-Z][a-z]{2}) (\d{1,2}) - ([A-Z][a-z]{2}) (\d{1,2})$/.exec(text(record.weekDate));
+    if (!dates) return null;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const offsets = (month, day) => Array.from({length:7}, (_, offset) => {
+      const date = new Date(start + offset * DAY);
+      return date.getUTCMonth() === months.indexOf(month) && date.getUTCDate() === Number(day) ? offset : -1;
+    }).filter(offset => offset >= 0);
+    const first = offsets(dates[1], dates[2]);
+    const last = offsets(dates[3], dates[4]);
+    if (first.length !== 1 || last.length !== 1 || last[0] < first[0]) return null;
+  }
+  return { year: period.year, week: period.week };
+}
+
+/** Project display/scope normalization for already authorized input; raw progress is never coerced. */
+export function normalizeDeliveryProjectData(project = {}) {
+  const row = {};
+  for (const field of ['projectId','code','name','projectManager','pm','owner','progress','projectLevel','visibility','lifecycle','status','baselineId']) {
+    const value = project?.[field];
+    row[field] = value !== null && typeof value === 'object' ? null : value;
+  }
+  row.projectLevel = ['system','hardware-module','software'].includes(row.projectLevel) ? row.projectLevel : 'system';
+  row.visibility = !project?.visibility ? 'active'
+    : typeof project.visibility === 'string' ? project.visibility.trim().toLowerCase() || 'active' : 'invalid';
+  if (project?.rebaseline && typeof project.rebaseline === 'object') row.rebaseline = {
+    verified: project.rebaseline.verified === true,
+    fromBaselineId: text(project.rebaseline.fromBaselineId) || null,
+    toBaselineId: text(project.rebaseline.toBaselineId) || null
+  };
+  return row;
+}
+
 function identity(project) {
   const id = text(project?.projectId);
   if (id) return `id:${id}`;
@@ -129,6 +171,7 @@ export function calculateDeliveryTrends(input = {}) {
     const current = byStart.get(start);
     const previous = byStart.get(start - WEEK);
     const row = { weekId: current?.weekId ?? null, reportingPeriod: periodAt(start),
+      recordVersion: Number.isSafeInteger(current?.version) && current.version >= 0 ? current.version : null,
       status: 'unavailable', ...summary(), changes: changes(), scopeProjectCount: null, validProgressCount: null,
       missingProgressCount: null, comparison: { previousWeekId: previous?.weekId ?? null,
         status: 'unavailable', identityConfidence: null, baselineVerification: null, excludedByReason: {} } };
@@ -154,7 +197,9 @@ export function calculateDeliveryTrends(input = {}) {
     let provisional = false;
     let unverified = false;
     const event = key => {
-      const project = current.rows.get(key)?.project || previous?.rows.get(key)?.project || {};
+      const currentItem = current.rows.get(key);
+      const previousItem = previous?.rows.get(key);
+      const project = currentItem?.scoped ? currentItem.project : previousItem?.scoped ? previousItem.project : {};
       return { key, projectId: text(project.projectId) || null, code: text(project.code) || null,
         name: text(project.name) || text(project.code) || text(project.projectId) || null,
         weekId: current.weekId, previousWeekId: previous?.weekId ?? null };
@@ -222,11 +267,13 @@ export function calculateDeliveryTrends(input = {}) {
   for (const series of projectSeries.values()) {
     const current = anchorRows?.get(series.key);
     const prior = priorRows?.get(series.key);
-    const metadata = current?.project || [...byStart.values()].reverse().find(week => week.rows.has(series.key))?.rows.get(series.key)?.project || {};
+    const metadata = current?.scoped ? current.project
+      : [...byStart.values()].reverse().find(week => week.rows.get(series.key)?.scoped)?.rows.get(series.key)?.project || {};
     series.code = text(metadata.code) || null;
     series.name = text(metadata.name) || series.code || series.projectId;
     series.projectManager = text(metadata.projectManager) || text(metadata.pm) || text(metadata.owner) || null;
     series.status = current?.scoped && ['green','yellow','red'].includes(metadata.status) ? metadata.status : null;
+    series.isInAnchorScope = Boolean(current?.scoped);
     series.currentCompletionPct = current?.scoped ? current.completionPct : null;
     series.comparable = Boolean(current?.scoped && prior?.scoped && current.completionPct !== null
       && prior.completionPct !== null && !confirmedRebaseline(prior.project, current.project));

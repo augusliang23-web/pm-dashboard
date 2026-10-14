@@ -1,4 +1,4 @@
-import { calculateDeliveryTrends } from '../shared/delivery-trends.mjs';
+import { calculateDeliveryTrends, normalizeDeliveryReportingPeriod, normalizeDeliveryProjectData } from '../shared/delivery-trends.mjs';
 export { calculateDeliveryTrends };
 
 /** Browser-facing boundary: explicit existing permissions, no authentication or Firebase SDK. */
@@ -17,21 +17,11 @@ export function createDeliveryTrendsInput({ weeks, source, asOf, anchorWeekId, w
       const projects = [];
       for (const project of week.projects) {
         if (canReadProject(project, week) !== true) continue;
-        const row = {};
-        for (const field of ['projectId','code','name','projectManager','pm','owner','progress','projectLevel','visibility','lifecycle','status','baselineId']) {
-          // Invalid objects are invalid progress, never retained as diagnostic payloads.
-          const value = project?.[field];
-          row[field] = value !== null && typeof value === 'object' ? null : value;
-        }
-        if (project?.rebaseline && typeof project.rebaseline === 'object') row.rebaseline = {
-          verified: project.rebaseline.verified === true,
-          fromBaselineId: typeof project.rebaseline.fromBaselineId === 'string' ? project.rebaseline.fromBaselineId : null,
-          toBaselineId: typeof project.rebaseline.toBaselineId === 'string' ? project.rebaseline.toBaselineId : null
-        };
+        const row = normalizeDeliveryProjectData(project);
         projects.push(row);
       }
       authorized.push({ weekId: week?.weekId || week?.__documentId,
-        reportingPeriod: week?.reportingPeriod ? { year: week.reportingPeriod.year, week: week.reportingPeriod.week } : null,
+        reportingPeriod: normalizeDeliveryReportingPeriod(week),
         isReleased: week?.isReleased === true, version: Number.isSafeInteger(week?.version) && week.version >= 0 ? week.version : null, projects });
     }
   } catch {
@@ -40,4 +30,27 @@ export function createDeliveryTrendsInput({ weeks, source, asOf, anchorWeekId, w
   return { source, asOf, anchorWeekId, windowWeeks, publicationMode,
     scope: scope ? { projectLevel: scope.projectLevel, projectKeys: scope.projectKeys ? [...scope.projectKeys] : null } : null,
     weeks: authorized };
+}
+
+/** Bounded SDK-independent loader. The caller supplies a normally authenticated page reader. */
+export async function loadDeliveryTrendsInput(options = {}) {
+  if (typeof options.readHistoryPage !== 'function' || typeof options.canReadWeek !== 'function'
+    || typeof options.canReadProject !== 'function'
+    || !['released','include-drafts'].includes(options.publicationMode)) {
+    throw new TypeError('Explicit authorized history reader and policies are required.');
+  }
+  let cursor = null;
+  const cursors = new Set();
+  const weeks = [];
+  for (let page = 0; page < 6; page++) {
+    let result;
+    try { result = await options.readHistoryPage({ cursor, pageSize: 50, publicationMode: options.publicationMode }); }
+    catch { throw new Error('Authorized history read failed.'); }
+    if (!Array.isArray(result?.weeks) || result.weeks.length > 50) throw new Error('Invalid bounded history page.');
+    weeks.push(...result.weeks);
+    if (result.nextCursor === null) return createDeliveryTrendsInput({ ...options, weeks });
+    if (typeof result.nextCursor !== 'string' || !result.nextCursor || cursors.has(result.nextCursor)) throw new Error('Invalid history cursor.');
+    cursor = result.nextCursor; cursors.add(cursor);
+  }
+  throw new Error('Authorized history read limit reached; completeness is unavailable.');
 }
