@@ -247,6 +247,7 @@ export const REPORT_CSS = `
   .attention-empty { padding:3mm; color:var(--muted); font-size:8pt; text-align:center; }
   .risk-action-table { font-size:8pt; }
   .risk-action-table th,.risk-action-table td { padding:1.8mm; }
+  .risk-action-table th:nth-child(4) { white-space:nowrap; }
   .executive-milestone-head { margin-bottom:3mm; }
   .executive-milestone-head h2 { margin:0; font-size:16pt; }
   .executive-milestone-category { padding:3.5mm; border-top:1.4mm solid var(--green); }
