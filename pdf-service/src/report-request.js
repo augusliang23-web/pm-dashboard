@@ -28,6 +28,11 @@ const OVERVIEW_SECTIONS = new Set([
   'budget-overview'
 ]);
 
+// Portfolio Delivery Performance is accepted only when the target explicitly enables it
+// (features.deliveryPerformanceSection === true, never by default), so a deployed backend keeps rejecting the
+// section exactly like the previous release until the Control Plane turns it on for that environment.
+const DELIVERY_PERFORMANCE_SECTION = 'portfolio-delivery-performance';
+
 const EXECUTIVE_AUDIENCE_VIEWS = new Set([
   'leadership',
   'all-working-team',
@@ -86,7 +91,7 @@ export function parseReportRequest(input, features = {}) {
 
   const allowedSections = mode === 'project'
     ? (allowProjectBriefUpdate ? PROJECT_SECTIONS : CORE_PROJECT_SECTIONS)
-    : OVERVIEW_SECTIONS;
+    : (features.deliveryPerformanceSection === true ? new Set([...OVERVIEW_SECTIONS, DELIVERY_PERFORMANCE_SECTION]) : OVERVIEW_SECTIONS);
   const sections = input.sections.map(section => requiredText(section, 'section'));
   const uniqueSections = [...new Set(sections)];
   if (uniqueSections.length !== sections.length) {
@@ -130,4 +135,4 @@ export function parseReportRequest(input, features = {}) {
   return request;
 }
 
-export { PROJECT_SECTIONS, CORE_PROJECT_SECTIONS, PROJECT_BRIEF_UPDATE_SECTIONS, OVERVIEW_SECTIONS, requiredText };
+export { DELIVERY_PERFORMANCE_SECTION, PROJECT_SECTIONS, CORE_PROJECT_SECTIONS, PROJECT_BRIEF_UPDATE_SECTIONS, OVERVIEW_SECTIONS, requiredText };

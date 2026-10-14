@@ -12,6 +12,7 @@ import { parseExecutiveSummaryBrief } from './executive-summary-brief.js';
 import { budgetTotals, buildOverviewReportModel, formatSectionUpdate } from './report-model.js';
 import { buildGanttRange, renderGanttAxis, renderGanttRow } from './project-visuals.js';
 import { renderProjectOnePagerHtml } from './project-one-pager.js';
+import { renderPortfolioDeliveryPerformancePages } from './delivery-performance-report.js';
 
 function statusPresentation(status) {
   const values = {
@@ -314,7 +315,10 @@ export function renderOverviewReportHtml({
   projectSelectionApplied = false,
   projectSelectionIsPartial = false,
   projectPortfolioLayout = 'flow',
-  ganttWindowSettings
+  ganttWindowSettings,
+  deliveryTrends,
+  availableProjectCount,
+  selectedProjectCount
 }) {
   const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings });
   const selected = new Set(model.sections);
@@ -330,6 +334,21 @@ export function renderOverviewReportHtml({
     section: 'overview-opening', title: 'Portfolio Overview', kicker: 'Overview report · Executive view',
     period: model.period, body: opening.join('')
   }));
+
+  if (selected.has('portfolio-delivery-performance')) {
+    // The canonical deliveryTrends contract is produced by the PDF model/data layer, never calculated here.
+    // Without it the page renders an explicit unavailable state instead of any numbers.
+    pages.push(renderPortfolioDeliveryPerformancePages(deliveryTrends ?? model.deliveryTrends ?? null, {
+      period: model.period,
+      // Scope facts come from the validated report model/request (counts are computed by the report data layer).
+      scope: {
+        overviewScope: model.overviewScope,
+        selectedProjectCount: projectSelectionApplied ? selectedProjectCount : undefined,
+        availableProjectCount: projectSelectionApplied ? availableProjectCount : undefined,
+        partial: model.projectSelectionIsPartial === true
+      }
+    }));
+  }
 
   if (selected.has('executive-summary')) {
     const brief = filterExecutiveSummaryBrief(

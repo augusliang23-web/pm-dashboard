@@ -10,7 +10,7 @@ export function syntheticProject(index, overrides = {}) {
   return {
     projectId: `syn-${index}`, code: `SYN-${String(index).padStart(3, '0')}`, name: `Synthetic Project ${index}`,
     projectManager: `Synthetic PM ${index}`, currentCompletionPct: base + 5, weeklyChangePp: 2.5, status: ['green', 'yellow', 'red'][index % 3],
-    comparable: true, trend: trendOf([base - 8, base - 6, base - 3, base, base + 2.5, base + 5]), ...overrides
+    comparable: true, isInAnchorScope: true, trend: trendOf([base - 8, base - 6, base - 3, base, base + 2.5, base + 5]), ...overrides
   };
 }
 
@@ -88,5 +88,25 @@ export function hostileContract() {
     changes: { firstObserved: [{ name: payload }], confirmedCompleted: [payload], missingObservation: [], ambiguousIdentity: [], enteredScope: [], exitedScope: [] },
     weeklySeries: [{ weekId: 'x', label: payload, gainPp: 1, comparableCount: 1 }, { weekId: 'y', label: 'W2', gainPp: 2, comparableCount: 1 }],
     warnings: [payload]
+  });
+}
+
+export function historicalOnlyContract() {
+  const base = syntheticContract();
+  return syntheticContract({
+    projects: [...base.projects.slice(0, 2), syntheticProject(9, { name: 'Synthetic Historical Only', isInAnchorScope: false, currentCompletionPct: null, weeklyChangePp: null, comparable: false })]
+  });
+}
+
+export function noScopeFlagContract() {
+  const base = syntheticContract();
+  return syntheticContract({ projects: base.projects.map(({ isInAnchorScope, ...rest }) => rest) });
+}
+
+export function unavailableContract() {
+  return syntheticContract({
+    status: 'unavailable',
+    summary: { weeklyProgressGainPp: null, comparableCount: 0, projectsProgressedCount: null, currentCompletionPct: null, health: { green: 0, yellow: 0, red: 0, unknown: 0 } },
+    weeklySeries: [], projects: [], warnings: [{ code: 'invalid-reporting-week', message: 'invalid reporting week', weekId: null, count: 1 }]
   });
 }
