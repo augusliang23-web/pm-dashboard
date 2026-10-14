@@ -16,10 +16,15 @@ const wait = ms => new Promise(done => setTimeout(done, ms));
 const KNOWN_EXTERNAL = /Failed to load resource: net::ERR_FAILED/; // blocked Google Fonts / FX-rate requests
 
 const project = (k, i, extra = {}) => ({ projectId: `p${k}`, code: `SYN-${k}`, name: `Synthetic Project ${k}`, owner: `Synthetic PM ${k}`, projectManager: `Synthetic PM ${k}`, status: ['green', 'yellow', 'red'][k - 1], progress: 10 * k + i * 2, projectLevel: k === 3 ? 'software' : 'system', visibility: 'active', lifecycle: 'active', milestones: [], riskActions: [], ...extra });
+// Stored weekDate values follow getIsoWeekData: "<Mon> - <Fri>". Phase 2A validates them against the labelled ISO week.
+const DAY = 86400000;
+const isoMonday = (year, week) => { const jan4 = Date.UTC(year, 0, 4); return jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY + (week - 1) * 7 * DAY; };
+const monthDay = time => new Date(time).toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const weekDate = (year, week) => `${monthDay(isoMonday(year, week))} - ${monthDay(isoMonday(year, week) + 4 * DAY)}`;
 const PERIODS = [[2025, 50], [2025, 51], [2025, 52], [2026, 1], [2026, 2], [2026, 3], [2026, 4], [2026, 5]];
 function weeksFixture({ withPeriod = true, draftIndex = -1 } = {}) {
   return PERIODS.map(([year, week], i) => ({
-    __id: `W${week}-${year}`, weekLabel: `W${week} ${year}`, weekDate: 'Jan 5 - Jan 9', isReleased: i !== draftIndex, version: 1, summary: '', lastModifiedBy: 'qa@example.test',
+    __id: `W${week}-${year}`, weekLabel: `W${week} ${year}`, weekDate: weekDate(year, week), isReleased: i !== draftIndex, version: 1, summary: '', lastModifiedBy: 'qa@example.test',
     ...(withPeriod ? { reportingPeriod: { year, week } } : {}), projects: [1, 2, 3].map(k => project(k, i))
   }));
 }
