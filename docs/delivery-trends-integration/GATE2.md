@@ -6,10 +6,10 @@
 
 ## 整合來源與修正
 
-保留兩個來源的提交歷史，無文字合併衝突：
+保留兩個來源的提交歷史；初次匯入無文字衝突，後續 QA 更新有兩處衝突，已解決：
 
 - PR #52：`c8cd5d8b6c65e604421c038f79bf34b81ab6f3fb`。
-- PR #53（含最新 UX 修訂）：`0b07724d5d136efa76b7d765ce155b2cdfa1f78e`。
+- PR #53：先匯入指定 UX HEAD `0b07724d5d136efa76b7d765ce155b2cdfa1f78e`；最終查驗發現新增 QA HEAD，經使用者明確核准再匯入 `e06da6ec8f1a92d4b48cd552303c27a3ca8c6382`。
 - 匯入後 checkpoint：`52602e3ad8069c8e834ea7bbd1e3773b2e95b07c`。
 
 整合時修正的語意問題：
@@ -25,17 +25,19 @@
 
 | 驗證 | 結果 |
 |---|---|
-| Root（含 Functions） | 1,591 PASS、2 SKIP、0 FAIL |
+| Root（含 Functions） | 1,595 PASS、3 SKIP、0 FAIL |
 | Functions 獨立執行 | 229 PASS、0 FAIL（包含於 Root，勿重複加總） |
 | Rules emulator：Production／UAT／shared | 14／16／16 PASS；合計 46、0 FAIL |
-| Gate 2 與角色／Production invariant 重點回歸 | 33 PASS |
+| Gate 2、page 與角色／Production invariant 重點回歸 | 48 PASS、1 superseded pre-engine SKIP |
 | Production／UAT Hosting builds | PASS |
 | canonical package parity、Production sync boundary | PASS |
 | PDF Docker linux/amd64 build | PASS；未 push image |
 | 無網路容器實際 render | PASS；合成 PDF 43,808 bytes |
 | 新增整合差異的獨立 read-only review | PASS；讀取失敗殘留畫面問題已修正 |
 
-Root 的兩個 SKIP 是獨立 Rules emulator 入口（已另跑 46 項）與原有部署說明案例；沒有跳過失敗測試。PDF 全套及 GitHub CI 精確結果見此報告最後的完成記錄。
+Root 的三個 SKIP 是舊 pre-2A 引擎案例（由目前引擎的明確回歸取代）、獨立 Rules emulator 入口（已另跑 46 項）與原有部署說明案例；沒有跳過失敗測試。PDF 全套 455 PASS、0 SKIP、0 FAIL（已納入 e06da6e 後重跑）。GitHub CI 以候選 PR 對應 HEAD 的 checks 為準；最終報告及 PR description 記錄實際結果。
+
+QA 更新衝突處理：`overview-report.js` 保留 model.deliveryTrends 作為唯一輸入，同時納入 Claude 的 scope／selected counts 提示；`delivery-trends-page.test.mjs` 保留新增 Phase 2A 回歸並設定 historyComplete:true。沒有重新計算 metrics，也沒有啟用功能。PDF 現在明示實際 export scope 與部分選取通知；Dashboard／PDF 不同 scope 時數值可能合理不同，同 scope 的契約仍完全一致。
 
 Browser／PDF 在相同角色、scope、anchor、window 和資料快照下，完整 `delivery-trends/v1` contract 深度比對一致；模型不重算公式，renderer 只使用引擎結果。6／12 週、短歷史與缺日曆週、真零值、null、負變化、scope exit、historical-only、released-only、future-year、讀取失敗及失效 auth callback 有合成回歸覆蓋。完成／legacy identity／rebaseline 邊界沿用匯入引擎測試，完整 Root 套件再次通過。
 
@@ -51,18 +53,18 @@ PDF 核准設計顯示最近 6 週；12 週輸入仍完整通過引擎／模型 
 
 ## 實際 PDF 視覺檢查
 
-使用實際 authenticated handler（合成 adapters）、authorized data loader、model、combined Overview renderer 與 Chromium 產生六份 PDF；不接 Production／UAT provider。用 Poppler rasterize 檢查全部 21 頁，另抽取文字驗證六個長專案及長 Project Manager 名稱尾段全數存在。
+使用實際 authenticated handler（合成 adapters）、authorized data loader、model、combined Overview renderer 與 Chromium 產生六份 PDF；不接 Production／UAT provider。用 Poppler rasterize 檢查全部 23 頁，另抽取文字驗證六個長專案及長 Project Manager 名稱尾段全數存在。
 
 | 合成案例 | 頁數 | Weekly Gain | Current Completion |
 |---|---:|---:|---:|
 | 6 projects | 3 | +2pp | 46.5% |
-| 7 projects | 3 | +2pp | 49% |
+| 7 projects | 4 | +2pp | 49% |
 | 14 projects | 4 | +2pp | 66.5% |
 | Missing observations | 4 | -10.6pp | 36.4% |
 | Long names／managers | 4 | +2pp | 46.5% |
-| 12-week input | 3 | +2pp | 49% |
+| 12-week input | 4 | +2pp | 49% |
 
-新區塊放在既有 Portfolio Overview 與 Risk & Mitigation Actions 之間；續頁有標題、表頭及頁尾，無裁切或文字重疊。缺觀測例保留 chart gaps、N/A、真實 0%、負變化及警告；警告較長時另有 continuation 頁。每份新區塊明示 synthetic preview，無 Production 資料聲稱。可重現腳本：`scripts/verification/v23-gate2-samples.mjs`；PDF／Browser HTML／數值證據：`output/pdf/gate2/`。
+新區塊放在既有 Portfolio Overview 與 Risk & Mitigation Actions 之間；續頁有標題、表頭及頁尾，無裁切或文字重疊。7 專案／12 週輸入案例因新增範圍說明，footnotes 使用獨立標示的續頁，整份由 3 增為 4 頁；保留可讀性，未縮字或裁切。缺觀測例保留 chart gaps、N/A、真實 0%、負變化及警告；警告較長時另有 continuation 頁。每份新區塊明示 synthetic preview，無 Production 資料聲稱。可重現腳本：`scripts/verification/v23-gate2-samples.mjs`；PDF／Browser HTML／數值證據：`output/pdf/gate2/`。
 
 既有 Overview 的 Average Delivery Progress 維持原行為（整數與既有缺值處理）。缺觀測例舊卡 30% 與新 Current Completion 36.4% 並非相同 metric；新的 Browser／PDF Current Completion 完全相同。為遵守既有 Production 行為保護，沒有把舊卡改成新定義。
 
@@ -87,3 +89,11 @@ PDF 歷史 reader 以 document ID 分頁，每頁 50、最多 6 頁／300 文件
 3. 真實 UAT 歷史資料比對：角色、released policy、7／13 週觀測、baseline／legacy identity／缺資料警告。
 4. 量測實際 export 延遲（包含 P95）與最大資料量讀取／費用；300 上限截斷須保留 unavailable 行為。
 5. Production merge／部署需獨立明確授權。
+
+## 驗證記錄與限制
+
+2026-10-15：latest QA 匯入後 root 1,595 PASS／3 SKIP、PDF 455 PASS，兩種 Hosting build、package parity、linux/amd64 Docker build 與 network-disabled renderer smoke 通過。Rules 46 項與 Functions 229 項已在同次候選驗證執行；QA 新提交未修改 Rules／Functions。
+
+新 Gate 2 差異的第一次獨立 review 與修正後 recheck 均 PASS。追加 e06da6e 的窄範圍 review 僅完成程式檢查，review agent 因 usage limit 未完成最終測試回覆；不將此部分宣稱完整獨立 PASS。主執行者已完成同一最終版本的 full root／PDF suite。Claude 的整體獨立 QA 接收仍待 Control Plane 驗收。
+
+Routing：Codex，GPT-6.1 Sol／High（依指定）；沒有 provider switching。Actual token／credit cost：N/A — telemetry unavailable。
