@@ -315,6 +315,9 @@ export function renderDeliveryNotices(contract) {
   const data = obj(contract);
   const notices = [];
   if (isSyntheticContract(data)) notices.push(['synthetic', 'Synthetic data for preview only. Not Production data.']);
+  // "partial" alone is not enough (the engine also reports partial for unverified baselines): announce incomplete
+  // history only when at least one displayed week genuinely has no comparable weekly change.
+  if (list(data.weeklySeries).some(entry => !isNum(obj(entry).gainPp))) notices.push(['warning', 'History is incomplete: some weeks could not be compared and are shown as gaps. They are never counted as zero.', 'incomplete-history']);
   groupWarnings(data.warnings).forEach(group => notices.push(['warning', group.display, group.code]));
   if (!notices.length) return '';
   return `<div class="dt-notices" role="status">${notices.map(([kind, text, code]) => `<div class="dt-notice ${kind}"${code ? ` data-warning-code="${escapeHtml(code)}"` : ''}>${escapeHtml(text)}</div>`).join('')}</div>`;
