@@ -14,7 +14,7 @@ function assertDraftAccess(actor, draft, action) {
   if (!['read','save','first-publish','republish'].includes(action)) fail('invalid-payload','Unsupported draft action.','invalid-argument');
   if (actor.role === 'admin') return;
   if (draft && !draft.editorEmails?.includes(emailKey(actor.email))) fail('draft-forbidden','Draft permission is required.');
-  if ((!draft || action === 'first-publish') && !can('project.manage',{role:actor.role,overrides:actor.permissionOverrides})) fail('create-forbidden','Add / Delete Projects permission is required.');
+  if (((!draft && action === 'save') || action === 'first-publish') && !can('project.manage',{role:actor.role,overrides:actor.permissionOverrides})) fail('create-forbidden','Add / Delete Projects permission is required.');
 }
 function validateDraftInput(project, {publishing=false} = {}) {
   assertBoundedJson(project); assertAllowedKeys(project,PROJECT_KEYS,'Draft project');

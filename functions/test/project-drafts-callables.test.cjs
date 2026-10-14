@@ -1,0 +1,14 @@
+const test=require('node:test'); const assert=require('node:assert/strict');
+const {createStore}=require('./helpers/draft-store.cjs'); const {state,db}=createStore();
+const path=require.resolve('firebase-admin/firestore'); const real=require(path);
+require.cache[path]={id:path,filename:path,loaded:true,exports:{...real,getFirestore:()=>db}};
+const api=require('../project-drafts');
+process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t'; process.env.FUNCTIONS_EMULATOR='true'; delete process.env.GOOGLE_CLOUD_PROJECT;
+function reset(){state.docs.clear();state.seq=0;for(const [email,role] of [['owner@example.com','pm'],['other@example.com','pm'],['admin@example.com','admin']])state.docs.set('users/'+email,{role,displayName:email.split('@')[0]});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});}
+const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email}}});
+const save=(project={name:'Alpha',code:'ALPHA',progress:40})=>call('saveDashboardProjectDraft',{expectedRevision:0,project});
+const denied=e=>['permission-denied','not-found','unauthenticated'].includes(e.code);
+const conflict=e=>e.details?.reason==='conflict';
+test('real save/get handlers keep drafts out of weeks and reject forged/stale requests',async()=>{reset();const {draft}=await save();assert.equal(draft.revision,1);assert.equal([...state.docs.keys()].some(p=>p.startsWith('weeks/')),false);assert.equal('publicationTargets' in draft,false);await assert.rejects(call('getDashboardProjectDraft',{draftId:draft.draftId},'other@example.com'),denied);await assert.rejects(call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:0,project:{}}),conflict);await assert.rejects(call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,project:{},role:'admin'}));});
+test('list is scoped, bounded and paginated without exposing other PM drafts',async()=>{reset();for(let i=0;i<28;i++)await save({code:'P'+i});const a=await call('listDashboardProjectDrafts',{limit:25});assert.equal(a.drafts.length,25);const b=await call('listDashboardProjectDrafts',{limit:25,cursor:a.nextCursor});assert.equal(b.drafts.length,3);assert.equal(new Set([...a.drafts,...b.drafts].map(d=>d.draftId)).size,28);assert.equal((await call('listDashboardProjectDrafts',{},'other@example.com')).drafts.length,0);await assert.rejects(call('listDashboardProjectDrafts',{cursor:a.nextCursor},'admin@example.com'));});
+test('assignment and role revocation apply to the next request',async()=>{reset();const {draft}=await save();state.docs.get('projectDrafts/'+draft.draftId).editorEmails=['other@example.com'];await assert.rejects(call('getDashboardProjectDraft',{draftId:draft.draftId}),denied);state.docs.get('users/other@example.com').role='engineering';await assert.rejects(call('getDashboardProjectDraft',{draftId:draft.draftId},'other@example.com'),denied);});

@@ -199,6 +199,10 @@ service cloud.firestore {
         && dashboardRole() in get(/databases/$(database)/documents/executiveMilestoneConfig/timeline).data.sectionPolicies[sectionId].viewRoles;
     }
 
+    // Working drafts and publication history are served only by authorized callables.
+    match /projectDrafts/{document=**} { allow read, write: if false; }
+    match /projectDraftPublicationAudit/{document=**} { allow read, write: if false; }
+
     match /users/{userId} {
       allow read: if hasDashboardAccess();
       allow write: if false;
