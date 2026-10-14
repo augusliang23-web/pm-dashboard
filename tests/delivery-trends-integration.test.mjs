@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { dashboardSource, environmentFor, normalizeProjectManagerLabelsForBaseline, rawDashboardSource, renderProfile } from './helpers/dashboard-source.mjs';
+import { dashboardSource, environmentFor, functionInventory, normalizeProjectManagerLabelsForBaseline, rawDashboardSource, renderProfile } from './helpers/dashboard-source.mjs';
 import {
   DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, buildOverviewPdfRequest, isDeliveryPerformancePdfAvailable
 } from '../js/overview-pdf-selection.mjs';
@@ -100,12 +100,14 @@ test('navigation entry is understandable and accessible', () => {
   assert.match(uat, /setAttribute\('aria-pressed', 'true'\)/);
 });
 
-test('Production inventory has no new exception: the shared print function equals the foundation byte-for-byte', () => {
-  const functionSource = (text, name) => text.slice(text.indexOf(`function ${name}(`), text.indexOf('\n}\n', text.indexOf(`function ${name}(`)) + 3);
-  const foundation = execFileSync('git', ['show', '83a56b1f8f93fafcf23eda4b8395cca991556777:index.html'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  for (const name of ['renderOverviewPrintReport', 'cloneOverviewSectionForPrint', 'confirmOverviewProjectPrint'.replace('confirm', 'confirm')]) {
-    const current = functionSource(rawDashboardSource(), name);
-    if (current) assert.equal(current, functionSource(foundation, name), name);
+test('Production inventory has no new exception: the shared print functions equal the approved baseline', () => {
+  // Uses the committed baseline fixture (no Git history needed, so it also runs on a shallow CI checkout).
+  const baselines = JSON.parse(readFileSync(new URL('./fixtures/dashboard-baselines.json', import.meta.url), 'utf8'));
+  const view = functionInventory(normalizeProjectManagerLabelsForBaseline(production));
+  for (const name of ['renderOverviewPrintReport', 'cloneOverviewSectionForPrint', 'renderPresentationReportPage', 'finalizePresentationReport']) {
+    assert.ok(name in baselines.productionFunctions, `${name} must exist in the approved baseline fixture`);
+    assert.ok(name in view, `${name} must exist in the Production view`);
+    assert.equal(view[name], baselines.productionFunctions[name], `${name} must match the approved Production baseline`);
   }
 });
 
