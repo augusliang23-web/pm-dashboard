@@ -2412,6 +2412,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="ganttWindowSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttWindowSettings()" title="PDF Gantt Display Window" aria-label="Manage PDF Gantt display window">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="14" y2="14"/></svg>
       </button>
+      <!-- @uat-only begin drafts-button -->
+      <button id="myDraftsBtn" type="button" class="btn btn-ghost" style="display:none" onclick="openMyDrafts()">My Drafts</button>
+      <!-- @uat-only end drafts-button -->
       <button id="userPermissionsBtn" class="btn-icon admin-only vip-hidden executive-hidden" style="display:none;" onclick="openUserPermissions()" title="User Permissions" aria-label="Manage user permissions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><circle cx="12" cy="10" r="2.5"/><path d="M8 16.5c.8-1.8 2.3-2.8 4-2.8s3.2 1 4 2.8"/></svg>
       </button>
@@ -3083,6 +3086,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script src="./professional-pdf-config.js"></script>
+<!-- @uat-only begin drafts-workspace -->
+<div class="overlay" id="myDraftsOverlay" role="dialog" aria-modal="true" aria-labelledby="myDraftsTitle">
+  <div class="modal" style="max-width:850px;max-height:90vh;overflow:auto">
+    <div class="modal-header"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
+    <p>Save Draft keeps your work here. Publish updates the selected week's Overview.</p>
+    <button class="btn btn-ghost" type="button" id="newProjectDraftBtn" onclick="openNewProjectDraft()">New Project Draft</button>
+    <div id="myDraftsContent"></div>
+  </div>
+</div>
+<div class="overlay" id="projectDraftActionsOverlay" role="dialog" aria-modal="true" aria-labelledby="projectDraftActionsTitle">
+ <div class="modal" style="max-width:600px"><div class="modal-header"><h3 id="projectDraftActionsTitle">Published project actions</h3><button class="modal-x" type="button" onclick="closeModal('projectDraftActionsOverlay')" aria-label="Close published project actions">×</button></div>
+ <p id="projectDraftActionsMessage" role="status"></p><button type="button" class="btn btn-ghost" id="draftVisibilityAction">Archive</button><button type="button" class="btn btn-ghost" id="draftDeleteAction">Delete published project</button></div>
+</div>
+<!-- @uat-only end drafts-workspace -->
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
@@ -3112,6 +3129,11 @@ import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
+// @uat-only begin draft-imports
+import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=draft-publish-1";
+import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=draft-publish-1";
+import { mountProjectDraftsUi } from "./js/project-drafts-ui.mjs?v=draft-publish-1";
+// @uat-only end draft-imports
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
@@ -3263,6 +3285,10 @@ let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
+// @uat-only begin draft-editor-state
+let draftEditorRecord;
+let draftOpening = false;
+// @uat-only end draft-editor-state
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
 let projectEditorPdfSummaryLaneSeed = [];
@@ -5854,6 +5880,7 @@ function setupUI__uat() {
   updateMasterDataLists();
   refreshExecutivePendingCount();
   refreshFxRates();
+  if (typeof syncDraftWorkspace === 'function') syncDraftWorkspace();
 }
 // @profile-dispatcher
 function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__prod)(...args); }
@@ -10368,6 +10395,9 @@ function renderExec(projs, summary, allProjects = projs) {
 async function saveCurrentWeekQuietly(project, riskFields) {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || !project) return;
+  // @uat-only begin draft-risk-guard
+  if (IS_UAT_PROFILE && project.publication?.draftId) throw new Error('Edit in My Drafts, then Publish.');
+  // @uat-only end draft-risk-guard
   assertCurrentWeekEditable(week);
   const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
   const result = await projectDashboardApi.saveProject({
@@ -10952,6 +10982,11 @@ function findCurrentProject(code) {
 }
 
 async function updateProjectAttention(code, attention) {
+  // @uat-only begin draft-attention-guard
+  if (IS_UAT_PROFILE && findCurrentProject(code)?.publication?.draftId) {
+    showSaveToast('Edit in My Drafts, then Publish.'); render(); return false;
+  }
+  // @uat-only end draft-attention-guard
   const selectedWeek = allWeeks[currentIdx];
   const selectedIndex = currentIdx;
   const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
@@ -12335,14 +12370,26 @@ function invalidateProjectEditorSession() {
 }
 
 window.openProjEdit = (code, isNew = false) => {
-  const existingProject = allWeeks[currentIdx]?.projects.find(project => project.code === code);
+  let draftMode = false;
+  // @uat-only begin draft-open-route
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE) {
+    if (!draftOpening) {
+      if (isNew) return window.openNewProjectDraft();
+      const official = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+      if (official?.publication?.draftId) return window.openManagedProjectDraft(official.publication.draftId);
+      draftEditorRecord = undefined;
+    }
+    draftMode = draftOpening;
+  }
+  // @uat-only end draft-open-route
+  const existingProject = draftMode ? draftEditorRecord.project : allWeeks[currentIdx]?.projects.find(project => project.code === code);
   if (!isNew && !existingProject) return;
   if (isNew && !ganttTemplateSubscriptionReady) return;
-  const week = allWeeks[currentIdx];
+  const week = draftMode ? { projects: [existingProject], weekLabel: 'Draft', __documentId: 'draft-workspace' } : allWeeks[currentIdx];
   if (isWeekReleased(week)) return;
-  if (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage'))) return;
+  if (!draftMode && (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage')))) return;
   // A project.manage holder who may not edit this project (not its owner/deputy and not Admin) gets a delete-only editor.
-  const manageOnly = !isNew && !canEditProject(existingProject);
+  const manageOnly = !draftMode && !isNew && !canEditProject(existingProject);
   isCreatingNew = isNew;
   editingProjCode = code;
   clearProjectMutationError();
@@ -12463,6 +12510,9 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_details').open = isNew;
   openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
+  // @uat-only begin draft-editor-hydration
+  if (IS_UAT_PROFILE) configureDraftEditor(draftMode);
+  // @uat-only end draft-editor-hydration
 };
 
 function getEditorPortfolioValue(id, fallback = '') {
@@ -12583,6 +12633,12 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
+  // @uat-only begin draft-save-route
+  if (IS_UAT_PROFILE && draftEditorRecord !== undefined) {
+    await saveEditorProjectDraft(pData, session);
+    return;
+  }
+  // @uat-only end draft-save-route
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -13664,6 +13720,133 @@ window.toggleVipPreview = () => {
   render();
 };
 // @prod-only end toggleVipPreview
+
+// @uat-only begin draft-workspace-wiring
+const projectDraftsApi = createProjectDraftsApi({ functions, httpsCallable });
+let draftWorkspaceUi;
+const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { draftWorkspaceUi?.render(state); if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
+if (IS_UAT_PROFILE) {
+  draftWorkspaceUi = mountProjectDraftsUi({
+    root: document.getElementById('myDraftsContent'), controller: draftController,
+    getWeeks: () => allWeeks,
+    canPublish: draft => currentRole === 'admin' || Boolean(draft.lastPublication) || canCurrentUser('project.manage'),
+    onEdit: draft => beginDraftEditor(draft),
+    canManage: () => canCurrentUser('project.manage'),
+    onManage: (draft, weekId) => openDraftPublishedActions(draft, weekId),
+    onPublished: async () => { render(); }
+  });
+  onAuthStateChanged(auth, () => {
+    draftController.reset(); draftEditorRecord = undefined;
+    document.getElementById('myDraftsOverlay')?.classList.remove('open');
+    document.getElementById('projectDraftActionsOverlay')?.classList.remove('open');
+    document.getElementById('myDraftsBtn').style.display = 'none';
+  });
+}
+function syncDraftWorkspace() {
+  if (!IS_UAT_PROFILE) return;
+  const allowed = currentUser && ['admin', 'pm'].includes(currentRole);
+  draftController.setIdentity(allowed ? { uid: currentUser.uid, email: getEmailKey(currentUser), role: currentRole } : null);
+  document.getElementById('myDraftsBtn').style.display = allowed ? '' : 'none';
+  document.getElementById('newProjectDraftBtn').style.display = canCurrentUser('project.manage') ? '' : 'none';
+}
+window.openMyDrafts = async () => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  if (!currentUser || !['admin','pm'].includes(currentRole)) return;
+  openAccessibleModal(document.getElementById('myDraftsOverlay'));
+  try { await draftController.refresh(); } catch {} // State shows the actual error; no demo fallback.
+};
+window.openNewProjectDraft = async () => {
+  if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
+  syncDraftWorkspace();
+  const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
+  await beginDraftEditor({ draftId:null, revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
+};
+window.openManagedProjectDraft = async draftId => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  try { const result = await draftController.open(draftId); if (result) await beginDraftEditor(result.draft); }
+  catch (error) { showSaveToast(error.message || 'Draft unavailable.'); }
+};
+async function beginDraftEditor(draft) {
+  const uid = currentUser?.uid, email = getEmailKey(currentUser);
+  let options = [];
+  if (currentRole === 'admin') {
+    const users = await getDocs(collection(db, 'users'));
+    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
+  }
+  if (!currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
+  closeModal('myDraftsOverlay', { force:true });
+  draftEditorRecord = draft; draftOpening = true;
+  try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
+  if (currentRole === 'admin') {
+    for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
+      const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
+      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
+      select.value = draft.assignment[key] || '';
+    }
+  }
+  captureEditorBaseline(document.getElementById('projEditOverlay'));
+}
+function configureDraftEditor(draftMode) {
+  document.getElementById('pe_btn_save').textContent = draftMode ? 'Save Draft' : 'Save Changes';
+  document.getElementById('pe_btn_save').setAttribute('aria-label', draftMode ? 'Save Draft' : 'Save Project');
+  if (draftMode && !draftEditorRecord.draftId) document.getElementById('pe_details').open = true;
+  let back = document.getElementById('draftEditorBack');
+  if (!back) {
+    back = document.createElement('button'); back.id = 'draftEditorBack'; back.type = 'button'; back.className = 'btn btn-ghost'; back.textContent = 'Back to My Drafts';
+    back.onclick = () => { closeModal('projEditOverlay'); if (!document.getElementById('projEditOverlay').classList.contains('open')) window.openMyDrafts(); };
+    document.getElementById('pe_btn_save').before(back);
+  }
+  back.style.display = draftMode ? '' : 'none';
+  document.getElementById('pe_code').disabled = draftMode && Boolean(draftEditorRecord.lastPublication);
+  for (const id of ['pe_owner','pe_deputy']) document.getElementById(id).disabled = draftMode && currentRole !== 'admin';
+  document.getElementById('pe_visibility').disabled = draftMode;
+  if (draftMode) {
+    document.getElementById('peTitle').textContent = 'Project Draft · Save here, then Publish from My Drafts';
+    document.getElementById('pe_btn_delete').style.display = 'none';
+  }
+}
+async function saveEditorProjectDraft(project, session) {
+  const record = draftEditorRecord;
+  if (!record || !isProjectEditorSessionCurrent(session)) return;
+  delete project.owner; delete project.deputy;
+  const input = { ...(record.draftId ? {draftId:record.draftId} : {}), expectedRevision:record.revision, project };
+  if (currentRole === 'admin') input.assignment = {ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+  clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
+  try {
+    const result = await draftController.save(input);
+    if (!result || !isProjectEditorSessionCurrent(session)) return;
+    draftEditorRecord = result.draft;
+    projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
+    captureEditorBaseline(document.getElementById('projEditOverlay'));
+    showSaveToast('Draft saved. Overview is unchanged.');
+  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,'Draft was not saved. Your changes remain in this editor.'); }
+  finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
+}
+function openDraftPublishedActions(draft, weekId) {
+  if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
+  const week = allWeeks.find(w => (w.__documentId || w.weekLabel.replace(/\s+/g,'-')) === weekId);
+  const project = week?.projects?.find(p => p.publication?.draftId === draft.draftId);
+  if (!project || week.isReleased === true) { showSaveToast('Select an unpublished week containing this project.'); return; }
+  const authGeneration = authSessionGeneration;
+  const revision = project.__revisionFingerprint || projectRevisionFingerprint(project);
+  const message = document.getElementById('projectDraftActionsMessage');
+  message.textContent = `${project.name} · ${week.weekLabel}. These actions affect the published project. Draft content changes still require Publish.`;
+  const visibility = document.getElementById('draftVisibilityAction'), remove = document.getElementById('draftDeleteAction');
+  visibility.style.display = currentRole === 'admin' ? '' : 'none';
+  visibility.textContent = project.visibility === 'active' || !project.visibility ? 'Archive' : 'Restore Active';
+  async function mutate(operation) {
+    visibility.disabled = true; remove.disabled = true;
+    try { await operation(); if (authGeneration === authSessionGeneration) { closeModal('projectDraftActionsOverlay',{force:true}); showSaveToast('Published project action saved.'); } }
+    catch(error) { if (authGeneration === authSessionGeneration) message.textContent = error.message || 'Action failed. No successful change was confirmed.'; }
+    finally { visibility.disabled = false; remove.disabled = false; }
+  }
+  visibility.onclick = () => { if (currentRole !== 'admin') return; mutate(() => projectDashboardApi.saveProject({weekId,originalCode:project.code,projectCode:project.code,project:{code:project.code,visibility:project.visibility === 'active' || !project.visibility ? 'archived':'active'},expectedRevision:revision})); };
+  remove.onclick = () => { if (!canCurrentUser('project.manage') || !confirm('Permanently delete this published project? Its Draft will remain, but cannot recreate this deleted target automatically.')) return; mutate(() => projectDashboardApi.deleteProject({weekId,originalCode:project.code})); };
+  closeModal('myDraftsOverlay',{force:true}); openAccessibleModal(document.getElementById('projectDraftActionsOverlay'));
+}
+// @uat-only end draft-workspace-wiring
 </script>
 </body>
 </html>

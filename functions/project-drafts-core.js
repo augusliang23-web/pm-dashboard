@@ -21,8 +21,8 @@ function validateDraftInput(project, {publishing=false} = {}) {
   if ('progress' in project && (typeof project.progress !== 'number' || !Number.isFinite(project.progress) || project.progress < 0 || project.progress > 100)) fail('invalid-payload','Progress must be a number between 0 and 100.','invalid-argument');
   if ('visibility' in project && project.visibility !== 'active') fail('visibility-admin-only','Drafts publish as Active; use the existing visibility administration after publication.');
   for (const key of ['name','code','owner','deputy','customer','location','highlight','weeklyActions','risk','next']) if (key in project && typeof project[key] !== 'string') fail('invalid-payload',`${key} must be text.`,'invalid-argument');
-  for (const key of ['milestones','quarterlyMilestones','ganttWorkstreams','pdfSummaryLanes','resources','riskActions','riskPairs','riskList','teamMembers']) if (key in project && !Array.isArray(project[key])) fail('invalid-payload',`${key} must be a list.`,'invalid-argument');
-  for (const key of ['budget','dataStatus']) if (key in project && (!project[key] || typeof project[key] !== 'object' || Array.isArray(project[key]))) fail('invalid-payload',`${key} must be an object.`,'invalid-argument');
+  for (const key of ['milestones','quarterlyMilestones','ganttWorkstreams','pdfSummaryLanes','riskActions','riskPairs','riskList','teamMembers']) if (key in project && !Array.isArray(project[key])) fail('invalid-payload',`${key} must be a list.`,'invalid-argument');
+  for (const key of ['budget','dataStatus','resources']) if (key in project && (!project[key] || typeof project[key] !== 'object' || Array.isArray(project[key]))) fail('invalid-payload',`${key} must be an object.`,'invalid-argument');
   if ('projectLevel' in project && !['system','hardware-module','software'].includes(project.projectLevel)) fail('invalid-payload','Select a supported project level.','invalid-argument');
   if (publishing) {
     if (!project.name?.trim() || project.name.length > 128) fail('invalid-payload','Project name is required (maximum 128 characters).','invalid-argument');

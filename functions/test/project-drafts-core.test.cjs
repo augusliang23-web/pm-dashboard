@@ -45,3 +45,4 @@ test('Admin assignment resolves directory users and PM cannot borrow a same-name
   assert.equal(draft.project.owner,'Person');
   assert.throws(()=>assertDraftAccess({...pm,email:'impostor@example.com',displayName:'Person'},draft,'read'));
 });
+test('existing editor discipline resources are maps, not an array',()=>{assert.deepEqual(validateDraftInput({resources:{firmware:{estimated:12,actual:4}}}).resources,{firmware:{estimated:12,actual:4}});});

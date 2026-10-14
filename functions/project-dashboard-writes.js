@@ -353,7 +353,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
       throw securityError('not-found', 'not-found', 'The project no longer exists.');
     }
     const liveProject = projects[targetIndex];
-    const visibilityOnly = actor.role === 'admin' && Object.hasOwn(draft, 'visibility') && Object.keys(draft).every(key => ['code', 'visibility'].includes(key));
+    const visibilityOnly = actor.role === 'admin' && code === liveProject.code && (!Object.hasOwn(draft, 'code') || draft.code === liveProject.code) && Object.hasOwn(draft, 'visibility') && Object.keys(draft).every(key => ['code', 'visibility'].includes(key));
     assertLegacyProjectWriteAllowed({ existingProject: liveProject, visibilityOnly });
     if (!canMutateProject({ actor, project: liveProject })) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
