@@ -358,12 +358,13 @@ export const REPORT_CSS = `
   .one-pager-kicker { margin-bottom:.6mm; color:var(--muted); font-size:6.6pt; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
   .one-pager-quadrant h2 { margin:0; font-size:11.5pt; line-height:1.1; }
   .one-pager-chip { flex:0 0 auto; border-radius:99px; padding:.9mm 2mm; color:var(--muted); background:rgba(255,255,255,.85); font-size:6.6pt; font-weight:800; }
-  .one-pager-list { margin:0; padding-left:4.5mm; }
+  .one-pager-list { margin:0; padding-left:4.5mm; overflow-wrap:anywhere; }
   .one-pager-list li { margin:0 0 1.8mm; font-size:9.3pt; line-height:1.32; }
   .one-pager-list li::marker { color:var(--green); }
   .one-pager-list.blue li::marker { color:var(--blue); }
   .one-pager-list.dense li { margin:0 0 1mm; font-size:8pt; line-height:1.2; }
   .one-pager-empty { margin:0; color:var(--muted); font-size:8.5pt; }
+  .one-pager-continuation-note { flex-shrink:0; margin:1mm 0 0; color:var(--muted); font-size:8pt; line-height:1.2; }
   .one-pager-gantt-axis { display:flex; justify-content:space-between; margin:0 26mm 1.5mm 38mm; color:var(--muted); font-size:6.4pt; font-weight:700; }
   .one-pager-gantt-stack { display:grid; gap:1.6mm; overflow:hidden; min-height:0; }
   .one-pager-gantt-row { display:grid; grid-template-columns:36mm minmax(0,1fr) 18mm; align-items:center; gap:2.5mm; min-height:0; }
@@ -389,7 +390,7 @@ export const REPORT_CSS = `
   .one-pager-gantt-stack.dense .one-pager-gantt-status { font-size:5.2pt; padding:.5mm .8mm; }
   .one-pager-low-confidence { margin-top:1.5mm; padding:1.2mm 2mm; border-radius:2mm; background:var(--yellow-soft); color:#8a641c; font-size:6.4pt; font-weight:700; }
   .one-pager-window-note { margin-top:1.5mm; padding:1.2mm 2mm; border-radius:2mm; background:var(--yellow-soft); color:#8a641c; font-size:6.4pt; font-weight:700; }
-  .one-pager-risk-stack { display:grid; gap:2mm; overflow:hidden; min-height:0; }
+  .one-pager-risk-stack { display:grid; gap:2mm; overflow:hidden; min-height:0; overflow-wrap:anywhere; }
   .one-pager-risk-pair { display:grid; gap:1.2mm; }
   .one-pager-risk-block { margin-bottom:0; padding:2mm 2.5mm; border-left:1.1mm solid var(--red); border-radius:1mm 2.5mm 2.5mm 1mm; background:rgba(255,255,255,.78); }
   .one-pager-risk-label { margin-bottom:.6mm; color:var(--red); font-size:6.4pt; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }

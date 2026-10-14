@@ -1,4 +1,75 @@
 export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } = {}) {
+  // Keep the fixed summary page, but never hide raw highlights, actions, or
+  // risk/action pairs that exceed a quadrant. Reuse the measured report flow
+  // below for clearly labelled, project-local continuation pages.
+  [...document.querySelectorAll('.one-pager')].forEach((summary, index) => {
+    let continuation;
+    [...summary.querySelectorAll('.one-pager-quadrant')].forEach(quadrant => {
+      const content = quadrant.querySelector('.one-pager-list,.one-pager-risk-stack');
+      if (!content?.children.length) return;
+      const originalUnits = [...content.children];
+      const innerBottom = () => quadrant.getBoundingClientRect().bottom
+        - parseFloat(getComputedStyle(quadrant).paddingBottom);
+      const fits = (reserved = 0) => content.scrollHeight <= content.clientHeight + 1
+        && content.scrollWidth <= content.clientWidth + 1
+        && content.getBoundingClientRect().bottom <= innerBottom() - reserved + 1
+        && (!content.lastElementChild || content.lastElementChild.getBoundingClientRect().bottom <= innerBottom() - reserved + 1);
+      if (fits()) return;
+
+      const note = document.createElement('p');
+      note.className = 'one-pager-continuation-note';
+      note.textContent = 'See continuation pages for the remaining items.';
+      content.after(note);
+      const reserved = note.getBoundingClientRect().height + parseFloat(getComputedStyle(note).marginTop);
+      const overflow = [];
+      while (content.lastElementChild && !fits(reserved)) {
+        const unit = content.lastElementChild;
+        overflow.unshift(unit);
+        unit.remove();
+      }
+      if (!overflow.length) throw new Error('One-page overflow could not be moved safely.');
+
+      if (!continuation) {
+        continuation = document.createElement('section');
+        continuation.className = 'report-page one-pager-continuation';
+        continuation.dataset.measuredFlow = `one-page-overflow-${index}`;
+        continuation.innerHTML = '<header class="report-page-head"><div><div class="report-kicker"></div><h1 class="report-title"></h1><div class="report-page-context"></div></div><div class="report-meta"></div></header><main class="report-body"><div data-pdf-flow-items></div></main><footer class="report-footer"><span>LITEON Project Dashboard</span><span></span></footer>';
+        const period = summary.querySelector('.one-pager-footer span:last-child')?.textContent || '';
+        continuation.querySelector('.report-meta').textContent = period;
+        continuation.querySelector('.report-footer span:last-child').textContent = period;
+        summary.after(continuation);
+      }
+      const item = document.createElement('article');
+      item.className = 'card';
+      item.dataset.pdfFlowItem = '';
+      item.dataset.pdfSplittable = '';
+      item.dataset.pageTitle = summary.querySelector('h1')?.textContent || 'Project';
+      item.dataset.pageKicker = 'Single project weekly brief · Continued';
+      item.dataset.pageContext = summary.querySelector('.one-pager-meta')?.textContent || '';
+      item.dataset.pageSection = 'one-page-continuation';
+      const title = document.createElement('h2');
+      title.className = 'pdf-continuation-label';
+      title.textContent = `${quadrant.querySelector('h2')?.textContent || 'Project content'} · Continued`;
+      const body = document.createElement(content.tagName === 'UL' ? 'ul' : 'div');
+      body.className = content.tagName === 'UL' ? 'report-list' : content.className;
+      overflow.forEach(unit => {
+        if (content.tagName === 'UL') unit.dataset.pdfSplitUnit = '';
+        else {
+          unit.dataset.pdfFieldGroup = '';
+          const pair = String(originalUnits.indexOf(unit) + 1);
+          [...unit.children].forEach(field => {
+            field.dataset.pdfField = '';
+            field.dataset.pdfPairIndex = pair;
+            const label = field.querySelector('strong,.one-pager-risk-label');
+            if (label) label.textContent += ` · Pair ${pair}`;
+          });
+        }
+        body.append(unit);
+      });
+      item.append(title, body);
+      continuation.querySelector('[data-pdf-flow-items]').append(item);
+    });
+  });
   const pxPerMm = 96 / 25.4;
   const safetyGap = safetyGapMm * pxPerMm;
   const sources = [...document.querySelectorAll('[data-measured-flow]')];
@@ -36,6 +107,9 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
     fields.forEach((field, index) => {
       if (index !== fieldIndex) field.remove();
     });
+    fragment.querySelectorAll('[data-pdf-field-group]').forEach(group => {
+      if (!group.querySelector('[data-pdf-field]')) group.remove();
+    });
     if (!firstFragment) {
       fragment.querySelectorAll('.executive-brief-section-title,.executive-context-intro,.executive-additional-note')
         .forEach(node => node.remove());
@@ -45,7 +119,7 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
     const paragraph = selected?.querySelector('p');
     if (paragraph) paragraph.textContent = text;
     if (continuedField) {
-      const label = selected?.querySelector('strong');
+      const label = selected?.querySelector('strong,.one-pager-risk-label');
       if (label && !label.textContent.endsWith(' · Continued')) label.textContent += ' · Continued';
     }
     return fragment;

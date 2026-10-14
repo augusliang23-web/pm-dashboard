@@ -51,7 +51,7 @@ function rawBulletList(rawLines, { tone = '', emptyMessage } = {}) {
 function renderRiskActions(model) {
   const pairs = model.rawRiskActionPairs.length ? model.rawRiskActionPairs : model.riskActions;
   if (!pairs.length) return '<p class="one-pager-empty">No material risk reported.</p>';
-  const dense = pairs.length > RISK_DENSE_THRESHOLD ? ' dense' : '';
+  const dense = pairs.length >= RISK_DENSE_THRESHOLD ? ' dense' : '';
   return `<div class="one-pager-risk-stack${dense}">${pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk.trim() || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Mitigation Actions</strong><p>${escapeHtml(pair.action.trim() || 'No mitigation action reported.')}</p></div></div>`).join('')}</div>`;
 }
 
@@ -103,9 +103,9 @@ function renderSummaryGantt(lanes) {
 
 /**
  * Renders the compact single-page (A4 landscape) project quadrant summary.
- * Designed to always fit on exactly one physical page: content is capped
- * upstream (4-8 summary lanes, primary risk/action only) rather than flowed
- * or measured across pages like the other report sections.
+ * Fitting summaries remain one physical page. During PDF rendering the
+ * measured paginator moves overflowing raw text to labelled continuation
+ * pages while retaining this fixed-size summary and every source item.
  */
 export function renderProjectOnePagerHtml(model, period = model.period || '') {
   const [statusTone, statusLabel] = projectStatusPresentation(model.status);
