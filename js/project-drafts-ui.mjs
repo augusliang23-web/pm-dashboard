@@ -1,6 +1,13 @@
 import { projectRevisionFingerprint } from './project-mutations.mjs';
 export function draftPublicationState(draft){return !draft.lastPublication?'Never published':draft.lastPublication.draftRevision===draft.revision?'Published':'Unpublished changes';}
-export function eligibleDraftWeeks(weeks){return weeks.filter(w=>w&&w.isReleased!==true).map(w=>({id:w.__documentId||w.weekLabel.replace(/\s+/g,'-'),label:w.weekLabel}));}
+export function eligibleDraftWeeks(weeks,draft){
+  return weeks.filter(w=>{
+    if(!w || w.isReleased===true)return false;
+    if(!draft?.lastPublication)return true;
+    const match=String(w.weekLabel || '').match(/^W(\d{1,2})\s+(\d{4})$/i);
+    return match && Number(match[1])>=1 && Number(match[1])<=53 && Number(match[2])*100+Number(match[1])>=draft.lastPublication.weekOrder;
+  }).map(w=>({id:w.__documentId||w.weekLabel.replace(/\s+/g,'-'),label:w.weekLabel}));
+}
 export function buildDraftPublicationInput(draft,weekId,week) {
   const target=week?.projects?.find(p=>p.publication?.draftId===draft.draftId);
   return {draftId:draft.draftId,expectedRevision:draft.revision,weekId,expectedPublishedRevision:target?(target.__revisionFingerprint || projectRevisionFingerprint(target)):null};
@@ -24,12 +31,12 @@ export function mountProjectDraftsUi({root,controller,onEdit,onPublished,getWeek
       row.append(node('h4',`${draft.project.name||'Untitled project'} · ${draft.project.code||'No code'}`),node('p',draftPublicationState(draft)),node('p',`Working progress: ${draft.project.progress ?? 0}% · Overview changes only after Publish.`));
       if(draft.lastPublication)row.append(node('p',`Last published: ${draft.lastPublication.weekId} · ${draft.lastPublication.publishedAt}`));
       const edit=node('button','Edit Draft');edit.className='btn btn-ghost';edit.disabled=state.busy;edit.onclick=()=>run(async()=>{const result=await controller.open(draft.draftId);if(result)await onEdit(result.draft);});
-      const publish=node('button','Publish');publish.className='btn btn-primary';publish.disabled=state.busy||!weeks.length||!canPublish(draft);
+      const publish=node('button','Publish');publish.className='btn btn-primary';publish.disabled=state.busy||!eligibleDraftWeeks(getWeeks(),draft).some(w=>w.id===weekSelect.value)||!canPublish(draft);
+      weekSelect.addEventListener?.('change',()=>{publish.disabled=state.busy||!eligibleDraftWeeks(getWeeks(),draft).some(w=>w.id===weekSelect.value)||!canPublish(draft);});
       publish.onclick=()=>run(async()=>{
-        // Get the latest saved draft before publishing; an editor never submits unsaved fields here.
-        const latest=await controller.open(draft.draftId);if(!latest)return;
+        // Publish the revision the PM reviewed; the server rejects a newer concurrent save.
         const week=getWeeks().find(w=>(w.__documentId||w.weekLabel.replace(/\s+/g,'-'))===weekSelect.value);
-        const result=await controller.publish(buildDraftPublicationInput(latest.draft,weekSelect.value,week));
+        const result=await controller.publish(buildDraftPublicationInput(draft,weekSelect.value,week));
         if(result){await onPublished(result);await controller.refresh();}
       });row.append(edit,publish);
       if(draft.lastPublication && canManage()){const manage=node('button','Manage published project');manage.className='btn btn-ghost';manage.disabled=state.busy;manage.onclick=()=>run(()=>onManage(draft,weekSelect.value));row.append(manage);}

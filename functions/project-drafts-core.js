@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { can } = require('./permission-registry');
 const { assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
@@ -67,6 +68,14 @@ function publicDraft(draft) {
 }
 module.exports={emailKey,fail,assertDraftAccess,validateDraftInput,buildDraftRecord,publicDraft};
 
+function publicationDigest(fingerprint) {
+  return createHash('sha256').update(fingerprint).digest('hex');
+}
+function reportingWeekOrder(week) {
+  const match=String(week?.weekLabel || '').match(/^W(\d{1,2})\s+(\d{4})$/i);
+  if(!match || Number(match[1])<1 || Number(match[1])>53) fail('invalid-week','Target week has no valid reporting period.','failed-precondition');
+  return Number(match[2])*100+Number(match[1]);
+}
 // Pure publication planner. The handler commits every returned patch in one transaction.
 function planDraftPublication({actor,draft,week,input,nowIso}) {
   const {projectRevisionFingerprint,ownerOrDeputyMatches,updateProjectSectionMetadata}=require('./project-dashboard-writes');
@@ -87,9 +96,12 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
   if(live && live.visibility && live.visibility!=='active')fail('visibility-admin-only','Hidden or archived projects cannot be republished through Drafts.');
   const fingerprint=live?projectRevisionFingerprint(live):null;
-  if(target?.draftRevision===draft.revision && live && target.projectRevision===fingerprint) {
+  if(target?.draftRevision===draft.revision && live && target.projectRevision===publicationDigest(fingerprint)) {
     return {alreadyPublished:true,project:structuredClone(live),projectRevision:fingerprint,publishedAt:live.publication.publishedAt};
   }
+  const weekOrder=reportingWeekOrder(week);
+  if(draft.lastPublication && (!Number.isSafeInteger(draft.lastPublication.weekOrder) || weekOrder<draft.lastPublication.weekOrder)) fail('historical-week','Publish to the latest published reporting week or a later week.','failed-precondition');
+  if(target && (!live || target.projectRevision!==publicationDigest(fingerprint))) fail('conflict','The published target was changed or restored. Contact Admin before publishing.','aborted');
   if(input.expectedPublishedRevision!==fingerprint)fail('conflict','The official project changed. Reload before publishing.','aborted');
   // Metadata outside the editable project contract belongs to the server / future schema.
   const publication={draftId:draft.draftId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email};
@@ -99,10 +111,11 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   const projectRevision=projectRevisionFingerprint(project);
   const nextProjects=live?projects.map(p=>p===live?project:p):[...projects,project];
   const version=Number.isSafeInteger(week.version)?week.version:0;
-  const lastPublication={weekId:input.weekId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email,projectRevision};
+  const markerRevision=publicationDigest(projectRevision);
+  const lastPublication={weekId:input.weekId,weekOrder,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email,projectRevision:markerRevision};
   return {alreadyPublished:false,project,projectRevision,publishedAt:nowIso,
     weekPatch:{projects:nextProjects,version:version+1,lastModifiedBy:actor.email},
-    draftPatch:{lastPublication,publicationTargets:{...draft.publicationTargets,[input.weekId]:{draftRevision:draft.revision,projectRevision}}},
+    draftPatch:{lastPublication,publicationTargets:{...draft.publicationTargets,[input.weekId]:{draftRevision:draft.revision,projectRevision:markerRevision}}},
     audit:{draftId:draft.draftId,weekId:input.weekId,draftRevision:draft.revision,actorEmail:actor.email,actorUid:actor.uid,publishedAt:nowIso}};
 }
 module.exports.planDraftPublication=planDraftPublication;

@@ -15,7 +15,7 @@ const uat = dashboardSource('uat');
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
 // then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
 // any other UAT drift fails.
-const originalUatHash = "98503299951d40d5048981c9f01de1b33bb9fee2e553a51c3a6f2d5a42430ac7";
+const originalUatHash = "38f31cb3c53aff11bc6eea1ab4e8c82c19d2793721213d353d9dc233d468c717";
 
 const validRoles = new Map([
   ['admin', 'admin'],

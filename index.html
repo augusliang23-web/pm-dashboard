@@ -3288,6 +3288,7 @@ let projectEditorSessionSequence = 0;
 // @uat-only begin draft-editor-state
 let draftEditorRecord;
 let draftOpening = false;
+let draftEditorOpenGeneration = 0;
 // @uat-only end draft-editor-state
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
@@ -6125,7 +6126,6 @@ function initData__uat(authGeneration, authUser) {
       });
       return normalizedWeek;
     });
-    if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
     allWeeks = sortWeeksByLabel(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
@@ -13770,12 +13770,14 @@ window.openManagedProjectDraft = async draftId => {
 };
 async function beginDraftEditor(draft) {
   const uid = currentUser?.uid, email = getEmailKey(currentUser);
+  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = ++draftEditorOpenGeneration;
+  if (!currentUser || !['admin','pm'].includes(role)) return;
   let options = [];
   if (currentRole === 'admin') {
     const users = await getDocs(collection(db, 'users'));
     options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
   }
-  if (!currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
+  if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
   closeModal('myDraftsOverlay', { force:true });
   draftEditorRecord = draft; draftOpening = true;
   try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
@@ -13813,13 +13815,14 @@ async function saveEditorProjectDraft(project, session) {
   delete project.owner; delete project.deputy;
   const input = { ...(record.draftId ? {draftId:record.draftId} : {}), expectedRevision:record.revision, project };
   if (currentRole === 'admin') input.assignment = {ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+  const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
   clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
   try {
     const result = await draftController.save(input);
     if (!result || !isProjectEditorSessionCurrent(session)) return;
     draftEditorRecord = result.draft;
     projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
-    captureEditorBaseline(document.getElementById('projEditOverlay'));
+    document.getElementById('projEditOverlay').dataset.editorBaseline = submittedBaseline;
     showSaveToast('Draft saved. Overview is unchanged.');
   } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,'Draft was not saved. Your changes remain in this editor.'); }
   finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
