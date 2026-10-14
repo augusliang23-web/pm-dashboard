@@ -193,7 +193,7 @@ function renderRiskActions(model) {
     escapeHtml(row.action || '-'),
     escapeHtml(row.checkpoint || '-')
   ]);
-  const table = dataTable({ headings: ['Project', 'Risk / Blocker', 'Escalation', 'Owner', 'Mitigation Actions', 'Checkpoint'], rows, className: 'risk-action-table' })
+  const table = dataTable({ headings: ['Project', 'Risk / Blocker', 'Escalation', 'Project Manager', 'Mitigation Actions', 'Checkpoint'], rows, className: 'risk-action-table' })
     .replace('<tbody><tr>', '<tbody><tr data-pdf-split-unit>')
     .replaceAll('</tr><tr>', '</tr><tr data-pdf-split-unit>');
   return flowItem({
