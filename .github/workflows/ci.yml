@@ -23,6 +23,7 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: functions
+      - run: node scripts/package-delivery-trends.mjs --check
       - run: npm run test:all
 
   firestore-rules:
