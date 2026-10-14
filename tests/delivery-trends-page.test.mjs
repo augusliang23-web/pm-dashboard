@@ -19,7 +19,7 @@ function weeksFixture({ count = 14, firstWeek = 29, withPeriod = true, released 
     };
   });
 }
-const base = { source: 'uat', asOf: '2026-10-14T00:00:00Z', role: 'admin', overviewScope: 'system', visibilityFilter: 'active' };
+const base = { historyComplete: true, source: 'uat', asOf: '2026-10-14T00:00:00Z', role: 'admin', overviewScope: 'system', visibilityFilter: 'active' };
 
 test('window normalization only allows 6 or 12', () => {
   assert.equal(normalizeDeliveryWindow(12), 12);
@@ -80,21 +80,19 @@ test('executive perspective sees released weeks only', () => {
   assert.equal(admin.contract.summary.weeklyProgressGainPp, 2);
 });
 
-test('weeks without an authoritative reportingPeriod yield an explicit unavailable result, never guessed numbers', () => {
+test('validated stored ISO labels satisfy the merged authoritative period pipeline', () => {
   const weeks = weeksFixture({ withPeriod: false });
   const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
   assert.equal(state.state, 'ready');
-  assert.equal(state.contract.status, 'unavailable');
-  const html = renderDeliveryTrendsPageHtml(state);
-  assert.match(html, /cannot be calculated/);
-  assert.doesNotMatch(html, /dt-cards/);
+  assert.equal(state.contract.summary.weeklyProgressGainPp, 2);
+  assert.match(renderDeliveryTrendsPageHtml(state), /dt-cards/);
 });
 
-test('the real engine does not yet emit isInAnchorScope, so the current project list fails closed (Phase 2A dependency)', () => {
+test('merged engine exposes explicit anchor membership for current project rendering', () => {
   const weeks = weeksFixture();
   const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
-  assert.equal(state.contract.projects.some(p => typeof p.isInAnchorScope === 'boolean'), false);
-  assert.match(renderDeliveryTrendsPageHtml(state), /scope membership data \(isInAnchorScope\) is not provided yet/);
+  assert.equal(state.contract.projects.some(p => typeof p.isInAnchorScope === 'boolean'), true);
+  assert.match(renderDeliveryTrendsPageHtml(state), /Synthetic One/);
 });
 
 test('missing selection or malformed weeks produce an unavailable state without throwing', () => {

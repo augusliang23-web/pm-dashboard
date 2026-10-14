@@ -4508,6 +4508,17 @@ function showDataLoadError__uat(error) {
     </div>`;
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+  // @uat-only begin deliveryTrendsErrorCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsErrorCleanup
 }
 // @profile-dispatcher
 function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
@@ -5404,6 +5415,17 @@ function quiesceDashboardForAuthTransition__uat() {
   allWeeks = [];
   currentIdx = -1;
   setDashboardAccessPending();
+  // @uat-only begin deliveryTrendsAuthCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsAuthCleanup
 }
 // @profile-dispatcher
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
@@ -6043,6 +6065,10 @@ function initData__uat(authGeneration, authUser) {
     weeksUnsub = null;
   }
 
+  // @uat-only begin deliveryTrendsRawHistoryReset
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  // @uat-only end deliveryTrendsRawHistoryReset
   const weeksRef = collection(db, "weeks");
   const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
@@ -6089,8 +6115,16 @@ function initData__uat(authGeneration, authUser) {
     window.render();
   });
 
-  weeksUnsub = onSnapshot(weeksQuery, snap => {
+  weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistorySnapshot
+    deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+    deliveryTrendsHistoryState = {
+      source: snap.docs.length ? 'uat' : 'synthetic',
+      complete: snap.metadata?.fromCache === false && snap.metadata?.hasPendingWrites === false,
+      asOf: new Date().toISOString()
+    };
+    // @uat-only end deliveryTrendsRawHistorySnapshot
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -6134,6 +6168,10 @@ function initData__uat(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistoryError
+    deliveryTrendsRawWeeks = [];
+    deliveryTrendsHistoryState = { source: null, complete: false };
+    // @uat-only end deliveryTrendsRawHistoryError
     showDataLoadError(error);
   });
 }
@@ -11398,6 +11436,8 @@ window.setOverviewScope = scope => {
 // @uat-only begin deliveryTrendsView
 // Delivery Trends: an independent, UAT-only navigation destination. All metrics come from the shared engine via
 // js/delivery-trends-page.mjs; nothing here calculates progress. Production never shows the button or container.
+let deliveryTrendsRawWeeks = [];
+let deliveryTrendsHistoryState = { source: null, complete: false };
 let deliveryTrendsActive = false;
 let deliveryTrendsWindow = 6;
 let deliveryTrendsOwner = null;
@@ -11419,9 +11459,12 @@ function loadDeliveryTrendsModule() {
 function currentDeliveryTrendsState(windowWeeks = deliveryTrendsWindow) {
   if (!deliveryTrendsModule) return { state: 'unavailable', reason: 'Delivery trends are still loading.' };
   return deliveryTrendsModule.buildDeliveryTrendsState({
-    weeks: allWeeks, currentIdx, windowWeeks, overviewScope, role: currentRole,
+    weeks: deliveryTrendsRawWeeks, currentIdx,
+    anchorWeekId: allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekId,
+    windowWeeks, overviewScope, role: currentRole,
+    historyComplete: deliveryTrendsHistoryState.complete,
     executivePerspective: isVipPerspective(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
-    source: 'uat', asOf: new Date().toISOString()
+    source: deliveryTrendsHistoryState.source, asOf: deliveryTrendsHistoryState.asOf
   });
 }
 

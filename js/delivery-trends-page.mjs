@@ -1,7 +1,8 @@
 // UI glue for the Delivery Trends page (UAT-only). It only prepares authorized input for the shared metrics
 // engine and hands the engine's result to the presentation renderers; it never calculates a metric itself.
 import { createDeliveryTrendsInput, calculateDeliveryTrends } from './delivery-trends-adapter.mjs';
-import { filterRoleVisibleProjects, normalizeOverviewScope } from './portfolio-core.mjs';
+import { normalizeOverviewScope } from './portfolio-core.mjs';
+import { normalizeDashboardRole } from './dashboard-access.mjs';
 import {
   DELIVERY_TRENDS_CSS, renderDeliveryTrendsPage, renderDeliveryUnavailable, renderDeliveryWindowToggle
 } from './delivery-trends-view.mjs';
@@ -14,24 +15,27 @@ function weekIdOf(week) {
 }
 
 // Builds the engine input from the weeks the dashboard has ALREADY loaded under the user's existing access, then
-// applies the same role / visibility filters the Overview uses. Real Firestore weeks do not carry an authoritative
-// ISO reportingPeriod yet (Phase 2A); the engine then reports "unavailable" instead of guessing from labels.
+// requires server-confirmed read completeness. Raw lifecycle/progress values are preserved; validated
+// period normalization and project scope classification are shared with the PDF pipeline.
 export function buildDeliveryTrendsState({
   weeks, currentIdx, windowWeeks = 6, overviewScope = 'system', role, executivePerspective = false,
-  visibilityFilter = 'active', source, asOf
+  visibilityFilter = 'active', source, asOf, historyComplete = false, anchorWeekId: explicitAnchorWeekId
 } = {}) {
-  const anchor = Array.isArray(weeks) ? weeks[currentIdx] : null;
+  const normalizedRole = normalizeDashboardRole(role);
+  if (!normalizedRole) return { state: 'unavailable', reason: 'Authorized reporting history is unavailable.' };
+  if (historyComplete !== true) return { state: 'unavailable', reason: 'Historical data has not been confirmed by the server. Metrics are unavailable.' };
+  const releasedOnly = executivePerspective || ['vip','executive'].includes(normalizedRole);
+  const anchor = Array.isArray(weeks) ? (explicitAnchorWeekId ? weeks.find(week => weekIdOf(week) === explicitAnchorWeekId) : weeks[currentIdx]) : null;
   const anchorWeekId = weekIdOf(anchor);
   if (!anchorWeekId) return { state: 'unavailable', reason: 'No reporting week is selected.' };
   try {
     const input = createDeliveryTrendsInput({
       weeks, source, asOf, anchorWeekId, windowWeeks: normalizeDeliveryWindow(windowWeeks),
-      publicationMode: executivePerspective ? 'released' : 'include-drafts',
+      publicationMode: releasedOnly ? 'released' : 'include-drafts',
       scope: { projectLevel: normalizeOverviewScope(overviewScope), projectKeys: null },
-      canReadWeek: week => (executivePerspective ? week?.isReleased === true : true),
-      canReadProject: project => filterRoleVisibleProjects([project], {
-        role, executivePerspective, vipPerspective: executivePerspective, visibilityFilter
-      }).length === 1
+      canReadWeek: week => (releasedOnly ? week?.isReleased === true : true),
+      // Raw records were read under existing week permissions; display scope belongs to the engine.
+      canReadProject: () => true
     });
     return { state: 'ready', contract: calculateDeliveryTrends(input), windowWeeks: normalizeDeliveryWindow(windowWeeks) };
   } catch {

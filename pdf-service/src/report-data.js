@@ -123,8 +123,13 @@ async function deliveryTrendsForReport({ request, week, access, adapters, overvi
   }
   const keyFor = project => typeof project?.projectId === 'string' && project.projectId.trim()
     ? `id:${project.projectId.trim()}` : `code:${String(project?.code || '').trim().toLowerCase()}`;
-  if (Array.isArray(request.projectCodes)) base.scope.projectKeys = (Array.isArray(week.projects) ? week.projects : [])
-    .filter(project => request.projectCodes.includes(project?.code)).map(keyFor);
+  if (Array.isArray(request.projectCodes)) {
+    const anchorScope = reportableOverviewProjects(week, overviewScope);
+    const fullSelection = anchorScope.length > 0 && anchorScope.every(project => request.projectCodes.includes(project?.code));
+    // All current projects means the portfolio history, including previously visible missing projects.
+    if (!fullSelection) base.scope.projectKeys = (Array.isArray(week.projects) ? week.projects : [])
+      .filter(project => request.projectCodes.includes(project?.code)).map(keyFor);
+  }
   const weeks = permitted.map(item => ({ ...item, reportingPeriod: normalizeDeliveryReportingPeriod(item),
     // Week-level authorization is already complete; scope is evaluated by the canonical engine.
     projects: Array.isArray(item.projects) ? item.projects.map(normalizeDeliveryProjectData) : null }));
@@ -161,6 +166,13 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
         .filter(item => !['vip', 'executive'].includes(access.role) || item.isReleased === true)
+        // New combined section uses ISO anchors; legacy standalone exports remain unchanged.
+        .filter(item => {
+          if (!request.sections.includes('portfolio-delivery-performance')) return true;
+          const anchor = normalizeDeliveryReportingPeriod(week);
+          const period = normalizeDeliveryReportingPeriod(item);
+          return anchor && period && (period.year < anchor.year || (period.year === anchor.year && period.week <= anchor.week));
+        })
         .map(item => selectOverviewProjects(activeOverviewWeek(item), request.projectCodes))
         .slice(-6);
     }

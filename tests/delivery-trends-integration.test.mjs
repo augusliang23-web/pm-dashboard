@@ -115,11 +115,13 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   // Strip every Delivery Trends UAT-only addition and the single render hook, then the frozen UAT hash from before
   // this feature (tests/role-contract.test.mjs history) must be reproduced exactly.
   let raw = rawDashboardSource();
-  for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView']) {
+  for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView', 'deliveryTrendsRawHistoryReset', 'deliveryTrendsRawHistorySnapshot', 'deliveryTrendsRawHistoryError', 'deliveryTrendsErrorCleanup', 'deliveryTrendsAuthCleanup']) {
     raw = raw.replace(new RegExp(`^[ \\t]*(?:\\/\\/|<!--) @uat-only begin ${tag}[^\\n]*\\n[\\s\\S]*?^[ \\t]*(?:\\/\\/|<!--) @uat-only end ${tag}[^\\n]*\\n?`, 'm'), '');
   }
   assert.ok(raw.includes('  syncDeliveryTrendsView();\n'));
   raw = raw.replace('  syncDeliveryTrendsView();\n', '');
+  assert.equal((raw.match(/onSnapshot\(weeksQuery, \{ includeMetadataChanges: true \}, snap =>/g) || []).length, 1);
+  raw = raw.replace('onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap =>', 'onSnapshot(weeksQuery, snap =>');
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');

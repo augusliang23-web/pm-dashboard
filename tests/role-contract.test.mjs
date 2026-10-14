@@ -17,7 +17,8 @@ const uat = dashboardSource('uat');
 // proven to be exactly that feature: tests/delivery-trends-integration.test.mjs strips those additions and reproduces the
 // previous hash e83cb180...; Production is unchanged and no Production invariant exception was added;
 // any other UAT drift fails.
-const originalUatHash = '0ef4f40c7960ce2d6b33c8b9ff2520f2ec79d2c7814268103ff86585e696ad19';
+// Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
+const originalUatHash = 'f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5';
 
 const validRoles = new Map([
   ['admin', 'admin'],

@@ -318,7 +318,7 @@ export function renderOverviewReportHtml({
   ganttWindowSettings,
   deliveryTrends
 }) {
-  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings });
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings, deliveryTrends: deliveryTrends?.contractVersion === 'delivery-trends/v1' ? deliveryTrends : undefined });
   const selected = new Set(model.sections);
   const pages = [];
 
@@ -336,7 +336,7 @@ export function renderOverviewReportHtml({
   if (selected.has('portfolio-delivery-performance')) {
     // The canonical deliveryTrends contract is produced by the PDF model/data layer, never calculated here.
     // Without it the page renders an explicit unavailable state instead of any numbers.
-    pages.push(renderPortfolioDeliveryPerformancePages(deliveryTrends ?? model.deliveryTrends ?? null, { period: model.period }));
+    pages.push(renderPortfolioDeliveryPerformancePages(model.deliveryTrends ?? null, { period: model.period }));
   }
 
   if (selected.has('executive-summary')) {

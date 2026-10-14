@@ -23,7 +23,7 @@ export const DELIVERY_PERFORMANCE_CSS = `
   .dp-table th:nth-child(4) { width:14%; } .dp-table th:nth-child(5) { width:13%; } .dp-table th:nth-child(6) { width:15%; }
   .dp-table th, .dp-table td { padding:1.15mm 2mm; }
   .dp-table td { vertical-align:middle; overflow-wrap:anywhere; }
-  .dp-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .dp-name { display:block; overflow-wrap:anywhere; }
   .dp-pm { overflow-wrap:anywhere; }
   .dp-spark { width:18mm; height:4.5mm; display:block; }
   .dp-spark-line { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; } .dp-spark-dot { fill:var(--blue); }
