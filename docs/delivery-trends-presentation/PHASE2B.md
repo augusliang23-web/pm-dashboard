@@ -9,8 +9,11 @@ Base: `integration/v23-foundation` @ `83a56b1f8f93fafcf23eda4b8395cca991556777`.
 - **Scope listing:** current project list uses `projects[].isInAnchorScope === true` only; fails closed when the flag is absent; historical-only projects appear under Portfolio Changes.
 - **PDF:** `portfolio-delivery-performance` registered in `report-request.js` only when the target sets `features.deliveryPerformanceSection === true`; rendered in `overview-report.js` after the opening page from `deliveryTrends` (explicit unavailable page without a contract); CSS in `report-theme.js`.
 - **Frontend gating:** checkbox hidden/unchecked; `buildOverviewPdfRequest` drops the section unless `isDeliveryPerformancePdfAvailable` (UAT profile AND `DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED === true`, currently `false`).
-- **Browser print:** optional hooks `window.extraOverviewPrintSections` / `renderExtraOverviewPrintPage` (UAT only). `renderOverviewPrintReport` is added to the deliberate Production exceptions with a test proving it equals the baseline once the inert hooks are removed. NOTE: no UI currently calls `renderOverviewPrintReport` (the Overview dialog exports via the professional PDF), so this path is prepared, not user-reachable.
-- Frozen UAT hash in `tests/role-contract.test.mjs` updated deliberately (needs reviewer approval).
+- **Browser print:** deferred. No user-accessible UI calls `renderOverviewPrintReport`, so the shared Production function is left untouched (no Production invariant exception). `renderDeliveryTrendsPrintHtml` is ready for when an entry point exists.
+- Frozen UAT hash in `tests/role-contract.test.mjs` updated deliberately; `tests/delivery-trends-integration.test.mjs` proves the change is exactly the Delivery Trends UAT-only additions (stripping them reproduces the previous hash `e83cb180…`).
+
+## Gate 2 UX refinements
+W37 2026 week labels (web + PDF), plain-language grouped warnings (codes kept in `data-warning-code`), 2x2 mobile KPI grid, neutral progress fill with RAG on labelled badges, labelled `Trends` nav entry, PDF health card with shape+text, footnotes as their own flow item, larger PDF chart text. Executive/VIP access unchanged. Zero-based chart unchanged.
 
 ## Codex Phase 2A dependencies
 1. `projects[].isInAnchorScope` (boolean) — until then the current project list shows an explicit unavailable message.

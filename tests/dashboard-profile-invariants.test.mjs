@@ -78,11 +78,7 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // for Admin/PM only (status stays visible) and toggleReleaseWeek fails closed for everyone else
   // (tests/week-release-visibility.test.mjs).
   'render',
-  'toggleReleaseWeek',
-  // V2.3 Delivery Trends (UAT-only feature): renderOverviewPrintReport gained two optional hooks
-  // (window.extraOverviewPrintSections / window.renderExtraOverviewPrintPage) that only the UAT profile defines.
-  // Production behavior is unchanged; see 'renderOverviewPrintReport differs from the baseline only by inert optional hooks'.
-  'renderOverviewPrintReport'
+  'toggleReleaseWeek'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
@@ -134,22 +130,6 @@ test('the deliberate PDF-section Production exceptions never check or submit pro
     // body may unconditionally check or read them -- every reference must go through isProfileVisible().
     assert.match(body, /isProfileVisible/, `${name} must gate through isProfileVisible()`);
   }
-});
-
-test('renderOverviewPrintReport differs from the baseline only by inert optional hooks', () => {
-  const production = dashboardSource('production');
-  const start = production.indexOf('function renderOverviewPrintReport(');
-  const end = production.indexOf('\n}\n', start) + 3;
-  const body = production.slice(start, end);
-  assert.ok(body.includes('window.extraOverviewPrintSections?.() ?? []'));
-  assert.ok(body.includes('window.renderExtraOverviewPrintPage?.(sectionId, renderPresentationReportPage)'));
-  // Remove exactly the two additions; the remaining function must equal the baseline byte-for-byte.
-  let original = body.replace('[...OVERVIEW_PRINT_PRESETS.all, ...(window.extraOverviewPrintSections?.() ?? [])].forEach', 'OVERVIEW_PRINT_PRESETS.all.forEach');
-  original = original.replace(/    const extraPage = window\.renderExtraOverviewPrintPage\?\.\(sectionId, renderPresentationReportPage\);\n    if \(extraPage\) \{\n      pages\.push\(extraPage\);\n      return;\n    \}\n/, '');
-  const view = functionInventory(production.replace(body, original));
-  assert.equal(view.renderOverviewPrintReport, baselines.productionFunctions.renderOverviewPrintReport);
-  // And nothing in the Production profile defines the hooks.
-  assert.ok(!/window\.extraOverviewPrintSections\s*=/.test(production));
 });
 
 test('the UAT profile still exposes every UAT a04c0c1 function name', () => {

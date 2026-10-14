@@ -22,6 +22,34 @@ const formatPct = value => (isNum(value) ? `${round1(value)}%` : NA);
 const formatCount = value => (isNum(value) ? String(Math.trunc(value)) : NA);
 const tone = status => (['green', 'yellow', 'red'].includes(String(status ?? '').toLowerCase()) ? String(status).toLowerCase() : 'neutral');
 
+// Display label for a reporting week; identifiers stay untouched. Mirrors js/delivery-trends-view.mjs (a parity test
+// keeps them identical). No date ranges are guessed.
+export function formatWeekLabel(entry) {
+  const item = obj(entry);
+  const period = obj(item.reportingPeriod);
+  if (isNum(period.year) && isNum(period.week)) return `W${String(period.week).padStart(2, '0')} ${period.year}`;
+  const raw = String(item.label ?? item.weekLabel ?? item.weekId ?? '');
+  const match = /^(\d{4})-W(\d{1,2})$/.exec(raw);
+  return match ? `W${match[2].padStart(2, '0')} ${match[1]}` : raw;
+}
+
+export const WARNING_MESSAGES = Object.freeze({
+  'baseline-unverified': 'Some historical progress comparisons have unverified baselines and should be interpreted with caution.',
+  'comparison-baseline-unavailable': 'Some weeks have no baseline to compare against, so their weekly change is not shown.',
+  'legacy-provisional-match': 'Some projects are matched by project code only (legacy records); treat their history as provisional.',
+  'missing-calendar-week': 'One or more calendar weeks have no report and are shown as gaps.',
+  'missing-or-invalid-progress': 'Some projects have missing or invalid progress; they are left out of the calculations and never counted as zero.',
+  'ambiguous-project-identity': 'Some projects could not be matched reliably across weeks and are excluded from comparisons.',
+  'invalid-reporting-week': 'Reporting weeks do not carry verified ISO week periods, so trends cannot be calculated.',
+  'ambiguous-week-order': 'The order of reporting weeks is ambiguous, so trends cannot be calculated.',
+  'anchor-unavailable': 'The selected reporting week is not available for this view.',
+  'invalid-weeks': 'The reporting data could not be validated for this view.',
+  'invalid-provenance': 'The reporting data could not be validated for this view.',
+  'invalid-window': 'The selected history window is not supported.',
+  'invalid-publication-policy': 'The reporting data could not be validated for this view.',
+  'invalid-scope': 'The selected project scope is not supported.'
+});
+
 function comparableDetail(count) {
   if (!isNum(count)) return 'Comparison basis unavailable';
   if (count === 0) return NO_COMPARABLE;
@@ -34,19 +62,27 @@ function labelOf(item) {
   return String(entry.name ?? entry.code ?? entry.projectId ?? 'Unnamed project');
 }
 
+// Health is shown as labelled counts with a shape + text per status (never colour alone).
+function healthCard(health, known) {
+  const row = (tone, label, mark, value) => `<span class="dp-health-item ${tone}"><i aria-hidden="true">${mark}</i>${label} <b>${escapeHtml(formatCount(value))}</b></span>`;
+  const unknown = isNum(health.unknown) && health.unknown > 0 ? row('neutral', 'Unknown', '◇', health.unknown) : '';
+  const body = known
+    ? `${row('green', 'On Track', '●', health.green)}${row('yellow', 'At Risk', '▲', health.yellow)}${row('red', 'Critical', '■', health.red)}${unknown}`
+    : `<span class="metric-card-value">${NA}</span>`;
+  return `<article class="card metric-card dp-health"><div class="metric-card-label">Project Health</div><div class="dp-health-list">${body}</div></article>`;
+}
+
 function summaryCards(contract) {
   const summary = obj(contract.summary);
   const health = obj(summary.health);
   const healthKnown = ['green', 'yellow', 'red', 'unknown'].some(key => isNum(health[key]));
-  const healthValue = healthKnown ? `${formatCount(health.green)} · ${formatCount(health.yellow)} · ${formatCount(health.red)}` : NA;
-  const healthDetail = healthKnown ? `On Track · At Risk · Critical${isNum(health.unknown) && health.unknown > 0 ? ` (+${health.unknown} unknown)` : ''}` : 'Health unavailable';
   const gain = summary.weeklyProgressGainPp;
   const comparable = summary.comparableCount;
   return `<div class="metric-grid dp-metrics">${[
     metricCard('Weekly Progress Gain', formatPp(gain), comparableDetail(comparable), !isNum(gain) ? 'neutral' : gain > 0 ? 'green' : gain < 0 ? 'red' : 'neutral'),
     metricCard('Projects Progressed', formatCount(summary.projectsProgressedCount), isNum(comparable) && comparable > 0 ? `of ${comparable} comparable` : comparableDetail(comparable)),
     metricCard('Current Completion', formatPct(summary.currentCompletionPct), 'Portfolio, latest observation'),
-    metricCard('Project Health', healthValue, healthDetail)
+    healthCard(health, healthKnown)
   ].join('')}</div>`;
 }
 
@@ -54,7 +90,7 @@ function trendChart(contract) {
   const series = list(contract.weeklySeries).slice(-PDF_DISPLAY_WEEKS).map(entry => {
     const item = obj(entry);
     return {
-      label: String(item.label ?? item.weekLabel ?? item.weekId ?? ''),
+      label: formatWeekLabel(item),
       value: isNum(item.gainPp) ? item.gainPp : null,
       comparable: isNum(item.comparableCount) ? item.comparableCount : null
     };
@@ -64,7 +100,8 @@ function trendChart(contract) {
   if (!observed.length) {
     return `<section class="dp-chart card">${head}<div class="empty-state">${series.length ? NO_COMPARABLE : 'No weekly trend data is available.'}</div></section>`;
   }
-  const width = 560; const height = 124; const left = 28; const right = 14; const top = 18; const bottom = 36;
+  // viewBox is sized to the rendered box (~165mm x 20mm) so text renders at its nominal size instead of being scaled down.
+  const width = 640; const height = 82; const left = 28; const right = 16; const top = 16; const bottom = 30;
   const max = Math.max(0, ...observed.map(point => point.value));
   const min = Math.min(0, ...observed.map(point => point.value));
   const span = Math.max(1, max - min);
@@ -79,7 +116,7 @@ function trendChart(contract) {
   });
   const marks = series.map((point, index) => {
     const x = xOf(index).toFixed(1);
-    const axis = `<text class="dp-axis" x="${x}" y="${height - 21}" text-anchor="middle">${escapeHtml(point.label)}</text><text class="dp-axis-sub" x="${x}" y="${height - 9}" text-anchor="middle">${point.value === null ? NA : point.comparable === null ? '' : `n=${escapeHtml(point.comparable)}`}</text>`;
+    const axis = `<text class="dp-axis" x="${x}" y="${height - 17}" text-anchor="middle">${escapeHtml(point.label)}</text><text class="dp-axis-sub" x="${x}" y="${height - 6}" text-anchor="middle">${point.value === null ? NA : point.comparable === null ? '' : `n=${escapeHtml(point.comparable)}`}</text>`;
     if (point.value === null) return `<g><line class="dp-gap" x1="${x}" y1="${top}" x2="${x}" y2="${top + plotH}"></line>${axis}</g>`;
     const y = yOf(point.value);
     return `<g><circle class="dp-point" cx="${x}" cy="${y.toFixed(1)}" r="3"></circle><text class="dp-value" x="${x}" y="${(y - 6).toFixed(1)}" text-anchor="middle">${escapeHtml(formatPp(point.value))}</text>${axis}</g>`;
@@ -164,13 +201,18 @@ function footnotes(contract) {
     'N/A means no valid observation exists; it is never shown as zero.',
     'A project that is absent from a week is reported as a missing observation, not as completed.'
   ];
-  // One warning is emitted per affected week; list each distinct message once with its occurrence count.
+  // One warning is emitted per affected week; list each distinct condition once, in plain language, with its count.
   const groups = new Map();
   list(contract.warnings).forEach(warning => {
-    const text = typeof warning === 'string' ? warning : String(obj(warning).message ?? obj(warning).text ?? obj(warning).code ?? '');
-    if (text) groups.set(text, (groups.get(text) || 0) + 1);
+    const entry = obj(warning);
+    const code = typeof warning === 'string' ? '' : (String(entry.code ?? '').trim() || String(entry.message ?? '').trim().replaceAll(' ', '-'));
+    const text = typeof warning === 'string' ? warning : (WARNING_MESSAGES[code] || 'Some data-quality notes apply to this view.');
+    const key = code || text;
+    const group = groups.get(key) || { text, count: 0 };
+    group.count += 1;
+    groups.set(key, group);
   });
-  [...groups].forEach(([text, count]) => notes.push(count > 1 ? `${text} (${count} weeks)` : text));
+  [...groups.values()].forEach(group => notes.push(group.count > 1 ? `${group.text} (${group.count} weeks)` : group.text));
   return `<div class="dp-footnotes">${notes.map((note, index) => `<div>${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
 }
 
@@ -191,7 +233,9 @@ export function renderPortfolioDeliveryPerformancePages(contract, { period = '' 
   }
   const items = [
     flowItem({ kind: 'delivery-summary', body: `${banner}${summaryCards(data)}<div class="dp-mid">${trendChart(data)}${changeSummary(data)}</div>` }),
-    flowItem({ kind: 'delivery-projects', splittable: true, body: `<section class="dp-projects"><h3 class="pdf-continuation-label">Project Progress Summary</h3>${projectTable(data)}${footnotes(data)}</section>` })
+    flowItem({ kind: 'delivery-projects', splittable: true, body: `<section class="dp-projects"><h3 class="pdf-continuation-label">Project Progress Summary</h3>${projectTable(data)}</section>` }),
+    // Footnotes are their own flow item so a continued table does not repeat them on every fragment.
+    flowItem({ kind: 'delivery-footnotes', body: footnotes(data) })
   ];
   return reportPage({
     section: DELIVERY_PERFORMANCE_SECTION_ID, title: 'Portfolio Delivery Performance', kicker: 'Overview report · Delivery performance', period,

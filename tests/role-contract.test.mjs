@@ -13,10 +13,11 @@ const uat = dashboardSource('uat');
 // gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
 // then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
-// then by the V2.3 Delivery Trends page (UAT-only: its navigation button, container, view-sync script and the optional
-// Overview-print hooks; Production behavior is proven unchanged by tests/delivery-trends-integration.test.mjs);
+// then by the V2.3 Delivery Trends page (UAT-only: navigation button, container, view-sync script, PDF option). The change is
+// proven to be exactly that feature: tests/delivery-trends-integration.test.mjs strips those additions and reproduces the
+// previous hash e83cb180...; Production is unchanged and no Production invariant exception was added;
 // any other UAT drift fails.
-const originalUatHash = 'bf8ac51424eeb19c7119e2ab6137a2fdca9da8255799286e4ef676a36e99e2cc';
+const originalUatHash = '0ef4f40c7960ce2d6b33c8b9ff2520f2ec79d2c7814268103ff86585e696ad19';
 
 const validRoles = new Map([
   ['admin', 'admin'],

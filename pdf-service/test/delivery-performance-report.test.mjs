@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPdfBuffer } from '../src/pdf-renderer.js';
 import {
-  DELIVERY_PERFORMANCE_SECTION_ID, renderDeliveryPerformanceDocument, renderPortfolioDeliveryPerformancePages
+  DELIVERY_PERFORMANCE_SECTION_ID, WARNING_MESSAGES, formatWeekLabel, renderDeliveryPerformanceDocument, renderPortfolioDeliveryPerformancePages
 } from '../src/delivery-performance-report.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
 import { metricCard, reportPage } from '../src/report-components.js';
@@ -102,6 +102,9 @@ test('PDF: typical 6-project portfolio fits on a single landscape page', { timeo
 test('PDF: 7-project portfolio stays within two pages', { timeout: 60000 }, async () => {
   const pdf = await renderPdfBuffer(renderDeliveryPerformanceDocument(largeContract(7), { period: 'W41 2026' }));
   assert.ok(physicalPageCount(pdf) <= 2, `pages=${physicalPageCount(pdf)}`);
+  const real = syntheticContract({ provenance: { source: "uat", anchorWeekId: "x", asOf: "y", windowWeeks: 6 }, projects: largeContract(7).projects, warnings: Array.from({ length: 4 }, () => ({ code: "baseline-unverified", message: "baseline unverified" })) });
+  const single = await renderPdfBuffer(renderDeliveryPerformanceDocument(real, { period: "W41 2026" }));
+  assert.equal(physicalPageCount(single), 1, "seven projects with notes fit one page when no preview banner is shown");
 });
 
 test('PDF: 14-project portfolio continues onto extra pages without clipping rows', { timeout: 60000 }, async () => {
@@ -152,9 +155,30 @@ test('an unavailable contract renders an explicit unavailable page, not numbers'
   assert.doesNotMatch(html, /Weekly Progress Gain/);
 });
 
-test('repeated warnings become one footnote with a count', () => {
-  const warnings = Array.from({ length: 12 }, (_, i) => ({ code: 'b', message: 'baseline unverified', weekId: `W${i}`, count: 1 }));
+test('repeated warnings become one plain-language footnote with a count', () => {
+  const warnings = Array.from({ length: 12 }, (_, i) => ({ code: 'baseline-unverified', message: 'baseline unverified', weekId: `W${i}`, count: 1 }));
   const html = renderPortfolioDeliveryPerformancePages(syntheticContract({ warnings }));
-  assert.equal((html.match(/baseline unverified/g) || []).length, 1);
-  assert.match(html, /baseline unverified \(12 weeks\)/);
+  assert.doesNotMatch(text(html), /baseline unverified/);
+  assert.match(html, /unverified baselines and should be interpreted with caution\. \(12 weeks\)/);
+});
+
+test('week labels and warning messages are identical to the web view', async () => {
+  const web = await import('../../js/delivery-trends-view.mjs');
+  assert.deepEqual({ ...WARNING_MESSAGES }, { ...web.WARNING_MESSAGES });
+  for (const entry of [{ label: '2026-W37' }, { label: '2026-W7' }, { reportingPeriod: { year: 2026, week: 5 } }, { label: 'Free text' }, {}]) {
+    assert.equal(formatWeekLabel(entry), web.formatWeekLabel(entry));
+  }
+});
+
+test('chart axis uses W37 2026 style labels', () => {
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract({ weeklySeries: [{ weekId: '2026-W36', label: '2026-W36', gainPp: 1, comparableCount: 3 }, { weekId: '2026-W37', label: '2026-W37', gainPp: 2, comparableCount: 3 }] }));
+  assert.match(html, />W36 2026</);
+  assert.doesNotMatch(html, />2026-W3\d</);
+});
+
+test('project health shows labelled counts with a shape and text per status', () => {
+  const html = renderPortfolioDeliveryPerformancePages(syntheticContract());
+  assert.match(text(html), /Project Health ● On Track 3 ▲ At Risk 2 ■ Critical 1/);
+  assert.doesNotMatch(text(renderPortfolioDeliveryPerformancePages(missingMetricsContract())), /Project Health ●/);
+  assert.match(text(renderPortfolioDeliveryPerformancePages(missingMetricsContract())), /Project Health N\/A/);
 });

@@ -107,6 +107,6 @@ export function unavailableContract() {
   return syntheticContract({
     status: 'unavailable',
     summary: { weeklyProgressGainPp: null, comparableCount: 0, projectsProgressedCount: null, currentCompletionPct: null, health: { green: 0, yellow: 0, red: 0, unknown: 0 } },
-    weeklySeries: [], projects: [], warnings: [{ code: 'reporting-period-missing', message: 'Reporting periods are unavailable.', weekId: null, count: 1 }]
+    weeklySeries: [], projects: [], warnings: [{ code: 'invalid-reporting-week', message: 'invalid reporting week', weekId: null, count: 1 }]
   });
 }
