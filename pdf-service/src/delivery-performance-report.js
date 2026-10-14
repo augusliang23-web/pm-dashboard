@@ -196,11 +196,45 @@ function projectTable(contract) {
     .replaceAll('</tr><tr>', '</tr><tr data-pdf-split-unit>');
 }
 
-function footnotes(contract) {
+const SCOPE_LABELS = Object.freeze({
+  system: 'System projects', 'hardware-module': 'Hardware modules', software: 'Software projects', all: 'All projects'
+});
+const isCount = value => Number.isInteger(value) && value >= 0;
+
+// Describes the report's ACTUAL scope from validated request/report information (never from the contract, never
+// hardcoded). Only counts are shown: names of unselected projects are never exposed.
+export function describeReportScope(scope) {
+  const info = obj(scope);
+  const label = SCOPE_LABELS[info.overviewScope];
+  const selected = isCount(info.selectedProjectCount) ? info.selectedProjectCount : null;
+  const available = isCount(info.availableProjectCount) ? info.availableProjectCount : null;
+  const partial = info.partial === true;
+  if (!label && selected === null) return null;
+  const parts = [];
+  if (label) parts.push(`Portfolio scope: ${label}`);
+  if (selected !== null) parts.push(partial && available !== null && available >= selected ? `Selected projects: ${selected} of ${available}` : `Selected projects: ${selected}`);
+  return { text: parts.join(' · '), partial };
+}
+
+// Preview banner and scope line share one row so the section keeps its single-page budget.
+function metaRow(banner, scope) {
+  return banner || scope ? `<div class="dp-meta">${banner}${scope}</div>` : '';
+}
+
+function scopeLine(scope) {
+  const description = describeReportScope(scope);
+  if (!description) return '';
+  const notice = description.partial ? '<span class="dp-scope-notice"> — This report includes selected projects only.</span>' : '';
+  return `<div class="dp-scope" data-dp-scope>${escapeHtml(description.text)}${notice}</div>`;
+}
+
+function footnotes(contract, scope) {
   const notes = [
     'N/A means no valid observation exists; it is never shown as zero.',
     'A project that is absent from a week is reported as a missing observation, not as completed.'
   ];
+  // The dashboard page follows the on-screen Overview scope; the PDF uses its own export scope and project selection.
+  if (describeReportScope(scope)) notes.push('Figures reflect this report\'s scope and project selection, which can differ from the on-screen Delivery Trends page.');
   // One warning is emitted per affected week; list each distinct condition once, in plain language, with its count.
   const groups = new Map();
   list(contract.warnings).forEach(warning => {
@@ -221,7 +255,7 @@ function flowItem({ kind, body, splittable = false }) {
 }
 
 // Returns the report page(s) for this section. `period` is the reporting-week label the host already shows.
-export function renderPortfolioDeliveryPerformancePages(contract, { period = '' } = {}) {
+export function renderPortfolioDeliveryPerformancePages(contract, { period = '', scope = null } = {}) {
   const data = obj(contract);
   const synthetic = obj(data.provenance).source === 'synthetic';
   const banner = synthetic ? '<div class="dp-synthetic">Synthetic data for preview only. Not Production data.</div>' : '';
@@ -232,10 +266,10 @@ export function renderPortfolioDeliveryPerformancePages(contract, { period = '' 
     });
   }
   const items = [
-    flowItem({ kind: 'delivery-summary', body: `${banner}${summaryCards(data)}<div class="dp-mid">${trendChart(data)}${changeSummary(data)}</div>` }),
+    flowItem({ kind: 'delivery-summary', body: `${metaRow(banner, scopeLine(scope))}${summaryCards(data)}<div class="dp-mid">${trendChart(data)}${changeSummary(data)}</div>` }),
     flowItem({ kind: 'delivery-projects', splittable: true, body: `<section class="dp-projects"><h3 class="pdf-continuation-label">Project Progress Summary</h3>${projectTable(data)}</section>` }),
     // Footnotes are their own flow item so a continued table does not repeat them on every fragment.
-    flowItem({ kind: 'delivery-footnotes', body: footnotes(data) })
+    flowItem({ kind: 'delivery-footnotes', body: footnotes(data, scope) })
   ];
   return reportPage({
     section: DELIVERY_PERFORMANCE_SECTION_ID, title: 'Portfolio Delivery Performance', kicker: 'Overview report · Delivery performance', period,

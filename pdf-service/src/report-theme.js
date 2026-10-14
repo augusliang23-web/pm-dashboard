@@ -1,5 +1,9 @@
 // Portfolio Delivery Performance section styles (delivery-performance-report.js).
 export const DELIVERY_PERFORMANCE_CSS = `
+  .dp-meta { display:flex; justify-content:space-between; align-items:center; gap:4mm; margin-bottom:2mm; }
+  .dp-meta .dp-synthetic { margin-bottom:0; flex:none; }
+  .dp-scope { color:var(--ink); font-size:8.5pt; font-weight:700; text-align:right; margin-left:auto; }
+  .dp-scope-notice { font-weight:400; color:var(--muted); }
   .dp-metrics { margin-bottom:2.5mm; }
   .dp-health-list { margin-top:1.5mm; display:grid; gap:.7mm; font-size:8.5pt; }
   .dp-health-item { display:flex; align-items:center; gap:1.6mm; white-space:nowrap; }

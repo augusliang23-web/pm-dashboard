@@ -316,7 +316,9 @@ export function renderOverviewReportHtml({
   projectSelectionIsPartial = false,
   projectPortfolioLayout = 'flow',
   ganttWindowSettings,
-  deliveryTrends
+  deliveryTrends,
+  availableProjectCount,
+  selectedProjectCount
 }) {
   const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope, executiveAudienceView, projectSelectionApplied, projectSelectionIsPartial, ganttWindowSettings, deliveryTrends: deliveryTrends?.contractVersion === 'delivery-trends/v1' ? deliveryTrends : undefined });
   const selected = new Set(model.sections);
@@ -336,7 +338,16 @@ export function renderOverviewReportHtml({
   if (selected.has('portfolio-delivery-performance')) {
     // The canonical deliveryTrends contract is produced by the PDF model/data layer, never calculated here.
     // Without it the page renders an explicit unavailable state instead of any numbers.
-    pages.push(renderPortfolioDeliveryPerformancePages(model.deliveryTrends ?? null, { period: model.period }));
+    pages.push(renderPortfolioDeliveryPerformancePages(model.deliveryTrends ?? null, {
+      period: model.period,
+      // Scope facts come from the validated report model/request (counts are computed by the report data layer).
+      scope: {
+        overviewScope: model.overviewScope,
+        selectedProjectCount: projectSelectionApplied ? selectedProjectCount : undefined,
+        availableProjectCount: projectSelectionApplied ? availableProjectCount : undefined,
+        partial: model.projectSelectionIsPartial === true
+      }
+    }));
   }
 
   if (selected.has('executive-summary')) {

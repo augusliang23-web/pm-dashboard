@@ -1,15 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as engine from '../shared/delivery-trends.mjs';
 import {
   buildDeliveryTrendsState, normalizeDeliveryWindow, renderDeliveryTrendsPageHtml, renderDeliveryTrendsPrintHtml
 } from '../js/delivery-trends-page.mjs';
 
+// Phase 2A (PR #52) adds label-derived reporting periods and projects[].isInAnchorScope to the canonical engine. This file
+// must pass both on PR #53 alone (pre-2A engine) and on the combined PR #52 + #53 tree, so Phase 2A-only expectations are
+// explicit, named tests that run only when the engine exports the Phase 2A API. The combined tree runs all of them.
+const PHASE2A = typeof engine.normalizeDeliveryReportingPeriod === 'function';
+const phase2aOnly = { skip: PHASE2A ? false : 'requires the Phase 2A engine (PR #52)' };
+
 // SYNTHETIC weeks (not Production data). Each active project gains exactly 2 pp per week.
-function weeksFixture({ count = 14, firstWeek = 29, withPeriod = true, released = true } = {}) {
+function weeksFixture({ count = 14, firstWeek = 29, withPeriod = true, released = true, labelOf = week => `W${week} 2026` } = {}) {
   return Array.from({ length: count }, (_, i) => {
     const week = firstWeek + i;
     return {
-      weekId: `2026-W${week}`, weekLabel: `W${week} 2026`, isReleased: released, version: 1,
+      weekId: `2026-W${week}`, weekLabel: labelOf(week), isReleased: released, version: 1,
       ...(withPeriod ? { reportingPeriod: { year: 2026, week } } : {}),
       projects: [
         { projectId: 'p1', code: 'SYN-1', name: 'Synthetic One', owner: 'Synthetic PM A', projectManager: 'Synthetic PM A', progress: 10 + i * 2, status: 'green', projectLevel: 'system', visibility: 'active', lifecycle: 'active' },
@@ -80,19 +87,70 @@ test('executive perspective sees released weeks only', () => {
   assert.equal(admin.contract.summary.weeklyProgressGainPp, 2);
 });
 
-test('validated stored ISO labels satisfy the merged authoritative period pipeline', () => {
-  const weeks = weeksFixture({ withPeriod: false });
+test('weeks with neither a reportingPeriod nor a parseable label yield an explicit unavailable result, never guessed numbers', () => {
+  const weeks = weeksFixture({ withPeriod: false, labelOf: week => `Sprint ${week}` });
   const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
   assert.equal(state.state, 'ready');
-  assert.equal(state.contract.summary.weeklyProgressGainPp, 2);
-  assert.match(renderDeliveryTrendsPageHtml(state), /dt-cards/);
+  assert.equal(state.contract.status, 'unavailable');
+  const html = renderDeliveryTrendsPageHtml(state);
+  assert.match(html, /cannot be calculated/);
+  assert.doesNotMatch(html, /dt-cards/);
+  assert.equal(state.contract.summary.weeklyProgressGainPp, null);
 });
 
-test('merged engine exposes explicit anchor membership for current project rendering', () => {
+test('Phase 2A: stored "W<n> <year>" labels are verified period evidence', phase2aOnly, () => {
+  const weeks = weeksFixture({ withPeriod: false });
+  const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
+  assert.notEqual(state.contract.status, 'unavailable');
+  assert.equal(state.contract.summary.weeklyProgressGainPp, 2);
+  assert.equal(state.contract.weeklySeries.length, 6);
+});
+
+test('Phase 2A: a reportingPeriod that contradicts the stored label is rejected, not trusted', phase2aOnly, () => {
+  const weeks = weeksFixture();
+  weeks[13].reportingPeriod = { year: 2026, week: 40 }; // label still says W42 2026
+  const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
+  assert.equal(state.contract.status, 'unavailable');
+  assert.equal(state.contract.summary.weeklyProgressGainPp, null);
+});
+
+test('Phase 2A: a week date that is not inside the labelled ISO week is rejected', phase2aOnly, () => {
+  const weeks = weeksFixture({ withPeriod: false });
+  weeks[13].weekDate = 'Jan 1 - Jan 5'; // W42 2026 is in October
+  const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
+  assert.equal(state.contract.status, 'unavailable');
+});
+
+test('Phase 2A: malformed reporting periods never become numbers', phase2aOnly, () => {
+  for (const reportingPeriod of [{ year: 2026, week: 0 }, { year: 2026, week: 54 }, { year: 'x', week: 3 }, { year: 2026 }]) {
+    const weeks = weeksFixture({ withPeriod: false, labelOf: week => `Sprint ${week}` });
+    weeks[13].reportingPeriod = reportingPeriod;
+    const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
+    assert.equal(state.contract.summary.weeklyProgressGainPp, null, JSON.stringify(reportingPeriod));
+  }
+});
+
+test('pre-2A engine: without isInAnchorScope the current project list fails closed', { skip: PHASE2A ? 'superseded by the Phase 2A test below' : false }, () => {
   const weeks = weeksFixture();
   const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13 });
-  assert.equal(state.contract.projects.some(p => typeof p.isInAnchorScope === 'boolean'), true);
-  assert.match(renderDeliveryTrendsPageHtml(state), /Synthetic One/);
+  assert.equal(state.contract.projects.some(p => typeof p.isInAnchorScope === 'boolean'), false);
+  assert.match(renderDeliveryTrendsPageHtml(state), /scope membership data \(isInAnchorScope\) is not provided yet/);
+});
+
+test('Phase 2A: the engine emits isInAnchorScope and the page lists only current-scope projects', phase2aOnly, () => {
+  const weeks = weeksFixture();
+  // A project that existed earlier in the window but is gone at the anchor week.
+  for (let i = 0; i < 6; i++) weeks[i].projects.push({ projectId: 'old', code: 'SYN-OLD', name: 'Synthetic Historical Only', projectManager: 'Synthetic PM D', progress: 30 + i, status: 'green', projectLevel: 'system', visibility: 'active', lifecycle: 'active' });
+  const state = buildDeliveryTrendsState({ ...base, weeks, currentIdx: 13, windowWeeks: 12 });
+  const flags = Object.fromEntries(state.contract.projects.map(p => [p.name, p.isInAnchorScope]));
+  assert.equal(flags['Synthetic One'], true);
+  assert.equal(flags['Synthetic Historical Only'], false);
+  const html = renderDeliveryTrendsPageHtml(state, { windowWeeks: 12 });
+  assert.doesNotMatch(html, /not provided yet/);
+  assert.equal((html.match(/class="dt-row"/g) || []).length, 1);
+  assert.match(html, /data-historical-only[^>]*>[^<]*Synthetic Historical Only/);
+  assert.doesNotMatch(html.slice(html.indexOf('data-dt-section="projects"'), html.indexOf('data-dt-section="trend"')), /Synthetic Historical Only/);
+  assert.doesNotMatch(JSON.stringify(state.contract), /Synthetic Hidden|SYN-3/);
 });
 
 test('missing selection or malformed weeks produce an unavailable state without throwing', () => {
