@@ -51,7 +51,7 @@ function rawBulletList(rawLines, { tone = '', emptyMessage } = {}) {
 function renderRiskActions(model) {
   const pairs = model.rawRiskActionPairs.length ? model.rawRiskActionPairs : model.riskActions;
   if (!pairs.length) return '<p class="one-pager-empty">No material risk reported.</p>';
-  const dense = pairs.length > RISK_DENSE_THRESHOLD ? ' dense' : '';
+  const dense = pairs.length >= RISK_DENSE_THRESHOLD ? ' dense' : '';
   return `<div class="one-pager-risk-stack${dense}">${pairs.map(pair => `<div class="one-pager-risk-pair"><div class="one-pager-risk-block"><div class="one-pager-risk-label">${pair.primary ? 'Primary risk' : 'Risk'}</div><p>${escapeHtml(pair.risk.trim() || 'No material risk reported.')}</p></div><div class="one-pager-required-action"><strong>Mitigation Actions</strong><p>${escapeHtml(pair.action.trim() || 'No mitigation action reported.')}</p></div></div>`).join('')}</div>`;
 }
 
@@ -103,9 +103,9 @@ function renderSummaryGantt(lanes) {
 
 /**
  * Renders the compact single-page (A4 landscape) project quadrant summary.
- * Designed to always fit on exactly one physical page: content is capped
- * upstream (4-8 summary lanes, primary risk/action only) rather than flowed
- * or measured across pages like the other report sections.
+ * Fitting summaries remain one physical page. During PDF rendering the
+ * measured paginator moves overflowing raw text to labelled continuation
+ * pages while retaining this fixed-size summary and every source item.
  */
 export function renderProjectOnePagerHtml(model, period = model.period || '') {
   const [statusTone, statusLabel] = projectStatusPresentation(model.status);
@@ -116,7 +116,7 @@ export function renderProjectOnePagerHtml(model, period = model.period || '') {
     ? `<div class="one-pager-window-note">${escapeHtml(model.ganttWindowFilteredCount)} task(s) outside the ${escapeHtml(model.ganttWindowMonths)}-month display window are not shown – see the full schedule on the Gantt Chart detail page.</div>`
     : '';
 
-  return `<section class="one-pager" data-report-section="one-page-summary"><header class="one-pager-header"><div><div class="one-pager-eyebrow">Single project weekly brief</div><h1>${escapeHtml(model.name)}</h1><div class="one-pager-meta">${escapeHtml(model.code || 'No code')} &nbsp;·&nbsp; ${escapeHtml(period)} &nbsp;·&nbsp; Owner: ${escapeHtml(model.owner || 'Unassigned')}</div></div><div class="one-pager-status"><span class="status-badge ${statusTone}">${escapeHtml(statusLabel)}</span><div class="one-pager-progress">${escapeHtml(model.progress)}%<small>Delivery progress</small></div></div></header>
+  return `<section class="one-pager" data-report-section="one-page-summary"><header class="one-pager-header"><div><div class="one-pager-eyebrow">Single project weekly brief</div><h1>${escapeHtml(model.name)}</h1><div class="one-pager-meta">${escapeHtml(model.code || 'No code')} &nbsp;·&nbsp; ${escapeHtml(period)} &nbsp;·&nbsp; Project Manager: ${escapeHtml(model.owner || 'Unassigned')}</div></div><div class="one-pager-status"><span class="status-badge ${statusTone}">${escapeHtml(statusLabel)}</span><div class="one-pager-progress">${escapeHtml(model.progress)}%<small>Delivery progress</small></div></div></header>
     <section class="one-pager-grid">
       <article class="one-pager-quadrant green"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Progress made</div><h2>Highlights</h2></div><span class="one-pager-chip">Last week</span></div>${rawBulletList(model.rawHighlightLines, { emptyMessage: 'No highlight reported.' })}</article>
       <article class="one-pager-quadrant blue"><div class="one-pager-section-head"><div><div class="one-pager-kicker">Delivery focus</div><h2>Action Items</h2></div><span class="one-pager-chip">Next week</span></div>${rawBulletList(model.rawActionLines, { tone: 'blue', emptyMessage: 'No action reported.' })}</article>

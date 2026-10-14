@@ -191,15 +191,20 @@ test('highlights and action items shrink to a dense style past 4 items, not befo
   assert.match(denseHtml, /one-pager-list {2}dense/);
 });
 
-test('the risk quadrant shrinks to a dense style past 2 risks, not before', () => {
+test('the risk quadrant uses dense spacing from 2 risks while preserving every pair', () => {
   const twoRisks = [
     { risk: 'Risk one', action: 'Action one', primary: true },
     { risk: 'Risk two', action: 'Action two' }
   ];
   const threeRisks = [...twoRisks, { risk: 'Risk three', action: 'Action three' }];
 
-  const normalHtml = renderProjectOnePagerHtml(buildModel({ riskActions: twoRisks }));
+  const normalHtml = renderProjectOnePagerHtml(buildModel({ riskActions: twoRisks.slice(0, 1) }));
   assert.doesNotMatch(normalHtml, /one-pager-risk-stack dense/);
+
+  const twoRiskHtml = renderProjectOnePagerHtml(buildModel({ riskActions: twoRisks }));
+  assert.match(twoRiskHtml, /one-pager-risk-stack dense/);
+  assert.match(twoRiskHtml, /Risk two/);
+  assert.match(twoRiskHtml, /Action two/);
 
   const denseHtml = renderProjectOnePagerHtml(buildModel({ riskActions: threeRisks }));
   assert.match(denseHtml, /one-pager-risk-stack dense/);

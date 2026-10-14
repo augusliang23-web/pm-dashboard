@@ -65,6 +65,29 @@ export function dashboardSource(profile = 'production') {
 }
 export function rawDashboardSource() { return readText('index.html'); }
 
+// Source-baseline tests permit only the reviewed presentation-copy change from Owner to Project Manager.
+// Keep exact occurrence checks so this helper cannot mask unrelated Production/UAT drift.
+export function normalizeProjectManagerLabelsForBaseline(source) {
+  const approved = [
+    ['<div class="info-lbl">Project Manager</div>', '<div class="info-lbl">Owner</div>', 2],
+    ['<label class="fl">Project Manager</label>', '<label class="fl">Owner</label>', 1],
+    ['<th>Project Manager</th>', '<th>Owner</th>', 1],
+    ['Project Manager: ${ref.owner', 'Owner: ${ref.owner', 1],
+    ['<dt>Project Manager</dt>', '<dt>Owner</dt>', 1],
+    ['; project manager: ${p.owner', '; owner: ${p.owner', 1]
+  ];
+  let normalized = source;
+  for (const [updated, previous, expected] of approved) {
+    const actual = normalized.split(updated).length - 1;
+    if (actual !== expected) {
+      throw new Error('Project Manager label invariant failed: expected ' + expected + ' for ' + updated + ', got ' + actual);
+    }
+    normalized = normalized.split(updated).join(previous);
+  }
+  return normalized;
+}
+
+
 // ---- function inventory (used by the Production-invariant test) ----
 const FUNC_START = /^(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(|^window\.([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>\s*\{\s*$|^const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>\s*\{\s*$/;
 export function functionInventory(text) {
