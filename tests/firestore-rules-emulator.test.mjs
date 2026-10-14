@@ -440,6 +440,8 @@ test('Production presenceSessions still bind the exact stored role, not the norm
   await assertSucceeds(setDoc(doc(client, 'presenceSessions/upper-admin-raw'), session('upper-admin-raw', 'ADMIN')));
   await assertFails(setDoc(doc(client, 'presenceSessions/upper-admin-normalized'), session('upper-admin-normalized', 'admin')));
 
+});
+
 test('drafts and publication audit cannot be accessed directly by any client role', async () => {
   await environment.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'projectDrafts/private'), { editorEmails: ['owner@example.com'], project: { progress: 100 } });
@@ -453,6 +455,4 @@ test('drafts and publication audit cannot be accessed directly by any client rol
       await assertFails(setDoc(doc(client, collectionName, 'forged'), { project: {} }));
     }
   }
-});
-
 });

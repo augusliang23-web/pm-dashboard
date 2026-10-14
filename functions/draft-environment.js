@@ -9,3 +9,10 @@ function assertDraftEnvironment(environment = process.env) {
   if (!draftsEnabled(environment)) throw new HttpsError('failed-precondition', 'Project drafts are available only in UAT.', { reason:'draft-environment' });
 }
 module.exports = { draftsEnabled, assertDraftEnvironment };
+
+function assertLegacyProjectWriteAllowed({environment=process.env,existingProject,isNew=false,visibilityOnly=false}) {
+  if(draftsEnabled(environment) && (isNew || (existingProject?.publication?.draftId && !visibilityOnly))) {
+    throw new HttpsError('failed-precondition','Edit in My Drafts, then Publish.',{reason:'draft-publish-required'});
+  }
+}
+module.exports.assertLegacyProjectWriteAllowed=assertLegacyProjectWriteAllowed;
