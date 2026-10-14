@@ -57,6 +57,7 @@ delete nonSelectedOptions.aggregatePresenceSessions.callableTrigger;
 // No handlers, emulator, cloud calls or deploy preparation are invoked. This
 // follows the real SDK -> CLI discovery -> backend -> Function request path,
 // with an empty existing backend so the source must establish the limit itself.
+const draftNames = ['listDashboardProjectDrafts','getDashboardProjectDraft','saveDashboardProjectDraft','publishDashboardProjectDraft'];
 const wire = JSON.parse(JSON.stringify(stackToWire({
   specVersion: 'v1alpha1',
   endpoints: Object.fromEntries(Object.entries(functions).map(([name, fn]) => [name, {
@@ -75,7 +76,7 @@ test('the selected runtime-option scope agrees with the eight-Function manifest 
   const manifest = JSON.parse(readFileSync(path.join(__dirname, '../../config/deployment-manifest.json'), 'utf8'));
   assert.deepEqual([...manifest.releases.userPermissionsV2.functions].sort(), Object.keys(selectedAccounts).sort());
   assert.equal(manifest.releases.userPermissionsV2.targetConfiguration.config.maxInstanceCount, 20);
-  assert.deepEqual(Object.keys(wire.endpoints).sort(), [...Object.keys(selectedAccounts), ...Object.keys(nonSelectedOptions)].sort());
+  assert.deepEqual(Object.keys(wire.endpoints).sort(), [...Object.keys(selectedAccounts), ...Object.keys(nonSelectedOptions), ...draftNames].sort());
 });
 
 for (const [name, account] of Object.entries(selectedAccounts)) {
@@ -102,3 +103,9 @@ for (const [name, options] of Object.entries(nonSelectedOptions)) {
     assert.equal(parsed[name].request.serviceConfig.maxInstanceCount, null);
   });
 }
+
+for (const name of draftNames) test(`${name}: UAT draft candidate uses its own bounded runtime identity`, () => {
+  assert.deepEqual(wire.endpoints[name], {...baselineCallableOptions, maxInstances:20, serviceAccountEmail:'pmdash-project-drafts@',entryPoint:name});
+  const manifest = JSON.parse(readFileSync(path.join(__dirname, '../../config/deployment-manifest.json'), 'utf8'));
+  assert.ok(manifest.environments.prod.functionsNeverDeploy.projectDrafts.includes(name));
+});

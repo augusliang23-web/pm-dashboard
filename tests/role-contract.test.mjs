@@ -13,8 +13,9 @@ const uat = dashboardSource('uat');
 // gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
 // then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
+// then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
 // any other UAT drift fails.
-const originalUatHash = 'e83cb180ae5888fe33b4f93a642bb9a612decd30897007d2f07f85415b0c4479';
+const originalUatHash = "98503299951d40d5048981c9f01de1b33bb9fee2e553a51c3a6f2d5a42430ac7";
 
 const validRoles = new Map([
   ['admin', 'admin'],
