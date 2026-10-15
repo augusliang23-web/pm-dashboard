@@ -59,11 +59,11 @@ test('the selector never includes setDashboardProjectAttention, the presence sch
   assert.deepEqual(release.untouchedManagedFunctions, ['aggregatePresenceSessions', 'setDashboardProjectAttention']);
 });
 
-test('Production policy: ten managed, the exact eight preserved Executive Functions, the exact three forbidden UAT-only Functions', () => {
+test('Production policy: ten managed, the exact eight preserved Executive Functions, the forbidden sync and draft UAT-only Functions', () => {
   assert.equal(functionsAllowlistFor(manifest, 'prod').length, 10);
   assert.deepEqual(functionsPreservedFor(manifest, 'prod'), [...EXECUTIVE].sort());
   assert.deepEqual([...manifest.environments.prod.functionsNeverDeploy.productionWeekSync].sort(), [...UAT_ONLY].sort());
-  assert.deepEqual(Object.keys(manifest.environments.prod.functionsNeverDeploy), ['productionWeekSync']);
+  assert.deepEqual(Object.keys(manifest.environments.prod.functionsNeverDeploy), ['productionWeekSync', 'projectDrafts']);
   for (const fn of EXECUTIVE) assert.ok(!functionsAllowlistFor(manifest, 'prod').includes(fn));
   for (const fn of UAT_ONLY) assert.ok(!functionsAllowlistFor(manifest, 'prod').includes(fn));
 });

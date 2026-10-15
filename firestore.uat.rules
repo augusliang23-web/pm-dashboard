@@ -204,6 +204,10 @@ service cloud.firestore {
         == resource.data.get('strategyLayer', {}).get('executiveMilestoneTimeline', null);
     }
 
+    // Working drafts and publication history are served only by authorized callables.
+    match /projectDrafts/{document=**} { allow read, write: if false; }
+    match /projectDraftPublicationAudit/{document=**} { allow read, write: if false; }
+
     match /users/{userId} {
       allow read: if hasDashboardAccess();
       allow write: if false;

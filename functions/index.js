@@ -151,3 +151,9 @@ exports.setUserPermissionOverrides = userPermissions.setUserPermissionOverrides;
 exports.syncProductionWeeksToUat = productionWeekSync.syncProductionWeeksToUat;
 exports.getProductionWeekSyncStatus = productionWeekSync.getProductionWeekSyncStatus;
 exports.restoreUatWeeksSnapshot = productionWeekSync.restoreUatWeeksSnapshot;
+
+const projectDrafts = require('./project-drafts');
+exports.listDashboardProjectDrafts = projectDrafts.listDashboardProjectDrafts;
+exports.getDashboardProjectDraft = projectDrafts.getDashboardProjectDraft;
+exports.saveDashboardProjectDraft = projectDrafts.saveDashboardProjectDraft;
+exports.publishDashboardProjectDraft = projectDrafts.publishDashboardProjectDraft;

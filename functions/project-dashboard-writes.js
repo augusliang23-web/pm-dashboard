@@ -1,6 +1,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
+const { assertLegacyProjectWriteAllowed } = require('./draft-environment');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
 const { can, normalizePermissionOverrides, normalizePermissionRole } = require('./permission-registry');
@@ -336,6 +337,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
   let targetIndex = -1;
 
   if (data.isNew === true) {
+    assertLegacyProjectWriteAllowed({ isNew: true });
     if (!canCreateProject(actor)) {
       throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to create projects.');
     }
@@ -351,6 +353,8 @@ function buildProjectPatch(week, data, actor, nowIso) {
       throw securityError('not-found', 'not-found', 'The project no longer exists.');
     }
     const liveProject = projects[targetIndex];
+    const visibilityOnly = actor.role === 'admin' && code === liveProject.code && (!Object.hasOwn(draft, 'code') || draft.code === liveProject.code) && Object.hasOwn(draft, 'visibility') && Object.keys(draft).every(key => ['code', 'visibility'].includes(key));
+    assertLegacyProjectWriteAllowed({ existingProject: liveProject, visibilityOnly });
     if (!canMutateProject({ actor, project: liveProject })) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
     }
@@ -592,6 +596,7 @@ const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', asy
   if (!canMutateProject({ actor, project: projects[index] })) {
     throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
   }
+  assertLegacyProjectWriteAllowed({ existingProject: projects[index] });
   if (!ATTENTION_VALUES.has(request.data.attention)) {
     throw securityError('invalid-argument', 'invalid-payload', 'Select a valid attention category.');
   }
