@@ -6,8 +6,8 @@ Scope: UAT only. Production is untouched at every step. Execute only after expli
 | | Branch | PR | SHA | Contains |
 |---|---|---|---|---|
 | Base (Gate 2, CI 5/5) | `claude/v23-gate2-closeout` | #57 | `7c02e7f44e4aac72c9a1a948512ea2bdbcdbd940` | Delivery Trends page, history pipeline, F-1, PDF section (gated off) |
-| A. Backend | `claude/v23-uat-backend-activation` | see PR | recorded in the PR (HEAD at approval time) | Base + `registry.json` UAT `deliveryPerformanceSection: true` |
-| B. Frontend | `claude/v23-uat-frontend-activation` | see PR | `1473475e78e5ff0ae9a466398ae98d35a588e117` | Base + `DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED = true` (UAT profile only) |
+| A. Backend | `claude/v23-uat-backend-activation` | #58 | code `7cc502ddbdd9649d757cd96b6f918737bdfe3665` (branch HEAD = that commit + this docs-only runbook; deploy the approved HEAD) | Base + `registry.json` UAT `deliveryPerformanceSection: true` |
+| B. Frontend | `claude/v23-uat-frontend-activation` | #59 | `1473475e78e5ff0ae9a466398ae98d35a588e117` | Base + `DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED = true` (UAT profile only) |
 
 Both candidates are independent single-purpose changes on top of #57 and merge cleanly together (verified in a scratch merge: 521 PDF tests, 1644 root tests pass).
 **Deploying the frontend publishes the whole Base UI** (the Delivery Trends page, ISO week ordering, etc.), not only the PDF option. Deploying the backend publishes all Base backend code (F-1 authorization, bounded history reader, layout).
