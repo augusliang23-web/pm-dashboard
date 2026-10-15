@@ -66,15 +66,30 @@ test('PDF dialog option is UAT-only, hidden and unchecked by default; browser pr
   assert.doesNotMatch(uat.match(/const OVERVIEW_PRINT_PRESETS = \{[\s\S]*?\n\};/)[0], /delivery/i);
 });
 
-test('the PDF section is never requested while the backend is unverified', () => {
-  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), false);
+test('UAT release candidate: the frontend flag is on, but only the UAT profile can offer or send the section', () => {
+  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production' }), false);
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: true }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: undefined }), false);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: false }), false, 'switching the flag off disables it');
   const args = { sections: ['health-focus', 'portfolio-delivery-performance'], projectCodes: ['A'], overviewScope: 'all' };
-  assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus']);
-  assert.deepEqual(buildOverviewPdfRequest({ ...args, deliveryPerformanceAvailable: true }).sections, ['health-focus', 'portfolio-delivery-performance']);
-  assert.throws(() => buildOverviewPdfRequest({ sections: ['portfolio-delivery-performance'], projectCodes: ['A'] }), /at least one section/);
+  const original = globalThis.PM_DASHBOARD_ENV;
+  try {
+    // The request builder reads the page's own profile (window.PM_DASHBOARD_ENV), never request data or a hostname.
+    globalThis.PM_DASHBOARD_ENV = { dashboardProfile: 'production' };
+    assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus'], 'Production never sends the section');
+    globalThis.PM_DASHBOARD_ENV = undefined;
+    assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus'], 'unknown profile never sends the section');
+    globalThis.PM_DASHBOARD_ENV = { dashboardProfile: 'uat' };
+    assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus', 'portfolio-delivery-performance']);
+    assert.deepEqual(buildOverviewPdfRequest({ ...args, sections: ['health-focus'] }).sections, ['health-focus'], 'not selected -> not sent');
+    assert.throws(() => buildOverviewPdfRequest({ sections: ['portfolio-delivery-performance'], projectCodes: ['A'], deliveryPerformanceAvailable: false }), /at least one section/);
+  } finally { globalThis.PM_DASHBOARD_ENV = original; }
+});
+
+test('Production source is unchanged by the frontend activation: it contains no activation code', () => {
+  for (const marker of ['isDeliveryPerformancePdfAvailable', 'deliveryPerformanceOption', 'portfolio-delivery-performance']) assert.ok(!production.includes(marker), marker);
 });
 
 test('existing request building is unchanged for current sections', () => {
