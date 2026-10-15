@@ -43,8 +43,8 @@ test('UAT render hooks the view without changing Overview or normal view togglin
 test('the view is deactivated for Overview, Executive perspective and other users, and guarded by profile', () => {
   const sync = uat.slice(uat.indexOf('function syncDeliveryTrendsView()'), uat.indexOf('window.toggleDeliveryTrends'));
   assert.match(sync, /if \(!IS_UAT_PROFILE\) return;/);
-  assert.match(sync, /isOverview \|\| isExecutivePerspective\(\) \|\| deliveryTrendsOwner !== deliveryTrendsUserKey\(\)/);
-  assert.match(uat, /window\.toggleDeliveryTrends = \(\) => \{\s*if \(!IS_UAT_PROFILE \|\| isExecutivePerspective\(\)\) return;/);
+  assert.match(sync, /isOverview \|\| isDeliveryTrendsExecutive\(\) \|\| deliveryTrendsOwner !== deliveryTrendsUserKey\(\)/);
+  assert.match(uat, /window\.toggleDeliveryTrends = \(\) => \{\s*if \(!IS_UAT_PROFILE \|\| isDeliveryTrendsExecutive\(\)\) return;/);
   assert.match(uat, /if \(deliveryTrendsActive\) isOverview = false;/);
 });
 
@@ -111,10 +111,55 @@ test('Production inventory has no new exception: the shared print functions equa
   }
 });
 
+// The chronological week ordering (UAT-only) is a separate, narrowly scoped change; reverting it must give back the
+// previously accepted source exactly.
+function revertWeekOrdering(raw) {
+  for (const tag of ['weekOrderImport', 'deliveryPdfImport', 'deliveryTrendsLogoutReset']) {
+    const block = new RegExp(`^[ \\t]*\\/\\/ @uat-only begin ${tag}\\n[\\s\\S]*?^[ \\t]*\\/\\/ @uat-only end ${tag}\\n`, 'm');
+    assert.match(raw, block);
+    raw = raw.replace(block, '');
+  }
+  // Executive-like detection (a real-browser finding): remove the helper and the explicit hide, restore the original calls.
+  const hide = /  \/\/ The shared \.executive-hidden class does not hide[\s\S]*?\n  if \(button\) button\.style\.display = isDeliveryTrendsExecutive\(\) \? 'none' : '';\n/;
+  const helper = /\/\/ In the UAT profile isVipPerspective\(\) is true only for an Admin previewing as Executive;[\s\S]*?\nfunction isDeliveryTrendsExecutive\(\) \{\n[\s\S]*?\n\}\n\n/;
+  assert.match(raw, hide);
+  assert.match(raw, helper);
+  const selection = `    const previouslySelectedWeekId = allWeeks[currentIdx]?.__documentId;
+    allWeeks = sortWeeksChronologically(fetchedWeeks);
+    
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      // Default to the latest VALID ISO week; invalid labels are kept (last) but are never the default selection.
+      const latestValid = latestValidWeekIndex(allWeeks);
+      currentIdx = latestValid >= 0 ? latestValid : allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    } else if (previouslySelectedWeekId) {
+      // Keep the user's selected stored week across snapshot refreshes (the array index can shift).
+      const keptIdx = allWeeks.findIndex(week => week.__documentId === previouslySelectedWeekId);
+      if (keptIdx >= 0) currentIdx = keptIdx;
+    }
+`;
+  assert.ok(raw.includes(selection));
+  raw = raw.replace(selection, `    allWeeks = sortWeeksChronologically(fetchedWeeks);
+    
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      currentIdx = allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    }
+`);
+  return raw.replace(hide, '').replace(helper, '').replaceAll('isDeliveryTrendsExecutive()', 'isVipPerspective()').replace('allWeeks = sortWeeksChronologically(fetchedWeeks);', 'allWeeks = sortWeeksByLabel(fetchedWeeks);');
+}
+
+test('the UAT hash equals the accepted Gate 2 candidate (PR #56) hash once the Phase 2C change set is reverted', () => {
+  let raw = revertWeekOrdering(rawDashboardSource());
+  assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
+  const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
+  assert.equal(hash, 'f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5');
+});
+
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
   // Strip every Delivery Trends UAT-only addition and the single render hook, then the frozen UAT hash from before
   // this feature (tests/role-contract.test.mjs history) must be reproduced exactly.
-  let raw = rawDashboardSource();
+  let raw = revertWeekOrdering(rawDashboardSource());
   for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView', 'deliveryTrendsRawHistoryReset', 'deliveryTrendsRawHistorySnapshot', 'deliveryTrendsRawHistoryError', 'deliveryTrendsErrorCleanup', 'deliveryTrendsAuthCleanup']) {
     raw = raw.replace(new RegExp(`^[ \\t]*(?:\\/\\/|<!--) @uat-only begin ${tag}[^\\n]*\\n[\\s\\S]*?^[ \\t]*(?:\\/\\/|<!--) @uat-only end ${tag}[^\\n]*\\n?`, 'm'), '');
   }

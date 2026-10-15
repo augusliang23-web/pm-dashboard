@@ -1,10 +1,10 @@
 // Portfolio Delivery Performance section styles (delivery-performance-report.js).
 export const DELIVERY_PERFORMANCE_CSS = `
-  .dp-meta { display:flex; justify-content:space-between; align-items:center; gap:4mm; margin-bottom:2mm; }
+  .dp-meta { display:flex; justify-content:space-between; align-items:center; gap:4mm; margin-bottom:1.2mm; }
   .dp-meta .dp-synthetic { margin-bottom:0; flex:none; }
   .dp-scope { color:var(--ink); font-size:8.5pt; font-weight:700; text-align:right; margin-left:auto; }
   .dp-scope-notice { font-weight:400; color:var(--muted); }
-  .dp-metrics { margin-bottom:2.5mm; }
+  .dp-metrics { margin-bottom:1.5mm; }
   .dp-health-list { margin-top:1.5mm; display:grid; gap:.7mm; font-size:8.5pt; }
   .dp-health-item { display:flex; align-items:center; gap:1.6mm; white-space:nowrap; }
   .dp-health-item i { font-style:normal; width:3mm; text-align:center; } .dp-health-item b { margin-left:auto; }
@@ -28,11 +28,12 @@ export const DELIVERY_PERFORMANCE_CSS = `
   .dp-table th, .dp-table td { padding:1.15mm 2mm; }
   .dp-table td { vertical-align:middle; overflow-wrap:anywhere; }
   .dp-name { display:block; overflow-wrap:anywhere; }
-  .dp-pm { overflow-wrap:anywhere; }
+  .dp-pm { overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .dp-spark { width:18mm; height:4.5mm; display:block; }
   .dp-spark-line { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; } .dp-spark-dot { fill:var(--blue); }
+  .dp-footnote { break-inside:avoid; margin-bottom:.6mm; }
   .dp-na { color:var(--muted); }
-  .dp-footnotes { margin-top:0; color:var(--muted); font-size:7.5pt; line-height:1.4; }
+  .dp-footnotes { column-count:2; column-gap:6mm; margin-top:0; color:var(--muted); font-size:7.2pt; line-height:1.3; }
   .dp-table .positive-value { color:var(--green); font-weight:700; } .dp-table .negative-value { color:var(--red); font-weight:700; }
 `;
 

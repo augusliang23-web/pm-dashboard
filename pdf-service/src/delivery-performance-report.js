@@ -47,7 +47,12 @@ export const WARNING_MESSAGES = Object.freeze({
   'invalid-provenance': 'The reporting data could not be validated for this view.',
   'invalid-window': 'The selected history window is not supported.',
   'invalid-publication-policy': 'The reporting data could not be validated for this view.',
-  'invalid-scope': 'The selected project scope is not supported.'
+  'invalid-scope': 'The selected project scope is not supported.',
+  'draft-week-not-authorized': 'This reporting week is not available for your access level.',
+  'history-reader-unavailable': 'Historical data is not available for this report, so trends cannot be calculated.',
+  'history-read-failed': 'Historical data could not be read for this report, so trends cannot be calculated.',
+  'history-read-limit': 'Historical data could not be read completely for this report, so trends cannot be calculated.',
+  'anchor-revised-during-read': 'This reporting week changed while the report was being prepared. Please try again.'
 });
 
 function comparableDetail(count) {
@@ -247,7 +252,7 @@ function footnotes(contract, scope) {
     groups.set(key, group);
   });
   [...groups.values()].forEach(group => notes.push(group.count > 1 ? `${group.text} (${group.count} weeks)` : group.text));
-  return `<div class="dp-footnotes">${notes.map((note, index) => `<div>${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
+  return `<div class="dp-footnotes">${notes.map((note, index) => `<div class="dp-footnote">${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
 }
 
 function flowItem({ kind, body, splittable = false }) {

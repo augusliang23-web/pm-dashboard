@@ -14,6 +14,14 @@ function weekIdOf(week) {
   return week?.weekId || week?.__documentId || null;
 }
 
+export const PROTOTYPE_REASON = 'The dashboard is showing built-in prototype data because no saved weekly reports were loaded. Delivery Trends is not available for prototype data and is never presented as verified UAT or Production data.';
+
+// Saved weeks always carry a Firestore document id (week.__documentId). The built-in prototype fallback
+// (buildPrototypeWeeks) does not, so a loaded dataset with an unsaved week is not live data.
+export function hasUnsavedWeeks(weeks) {
+  return Array.isArray(weeks) && weeks.some(week => !weekIdOf(week));
+}
+
 // Builds the engine input from the weeks the dashboard has ALREADY loaded under the user's existing access, then
 // requires server-confirmed read completeness. Raw lifecycle/progress values are preserved; validated
 // period normalization and project scope classification are shared with the PDF pipeline.
@@ -27,6 +35,9 @@ export function buildDeliveryTrendsState({
   const releasedOnly = executivePerspective || ['vip','executive'].includes(normalizedRole);
   const anchor = Array.isArray(weeks) ? (explicitAnchorWeekId ? weeks.find(week => weekIdOf(week) === explicitAnchorWeekId) : weeks[currentIdx]) : null;
   const anchorWeekId = weekIdOf(anchor);
+  if (hasUnsavedWeeks(weeks)) return { state: 'unavailable', prototype: true, reason: PROTOTYPE_REASON };
+  // With no saved weeks the dashboard falls back to built-in prototype weeks and the history source is 'synthetic'.
+  if (source === 'synthetic' && Array.isArray(weeks) && weeks.length === 0) return { state: 'unavailable', prototype: true, reason: PROTOTYPE_REASON };
   if (!anchorWeekId) return { state: 'unavailable', reason: 'No reporting week is selected.' };
   try {
     const input = createDeliveryTrendsInput({

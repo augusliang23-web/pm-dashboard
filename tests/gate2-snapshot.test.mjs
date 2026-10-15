@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import * as weekOrder from '../js/week-order.mjs';
 const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const init=source.match(/function initData__uat\([\s\S]*?\n\}/)[0];
 function harness(){let listener;let onError;let options;let current=true;
@@ -9,7 +10,7 @@ function harness(){let listener;let onError;let options;let current=true;
  deliveryTrendsRawWeeks:[],deliveryTrendsHistoryState:{source:null,complete:false},db:{},currentRole:'pm',authSessionGeneration:1,currentUser:{uid:'u'},getEmailKey:()=> 'u@example.test',
  canReadDraftWeeks:()=>true,canCurrentUser:()=>false,isAuthInitializationCurrent:()=>current,collection:(_,name)=>({name}),doc:()=>({name:'settings'}),query:(ref)=>ref,orderBy:()=>{},where:()=>{},
  onSnapshot:(target,...args)=>{if(target.name==='weeks'){options=typeof args[0]==='object'?args.shift():null;[listener,onError]=args;}return ()=>{};},
- normalizeProject:p=>({...p,lifecycle:p.lifecycle||'active'}),projectRevisionFingerprint:JSON.stringify,sortWeeksByLabel:x=>x,
+ normalizeProject:p=>({...p,lifecycle:p.lifecycle||'active'}),projectRevisionFingerprint:JSON.stringify,sortWeeksByLabel:x=>x,sortWeeksChronologically:weekOrder.sortWeeksChronologically,latestValidWeekIndex:weekOrder.latestValidWeekIndex,
  currentIdx:-1,jumpToLatestOnNextRender:true,allWeeks:[],document:{getElementById:()=>null},render:()=>{},hideLoader:()=>{},showDataLoadError:()=>{},buildPrototypeWeeks:()=>[]});
  vm.runInContext(init+';initData__uat(1,{uid:"u"});',context);
  return {context,callback:s=>listener(s),error:()=>onError(Error('permission denied')),get options(){return options},stale:()=>{current=false}};

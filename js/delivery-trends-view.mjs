@@ -90,7 +90,12 @@ export const WARNING_MESSAGES = Object.freeze({
   'invalid-provenance': 'The reporting data could not be validated for this view.',
   'invalid-window': 'The selected history window is not supported.',
   'invalid-publication-policy': 'The reporting data could not be validated for this view.',
-  'invalid-scope': 'The selected project scope is not supported.'
+  'invalid-scope': 'The selected project scope is not supported.',
+  'draft-week-not-authorized': 'This reporting week is not available for your access level.',
+  'history-reader-unavailable': 'Historical data is not available for this report, so trends cannot be calculated.',
+  'history-read-failed': 'Historical data could not be read for this report, so trends cannot be calculated.',
+  'history-read-limit': 'Historical data could not be read completely for this report, so trends cannot be calculated.',
+  'anchor-revised-during-read': 'This reporting week changed while the report was being prepared. Please try again.'
 });
 const GENERIC_WARNING = 'Some data-quality notes apply to this view.';
 
@@ -315,6 +320,9 @@ export function renderDeliveryNotices(contract) {
   const data = obj(contract);
   const notices = [];
   if (isSyntheticContract(data)) notices.push(['synthetic', 'Synthetic data for preview only. Not Production data.']);
+  // "partial" alone is not enough (the engine also reports partial for unverified baselines): announce incomplete
+  // history only when at least one displayed week genuinely has no comparable weekly change.
+  if (list(data.weeklySeries).some(entry => !isNum(obj(entry).gainPp))) notices.push(['warning', 'History is incomplete: some weeks could not be compared and are shown as gaps. They are never counted as zero.', 'incomplete-history']);
   groupWarnings(data.warnings).forEach(group => notices.push(['warning', group.display, group.code]));
   if (!notices.length) return '';
   return `<div class="dt-notices" role="status">${notices.map(([kind, text, code]) => `<div class="dt-notice ${kind}"${code ? ` data-warning-code="${escapeHtml(code)}"` : ''}>${escapeHtml(text)}</div>`).join('')}</div>`;
