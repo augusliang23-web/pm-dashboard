@@ -372,7 +372,11 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
 
       item.remove();
       if (flowItemCount(target)) {
-        if (item.hasAttribute('data-pdf-splittable')) {
+        // A risk table carries its section heading and column header. Split it
+        // against a fresh page, not the residual space after Attention cards;
+        // otherwise every fragment inherits that small capacity and repeats
+        // those headings several times on subsequent pages.
+        if (item.hasAttribute('data-pdf-splittable') && !item.querySelector('.risk-action-table')) {
           const fragments = splitOversizedItem(item, current);
           if (fragments.length) {
             queue.unshift(...fragments);
