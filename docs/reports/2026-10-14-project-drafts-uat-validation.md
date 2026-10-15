@@ -1,3 +1,5 @@
+> Superseded for current workflow: see [2026-10-15 unified two-action validation](2026-10-15-unified-save-publish-validation.md). The user replaced the legacy/new split with the same two editor actions for every editable project. Results below describe the earlier PR state.
+
 # New Project Draft / Publish — UAT candidate validation
 
 Date: 2026-10-14 (Asia/Singapore). Status: **READY FOR REVIEW — review fixes locally verified; CI pending; not deployed**.
