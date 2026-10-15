@@ -22,7 +22,7 @@ const uat = dashboardSource('uat');
 // hiding of the entry, and clearing the page on sign-out), all reverted by that same test;
 // any other UAT drift fails.
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
-const originalUatHash = '4697d3b57883abfcdfb180ecf173ee31e68d6a6e383c849912d2008900f23547';
+const originalUatHash = '9e526abdf0d7cbc99ade1f5599b739b42c9e761c16897484fc91123993ffb2e9';
 
 const validRoles = new Map([
   ['admin', 'admin'],

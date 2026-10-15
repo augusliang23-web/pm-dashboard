@@ -268,3 +268,57 @@ test('PDF dialog regression: new section is hidden, never requested; existing se
     assert.match(pdfRequests[0].url, /\/v1\/reports\/overview$/);
   } finally { await page.close(); }
 });
+
+test('an invalid week label is kept but never becomes the default reporting week (real page, cross-year order)', { timeout: 60000 }, async () => {
+  const weeks = [...weeksFixture(), { __id: 'junk-doc', weekLabel: 'W26 2026 Prototype', weekDate: 'Jun 22 - Jun 28', isReleased: true, version: 1, summary: '', projects: [] }];
+  const { page } = await open(uat, { role: 'admin', weeks });
+  try {
+    assert.equal(await page.$eval('#bannerTitle', e => e.textContent), 'W5 2026', 'default is the latest VALID ISO week');
+    const options = await page.$$eval('#wNavSelect option', list => list.map(o => o.textContent.split(' (')[0]));
+    assert.equal(options.at(-1), 'W26 2026 Prototype', 'the invalid week is preserved, after every valid week');
+    assert.equal(options.length, 9);
+    await page.click('#btnDeliveryTrends'); await wait(500);
+    // Phase 2A is fail-closed by design: one stored week whose label cannot be verified as an ISO week makes the whole
+    // history unavailable (the PDF pipeline behaves identically, so Browser and PDF stay in parity). The page must say so
+    // explicitly and show no numbers; it must not guess a date for the invalid week or silently drop it.
+    const gated = await page.$eval('#deliveryTrendsView', e => e.innerText);
+    assert.match(gated, /cannot be calculated/);
+    assert.match(gated, /verified ISO week periods/);
+    assert.doesNotMatch(gated, /\+\d+(\.\d+)?pp/);
+    // Manual selection of the invalid week is possible and yields an explicit, non-numeric state.
+    await page.select('#wNavSelect', '8'); await wait(500);
+    const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
+    assert.doesNotMatch(text, /\+\d+(\.\d+)?pp/);
+  } finally { await page.close(); }
+});
+
+test('history that the server has not confirmed (cache-only snapshot) yields no trusted numbers', { timeout: 60000 }, async () => {
+  const fake = buildFake({ role: 'admin', weeks: weeksFixture() });
+  fake.fromCache = true;
+  const { page } = await openDashboard(browser, { baseUrl: uat.baseUrl, fake });
+  try {
+    await wait(1800);
+    await page.click('#btnDeliveryTrends'); await wait(500);
+    const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
+    assert.match(text, /not been confirmed by the server/);
+    assert.equal(await page.$$eval('#deliveryTrendsView .dt-card', list => list.length), 0);
+    assert.doesNotMatch(text, /\+\d+(\.\d+)?pp/);
+  } finally { await page.close(); }
+});
+
+test('sales (released-only) sees the draft week as a gap in the real page; admin sees data for it', { timeout: 120000 }, async () => {
+  const draftIndex = 4; // W2 2026 is a draft
+  const gapCount = async role => {
+    const all = weeksFixture({ draftIndex });
+    // initData loads every week for admin/pm and released weeks only for everyone else (the stub applies where isReleased == true).
+    const { page } = await open(uat, { role, email: `qa-${role}@example.test`, weeks: all });
+    try {
+      await page.click('#btnDeliveryTrends'); await wait(500);
+      await page.click('[data-dt-window="12"]'); await wait(300);
+      return await page.$$eval('#deliveryTrendsView .dt-gap', list => list.length);
+    } finally { await page.close(); }
+  };
+  const salesGaps = await gapCount('sales');
+  const adminGaps = await gapCount('admin');
+  assert.ok(salesGaps > adminGaps, `sales gaps (${salesGaps}) > admin gaps (${adminGaps})`);
+});

@@ -100,8 +100,24 @@ export function createBoundedDeliveryHistoryReader({ db, documentIdField = '__na
   };
 }
 
+// Roles that may read DRAFT reporting weeks. This mirrors the dashboard's authoritative contract
+// (js/dashboard-access.mjs canReadDraftWeeks: admin and pm). Every other supported role (sales, engineering, business,
+// product, bd, vip, executive) is released-only. The role comes from the trusted users/{email} record read after the
+// Firebase ID token was verified; nothing the client sends is used.
+//
+// Known Browser/PDF mismatch (documented, fails closed): the dashboard also lets a user holding a delegated
+// week.manage override load draft weeks. The PDF service cannot verify that override authoritatively (it only reads
+// users/{email}), so such a user gets released-only history in this section.
+const DELIVERY_DRAFT_READER_ROLES = new Set(['admin', 'pm']);
+export const DELIVERY_PERFORMANCE_SECTION_ID = 'portfolio-delivery-performance';
+
+export function canReadDraftDeliveryHistory(role) {
+  return DELIVERY_DRAFT_READER_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
 async function deliveryTrendsForReport({ request, week, access, adapters, overviewScope }) {
-  const publicationMode = ['vip','executive'].includes(access.role) ? 'released' : 'include-drafts';
+  const draftReader = canReadDraftDeliveryHistory(access.role);
+  const publicationMode = draftReader ? 'include-drafts' : 'released';
   const provenance = typeof adapters.getDeliveryTrendsProvenance === 'function' ? adapters.getDeliveryTrendsProvenance() : {};
   const base = { ...provenance, anchorWeekId: request.weekId, windowWeeks: adapters.deliveryTrendsWindowWeeks ?? 6,
     publicationMode, scope: { projectLevel: overviewScope === 'module' ? 'hardware-module' : overviewScope } };
@@ -110,6 +126,8 @@ async function deliveryTrendsForReport({ request, week, access, adapters, overvi
     result.warnings.push({ code, message: code.replaceAll('-', ' '), weekId: null, count: 1 });
     return result;
   };
+  // Fail closed: a role without draft access never gets metrics anchored on a draft week (no history is even read).
+  if (!draftReader && week?.isReleased !== true) return unavailable('draft-week-not-authorized');
   if (typeof adapters.getDeliveryHistory !== 'function') return unavailable('history-reader-unavailable');
   let history;
   try { history = await adapters.getDeliveryHistory({ publicationMode }); }
@@ -204,7 +222,12 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       projectSelectionIsPartial: selectedProjectCount < availableProjectCount,
       ganttWindowSettings
     };
-    if (request.sections.includes('portfolio-delivery-performance')) {
+    if (request.sections.includes(DELIVERY_PERFORMANCE_SECTION_ID)) {
+      // A request for ONLY this section on a draft week by a role without draft access is rejected outright. When other
+      // sections are also requested their existing authorization is unchanged and only this section fails closed.
+      if (!canReadDraftDeliveryHistory(access.role) && week.isReleased !== true && request.sections.length === 1) {
+        throw new ReportAccessError('Delivery performance is available only for released weeks.');
+      }
       report.deliveryTrends = await deliveryTrendsForReport({ request, week, access, adapters, overviewScope });
     }
     if (request.sections.includes('executive-milestones')) {

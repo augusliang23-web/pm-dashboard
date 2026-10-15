@@ -37,11 +37,14 @@ const snapshotOf = target => {
   if (target.type === 'doc') return docSnap(target.path, fake().documents[target.path]);
   const ref = target.type === 'query' ? target.ref : target;
   const docs = collectionDocs(ref.path, target.constraints);
-  return { docs, size: docs.length, empty: docs.length === 0, forEach: fn => docs.forEach(fn), docChanges: () => [] };
+  return { docs, size: docs.length, empty: docs.length === 0, forEach: fn => docs.forEach(fn), docChanges: () => [], metadata: { fromCache: fake().fromCache === true, hasPendingWrites: false } };
 };
 export const getDoc = async ref => { fake().reads.push(ref.path); return snapshotOf(ref); };
 export const getDocs = async target => { fake().reads.push((target.ref || target).path); return snapshotOf(target); };
-export const onSnapshot = (target, next, error) => {
+export const onSnapshot = (target, ...rest) => {
+  // onSnapshot(target, [options], next, [error]) -- the dashboard asks for metadata changes on the weeks query.
+  if (rest[0] && typeof rest[0] === 'object') rest.shift();
+  const [next, error] = rest;
   fake().listeners.push((target.ref || target).path);
   setTimeout(() => { try { next(snapshotOf(target)); } catch (e) { if (error) error(e); else console.error('stub onSnapshot', e); } }, 0);
   return () => {};

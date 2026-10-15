@@ -35,3 +35,11 @@ export function sortWeeksChronologically(weeks) {
   });
   return items.map(item => item.week);
 }
+
+// Index of the latest week whose label is a valid ISO "W<n> <year>" week, or -1 when there is none. Invalid or ambiguous
+// labels are never dated, so they can never be the "latest" reporting week.
+export function latestValidWeekIndex(weeks) {
+  const list = Array.isArray(weeks) ? weeks : [];
+  for (let index = list.length - 1; index >= 0; index -= 1) if (parseWeekLabel(list[index]?.weekLabel)) return index;
+  return -1;
+}

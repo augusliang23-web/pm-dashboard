@@ -3113,7 +3113,7 @@ import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverview
 import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";
 // @uat-only end deliveryPdfImport
 // @uat-only begin weekOrderImport
-import { sortWeeksChronologically } from "./js/week-order.mjs";
+import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";
 // @uat-only end weekOrderImport
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
@@ -6151,11 +6151,18 @@ function initData__uat(authGeneration, authUser) {
       return normalizedWeek;
     });
     if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
+    const previouslySelectedWeekId = allWeeks[currentIdx]?.__documentId;
     allWeeks = sortWeeksChronologically(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
-      currentIdx = allWeeks.length - 1;
+      // Default to the latest VALID ISO week; invalid labels are kept (last) but are never the default selection.
+      const latestValid = latestValidWeekIndex(allWeeks);
+      currentIdx = latestValid >= 0 ? latestValid : allWeeks.length - 1;
       jumpToLatestOnNextRender = false;
+    } else if (previouslySelectedWeekId) {
+      // Keep the user's selected stored week across snapshot refreshes (the array index can shift).
+      const keptIdx = allWeeks.findIndex(week => week.__documentId === previouslySelectedWeekId);
+      if (keptIdx >= 0) currentIdx = keptIdx;
     }
 
     if (currentIdx >= allWeeks.length) {

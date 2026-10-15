@@ -72,7 +72,7 @@ test('UAT initData sorts chronologically; Production keeps the legacy sort byte-
   assert.equal((uat.match(/allWeeks = sortWeeksByLabel\(fetchedWeeks\);/g) || []).length, 0);
   assert.equal((production.match(/allWeeks = sortWeeksByLabel\(fetchedWeeks\);/g) || []).length, 1);
   assert.doesNotMatch(production, /sortWeeksChronologically|week-order\.mjs/);
-  assert.match(uat, /import \{ sortWeeksChronologically \} from "\.\/js\/week-order\.mjs";/);
+  assert.match(uat, /import \{ latestValidWeekIndex, sortWeeksChronologically \} from "\.\/js\/week-order\.mjs";/);
 });
 
 test('default latest-week selection, previous/next navigation and the reporting anchor follow chronological order', () => {

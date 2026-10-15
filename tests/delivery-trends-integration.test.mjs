@@ -124,6 +124,28 @@ function revertWeekOrdering(raw) {
   const helper = /\/\/ In the UAT profile isVipPerspective\(\) is true only for an Admin previewing as Executive;[\s\S]*?\nfunction isDeliveryTrendsExecutive\(\) \{\n[\s\S]*?\n\}\n\n/;
   assert.match(raw, hide);
   assert.match(raw, helper);
+  const selection = `    const previouslySelectedWeekId = allWeeks[currentIdx]?.__documentId;
+    allWeeks = sortWeeksChronologically(fetchedWeeks);
+    
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      // Default to the latest VALID ISO week; invalid labels are kept (last) but are never the default selection.
+      const latestValid = latestValidWeekIndex(allWeeks);
+      currentIdx = latestValid >= 0 ? latestValid : allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    } else if (previouslySelectedWeekId) {
+      // Keep the user's selected stored week across snapshot refreshes (the array index can shift).
+      const keptIdx = allWeeks.findIndex(week => week.__documentId === previouslySelectedWeekId);
+      if (keptIdx >= 0) currentIdx = keptIdx;
+    }
+`;
+  assert.ok(raw.includes(selection));
+  raw = raw.replace(selection, `    allWeeks = sortWeeksChronologically(fetchedWeeks);
+    
+    if (currentIdx < 0 || jumpToLatestOnNextRender) {
+      currentIdx = allWeeks.length - 1;
+      jumpToLatestOnNextRender = false;
+    }
+`);
   return raw.replace(hide, '').replace(helper, '').replaceAll('isDeliveryTrendsExecutive()', 'isVipPerspective()').replace('allWeeks = sortWeeksChronologically(fetchedWeeks);', 'allWeeks = sortWeeksByLabel(fetchedWeeks);');
 }
 
