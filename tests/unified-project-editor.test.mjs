@@ -23,3 +23,13 @@ test('same editor offers both text actions and keeps later typing dirty during a
  vm.runInContext(fn('saveEditorProjectDraft'),context);const operation=context.saveEditorProjectDraft({progress:85},session);context.form='typed later';resolve({draft:{draftId:'a',revision:3,project:{progress:85}}});await operation;
  assert.equal(sent.project.progress,85);assert.equal(sent.weekId,'W1');assert.equal(overlay.dataset.editorBaseline,'submitted');assert.notEqual(context.form,overlay.dataset.editorBaseline);
 });
+test('first publication locks the code without falsely marking saved fields dirty',()=>{
+ const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{id,style:{},dataset:{},classList:{add(){}},setAttribute(){},hasAttribute:()=>false,replaceChildren(){},add(){},value:'',tagName:'INPUT',type:'text',disabled:false});return nodes.get(id);};
+ const code=node('pe_code');code.value='NEW';const overlay=node('projEditOverlay');overlay.hasAttribute=()=>true;overlay.querySelector=()=>node('header');overlay.querySelectorAll=()=>[code];node('pe_btn_save').parentElement=node('actions');
+ const record={draftId:'new-id',revision:1,assignment:{},project:{},lastPublication:null};
+ const context=vm.createContext({document:{getElementById:node},draftEditorRecord:record,draftEditorTargetWeekId:'W30',allWeeks:[{__documentId:'W30',weekLabel:'W30 2026',projects:[]}],currentRole:'admin',eligibleDraftWeeks:ui.eligibleDraftWeeks,canCurrentUser:()=>true,window:{},Option:class{constructor(label,value){this.value=value;}}});
+ vm.runInContext(fn('configureDraftEditor')+'\n'+fn('serializeEditorState'),context);
+ context.configureDraftEditor(true);const baseline=context.serializeEditorState(overlay);
+ record.revision=2;record.lastPublication={draftRevision:2,weekOrder:202630,weekId:'W30'};context.configureDraftEditor(true);
+ assert.equal(context.serializeEditorState(overlay),baseline);assert.equal(code.disabled,false);assert.equal(code.readOnly,true);
+});

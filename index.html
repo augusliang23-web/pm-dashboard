@@ -13870,7 +13870,8 @@ function configureDraftEditor(draftMode) {
   manage.style.display = record.lastPublication && canCurrentUser('project.manage') ? '' : 'none';
   manage.onclick = () => openDraftPublishedActions(draftEditorRecord,select.value || record.lastPublication?.weekId);
   if(record.revision===0 && !record.source)document.getElementById('pe_details').open = true;
-  document.getElementById('pe_code').disabled = Boolean(record.lastPublication);
+  document.getElementById('pe_code').disabled = false;
+  document.getElementById('pe_code').readOnly = Boolean(record.lastPublication);
   for(const id of ['pe_owner','pe_deputy'])document.getElementById(id).disabled = currentRole !== 'admin';
   document.getElementById('pe_visibility').disabled = true;
   document.getElementById('pe_btn_delete').style.display = 'none';

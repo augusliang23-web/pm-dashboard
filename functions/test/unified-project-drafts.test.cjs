@@ -71,3 +71,19 @@ test('list does not return source-backed working contents after official ownersh
  setup();let {draft}=await open();await save(draft,{highlight:'private working text'});state.docs.get('weeks/W1').projects[0].owner='Other';
  await assert.rejects(call('listDashboardProjectDrafts',{}),reason('ownership-forbidden'));
 });
+test('new caller-created drafts cannot preclaim the server source namespace',async()=>{
+ setup();state.docs.set('userPermissions/other@example.com',{overrides:{'project.manage':true}});
+ const {sourceDraftId}=require('../project-draft-origin');const draftId=sourceDraftId(source);
+ await assert.rejects(call('saveDashboardProjectDraft',{draftId,expectedRevision:0,project:{name:'Wrong',code:'EVIL'}},'other@example.com'),reason('invalid-payload'));
+ await assert.rejects(call('publishDashboardProjectDraft',{draftId,expectedRevision:0,project:{name:'Wrong',code:'EVIL',projectLevel:'system'},weekId:'W1',expectedPublishedRevision:null},'other@example.com'),reason('invalid-payload'));
+ assert.equal(state.docs.has('projectDrafts/'+draftId),false);assert.equal((await open()).draft.project.code,'OLD');
+});
+test('source lookup never returns an unrelated or incorrectly bound stored draft, even for Admin',async()=>{
+ setup();const {sourceDraftId}=require('../project-draft-origin');const draftId=sourceDraftId(source);
+ const record={schemaVersion:1,draftId,revision:1,project:{name:'Wrong',code:'EVIL'},editorEmails:['other@example.com'],assignment:{ownerEmail:'other@example.com'}};
+ state.docs.set('projectDrafts/'+draftId,record);
+ await assert.rejects(call('getDashboardProjectDraft',{source},'admin@example.com'),reason('conflict'));
+ await assert.rejects(open(),reason('conflict'));
+ record.source={weekId:'W2',projectCode:'OLD',expectedRevision:'x'};record.project.code='OLD';
+ await assert.rejects(call('getDashboardProjectDraft',{source},'admin@example.com'),reason('conflict'));
+});

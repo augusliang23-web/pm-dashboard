@@ -40,7 +40,14 @@ async function readSourceDraft(tx,db,actor,source,{saving=false}={}) {
   const draftId=project.publication?.draftId || sourceDraftId(source);
   const ref=db.collection('projectDrafts').doc(safeId(draftId));
   const snapshot=await tx.get(ref);
-  if(snapshot.exists){const draft=snapshot.data();assertDraftAccess(actor,draft,'read');return {ref,draft};}
+  if(snapshot.exists){
+    const draft=snapshot.data();
+    const sourceBinding=project.publication?.draftId
+      ? draft.draftId===draftId && draft.project?.code===project.code
+      : draft.draftId===draftId && draft.source?.weekId===source.weekId && draft.source?.projectCode===source.projectCode && draft.project?.code===project.code;
+    if(!sourceBinding)fail('conflict','The stored draft does not belong to this source project. Contact Admin.','aborted');
+    assertDraftAccess(actor,draft,'read');return {ref,draft};
+  }
   if(project.publication?.draftId)fail('conflict','The working draft is unavailable. Contact Admin.','aborted');
   const users=await tx.get(db.collection('users'));
   const draft=buildSourceDraft({actor,week:week.data(),source,users:users.docs.map(user=>({email:user.id,data:user.data()}))});
@@ -56,7 +63,10 @@ async function mutationDraft(tx,db,actor,data) {
       return found;
     }
     if(data.expectedRevision!==0)fail('conflict','The draft no longer exists.','aborted');
-    if(!data.source)return {ref,draft:null};
+    if(!data.source){
+      if(data.draftId.startsWith('source-'))fail('invalid-payload','This draft identifier is reserved for existing projects.','invalid-argument');
+      return {ref,draft:null};
+    }
   }
   if(data.source){
     const found=await readSourceDraft(tx,db,actor,data.source,{saving:true});
