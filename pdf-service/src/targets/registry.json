@@ -13,7 +13,7 @@
         "https://augusliang23-web.github.io",
         "https://pm-dashboard-uat-20260820-a7f3.web.app"
       ],
-      "features": { "liveExecutiveTimeline": true, "projectBriefUpdateSections": true, "deliveryPerformanceSection": false }
+      "features": { "liveExecutiveTimeline": true, "projectBriefUpdateSections": true, "deliveryPerformanceSection": true }
     },
     "production": {
       "environment": "production",

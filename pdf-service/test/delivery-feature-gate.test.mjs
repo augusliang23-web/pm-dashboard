@@ -29,8 +29,9 @@ test('backend gate: missing, false or non-boolean flag rejects the section like 
 test('target resolution: Production is always off (even if the registry says true), UAT only when registered true, absent flag is off', () => {
   const registry = JSON.parse(JSON.stringify(loadTargetRegistry()));
   const env = name => ({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName });
-  // Shipped registry: both off.
-  for (const name of ['uat', 'production']) assert.equal(resolveRuntimeTarget(env(name), registry).features.deliveryPerformanceSection, false, `${name} ships disabled`);
+  // UAT release candidate: the shipped UAT target is enabled, Production ships disabled.
+  assert.equal(resolveRuntimeTarget(env('uat'), registry).features.deliveryPerformanceSection, true, 'uat ships enabled');
+  assert.equal(resolveRuntimeTarget(env('production'), registry).features.deliveryPerformanceSection, false, 'production ships disabled');
   // Flag removed entirely: off.
   for (const name of ['uat', 'production']) { const copy = JSON.parse(JSON.stringify(registry)); delete copy.targets[name].features.deliveryPerformanceSection; assert.equal(resolveRuntimeTarget(env(name), copy).features.deliveryPerformanceSection, false); }
   // Controlled synthetic enablement: UAT on, Production still off.
@@ -57,8 +58,41 @@ test('frontend gate: verification flag is false, Production never offers it, and
   assert.deepEqual(request.sections, ['health-focus']);
 });
 
-test('shipped configuration leaves the feature disabled for both environments', () => {
+test('UAT release candidate: the shipped registry enables ONLY the UAT target and changes no other feature', () => {
   const registry = loadTargetRegistry();
-  assert.equal(registry.targets.uat.features.deliveryPerformanceSection, false);
-  assert.equal(registry.targets.production.features.deliveryPerformanceSection, false);
+  assert.deepEqual(registry.targets.uat.features, { liveExecutiveTimeline: true, projectBriefUpdateSections: true, deliveryPerformanceSection: true });
+  assert.deepEqual(registry.targets.production.features, { liveExecutiveTimeline: false, projectBriefUpdateSections: false, deliveryPerformanceSection: false });
+  // Environment isolation is untouched: project, service, origins and service accounts per target.
+  assert.equal(registry.targets.uat.firebaseProjectId, 'pm-dashboard-uat-20260820-a7f3');
+  assert.equal(registry.targets.uat.serviceName, 'pm-dashboard-uat-pdf');
+  assert.equal(registry.targets.production.firebaseProjectId, 'project-manager-dashboar-a067f');
+  assert.equal(registry.targets.production.serviceName, 'pm-dashboard-pdf');
+  assert.ok(registry.targets.uat.allowedOrigins.every(origin => !origin.includes('project-manager-dashboar')));
+  assert.ok(registry.targets.production.allowedOrigins.every(origin => !origin.includes('pm-dashboard-uat')));
+});
+
+test('end to end with the SHIPPED registry: the resolved UAT target accepts the section, the resolved Production target rejects it', async () => {
+  const registry = loadTargetRegistry();
+  const env = name => ({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName });
+  const uat = await call(resolveRuntimeTarget(env('uat'), registry).features);
+  assert.equal(uat.r.statusCode, 200);
+  assert.equal(uat.rendered, true);
+  const production = await call(resolveRuntimeTarget(env('production'), registry).features);
+  assert.equal(production.r.statusCode, 400);
+  assert.deepEqual(JSON.parse(production.r.body), { error: `Unknown report section: ${SECTION}.` });
+  assert.equal(production.rendered, false);
+});
+
+test('existing Overview sections are accepted identically by both shipped targets', async () => {
+  const registry = loadTargetRegistry();
+  const env = name => ({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName });
+  for (const name of ['uat', 'production']) {
+    const features = resolveRuntimeTarget(env(name), registry).features;
+    for (const section of ['health-focus', 'weekly-trend', 'executive-summary', 'attention-matrix', 'risk-actions', 'quarterly-roadmap', 'project-portfolio', 'resource-analytics', 'budget-overview']) {
+      let rendered = false;
+      const handler = createReportHandler({ adapters, features, renderPdf: async () => { rendered = true; return Buffer.from('%PDF'); } });
+      const r = res(); await handler({ headers: { authorization: 'Bearer t' }, body: { ...body, sections: [section] } }, r);
+      assert.notEqual(r.statusCode, 400, `${name}/${section} must not be rejected as an unknown section`);
+    }
+  }
 });

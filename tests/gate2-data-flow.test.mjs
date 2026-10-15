@@ -47,6 +47,10 @@ test('unrecognized role fails closed',()=>{const r=browser(weeks(),{role:'unknow
 test('runtime capability is explicit UAT-only and never activated by missing/Production configuration',()=>{
  const registry=loadTargetRegistry();
  const env=name=>{const t=registry.targets[name];return {PDF_ENVIRONMENT:name,FIREBASE_PROJECT_ID:t.firebaseProjectId,ALLOWED_ORIGIN:t.allowedOrigins.join(','),K_SERVICE:t.serviceName};};
+ // UAT release candidate: the shipped UAT target enables the section; Production stays off.
+ assert.equal(resolveRuntimeTarget(env('uat'),registry).features.deliveryPerformanceSection,true);
+ assert.equal(resolveRuntimeTarget(env('production'),registry).features.deliveryPerformanceSection,false);
+ delete registry.targets.uat.features.deliveryPerformanceSection;
  assert.equal(resolveRuntimeTarget(env('uat'),registry).features.deliveryPerformanceSection,false);
  registry.targets.uat.features.deliveryPerformanceSection=true;
  assert.equal(resolveRuntimeTarget(env('uat'),registry).features.deliveryPerformanceSection,true);
