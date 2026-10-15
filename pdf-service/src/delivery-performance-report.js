@@ -252,7 +252,7 @@ function footnotes(contract, scope) {
     groups.set(key, group);
   });
   [...groups.values()].forEach(group => notes.push(group.count > 1 ? `${group.text} (${group.count} weeks)` : group.text));
-  return `<div class="dp-footnotes">${notes.map((note, index) => `<div>${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
+  return `<div class="dp-footnotes">${notes.map((note, index) => `<div class="dp-footnote">${index + 1}. ${escapeHtml(note)}</div>`).join('')}</div>`;
 }
 
 function flowItem({ kind, body, splittable = false }) {
