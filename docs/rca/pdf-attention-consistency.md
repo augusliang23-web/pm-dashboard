@@ -1,35 +1,46 @@
-# PDF Attention consistency hotfix
+# PDF Attention and risk-table pagination hotfix
 
-## Confirmed cause
+## Confirmed defects
 
-The Overview classifier in `index.html` uses a valid `attention` category before status fallback. Current editor and server Attention writers store `attentionManual: true` as a flag, separately from the selected category.
+Overview prefers canonical `attention`. Current writers store `attentionManual` as a boolean flag. PDF normalization cleared the category before its resolver, which also treated the flag as a category. The recorded green/monitor/manual=true synthetic project therefore became watch. This bug exists in main and PR54, not just Draft/Publish code.
 
-PDF normalization instead cleared `attention` before calling its resolver, which also treated the truthy boolean flag as a category. For the recorded synthetic green project `UAT54-R2-OWN` in W1 2000 (`attention: monitor`, `attentionManual: true`, progress 41), this produced `watch`. The same bug exists in main and PR #54; it is not a Draft/Publish regression.
+Read-only UAT provenance connects serving revision `pm-dashboard-uat-pdf-00006-tg8` (100%, asia-southeast1) to image `sha256:a421faf4f5ccaeec0c9756968ad32693e155742858b471f95b3f73870889bf47`, Cloud Build `a45db0d7-169d-4b4c-99a5-6c0f3a134c3d` and immutable source generation `1792056548272800`. Downloaded source SHA256 matches Cloud Build's hash. Executing this deployed source reproduces the defect. No triggering Git commit is inferred.
 
-Read-only verification on 2026-10-16 SGT captured UAT service `pm-dashboard-uat-pdf`, region `asia-southeast1`, serving revision `pm-dashboard-uat-pdf-00006-tg8` at 100%. Its immutable source archive generation `1792056548272800` contains the identical faulty Attention resolver and normalization path. Executing that archived source with the recorded input returns `watch`. Archive model SHA-256: `46641ef9987908926756f38ebc930cf93e148ce957f7dfcb7b52dc313d0a7b0f`.
+The first fix preserves canonical categories, ignores booleans as categories and retains the existing PDF-only string override fallback when canonical attention is absent/invalid. Overview ignores string-only flags; this intentional compatibility exception is explicitly tested. No live legacy string record is claimed.
 
-The deployed model differs from main only in unrelated delivery-trends additions. The full deployed source also includes other delivery-trends files and changes. This is evidence of a mixed deployment baseline, not evidence of a triggering Git commit. A main-based full service deployment would remove those changes and is blocked pending an approved integration plan.
+Correct classification exposed a latent paginator defect: it calculated all risk-table fragments using the small remaining space after Attention cards. Multiple one-row fragments with repeated section headings and headers were then packed on the same page. Both original dense layout checks pass main before the Attention fix and fail after it; the splitter weakness existed previously but was masked for those fixtures by incorrect category grouping.
 
-## Correction and compatibility
-
-Resolve Attention before clearing its source value. Prefer valid canonical `attention`; ignore boolean flags as category values. Retain the existing PDF resolver's category-string `attentionManual` fallback only when canonical Attention is absent/invalid. No repository writer establishes string flags as current data; no claim is made that such records exist live. This compatibility fallback is PDF-only: Overview itself ignores string flags. Canonical legacy selections without a manual flag match Overview, as do all current boolean-flag records. Status fallback and normalized status handling remain unchanged.
-
-No stored fields, labels, meaning, Archive lifecycle, permissions, Draft/Publish workflow, Functions, or frontend are changed.
+The separate pagination correction moves an overflowing risk table onto a fresh page before splitting. Tables that already fit stay in place. Existing continuation headings and table headers repeat legitimately on new pages. Other item types retain the original partial-page splitting path. No paginator replacement, styling or unrelated section changes.
 
 ## Validation
 
-`pdf-service/test/attention-parity.test.mjs` executes the actual Overview classifier from `index.html`. It covers all four underlying categories with true/false/missing flags, the three reported status/override combinations, invalid/missing selections, old PDF string fallback, canonical precedence, input immutability, and actual Chromium/PDF rendering.
+- Attention RED:6 pass/15 fail; corrected21/21 pass.
+- New risk pagination RED:2 pass/3 fail; corrected5/5 pass. Empty, short, dense14, multi-page38 and long-wrapping12-project fixtures assert ordered exact risk/action text, unique row count, one section/table header per affected page, continuation labels, footer clearance and no cell width overflow.
+- Complete PDF suite:430/430 pass, including both formerly failing checks. No tests weakened.
+- Root suite:1476 pass/2 skip/0 fail. Sync boundary, both local Hosting builds, UAT PDF deploy dry-run and diff check pass. No deploy performed.
+- Independent reviewer reran5/5 browser tests and verified the35-file UAT source comparison; no actionable findings.
+- Actual before/after synthetic PDFs: monitor2 projects1 page unchanged; dense14 projects6 to5 pages; long6 projects5 to4 pages. Every risk/action marker occurs exactly once. All10 after pages rendered and visually inspected, including all risk continuation pages. No risk heading duplication, lost/reordered rows or clipping. Long-text auto table sizing still wraps narrow project/status columns heavily, as before; no CSS change is included. Attention card continuation layout is also unchanged.
 
-Before the fix, the new suite reports 15 failures / 6 passes. After the fix, all 21 pass. Separate real synthetic Overview PDFs preserve the week, identities, 2-project health total and 41% rounded progress: Monitor Closely changes 0 to 1 and Keep Watching 2 to 1. Extracted PDF text and rendered pages confirm correct placement and no clipping for that two-project fixture.
+## UAT feature preservation
 
-**HOLD:** The complete PDF suite reports 423 passes / 2 failures (425 tests). Both Production and UAT dense Management Attention layout tests fail the existing one-risk-table-header-per-page assertion. Unchanged main passes the focused baseline checks. Correct category grouping changes the page space preceding the risk table; the existing paginator then fragments the 14-row table into one-row tables with repeated section headings/headers on the same page (7 pages versus 5 at baseline). This is a real observed layout regression, not a browser-launch failure, and the test has not been weakened. A separate paginator/layout correction exceeds the authorized normalization-only source scope and requires a Control Plane decision.
+The current deployed source includes functionality absent from main. Do not deploy this PR's main-based service tree directly over UAT. A separate local candidate was constructed from the exact deployed35-file archive with only these two patches. The33 remaining files are byte-identical; no files removed or added. See `pdf-uat-source-preservation.json` for per-file hashes. Candidate ZIP and visual/test evidence are retained in the execution report, outside the deployment source tree.
 
-Root regression tests: 1476 pass, 2 skip, 0 fail. Sync boundary and both local Hosting builds pass; these were local builds only. GitHub CI and Rules emulator checks were not run because the complete PDF gate failed. No PR is created: the task permits Draft PR creation only if tests pass. The focused independent review initially found no logic blockers; the dense regression was returned for further review. The candidate must not be deployed or merged.
+Preserved differences from main:
 
-## Future deployment gate (not authorization)
+| Deployed files | Preserved capability |
+| --- | --- |
+| Dockerfile, verify-delivery-trends-package.mjs, generated module/checksum | Canonical metrics packaging and build validation |
+| server.js, report-data.js | Bounded history reader, role/released-week filtering, provenance, incomplete-history and anchor-revision fail-closed handling, selected-project history scope |
+| report-model.js | delivery-trends/v1 validation and model passthrough; only Attention block patched |
+| overview-report.js, delivery-performance-report.js, report-theme.js | Portfolio Delivery Performance page, chart, tables, warnings, selected-scope presentation |
+| report-request.js, environment.js, targets/registry.json | Explicit UAT-only delivery section feature gating; production configuration byte-identical to deployed source |
 
-This PR is a main-based code fix, not a deployment candidate for the currently mixed UAT image. First obtain approval for a separate integration candidate preserving the current deployed delivery-trends content; do not edit V2.3 or PR #54 under this task. Verify that candidate's full source manifest, target registry, runtime/config and CI. Repeat the synthetic parity/render matrix on that integrated source.
+All other UAT features, including executive timeline, project brief/update, authentication and authorization adapters remain byte-identical. Generated package integrity verifier passes. Candidate synthetic validation:82/83 pass. The remaining warning-dictionary equality test also fails on untouched deployed source: PDF defines additional fail-closed history/authorization warning codes absent from the referenced browser view. This existing discrepancy was not fixed or suppressed; feature preservation is proved by source bytes and differential reproduction, not by claiming83/83 success. It remains a separate UAT acceptance issue.
 
-After separate UAT PDF-only authorization, capture fresh service/config/traffic and immutable image references, verify UAT project identity `pm-dashboard-uat-20260820-a7f3` / `317352278230`, dry-run the reviewed deployment script, and deploy only the PDF service. No Hosting, Functions, Rules, IAM, Archive or historical-data changes. Use an approved synthetic fixture for authenticated Overview/PDF acceptance and clean up only explicitly authorized test records. PR #54 remains on hold until live parity passes; this fix applies cleanly to its unchanged Attention code but does not validate its Draft workflow.
+## Future deployment boundary
 
-Rollback must restore the previously captured PDF revision/traffic and any changed service configuration, then verify authenticated export, project/week identity and legacy rendering. Current rollback revision is `pm-dashboard-uat-pdf-00006-tg8`; refresh before use. It deliberately retains the known Attention defect. Do not remove revisions, change IAM, reconstruct records or proceed to Production. Deployment and rollback commands require a separately approved runbook because the current source/registry differs from main.
+No UAT or Production deployment, IAM, Cloud Run, Firestore or Archive changes are authorized here. PR54/56/57 and production deployment configuration are unchanged.
+
+Before any deployment, review the separate preserved-source candidate and its hash, publish its source through an approved reproducible integration path, rerun required integrated CI, and resolve or explicitly disposition the inherited warning-dictionary discrepancy and long-text column readability. This PR's GitHub CI checks only its main-based tree, not the extracted UAT artifact. Recheck the serving baseline for drift and require separate authorization for PDF-only deployment and rollback. The source deployment script uses `--allow-unauthenticated`; invocation/org-policy handling must be explicitly reviewed rather than repeated blindly.
+
+An approved deployment must preserve current UAT feature flags, service/runtime identities, runtime limits, CORS and invocation settings; update only the PDF image/service after capturing rollback references. Use authorized synthetic fixtures for authenticated Overview/PDF acceptance. Do not deploy Functions, Hosting or Rules. Rollback restores captured revision/traffic/configuration and verifies legacy authenticated export; current reference is revision00006-tg8, which retains the original Attention defect. No commands were executed against cloud configuration.
