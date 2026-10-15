@@ -17,3 +17,10 @@ test('all UAT legacy content and attention writes must use the same draft public
  await assert.rejects(call('setDashboardProjectAttention',{weekId:'W1',projectCode:'OLD',attention:'action'}),boundary);
  assert.equal(state.docs.get('weeks/W1').projects[0].progress,40);
 });
+
+test('archived project management retains its original authorization outside Draft Publish',()=>{
+ setup();const archived={...managed,visibility:'archived',futureHistory:{keep:true}},admin={...actor,role:'admin'};
+ const patch=api.buildProjectPatch({projects:[archived]},request(archived),admin,'now');
+ assert.equal(patch.committedProject.visibility,'archived');assert.equal(patch.committedProject.progress,99);assert.deepEqual(patch.committedProject.futureHistory,{keep:true});
+ assert.throws(()=>api.buildProjectPatch({projects:[archived]},request(archived),{...actor,displayName:'Other',email:'other@example.com'},'now'),e=>e.details?.reason==='ownership-forbidden');
+});

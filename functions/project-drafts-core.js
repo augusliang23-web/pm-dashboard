@@ -20,7 +20,7 @@ function assertDraftAccess(actor, draft, action) {
 function validateDraftInput(project, {publishing=false,visibility='active'} = {}) {
   assertBoundedJson(project); assertAllowedKeys(project,PROJECT_KEYS,'Draft project');
   if ('progress' in project && (typeof project.progress !== 'number' || !Number.isFinite(project.progress) || project.progress < 0 || project.progress > 100)) fail('invalid-payload','Progress must be a number between 0 and 100.','invalid-argument');
-  if ('visibility' in project && project.visibility !== visibility) fail('visibility-admin-only','Drafts publish as Active; use the existing visibility administration after publication.');
+  if ('visibility' in project && project.visibility !== visibility) fail('visibility-admin-only','Draft saving and publishing cannot change project visibility. Use existing project management.');
   for (const key of ['name','code','owner','deputy','customer','location','highlight','weeklyActions','risk','next']) if (key in project && typeof project[key] !== 'string') fail('invalid-payload',`${key} must be text.`,'invalid-argument');
   for (const key of ['milestones','quarterlyMilestones','ganttWorkstreams','pdfSummaryLanes','riskActions','riskPairs','riskList','teamMembers']) if (key in project && !Array.isArray(project[key])) fail('invalid-payload',`${key} must be a list.`,'invalid-argument');
   for (const key of ['budget','dataStatus','resources']) if (key in project && (!project[key] || typeof project[key] !== 'object' || Array.isArray(project[key]))) fail('invalid-payload',`${key} must be an object.`,'invalid-argument');
@@ -85,6 +85,7 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   if(!week)fail('not-found','The target week no longer exists.','not-found');
   if(week.isReleased===true)fail('released-week','Published reporting weeks cannot be changed.','failed-precondition');
   if(input.expectedRevision!==draft.revision)fail('conflict','Draft revision conflict. Reload before publishing.','aborted');
+  if(draft.project.visibility === 'archived')fail('archive-lifecycle','Archived projects use existing project management, outside Draft Publish.');
   const source=validateDraftInput(draft.project,{publishing:true,visibility:draft.project.visibility || 'active'});
   if(!draft.source && !draft.assignment.ownerEmail)fail('assignment-forbidden','Select a Project Manager before publishing.','failed-precondition');
   const projects=Array.isArray(week.projects)?week.projects:[];
@@ -94,7 +95,7 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   const live=matches[0];
   const target=draft.publicationTargets?.[input.weekId];
   if(draft.source && !Object.values(draft.publicationTargets||{}).some(t=>t.draftRevision>0) && input.weekId!==draft.source.weekId)fail('conflict','An existing project must first publish to its source reporting week.','aborted');
-  if(!live && target)fail('conflict','The previous published target was removed or restored. Contact Admin.','aborted');
+  if(!live && (target || draft.lastPublication))fail('conflict','The published project is absent from this reporting week. Draft Publish cannot recreate it. Use existing project management.','aborted');
   if(projects.some(p=>p!==live&&String(p.code).trim()===source.code.trim()))fail('conflict','This code belongs to another project.','aborted');
   if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
   if(live && live.visibility && live.visibility!=='active')fail('visibility-admin-only','Hidden or archived projects cannot be republished through Drafts.');

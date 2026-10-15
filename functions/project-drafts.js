@@ -37,6 +37,7 @@ async function readSourceDraft(tx,db,actor,source,{saving=false}={}) {
   const week=await tx.get(db.collection('weeks').doc(source.weekId));
   const project=sourceProject(week.exists?week.data():null,source,{requireOpen:true});
   assertSourceOwnership(actor,project);
+  if(project.visibility==='archived')fail('archive-lifecycle','Archived projects use existing project management, outside Draft Publish.');
   const draftId=project.publication?.draftId || sourceDraftId(source);
   const ref=db.collection('projectDrafts').doc(safeId(draftId));
   const snapshot=await tx.get(ref);

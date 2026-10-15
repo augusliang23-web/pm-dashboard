@@ -1,3 +1,5 @@
+> Updated product scope: [Archive restoration](../specs/2026-10-15-archive-scope-restoration.md). Archive management remains outside Draft Publish; English labels replace previous Chinese UI labels. See the 2026-10-15 Archive restoration report for current verification.
+
 # Unified Save Draft / Save and Publish revision
 
 Spec: docs/superpowers/specs/2026-10-14-unified-save-publish-design.md

@@ -16,7 +16,8 @@ const uat = dashboardSource('uat');
 // then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
 // then unified for all projects by the explicit two-button user revision (same editor; atomic current-form save/publish).
 // any other UAT drift fails.
-const originalUatHash = "6ec08b69001c099ea766f6046e4844d8fccd9ff9bcc45ca256c58c424e921cab";
+// Archive scope restoration: English UI and lifecycle management outside Draft Publish (2026-10-15).
+const originalUatHash = "8f942b55f03c8476cda4b0a93dca83596136ae55ccbf08499fa1a660c4a41a14";
 
 const validRoles = new Map([
   ['admin', 'admin'],

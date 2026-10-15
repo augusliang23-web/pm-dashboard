@@ -1,3 +1,5 @@
+> Updated product scope: [Archive restoration](../superpowers/specs/2026-10-15-archive-scope-restoration.md). Archive management remains outside Draft Publish; English labels replace previous Chinese UI labels. See the 2026-10-15 Archive restoration report for current verification.
+
 # 統一「存成草稿／存檔並發布」驗收報告
 
 更新日期：2026-10-15（Asia/Singapore）。狀態：READY FOR REVIEW；CI 最終確認待完成；未合併／未部署。

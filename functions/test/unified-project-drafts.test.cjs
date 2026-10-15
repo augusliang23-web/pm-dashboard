@@ -61,11 +61,10 @@ test('atomic action cannot publish a new project without create grant or leak a 
 test('non-Admin cannot import hidden or archived official data through the source endpoint',async()=>{
  setup();for(const visibility of ['hidden','archived']){state.docs.get('weeks/W1').projects[0].visibility=visibility;await assert.rejects(open(),reason('visibility-forbidden'));}
 });
-test('Admin can keep archived project edits as private draft without silently reactivating it',async()=>{
- setup();state.docs.get('weeks/W1').projects[0].visibility='archived';let {draft}=await call('getDashboardProjectDraft',{source},'admin@example.com');
- ({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,source:draft.source,expectedRevision:0,project:{progress:75,visibility:'archived'}},'admin@example.com'));
- assert.equal(draft.project.progress,75);assert.equal(state.docs.get('weeks/W1').projects[0].progress,40);
- await assert.rejects(call('publishDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,weekId:'W1',expectedPublishedRevision:projectRevisionFingerprint(state.docs.get('weeks/W1').projects[0])},'admin@example.com'),reason('visibility-admin-only'));
+test('archived official projects stay in existing management rather than becoming new source drafts',async()=>{
+ setup();state.docs.get('weeks/W1').projects[0].visibility='archived';const before=structuredClone([...state.docs]);
+ await assert.rejects(call('getDashboardProjectDraft',{source},'admin@example.com'),reason('archive-lifecycle'));
+ assert.deepEqual([...state.docs],before);
 });
 test('list does not return source-backed working contents after official ownership is revoked',async()=>{
  setup();let {draft}=await open();await save(draft,{highlight:'private working text'});state.docs.get('weeks/W1').projects[0].owner='Other';

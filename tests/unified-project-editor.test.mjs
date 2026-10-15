@@ -27,9 +27,22 @@ test('first publication locks the code without falsely marking saved fields dirt
  const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{id,style:{},dataset:{},classList:{add(){}},setAttribute(){},hasAttribute:()=>false,replaceChildren(){},add(){},value:'',tagName:'INPUT',type:'text',disabled:false});return nodes.get(id);};
  const code=node('pe_code');code.value='NEW';const overlay=node('projEditOverlay');overlay.hasAttribute=()=>true;overlay.querySelector=()=>node('header');overlay.querySelectorAll=()=>[code];node('pe_btn_save').parentElement=node('actions');
  const record={draftId:'new-id',revision:1,assignment:{},project:{},lastPublication:null};
- const context=vm.createContext({document:{getElementById:node},draftEditorRecord:record,draftEditorTargetWeekId:'W30',allWeeks:[{__documentId:'W30',weekLabel:'W30 2026',projects:[]}],currentRole:'admin',eligibleDraftWeeks:ui.eligibleDraftWeeks,canCurrentUser:()=>true,window:{},Option:class{constructor(label,value){this.value=value;}}});
+ const context=vm.createContext({document:{getElementById:node},draftEditorRecord:record,draftEditorTargetWeekId:'W30',allWeeks:[{__documentId:'W30',weekLabel:'W30 2026',projects:[]}],currentRole:'admin',eligibleDraftWeeks:ui.eligibleDraftWeeks,canCurrentUser:()=>true,window:{saveProjEdit:()=>{context.originalSaveCalls=(context.originalSaveCalls||0)+1;}},Option:class{constructor(label,value){this.value=value;}}});
  vm.runInContext(fn('configureDraftEditor')+'\n'+fn('serializeEditorState'),context);
  context.configureDraftEditor(true);const baseline=context.serializeEditorState(overlay);
  record.revision=2;record.lastPublication={draftRevision:2,weekOrder:202630,weekId:'W30'};context.configureDraftEditor(true);
  assert.equal(context.serializeEditorState(overlay),baseline);assert.equal(code.disabled,false);assert.equal(code.readOnly,true);
+ assert.equal(node('pe_btn_publish').disabled,true,'a published project missing from the target week cannot be recreated');
+ context.configureDraftEditor(false);assert.equal(node('pe_visibility').disabled,false);assert.equal(code.readOnly,false);assert.equal(node('pe_btn_publish').style.display,'none');
+ node('pe_btn_save').onclick();assert.equal(context.originalSaveCalls,1);
+});
+test('official management keeps all original Admin visibility choices outside Draft actions',async()=>{
+ for(const visibility of ['active','hidden','archived']){
+  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{style:{},value:'',disabled:false});return nodes.get(id);};let saved;
+  const context=vm.createContext({IS_UAT_PROFILE:true,currentUser:{uid:'admin'},currentRole:'admin',canCurrentUser:()=>true,authSessionGeneration:1,
+   allWeeks:[{__documentId:'W1',weekLabel:'W1 2026',projects:[{code:'OLD',name:'Existing',visibility:'active'}]}],document:{getElementById:node},projectRevisionFingerprint:()=> 'current-official',projectDashboardApi:{saveProject:async data=>{saved=data;}},closeModal(){},openAccessibleModal(){},showSaveToast(){}});
+  vm.runInContext(fn('openPublishedProjectActions'),context);context.openPublishedProjectActions('OLD','W1');node('projectVisibilitySelect').value=visibility;
+  node('projectVisibilityAction').onclick();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(saved.project.visibility,visibility);assert.equal(saved.expectedRevision,'current-official');assert.deepEqual(Object.keys(saved.project).sort(),['code','visibility']);
+ }
 });

@@ -1,3 +1,5 @@
+> Scope update (2026-10-15): [Archive scope restoration](2026-10-15-archive-scope-restoration.md) governs Archive and English UI. Archived projects retain their existing management/editor and authorization, outside Draft Publish. Active projects use **Save Draft** and **Save & Publish**. Historical Chinese-label acceptance below is superseded.
+
 # Unified project editing — user-directed revision
 
 User instruction (2026-10-14) replaces the previous new/legacy split: every editable new or existing project has two visible text buttons in the same editor: **存成草稿** and **存檔並發布**. PDF and Overview read the same official reporting data. This is the governing scope for PR #54, superseding contradictory clauses in the original Draft design/plan.

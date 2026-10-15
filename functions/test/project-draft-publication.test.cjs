@@ -41,3 +41,18 @@ test('persistent publication markers remain bounded across large weekly publicat
  assert.ok(Buffer.byteLength(JSON.stringify(stored))<200000);
  assert.match(stored.publicationTargets.W12.projectRevision,/^[a-f0-9]{64}$/);
 });
+
+test('an archived publication cannot be resurrected into an empty later week by either save action',async()=>{
+ let draft=await setup();await publish(draft);
+ state.docs.get('weeks/W1').projects[0].visibility='archived';
+ state.docs.set('weeks/W2',{weekLabel:'W2 2026',projects:[],version:1,isReleased:false});
+ const history=structuredClone(state.docs.get('weeks/W1'));
+ ({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,project:{progress:75}}));
+ assert.deepEqual(state.docs.get('weeks/W1'),history);
+ for(const actor of ['owner@example.com','admin@example.com']){
+  state.docs.set('users/admin@example.com',{role:'admin',displayName:'Admin'});
+  await assert.rejects(call('publishDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:draft.revision,project:{progress:85},weekId:'W2',expectedPublishedRevision:null},actor),reason('conflict'));
+ }
+ assert.deepEqual(state.docs.get('weeks/W1'),history);assert.deepEqual(state.docs.get('weeks/W2').projects,[]);
+ assert.equal(state.docs.get('projectDrafts/'+draft.draftId).project.progress,75);
+});
