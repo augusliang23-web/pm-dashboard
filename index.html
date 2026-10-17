@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -190,6 +190,16 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-danger:hover { background: #C77D7D; }
 .btn-ghost { font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; background: var(--s1); color: var(--text-light); }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
+
+/* @uat-only begin unified-project-save-style */
+#projEditOverlay .unified-project-header { flex-wrap:wrap; gap:12px; align-items:center; }
+#projEditOverlay .project-save-actions { flex-wrap:wrap; justify-content:flex-end; gap:10px !important; }
+#projEditOverlay #pe_btn_save, #projEditOverlay #pe_btn_publish { width:auto; min-width:120px; min-height:42px; height:auto; padding:10px 16px; white-space:nowrap; flex-shrink:0; }
+#projEditOverlay .project-publication-guide { display:grid; gap:10px; margin:0 0 20px; padding:14px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+#projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+#projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
+#projEditOverlay #projectDraftManage { justify-self:start; }
+/* @uat-only end unified-project-save-style */
 </style>
 <style id="uatButtonSystem" media="not all">
 /* v2.2T button system: text actions use .btn plus one semantic variant. */
@@ -2292,6 +2302,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label><input type="checkbox" value="project-portfolio" checked> Project portfolio</label>
         <label><input type="checkbox" value="resource-analytics" checked> Resource analytics</label>
         <label><input type="checkbox" value="budget-overview" checked> Budget overview</label>
+        <!-- @uat-only begin deliveryPerformanceOption -->
+        <label id="deliveryPerformanceOption" data-profile-only="uat" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> Portfolio delivery performance</label>
+        <!-- @uat-only end deliveryPerformanceOption -->
       </div>
       <div class="print-audience-field" id="executiveMilestoneAudienceField">
         <label for="executiveMilestoneAudienceView">Executive milestone visibility</label>
@@ -2391,6 +2404,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
       
+      <!-- @uat-only begin deliveryTrendsButton -->
+      <style>#btnDeliveryTrends { width:auto; padding:0 10px; gap:6px; font:700 11px 'Noto Sans TC',sans-serif; } @media (max-width:700px) { #btnDeliveryTrends .dt-nav-label { display:none; } #btnDeliveryTrends { padding:0; width:32px; } }</style>
+      <button class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends" onclick="toggleDeliveryTrends()" title="Delivery Trends" aria-label="Delivery Trends" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg><span class="dt-nav-label" aria-hidden="true">Trends</span>
+      </button>
+      <!-- @uat-only end deliveryTrendsButton -->
       <button class="btn-icon vip-hidden executive-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
@@ -2412,6 +2431,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="ganttWindowSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttWindowSettings()" title="PDF Gantt Display Window" aria-label="Manage PDF Gantt display window">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="14" y2="14"/></svg>
       </button>
+      <!-- @uat-only begin drafts-button -->
+      <button id="myDraftsBtn" type="button" class="btn btn-ghost" style="display:none" onclick="openMyDrafts()">My Drafts</button>
+      <!-- @uat-only end drafts-button -->
       <button id="userPermissionsBtn" class="btn-icon admin-only vip-hidden executive-hidden" style="display:none;" onclick="openUserPermissions()" title="User Permissions" aria-label="Manage user permissions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><circle cx="12" cy="10" r="2.5"/><path d="M8 16.5c.8-1.8 2.3-2.8 4-2.8s3.2 1 4 2.8"/></svg>
       </button>
@@ -2475,6 +2497,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="proj-grid" id="projGrid"></div>
   </div>
   <div id="execView" class="exec-view"></div>
+  <!-- @uat-only begin deliveryTrendsContainer -->
+  <div id="deliveryTrendsView" data-profile-only="uat" hidden style="display:none;" aria-label="Delivery Trends"></div>
+  <!-- @uat-only end deliveryTrendsContainer -->
 </div>
 
 <div class="overlay" id="projDetailOverlay" onclick="closeProjectOverlayFromBackdrop(event)">
@@ -3083,6 +3108,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script src="./professional-pdf-config.js"></script>
+<!-- @uat-only begin drafts-workspace -->
+<div class="overlay" id="myDraftsOverlay" role="dialog" aria-modal="true" aria-labelledby="myDraftsTitle">
+  <div class="modal" style="max-width:850px;max-height:90vh;overflow:auto">
+    <div class="modal-header"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
+    <p>Drafts remain available across weeks. Open the editor to Save Draft or Save & Publish.</p>
+    <button class="btn btn-ghost" type="button" id="newProjectDraftBtn" onclick="openNewProjectDraft()">New Project Draft</button>
+    <div id="myDraftsContent"></div>
+  </div>
+</div>
+<div class="overlay" id="publishedProjectActionsOverlay" role="dialog" aria-modal="true" aria-labelledby="publishedProjectActionsTitle">
+ <div class="modal" style="max-width:600px"><div class="modal-header"><h3 id="publishedProjectActionsTitle">Published project actions</h3><button class="modal-x" type="button" onclick="closeModal('publishedProjectActionsOverlay')" aria-label="Close published project actions">×</button></div>
+ <p id="publishedProjectActionsMessage" role="status"></p><label id="projectVisibilityLabel" for="projectVisibilitySelect">Project visibility</label><select class="fs" id="projectVisibilitySelect" aria-label="Project visibility"><option value="active">Active</option><option value="hidden">Hidden</option><option value="archived">Archived</option></select><button type="button" class="btn btn-ghost" id="projectVisibilityAction">Save Visibility</button><button type="button" class="btn btn-ghost" id="projectDeleteAction">Delete published project</button></div>
+</div>
+<!-- @uat-only end drafts-workspace -->
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
@@ -3097,6 +3136,12 @@ import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, rec
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
 import { buildSwitchRows, createUserPermissionsApi, describeAuditEntries, isPermissionConflict, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState, switchChange } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
+// @uat-only begin deliveryPdfImport
+import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";
+// @uat-only end deliveryPdfImport
+// @uat-only begin weekOrderImport
+import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";
+// @uat-only end weekOrderImport
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
@@ -3112,6 +3157,11 @@ import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
+// @uat-only begin draft-imports
+import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-scope-3";
+import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
+import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
+// @uat-only end draft-imports
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
@@ -3263,6 +3313,13 @@ let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
+// @uat-only begin draft-editor-state
+let draftEditorRecord;
+let draftOpening = false;
+let draftEditorOpenGeneration = 0;
+let draftEditorTargetWeekId = '';
+let draftEditorSaveIntent = 'draft';
+// @uat-only end draft-editor-state
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
 let projectEditorPdfSummaryLaneSeed = [];
@@ -4496,6 +4553,17 @@ function showDataLoadError__uat(error) {
     </div>`;
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+  // @uat-only begin deliveryTrendsErrorCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsErrorCleanup
 }
 // @profile-dispatcher
 function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
@@ -5392,6 +5460,17 @@ function quiesceDashboardForAuthTransition__uat() {
   allWeeks = [];
   currentIdx = -1;
   setDashboardAccessPending();
+  // @uat-only begin deliveryTrendsAuthCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsAuthCleanup
 }
 // @profile-dispatcher
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
@@ -5854,6 +5933,7 @@ function setupUI__uat() {
   updateMasterDataLists();
   refreshExecutivePendingCount();
   refreshFxRates();
+  if (typeof syncDraftWorkspace === 'function') syncDraftWorkspace();
 }
 // @profile-dispatcher
 function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__prod)(...args); }
@@ -6031,6 +6111,10 @@ function initData__uat(authGeneration, authUser) {
     weeksUnsub = null;
   }
 
+  // @uat-only begin deliveryTrendsRawHistoryReset
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  // @uat-only end deliveryTrendsRawHistoryReset
   const weeksRef = collection(db, "weeks");
   const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
@@ -6077,8 +6161,16 @@ function initData__uat(authGeneration, authUser) {
     window.render();
   });
 
-  weeksUnsub = onSnapshot(weeksQuery, snap => {
+  weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistorySnapshot
+    deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+    deliveryTrendsHistoryState = {
+      source: snap.docs.length ? 'uat' : 'synthetic',
+      complete: snap.metadata?.fromCache === false && snap.metadata?.hasPendingWrites === false,
+      asOf: new Date().toISOString()
+    };
+    // @uat-only end deliveryTrendsRawHistorySnapshot
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -6098,12 +6190,18 @@ function initData__uat(authGeneration, authUser) {
       });
       return normalizedWeek;
     });
-    if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
-    allWeeks = sortWeeksByLabel(fetchedWeeks);
+    const previouslySelectedWeekId = allWeeks?.[currentIdx]?.__documentId;
+    allWeeks = sortWeeksChronologically(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
-      currentIdx = allWeeks.length - 1;
+      // Default to the latest VALID ISO week; invalid labels are kept (last) but are never the default selection.
+      const latestValid = latestValidWeekIndex(allWeeks);
+      currentIdx = latestValid >= 0 ? latestValid : allWeeks.length - 1;
       jumpToLatestOnNextRender = false;
+    } else if (previouslySelectedWeekId) {
+      // Keep the user's selected stored week across snapshot refreshes (the array index can shift).
+      const keptIdx = allWeeks.findIndex(week => week.__documentId === previouslySelectedWeekId);
+      if (keptIdx >= 0) currentIdx = keptIdx;
     }
 
     if (currentIdx >= allWeeks.length) {
@@ -6122,6 +6220,10 @@ function initData__uat(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistoryError
+    deliveryTrendsRawWeeks = [];
+    deliveryTrendsHistoryState = { source: null, complete: false };
+    // @uat-only end deliveryTrendsRawHistoryError
     showDataLoadError(error);
   });
 }
@@ -9926,88 +10028,88 @@ const render__uat = () => {
     document.getElementById('projGrid').innerHTML = "";
     document.getElementById('execView').innerHTML = "";
     document.getElementById('topMetricsGrid').style.display = 'none';
-    return;
-  }
-
-  const sel = document.getElementById('wNavSelect');
-  if (sel) sel.value = currentIdx;
-
-  document.getElementById('bannerTitle').textContent = week.weekLabel;
-  const editorName = getUserDisplayName(week.lastModifiedBy);
-  document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
-    || (week.weekDate + " · Last edited by " + editorName);
-
-  const bannerPills = document.getElementById('bannerPills');
-  if (isVipPerspective()) {
-    bannerPills.innerHTML = ''; 
   } else {
-    const isReleased = isWeekReleased(week);
-    if (isReleased) {
-      bannerPills.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
-          <span style="color:var(--green); font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
-            <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Released
-          </span>
-          ${canManageWeekRelease() ? `
-            <div style="width:1px; height:12px; background:var(--border2);"></div>
-            <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
-          ` : ''}
-        </div>
-      `;
+    const sel = document.getElementById('wNavSelect');
+    if (sel) sel.value = currentIdx;
+
+    document.getElementById('bannerTitle').textContent = week.weekLabel;
+    const editorName = getUserDisplayName(week.lastModifiedBy);
+    document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
+      || (week.weekDate + " · Last edited by " + editorName);
+
+    const bannerPills = document.getElementById('bannerPills');
+    if (isVipPerspective()) {
+      bannerPills.innerHTML = ''; 
     } else {
-      bannerPills.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
-          <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
-          ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
-        </div>
-      `;
+      const isReleased = isWeekReleased(week);
+      if (isReleased) {
+        bannerPills.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
+            <span style="color:var(--green); font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
+              <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Released
+            </span>
+            ${canManageWeekRelease() ? `
+              <div style="width:1px; height:12px; background:var(--border2);"></div>
+              <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+            ` : ''}
+          </div>
+        `;
+      } else {
+        bannerPills.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
+            <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
+            ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
+          </div>
+        `;
+      }
     }
-  }
 
-  const allCurrentProjects = enrichProjectsPrototype(week.projects || []);
-  const roleVisibleProjects = getRoleVisibleProjectsForOverview(allCurrentProjects);
-  refreshPortfolioToolbar(roleVisibleProjects);
-  const portfolioToolbar = document.getElementById('portfolioToolbar');
-  portfolioToolbar.style.display = isOverview ? 'none' : 'flex';
+    const allCurrentProjects = enrichProjectsPrototype(week.projects || []);
+    const roleVisibleProjects = getRoleVisibleProjectsForOverview(allCurrentProjects);
+    refreshPortfolioToolbar(roleVisibleProjects);
+    const portfolioToolbar = document.getElementById('portfolioToolbar');
+    portfolioToolbar.style.display = isOverview ? 'none' : 'flex';
 
-  const overviewProjects = getOverviewProjects(roleVisibleProjects, overviewScope);
-  let portfolioProjects = roleVisibleProjects;
-  if (currentPMFilter !== 'all' && !isOverview) {
-    portfolioProjects = portfolioProjects.filter(p => p.owner === currentPMFilter);
-  }
-  portfolioProjects = filterProjects(portfolioProjects, getPortfolioFilters());
+    const overviewProjects = getOverviewProjects(roleVisibleProjects, overviewScope);
+    let portfolioProjects = roleVisibleProjects;
+    if (currentPMFilter !== 'all' && !isOverview) {
+      portfolioProjects = portfolioProjects.filter(p => p.owner === currentPMFilter);
+    }
+    portfolioProjects = filterProjects(portfolioProjects, getPortfolioFilters());
 
-  const metricProjects = isOverview ? overviewProjects : portfolioProjects;
-  const total = metricProjects.length;
-  const critical = metricProjects.filter(p => p.status === 'red').length;
-  const atRisk = metricProjects.filter(p => p.status === 'yellow').length;
-  const onTrack = total - critical - atRisk;
+    const metricProjects = isOverview ? overviewProjects : portfolioProjects;
+    const total = metricProjects.length;
+    const critical = metricProjects.filter(p => p.status === 'red').length;
+    const atRisk = metricProjects.filter(p => p.status === 'yellow').length;
+    const onTrack = total - critical - atRisk;
 
-  document.getElementById('m_total').textContent = total;
-  document.getElementById('m_critical').textContent = critical;
-  document.getElementById('m_atrisk').textContent = atRisk;
-  document.getElementById('m_ontrack').textContent = onTrack;
-  const showTopMetrics = !(isVipPerspective() || isOverview);
-  document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
+    document.getElementById('m_total').textContent = total;
+    document.getElementById('m_critical').textContent = critical;
+    document.getElementById('m_atrisk').textContent = atRisk;
+    document.getElementById('m_ontrack').textContent = onTrack;
+    const showTopMetrics = !(isVipPerspective() || isOverview);
+    document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
 
-  renderNormal(portfolioProjects);
-  renderExec(overviewProjects, week.summary, allCurrentProjects);
-  
-  if (isVipPerspective()) {
-    document.getElementById('normalView').style.display = 'none';
-    document.getElementById('execView').style.display = 'block';
-  } else {
-    document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
-    document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+    renderNormal(portfolioProjects);
+    renderExec(overviewProjects, week.summary, allCurrentProjects);
     
-    const btnOverview = document.getElementById('btnOverview');
-    if (isOverview) {
-      btnOverview.classList.add('active');
+    if (isVipPerspective()) {
+      document.getElementById('normalView').style.display = 'none';
+      document.getElementById('execView').style.display = 'block';
     } else {
-      btnOverview.classList.remove('active');
+      document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
+      document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+      
+      const btnOverview = document.getElementById('btnOverview');
+      if (isOverview) {
+        btnOverview.classList.add('active');
+      } else {
+        btnOverview.classList.remove('active');
+      }
     }
   }
+  syncDeliveryTrendsView();
 };
 // @profile-dispatcher
 window.render = (...args) => (IS_UAT_PROFILE ? render__uat : render__prod)(...args);
@@ -10133,6 +10235,18 @@ function renderNormal(projs) {
       openProjEdit(button.dataset.projectCode);
     });
   });
+  // @uat-only begin official-project-management
+  if (IS_UAT_PROFILE && !isReleased && (currentRole === 'admin' || canCurrentUser('project.manage'))) {
+    grid.querySelectorAll('.proj-card[data-project-code] .card-actions').forEach(actions => {
+      const card = actions.closest('.proj-card');
+      const manage = document.createElement('button');
+      manage.type = 'button'; manage.className = 'btn btn-ghost'; manage.textContent = 'Manage Project';
+      manage.onclick = event => { event.stopPropagation(); const week = allWeeks[currentIdx]; openPublishedProjectActions(card.dataset.projectCode, week.__documentId || week.weekLabel.replace(/\s+/g,'-')); };
+      manage.classList.add('no-print'); manage.style.alignSelf = 'flex-end'; manage.style.marginTop = '16px';
+      card.querySelector('.card-body').append(manage);
+    });
+  }
+  // @uat-only end official-project-management
 }
 
 function renderExec(projs, summary, allProjects = projs) {
@@ -10368,6 +10482,9 @@ function renderExec(projs, summary, allProjects = projs) {
 async function saveCurrentWeekQuietly(project, riskFields) {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || !project) return;
+  // @uat-only begin draft-risk-guard
+  if (IS_UAT_PROFILE) throw new Error('Open the project editor and choose Save Draft or Save & Publish.');
+  // @uat-only end draft-risk-guard
   assertCurrentWeekEditable(week);
   const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
   const result = await projectDashboardApi.saveProject({
@@ -10952,6 +11069,11 @@ function findCurrentProject(code) {
 }
 
 async function updateProjectAttention(code, attention) {
+  // @uat-only begin draft-attention-guard
+  if (IS_UAT_PROFILE && findCurrentProject(code)) {
+    showSaveToast('Update Attention in the project editor, then choose Save Draft or Save & Publish.'); render(); window.openProjEdit(code); return false;
+  }
+  // @uat-only end draft-attention-guard
   const selectedWeek = allWeeks[currentIdx];
   const selectedIndex = currentIdx;
   const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
@@ -11382,6 +11504,129 @@ window.setOverviewScope = scope => {
   }
   render();
 };
+// @uat-only begin deliveryTrendsView
+// Delivery Trends: an independent, UAT-only navigation destination. All metrics come from the shared engine via
+// js/delivery-trends-page.mjs; nothing here calculates progress. Production never shows the button or container.
+let deliveryTrendsRawWeeks = [];
+let deliveryTrendsHistoryState = { source: null, complete: false };
+let deliveryTrendsActive = false;
+let deliveryTrendsWindow = 6;
+let deliveryTrendsOwner = null;
+let deliveryTrendsModule = null;
+let deliveryTrendsLoading = null;
+
+function loadDeliveryTrendsModule() {
+  if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);
+  deliveryTrendsLoading = deliveryTrendsLoading || import('./js/delivery-trends-page.mjs').then(module => {
+    deliveryTrendsModule = module;
+    return module;
+  }).catch(error => {
+    deliveryTrendsLoading = null;
+    throw error;
+  });
+  return deliveryTrendsLoading;
+}
+
+function currentDeliveryTrendsState(windowWeeks = deliveryTrendsWindow) {
+  if (!deliveryTrendsModule) return { state: 'unavailable', reason: 'Delivery trends are still loading.' };
+  return deliveryTrendsModule.buildDeliveryTrendsState({
+    weeks: deliveryTrendsRawWeeks, currentIdx,
+    anchorWeekId: allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekId,
+    windowWeeks, overviewScope, role: currentRole,
+    historyComplete: deliveryTrendsHistoryState.complete,
+    executivePerspective: isDeliveryTrendsExecutive(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
+    source: deliveryTrendsHistoryState.source, asOf: deliveryTrendsHistoryState.asOf
+  });
+}
+
+// In the UAT profile isVipPerspective() is true only for an Admin previewing as Executive; a signed-in Executive (or
+// legacy VIP) is identified by role. Both are "executive-like" and never get Delivery Trends.
+function isDeliveryTrendsExecutive() {
+  return ['executive', 'vip'].includes(currentRole) || isVipPerspective();
+}
+
+function deliveryTrendsUserKey() {
+  return currentUser?.uid || getEmailKey(currentUser) || null;
+}
+
+function syncDeliveryTrendsView() {
+  if (!IS_UAT_PROFILE) return;
+  const view = document.getElementById('deliveryTrendsView');
+  const button = document.getElementById('btnDeliveryTrends');
+  if (!view) return;
+  // The shared .executive-hidden class does not hide controls for a signed-in Executive in the UAT profile, so the
+  // entry is hidden explicitly: Executive/VIP perspectives never get a Delivery Trends button.
+  if (button) button.style.display = isDeliveryTrendsExecutive() ? 'none' : '';
+  // Delivery Trends never survives an Overview switch, an Executive perspective, or a different signed-in user.
+  if (isOverview || isDeliveryTrendsExecutive() || deliveryTrendsOwner !== deliveryTrendsUserKey()) deliveryTrendsActive = false;
+  if (!deliveryTrendsActive) {
+    view.hidden = true;
+    view.style.display = 'none';
+    view.replaceChildren();
+    if (button) { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); }
+    return;
+  }
+  document.getElementById('normalView').style.display = 'none';
+  document.getElementById('execView').style.display = 'none';
+  document.getElementById('portfolioToolbar').style.display = 'none';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  view.hidden = false;
+  view.style.display = 'block';
+  if (button) { button.classList.add('active'); button.setAttribute('aria-pressed', 'true'); }
+  if (!deliveryTrendsModule) {
+    view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="status">Loading delivery trends…</div></div>';
+    loadDeliveryTrendsModule().then(() => { if (deliveryTrendsActive) syncDeliveryTrendsView(); })
+      .catch(() => { view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="alert">Delivery trends could not be loaded.</div></div>'; });
+    return;
+  }
+  deliveryTrendsModule.installDeliveryTrendsStyles(document);
+  view.innerHTML = deliveryTrendsModule.renderDeliveryTrendsPageHtml(currentDeliveryTrendsState(), { windowWeeks: deliveryTrendsWindow });
+}
+
+window.toggleDeliveryTrends = () => {
+  if (!IS_UAT_PROFILE || isDeliveryTrendsExecutive()) return;
+  deliveryTrendsActive = !deliveryTrendsActive;
+  deliveryTrendsOwner = deliveryTrendsUserKey();
+  if (deliveryTrendsActive) isOverview = false;
+  render();
+};
+
+window.setDeliveryTrendsWindow = weeks => {
+  deliveryTrendsWindow = Number(weeks) === 12 ? 12 : 6;
+  syncDeliveryTrendsView();
+};
+
+// PDF dialog support. (Browser-print integration is deferred: no user-accessible entry calls renderOverviewPrintReport.)
+function syncDeliveryPerformancePdfOption() {
+  const option = document.getElementById('deliveryPerformanceOption');
+  if (!option) return;
+  const available = isDeliveryPerformancePdfAvailable({ profile: IS_UAT_PROFILE ? 'uat' : 'production' });
+  option.hidden = !available;
+  option.style.display = available ? '' : 'none';
+  const input = option.querySelector('input');
+  if (!available && input) input.checked = false;
+}
+const baseOpenOverviewPrintDialog = window.openOverviewPrintDialog;
+window.openOverviewPrintDialog = () => {
+  baseOpenOverviewPrintDialog();
+  syncDeliveryPerformancePdfOption();
+};
+if (IS_UAT_PROFILE) loadDeliveryTrendsModule().catch(() => {});
+// @uat-only end deliveryTrendsView
+// @uat-only begin deliveryTrendsLogoutReset
+// Signing out (or any return to the login overlay) must not leave authorized Delivery Trends content in the page.
+if (IS_UAT_PROFILE) {
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (loginOverlay) {
+    new MutationObserver(() => {
+      if (getComputedStyle(loginOverlay).display === 'none') return;
+      deliveryTrendsActive = false;
+      deliveryTrendsOwner = null;
+      syncDeliveryTrendsView();
+    }).observe(loginOverlay, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
+}
+// @uat-only end deliveryTrendsLogoutReset
 // @uat-only begin toggleExecutivePreview
 window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;
@@ -12268,6 +12513,9 @@ function setProjectMutationControlsDisabled(disabled) {
     const control = document.getElementById(id);
     if (control) control.disabled = disabled;
   }
+  // @uat-only begin unified-project-save-controls
+  for (const id of ['pe_btn_publish','projectDraftTargetWeek','projectDraftManage']) { const control = document.getElementById(id); if (control) control.disabled = disabled; }
+  // @uat-only end unified-project-save-controls
 }
 
 function clearProjectMutationError() {
@@ -12335,14 +12583,32 @@ function invalidateProjectEditorSession() {
 }
 
 window.openProjEdit = (code, isNew = false) => {
-  const existingProject = allWeeks[currentIdx]?.projects.find(project => project.code === code);
+  let draftMode = false;
+  // @uat-only begin draft-open-route
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE) {
+    if (!draftOpening) {
+      if (isNew) return window.openNewProjectDraft();
+      const official = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+      const selectedWeek = allWeeks[currentIdx];
+      if (isWeekReleased(selectedWeek)) return;
+      const targetWeekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
+      if (official && official.visibility !== 'archived' && canEditProject(official)) {
+        if (official.publication?.draftId) return window.openManagedProjectDraft(official.publication.draftId, targetWeekId);
+        return window.openExistingProjectDraft(code, targetWeekId);
+      }
+      draftEditorRecord = undefined;
+    }
+    draftMode = draftOpening;
+  }
+  // @uat-only end draft-open-route
+  const existingProject = draftMode ? draftEditorRecord.project : allWeeks[currentIdx]?.projects.find(project => project.code === code);
   if (!isNew && !existingProject) return;
   if (isNew && !ganttTemplateSubscriptionReady) return;
-  const week = allWeeks[currentIdx];
+  const week = draftMode ? { projects: [existingProject], weekLabel: 'Draft', __documentId: 'draft-workspace' } : allWeeks[currentIdx];
   if (isWeekReleased(week)) return;
-  if (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage'))) return;
+  if (!draftMode && (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage')))) return;
   // A project.manage holder who may not edit this project (not its owner/deputy and not Admin) gets a delete-only editor.
-  const manageOnly = !isNew && !canEditProject(existingProject);
+  const manageOnly = !draftMode && !isNew && !canEditProject(existingProject);
   isCreatingNew = isNew;
   editingProjCode = code;
   clearProjectMutationError();
@@ -12463,6 +12729,9 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_details').open = isNew;
   openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
+  // @uat-only begin draft-editor-hydration
+  if (IS_UAT_PROFILE) configureDraftEditor(draftMode);
+  // @uat-only end draft-editor-hydration
 };
 
 function getEditorPortfolioValue(id, fallback = '') {
@@ -12583,6 +12852,12 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
+  // @uat-only begin draft-save-route
+  if (IS_UAT_PROFILE && draftEditorRecord !== undefined) {
+    await saveEditorProjectDraft(pData, session);
+    return;
+  }
+  // @uat-only end draft-save-route
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -13664,6 +13939,199 @@ window.toggleVipPreview = () => {
   render();
 };
 // @prod-only end toggleVipPreview
+
+// @uat-only begin draft-workspace-wiring
+const projectDraftsApi = createProjectDraftsApi({ functions, httpsCallable });
+let draftWorkspaceUi;
+const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { draftWorkspaceUi?.render(state); if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
+if (IS_UAT_PROFILE) {
+  draftWorkspaceUi = mountProjectDraftsUi({
+    root: document.getElementById('myDraftsContent'), controller: draftController,
+    getWeeks: () => allWeeks,
+    onEdit: draft => beginDraftEditor(draft),
+    onPublished: async () => { render(); }
+  });
+  onAuthStateChanged(auth, () => {
+    draftController.reset(); draftEditorRecord = undefined; draftEditorTargetWeekId = ''; draftEditorSaveIntent = 'draft'; ++draftEditorOpenGeneration;
+    document.getElementById('myDraftsOverlay')?.classList.remove('open');
+    document.getElementById('publishedProjectActionsOverlay')?.classList.remove('open');
+    document.getElementById('myDraftsBtn').style.display = 'none';
+  });
+}
+function syncDraftWorkspace() {
+  if (!IS_UAT_PROFILE) return;
+  const allowed = currentUser && ['admin', 'pm'].includes(currentRole);
+  draftController.setIdentity(allowed ? { uid: currentUser.uid, email: getEmailKey(currentUser), role: currentRole } : null);
+  document.getElementById('myDraftsBtn').style.display = allowed ? '' : 'none';
+  document.getElementById('newProjectDraftBtn').style.display = canCurrentUser('project.manage') ? '' : 'none';
+}
+window.openMyDrafts = async () => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  if (!currentUser || !['admin','pm'].includes(currentRole)) return;
+  openAccessibleModal(document.getElementById('myDraftsOverlay'));
+  try { await draftController.refresh(); } catch {} // State shows the actual error; no demo fallback.
+};
+window.openNewProjectDraft = async () => {
+  if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
+  syncDraftWorkspace();
+  const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
+  await beginDraftEditor({ draftId:crypto.randomUUID(), revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
+};
+window.openManagedProjectDraft = async (draftId, targetWeekId) => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.open(draftId); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, targetWeekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+};
+window.openExistingProjectDraft = async (projectCode, weekId) => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.openSource({weekId,projectCode}); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, weekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+};
+async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) {
+  const uid = currentUser?.uid, email = getEmailKey(currentUser);
+  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = expectedOpeningGeneration ?? ++draftEditorOpenGeneration;
+  if (!currentUser || !['admin','pm'].includes(role)) return;
+  let options = [];
+  if (currentRole === 'admin') {
+    const users = await getDocs(collection(db, 'users'));
+    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
+  }
+  if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
+  closeModal('myDraftsOverlay', { force:true });
+  draftEditorRecord = draft; draftEditorSaveIntent = 'draft';
+  draftEditorTargetWeekId = targetWeekId || draft.source?.weekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  draftOpening = true;
+  try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
+  if (currentRole === 'admin') {
+    for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
+      const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
+      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
+      select.value = draft.assignment[key] || '';
+    }
+  }
+  captureEditorBaseline(document.getElementById('projEditOverlay'));
+}
+function configureDraftEditor(draftMode) {
+  const save = document.getElementById('pe_btn_save');
+  const overlay = document.getElementById('projEditOverlay');
+  let publish = document.getElementById('pe_btn_publish');
+  let banner = document.getElementById('projectDraftPublicationStatus');
+  if (!draftMode) {
+    save.textContent = 'Save Project'; save.className = 'btn btn-primary'; save.title = 'Save Project';
+    save.setAttribute('aria-label','Save Project'); save.onclick = () => window.saveProjEdit();
+    document.getElementById('pe_visibility').disabled = false;
+    document.getElementById('pe_code').readOnly = false;
+    if(publish)publish.style.display = 'none';
+    if(banner)banner.style.display = 'none';
+    return;
+  }
+  const record = draftEditorRecord;
+  document.getElementById('peTitle').textContent = 'Edit Project';
+  overlay.querySelector('.modal-hdr').classList.add('unified-project-header');
+  save.parentElement.classList.add('project-save-actions');
+  save.className = 'btn btn-ghost'; save.textContent = 'Save Draft'; save.title = 'Save working content without updating Overview or PDF';
+  save.setAttribute('aria-label','Save Draft'); save.onclick = () => window.saveDraftProject();
+  if (!publish) {
+    publish = document.createElement('button'); publish.id = 'pe_btn_publish'; publish.type = 'button'; publish.className = 'btn btn-primary';
+    publish.textContent = 'Save & Publish'; publish.setAttribute('aria-label','Save & Publish'); publish.onclick = () => window.saveAndPublishProjectDraft(); save.after(publish);
+  }
+  save.style.display = ''; publish.style.display = '';
+  if (!banner) {
+    banner = document.createElement('section'); banner.id = 'projectDraftPublicationStatus'; banner.className = 'project-publication-guide';
+    const status = document.createElement('div'); status.id = 'projectDraftStatus'; status.setAttribute('role','status'); banner.append(status);
+    const help = document.createElement('div'); help.textContent = 'Save Draft keeps working content private to authorized editors. Save & Publish updates Overview and PDF with the same official content.'; banner.append(help);
+    const label = document.createElement('label'); label.textContent = 'Publish to week: ';
+    const select = document.createElement('select'); select.id = 'projectDraftTargetWeek'; select.className = 'fs'; select.setAttribute('aria-label','Publish to week'); select.dataset.editorIgnoreDirty = 'true'; label.append(select); banner.append(label);
+    overlay.querySelector('.modal-hdr').after(banner);
+    overlay.addEventListener('input',event=>{if(event.target.id !== 'projectDraftTargetWeek' && draftEditorRecord)document.getElementById('projectDraftStatus').textContent = 'Unsaved changes. Choose a save action.';});
+  }
+  banner.style.display = '';
+  const select = document.getElementById('projectDraftTargetWeek');
+  const weeks = eligibleDraftWeeks(allWeeks,record); select.replaceChildren();
+  for (const week of weeks) select.add(new Option(week.label,week.id));
+  if (weeks.some(week=>week.id===draftEditorTargetWeekId)) select.value = draftEditorTargetWeekId;
+  else select.value = weeks.at(-1)?.id || '';
+  draftEditorTargetWeekId = select.value;
+  const canPublish = () => {
+    const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===select.value);
+    const live = target?.projects?.find(project=>project.publication?.draftId===record.draftId || (record.source?.weekId===select.value && project.code===record.source.projectCode));
+    return Boolean(target) && (!record.lastPublication || Boolean(live)) && record.project.visibility !== 'archived' && (!live?.visibility || live.visibility==='active') && (currentRole==='admin' || record.lastPublication || canCurrentUser('project.manage'));
+  };
+  publish.disabled = !canPublish(); select.onchange = () => {draftEditorTargetWeekId=select.value;publish.disabled=!canPublish();};
+  document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'No eligible reporting week. You can still Save Draft.' : record.lastPublication?.draftRevision === record.revision ? 'Saved content is published. Save new changes as a draft when needed.' : record.lastPublication ? 'Unpublished draft changes. Overview and PDF retain the last published content.' : 'New project not yet published or included in Overview or PDF.';
+  if(record.revision===0 && !record.source)document.getElementById('pe_details').open = true;
+  document.getElementById('pe_code').disabled = false;
+  document.getElementById('pe_code').readOnly = Boolean(record.lastPublication);
+  for(const id of ['pe_owner','pe_deputy'])document.getElementById(id).disabled = currentRole !== 'admin';
+  document.getElementById('pe_visibility').disabled = true;
+  document.getElementById('pe_btn_delete').style.display = 'none';
+  document.getElementById('adminProjActions').style.display = 'none';
+}
+window.saveDraftProject = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'draft'; await window.saveProjEdit();
+};
+window.saveAndPublishProjectDraft = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'publish'; await window.saveProjEdit();
+};
+async function saveEditorProjectDraft(project, session) {
+  const record = draftEditorRecord;
+  if (!record || !isProjectEditorSessionCurrent(session)) return;
+  const publishing = draftEditorSaveIntent === 'publish';
+  const weekId = document.getElementById('projectDraftTargetWeek')?.value || draftEditorTargetWeekId;
+  const week = allWeeks.find(item=>(item.__documentId || item.weekLabel.replace(/\s+/g,'-'))===weekId);
+  if(publishing && !week){showProjectMutationError(null,'No eligible reporting week. You can still Save Draft.');return;}
+  let assignment;
+  if(currentRole==='admin'){
+    const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+    if((record.revision===0 && !record.source) || selected.ownerEmail!==record.assignment.ownerEmail || selected.deputyEmail!==record.assignment.deputyEmail)assignment=selected;
+  }
+  const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
+  const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
+  clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
+  try {
+    const result = publishing ? await draftController.publish(input) : await draftController.save(input);
+    if (!result || !isProjectEditorSessionCurrent(session)) return;
+    draftEditorRecord = result.draft;
+    projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
+    document.getElementById('projEditOverlay').dataset.editorBaseline = submittedBaseline;
+    showSaveToast(publishing?'Saved and published. Overview and PDF use this official content.':'Draft saved. Overview and PDF are unchanged.');
+  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,publishing?'Save & Publish failed. Your input remains in the editor.':'Draft was not saved. Your input remains in the editor.'); }
+  finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
+}
+function openPublishedProjectActions(projectCode, weekId) {
+  if (!IS_UAT_PROFILE || !currentUser || (currentRole !== 'admin' && !canCurrentUser('project.manage'))) return;
+  const week = allWeeks.find(w => (w.__documentId || w.weekLabel.replace(/\s+/g,'-')) === weekId);
+  const project = week?.projects?.find(p => p.code === projectCode);
+  if (!project || week.isReleased === true) { showSaveToast('Select an unpublished week containing this project.'); return; }
+  const authGeneration = authSessionGeneration;
+  const revision = project.__revisionFingerprint || projectRevisionFingerprint(project);
+  const message = document.getElementById('publishedProjectActionsMessage');
+  message.textContent = `${project.name} · ${week.weekLabel}. These actions affect the published project. Lifecycle actions are separate from Draft and Publish.`;
+  const visibility = document.getElementById('projectVisibilityAction'), remove = document.getElementById('projectDeleteAction');
+  visibility.style.display = currentRole === 'admin' ? '' : 'none';
+  remove.style.display = canCurrentUser('project.manage') ? '' : 'none';
+  const selection = document.getElementById('projectVisibilitySelect');
+  selection.value = project.visibility || 'active';
+  selection.style.display = currentRole === 'admin' ? '' : 'none';
+  document.getElementById('projectVisibilityLabel').style.display = selection.style.display;
+  async function mutate(operation) {
+    visibility.disabled = true; remove.disabled = true; selection.disabled = true;
+    try { await operation(); if (authGeneration === authSessionGeneration) { closeModal('publishedProjectActionsOverlay',{force:true}); showSaveToast('Published project action saved.'); } }
+    catch(error) { if (authGeneration === authSessionGeneration) message.textContent = error.message || 'Action failed. No successful change was confirmed.'; }
+    finally { visibility.disabled = false; remove.disabled = false; selection.disabled = false; }
+  }
+  visibility.onclick = () => { if (currentRole !== 'admin') return; mutate(() => projectDashboardApi.saveProject({weekId,originalCode:project.code,projectCode:project.code,project:{code:project.code,visibility:selection.value},expectedRevision:revision})); };
+  remove.onclick = () => { if (!canCurrentUser('project.manage') || !confirm('Permanently delete this project from this reporting week?')) return; mutate(() => projectDashboardApi.deleteProject({weekId,originalCode:project.code})); };
+  openAccessibleModal(document.getElementById('publishedProjectActionsOverlay'));
+}
+// @uat-only end draft-workspace-wiring
 </script>
 </body>
 </html>

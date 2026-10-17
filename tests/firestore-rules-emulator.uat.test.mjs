@@ -502,4 +502,20 @@ test('week.release and project.manage overrides never grant draft-week reads (no
   const holder = auth('engineering-release-uid', 'engineering-release@example.com');
   await assertFails(setDoc(doc(holder, 'userPermissions/engineering-release@example.com'), { overrides: { 'week.release': false, 'gantt.manage': true } }));
 });
+
+test('drafts and publication audit cannot be accessed directly by any client role', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'projectDrafts/private'), { editorEmails: ['owner@example.com'], project: { progress: 100 } });
+    await setDoc(doc(context.firestore(), 'projectDraftPublicationAudit/private'), { draftId: 'private' });
+  });
+  for (const email of ['admin@example.com', 'owner@example.com', 'other@example.com', 'vip@example.com']) {
+    const client = environment.authenticatedContext(email, { email }).firestore();
+    for (const collectionName of ['projectDrafts', 'projectDraftPublicationAudit']) {
+      await assertFails(getDoc(doc(client, collectionName, 'private')));
+      await assertFails(getDocs(collection(client, collectionName)));
+      await assertFails(setDoc(doc(client, collectionName, 'forged'), { project: {} }));
+    }
+  }
+});
+
 }

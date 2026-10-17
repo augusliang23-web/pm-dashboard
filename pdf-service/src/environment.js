@@ -70,7 +70,8 @@ export function resolveRuntimeTarget(environment = process.env, registry = loadT
     allowedOrigins: Object.freeze([...target.allowedOrigins]),
     features: Object.freeze({
       liveExecutiveTimeline: target.features?.liveExecutiveTimeline === true,
-      projectBriefUpdateSections: target.features?.projectBriefUpdateSections === true
+      projectBriefUpdateSections: target.features?.projectBriefUpdateSections === true,
+      deliveryPerformanceSection: name === 'uat' && target.features?.deliveryPerformanceSection === true
     })
   });
 }
