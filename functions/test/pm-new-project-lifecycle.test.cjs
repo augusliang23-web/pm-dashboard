@@ -26,4 +26,6 @@ test('PM without project.manage: new project Save Draft -> relogin -> resume -> 
  await assert.rejects(call('saveDashboardProjectDraft',{draftId:'pm-new-1',expectedRevision:2,project:{progress:99}},'other@example.com'),reason('draft-forbidden'));
  const result=await call('publishDashboardProjectDraft',{draftId:'pm-new-1',expectedRevision:2,weekId:'W1',expectedPublishedRevision:null});
  assert.ok(result.publishedAt);assert.ok(state.docs.get('weeks/W1').projects.some(p=>p.code==='PM-NEW'));
+ // 6. After publishing, the draft is recorded as published (the Dashboard Draft label disappears) and is still reachable
+ const after=(await call('getDashboardProjectDraft',{draftId:'pm-new-1'})).draft;assert.equal(after.lastPublication.draftRevision,after.revision);assert.equal(after.project.owner,'Owner');   // owner assigned by the server from the signed-in PM
 });

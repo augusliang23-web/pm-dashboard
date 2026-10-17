@@ -9,6 +9,14 @@ export function eligibleDraftWeeks(weeks,draft){
     return match && Number(match[1])>=1 && Number(match[1])<=53 && Number(match[2])*100+Number(match[1])>=draft.lastPublication.weekOrder;
   }).map(w=>({id:w.__documentId||w.weekLabel.replace(/\s+/g,'-'),label:w.weekLabel}));
 }
+// Publish always targets the latest applicable reporting week: the last week the existing eligibility rules allow (never a released or historical week).
+export function latestPublishWeekId(weeks,draft){return eligibleDraftWeeks(weeks,draft).at(-1)?.id||'';}
+export function draftNeedsPublish(draft){return draftPublicationState(draft)!=='Published';}
+const emailOf=value=>String(value||'').trim().toLowerCase();
+// Server lists only the caller's drafts (Admin: all); the dashboard additionally shows only drafts the viewer authors or is assigned to.
+export function visibleDraftsFor(drafts,email){const me=emailOf(email);return (drafts||[]).filter(d=>d&&((d.editorEmails||[]).some(e=>emailOf(e)===me)||emailOf(d.createdBy)===me));}
+export function newProjectDrafts(drafts,email,weeks,currentWeekId){return visibleDraftsFor(drafts,email).filter(d=>!d.source&&!d.lastPublication&&latestPublishWeekId(weeks,d)===currentWeekId);}
+export function draftForProject(drafts,email,weekId,project){return visibleDraftsFor(drafts,email).find(d=>draftNeedsPublish(d)&&(d.source||d.lastPublication)&&(project?.publication?.draftId===d.draftId||(d.source?.weekId===weekId&&d.source?.projectCode===project?.code)))||null;}
 export function buildDraftPublicationInput(draft,weekId,week) {
   const target=week?.projects?.find(p=>p.publication?.draftId===draft.draftId || (draft.source?.weekId===weekId && p.code===draft.source.projectCode && !p.publication?.draftId));
   return {draftId:draft.draftId,expectedRevision:draft.revision,weekId,expectedPublishedRevision:target?(target.__revisionFingerprint || projectRevisionFingerprint(target)):null};
