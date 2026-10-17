@@ -1,0 +1,958 @@
+# PR54 UAT recovery watchdog -- DRAFT v3 for review.
+# NOT compiled, NOT deployed, NOT executed. Reference behaviour: v3/coordinator_v3.py + cloud_run_rollback.py.
+# Sole writer of coord/active.json (generation-CAS). Server-origin time only (sys.now()).
+# Rollback to the pre-recorded baseline = Cloud Run traffic pin (updateMask=traffic) + Hosting/Rules pointer restore.
+# No Cloud Build is launched here; no IAM policy, Functions API, source build or Firestore data call exists in this file.
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - project: "pm-dashboard-uat-20260820-a7f3"
+          - region: "us-central1"
+          - source_sha: "4be45fb07dfc6656fcfebedb4874e2488b41e801"
+          - bucket: "pm-dashboard-uat-20260820-a7f3-pr54-recovery"
+          - owner: ${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
+          - errors: 0
+    - validate_args:
+        switch:
+          - condition: ${args.source != source_sha}
+            raise: "SOURCE_MISMATCH"
+          - condition: ${not(text.match_regex(args.release_id, "^[a-z0-9-]{4,64}$"))}
+            raise: "BAD_RELEASE_ID"
+    - load_manifest:
+        call: gcs_read
+        args:
+          bucket: ${bucket}
+          object: ${"manifests/" + args.release_id + ".json"}
+          generation: ${args.manifest_generation}
+        result: manifest
+    - bind_manifest:
+        switch:
+          - condition: ${manifest.doc.manifest_hash != args.manifest_hash or manifest.doc.baseline_hash != args.baseline_hash}
+            raise: "MANIFEST_BINDING_MISMATCH"
+    - arm:
+        call: arm_release
+        args:
+          bucket: ${bucket}
+          owner: ${owner}
+          args: ${args}
+          project: ${project}
+          source_sha: ${source_sha}
+        result: armed
+    - loop:
+        try:
+          call: tick_once
+          args:
+            bucket: ${bucket}
+            owner: ${owner}
+            args: ${args}
+            project: ${project}
+            region: ${region}
+            manifest: ${manifest.doc}
+          result: status
+        except:
+          as: e
+          steps:
+            # Never stop supervising on a transient or unexplained error: the loop keeps enforcing deadlines.
+            # Only a lost-ownership signal (another execution owns the release) is fatal.
+            - stale_is_fatal:
+                switch:
+                  - condition: ${e == "STALE_OWNER"}
+                    raise: ${e}
+            - log_error:
+                call: sys.log
+                args:
+                  severity: "CRITICAL"
+                  # Sanitized: HTTP status code only; never the response body or raw error text.
+                  text: ${"PR54_WATCHDOG_TICK_ERROR code=" + string(default(map.get(e, "code"), "none"))}
+            - count_error:
+                assign:
+                  - errors: ${errors + 1}
+                  - status: "ERROR"
+    - finished:
+        switch:
+          - condition: ${status == "TERMINAL"}
+            return: "TERMINAL"
+    - pause:
+        call: sys.sleep
+        args:
+          seconds: 10
+    - again:
+        next: loop
+
+# ------------------------------------------------------------------ arm / tick
+arm_release:
+  params: [bucket, owner, args, project, source_sha]
+  steps:
+    - assemble:
+        assign:
+          - start: ${sys.now()}
+          - doc:
+              schema: 3
+              project: ${project}
+              source: ${source_sha}
+              release_id: ${args.release_id}
+              nonce: ${args.nonce}
+              owner: ${owner}
+              manifest_hash: ${args.manifest_hash}
+              baseline_hash: ${args.baseline_hash}
+              start: ${start}
+              target: ${start + 1800}
+              forward_stop: ${start + 2700}
+              hard: ${start + 3600}
+              mode: "ACTIVE"
+              accepted: false
+              incident: false
+              inflight: null
+              operator_hold: null
+              completed: []
+              events: []
+              previous: null
+    - create_if_absent:
+        try:
+          call: gcs_cas
+          args:
+            bucket: ${bucket}
+            object: "coord/active.json"
+            generation: 0
+            doc: ${doc}
+          result: created
+          # ifGenerationMatch=0: succeeds only when no coordinator exists.
+        except:
+          as: e
+          steps:
+            - resume_only_if_identical:
+                call: gcs_read
+                args:
+                  bucket: ${bucket}
+                  object: "coord/active.json"
+                  generation: null
+                result: existing
+            - verify_identity:
+                switch:
+                  - condition: ${existing.doc.owner != owner or existing.doc.release_id != args.release_id or existing.doc.manifest_hash != args.manifest_hash or existing.doc.baseline_hash != args.baseline_hash}
+                    raise: "STALE_OWNER"
+    - done:
+        return: "ARMED"
+
+tick_once:
+  params: [bucket, owner, args, project, region, manifest]
+  steps:
+    - read:
+        call: gcs_read
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: null
+        result: cur
+    - bind:
+        assign:
+          - doc: ${cur.doc}
+          - gen: ${cur.generation}
+          - now: ${sys.now()}
+    - owner_check:
+        switch:
+          - condition: ${doc.owner != owner or doc.release_id != args.release_id or doc.manifest_hash != args.manifest_hash}
+            raise: "STALE_OWNER"
+    - terminal_check:
+        switch:
+          - condition: ${doc.mode == "SUCCEEDED" or doc.mode == "ROLLED_BACK"}
+            return: "TERMINAL"
+    - hard_deadline:
+        switch:
+          - condition: ${now >= doc.hard and not(doc.incident)}
+            steps:
+              - flag_incident:
+                  call: set_flag
+                  args:
+                    bucket: ${bucket}
+                    gen: ${gen}
+                    doc: ${doc}
+                    kind: "RECOVERY_DEADLINE_EXCEEDED"
+                  result: doc_after
+              - alert:
+                  call: sys.log
+                  args:
+                    severity: "CRITICAL"
+                    text: "PR54_RECOVERY_DEADLINE_EXCEEDED operator required"
+              - done_incident:
+                  return: "INCIDENT"
+    - inflight_check:
+        switch:
+          - condition: ${doc.inflight != null}
+            steps:
+              - reconcile_now:
+                  call: reconcile
+                  args:
+                    bucket: ${bucket}
+                    gen: ${gen}
+                    doc: ${doc}
+                    now: ${now}
+                    project: ${project}
+                    region: ${region}
+                    manifest: ${manifest}
+                  result: r
+              - reconciled:
+                  return: ${r}
+    - hold_check:
+        switch:
+          - condition: ${doc.operator_hold != null}
+            return: "HELD"
+    - active_branch:
+        switch:
+          - condition: ${doc.mode == "ACTIVE"}
+            steps:
+              - past_target:
+                  switch:
+                    - condition: ${now >= doc.target or now >= doc.forward_stop}
+                      steps:
+                        - request_rollback:
+                            call: request_rollback
+                            args:
+                              bucket: ${bucket}
+                              gen: ${gen}
+                              doc: ${doc}
+                              kind: "MISSING_VERIFIED_SUCCESS_AT_DEADLINE"
+                        - requested:
+                            return: "ROLLBACK_REQUESTED"
+              - forward_acceptance:
+                  call: try_accept_forward
+                  args:
+                    bucket: ${bucket}
+                    gen: ${gen}
+                    doc: ${doc}
+                    now: ${now}
+                    project: ${project}
+                    region: ${region}
+                    manifest: ${manifest}
+                  result: accepted
+              - active_done:
+                  return: ${accepted}
+    - rollback_branch:
+        call: advance_rollback
+        args:
+          bucket: ${bucket}
+          gen: ${gen}
+          doc: ${doc}
+          now: ${now}
+          project: ${project}
+          region: ${region}
+          manifest: ${manifest}
+        result: advanced
+    - out:
+        return: ${advanced}
+
+# ------------------------------------------------------------------ rollback sequencing
+advance_rollback:
+  params: [bucket, gen, doc, now, project, region, manifest]
+  steps:
+    - order:
+        assign:
+          - rollback_steps: ["restore_hosting", "restore_save", "restore_attention", "restore_rules", "remove_new_drafts", "reopen_legacy", "verify_legacy_authenticated"]
+          - next_step: null
+    - pick:
+        for:
+          value: s
+          in: ${rollback_steps}
+          steps:
+            - not_done:
+                switch:
+                  - condition: ${next_step == null and not(text.match_regex(string(doc.completed), "rollback:" + s))}
+                    assign:
+                      - next_step: ${s}
+    - none_left:
+        switch:
+          - condition: ${next_step == null}
+            return: "NO_STEP"
+    - claim:
+        # Sole writer: a CAS conflict (412) here means another writer exists -> tick fails closed, re-reads, never executes.
+        call: claim_step
+        args:
+          bucket: ${bucket}
+          gen: ${gen}
+          doc: ${doc}
+          now: ${now}
+          step: ${next_step}
+        result: claimed
+    - execute:
+        call: execute_step
+        args:
+          bucket: ${bucket}
+          project: ${project}
+          region: ${region}
+          manifest: ${manifest}
+          step: ${next_step}
+          action_id: ${claimed.action_id}
+        result: executed
+    - out:
+        return: "SUBMITTED"
+
+claim_step:
+  params: [bucket, gen, doc, now, step]
+  steps:
+    - build:
+        assign:
+          - action_id: ${"rollback:" + doc.release_id + ":" + step}
+          - inflight:
+              action_id: ${action_id}
+              direction: "rollback"
+              step: ${step}
+              operation: null
+              pre_etag: null
+              intent_at: ${now}
+          - doc.inflight: ${inflight}
+          - doc.mode: "ROLLING_BACK"
+    - persist:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${gen}
+          doc: ${doc}
+    - out:
+        return:
+          action_id: ${action_id}
+
+execute_step:
+  params: [bucket, project, region, manifest, step, action_id]
+  steps:
+    - dispatch:
+        switch:
+          - condition: ${step == "restore_save" or step == "restore_attention"}
+            steps:
+              - traffic:
+                  call: pin_cloud_run_traffic
+                  args:
+                    bucket: ${bucket}
+                    project: ${project}
+                    region: ${region}
+                    manifest: ${manifest}
+                    step: ${step}
+                    action_id: ${action_id}
+              - traffic_done:
+                  return: "OK"
+          - condition: ${step == "restore_hosting"}
+            steps:
+              - live_now:
+                  call: http.get
+                  args:
+                    url: ${"https://firebasehosting.googleapis.com/v1beta1/sites/" + manifest.baseline.hosting_site + "/channels/live"}
+                    auth:
+                      type: OAuth2
+                    timeout: 30
+                  result: live_channel
+              - hosting_already_baseline:
+                  switch:
+                    - condition: ${live_channel.body.release.version.name == "sites/" + manifest.baseline.hosting_site + "/versions/" + manifest.baseline.hosting_version}
+                      return: "NOOP"
+              - hosting:
+                  call: http.post
+                  args:
+                    url: ${"https://firebasehosting.googleapis.com/v1beta1/sites/" + manifest.baseline.hosting_site + "/releases?versionName=sites/" + manifest.baseline.hosting_site + "/versions/" + manifest.baseline.hosting_version}
+                    auth:
+                      type: OAuth2
+                    timeout: 60
+                    body:
+                      type: "DEPLOY"
+                      message: ${"pr54-rollback:" + action_id}
+              - hosting_done:
+                  return: "OK"
+          - condition: ${step == "restore_rules"}
+            steps:
+              - rules_now:
+                  call: http.get
+                  args:
+                    url: ${"https://firebaserules.googleapis.com/v1/projects/" + project + "/releases/cloud.firestore"}
+                    auth:
+                      type: OAuth2
+                    timeout: 30
+                  result: rules_current
+              - rules_already_baseline:
+                  switch:
+                    - condition: ${rules_current.body.rulesetName == "projects/" + project + "/rulesets/" + manifest.baseline.ruleset}
+                      return: "NOOP"
+              - rules:
+                  call: http.request
+                  args:
+                    method: PATCH
+                    url: ${"https://firebaserules.googleapis.com/v1/projects/" + project + "/releases/cloud.firestore"}
+                    auth:
+                      type: OAuth2
+                    timeout: 60
+                    body:
+                      release:
+                        name: ${"projects/" + project + "/releases/cloud.firestore"}
+                        rulesetName: ${"projects/" + project + "/rulesets/" + manifest.baseline.ruleset}
+                      updateMask: "rulesetName"
+              - rules_done:
+                  return: "OK"
+    # remove_new_drafts, reopen_legacy, verify_legacy_authenticated: no mutating call. They are verified in reconcile().
+    - nothing_to_submit:
+        return: "VERIFY_ONLY"
+
+pin_cloud_run_traffic:
+  params: [bucket, project, region, manifest, step, action_id]
+  steps:
+    - target:
+        assign:
+          - svc: ${manifest.baseline.services[step]}
+          - name: ${"projects/" + project + "/locations/" + region + "/services/" + svc.service}
+    - read_revision:
+        call: http.get
+        args:
+          url: ${"https://run.googleapis.com/v2/" + name + "/revisions/" + svc.revision}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: rev
+    - read_service:
+        call: http.get
+        args:
+          url: ${"https://run.googleapis.com/v2/" + name}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: current
+    - preflight:
+        # Field-wise subset of the Python fingerprint; full-template equality is proven by the pre-arm adapter check (G2).
+        switch:
+          - condition: ${default(map.get(rev.body.containers[0], "image"), "") != svc.image or rev.body.serviceAccount != svc.service_account or current.body.ingress != svc.ingress or default(map.get(current.body, "invokerIamDisabled"), false) != svc.invoker_iam_disabled}
+            steps:
+              - hold_drift:
+                  call: set_hold
+                  args:
+                    bucket: ${bucket}
+                    action_id: ${action_id}
+                    reason: "DRIFT"
+              - drift_stop:
+                  raise: "BASELINE_DRIFT"
+    - already_at_baseline:
+        # Idempotent: nothing is submitted when traffic is already 100% on the baseline revision and settled.
+        switch:
+          - condition: ${len(current.body.traffic) == 1 and current.body.traffic[0].revision == svc.revision and current.body.traffic[0].percent == 100 and not(default(map.get(current.body, "reconciling"), false))}
+            return: "NOOP"
+    - validate_only:
+        call: http.request
+        args:
+          method: PATCH
+          url: ${"https://run.googleapis.com/v2/" + name + "?updateMask=traffic&validateOnly=true"}
+          auth:
+            type: OAuth2
+          timeout: 30
+          body:
+            name: ${name}
+            etag: ${current.body.etag}
+            traffic:
+              - type: "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
+                revision: ${svc.revision}
+                percent: 100
+    - persist_precondition:
+        call: update_inflight
+        args:
+          bucket: ${bucket}
+          action_id: ${action_id}
+          field: "pre_etag"
+          value: ${current.body.etag}
+    - mutate:
+        call: http.request
+        args:
+          method: PATCH
+          url: ${"https://run.googleapis.com/v2/" + name + "?updateMask=traffic"}
+          auth:
+            type: OAuth2
+          timeout: 60
+          body:
+            name: ${name}
+            etag: ${current.body.etag}
+            traffic:
+              - type: "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
+                revision: ${svc.revision}
+                percent: 100
+        result: op
+    - persist_operation:
+        call: update_inflight
+        args:
+          bucket: ${bucket}
+          action_id: ${action_id}
+          field: "operation"
+          value: ${op.body.name}
+
+# ------------------------------------------------------------------ reconciliation
+reconcile:
+  params: [bucket, gen, doc, now, project, region, manifest]
+  steps:
+    - verify:
+        call: verify_step
+        args:
+          bucket: ${bucket}
+          doc: ${doc}
+          now: ${now}
+          project: ${project}
+          region: ${region}
+          manifest: ${manifest}
+        result: outcome
+    - apply:
+        switch:
+          - condition: ${outcome == "DONE_VERIFIED"}
+            steps:
+              - complete:
+                  assign:
+                    - key: ${"rollback:" + doc.inflight.step}
+                    - doc.completed: ${list.concat(doc.completed, key)}
+                    - last: ${doc.inflight.step == "verify_legacy_authenticated"}
+                    - doc.inflight: null
+              - terminal:
+                  switch:
+                    - condition: ${last}
+                      assign:
+                        - doc.mode: "ROLLED_BACK"
+              - save_done:
+                  call: gcs_cas
+                  args:
+                    bucket: ${bucket}
+                    object: "coord/active.json"
+                    generation: ${gen}
+                    doc: ${doc}
+              - done_ok:
+                  return: "VERIFIED"
+          - condition: ${outcome == "FAILED_CONFIRMED" or outcome == "NOT_STARTED_CONFIRMED"}
+            steps:
+              - release:
+                  assign:
+                    - doc.inflight: null
+              - save_released:
+                  call: gcs_cas
+                  args:
+                    bucket: ${bucket}
+                    object: "coord/active.json"
+                    generation: ${gen}
+                    doc: ${doc}
+              - done_released:
+                  return: "RELEASED"
+    - unknown:
+        # RUNNING / UNKNOWN never frees the slot and never permits a competing action.
+        assign:
+          - doc.mode: "RECOVERY_HOLD"
+    - save_unknown:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${gen}
+          doc: ${doc}
+    - done_unknown:
+        return: "UNKNOWN"
+
+verify_step:
+  params: [bucket, doc, now, project, region, manifest]
+  steps:
+    - route:
+        switch:
+          - condition: ${doc.inflight.step == "restore_save" or doc.inflight.step == "restore_attention"}
+            steps:
+              - run_verify:
+                  call: verify_cloud_run
+                  args:
+                    doc: ${doc}
+                    project: ${project}
+                    region: ${region}
+                    manifest: ${manifest}
+                  result: v
+              - run_out:
+                  return: ${v}
+          - condition: ${doc.inflight.step == "restore_hosting"}
+            steps:
+              - live:
+                  call: http.get
+                  args:
+                    url: ${"https://firebasehosting.googleapis.com/v1beta1/sites/" + manifest.baseline.hosting_site + "/channels/live"}
+                    auth:
+                      type: OAuth2
+                    timeout: 30
+                  result: channel
+              - hosting_out:
+                  return: ${if(channel.body.release.version.name == "sites/" + manifest.baseline.hosting_site + "/versions/" + manifest.baseline.hosting_version, "DONE_VERIFIED", "UNKNOWN")}
+          - condition: ${doc.inflight.step == "restore_rules"}
+            steps:
+              - rel:
+                  call: http.get
+                  args:
+                    url: ${"https://firebaserules.googleapis.com/v1/projects/" + project + "/releases/cloud.firestore"}
+                    auth:
+                      type: OAuth2
+                    timeout: 30
+                  result: rules
+              - rules_out:
+                  return: ${if(rules.body.rulesetName == "projects/" + project + "/rulesets/" + manifest.baseline.ruleset, "DONE_VERIFIED", "UNKNOWN")}
+          - condition: ${doc.inflight.step == "verify_legacy_authenticated"}
+            steps:
+              - receipt:
+                  call: legacy_receipt_ok
+                  args:
+                    bucket: ${bucket}
+                    doc: ${doc}
+                    now: ${now}
+                    manifest: ${manifest}
+                  result: ok
+              - legacy_out:
+                  return: ${if(ok, "DONE_VERIFIED", "UNKNOWN")}
+    # remove_new_drafts / reopen_legacy: verified only when the release-created resource list is empty and
+    # the two services' ingress + invoker setting still match the manifest. Fail closed otherwise.
+    - static_guard:
+        call: static_settings_ok
+        args:
+          project: ${project}
+          region: ${region}
+          manifest: ${manifest}
+        result: same
+    - guard_out:
+        return: ${if(same and len(default(map.get(manifest.baseline, "release_created_resources"), [])) == 0, "DONE_VERIFIED", "UNKNOWN")}
+
+verify_cloud_run:
+  params: [doc, project, region, manifest]
+  steps:
+    - target:
+        assign:
+          - svc: ${manifest.baseline.services[doc.inflight.step]}
+          - name: ${"projects/" + project + "/locations/" + region + "/services/" + svc.service}
+    - read:
+        call: http.get
+        args:
+          url: ${"https://run.googleapis.com/v2/" + name}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: s
+    - at_baseline:
+        assign:
+          - spec_ok: ${len(s.body.traffic) == 1 and s.body.traffic[0].revision == svc.revision and s.body.traffic[0].percent == 100 and default(map.get(s.body.traffic[0], "tag"), "") == ""}
+          - seen_ok: ${len(s.body.trafficStatuses) == 1 and s.body.trafficStatuses[0].revision == svc.revision and s.body.trafficStatuses[0].percent == 100}
+          - settled: ${not(default(map.get(s.body, "reconciling"), false))}
+    - operation_known:
+        switch:
+          - condition: ${doc.inflight.operation != null}
+            steps:
+              - read_op:
+                  call: http.get
+                  args:
+                    url: ${"https://run.googleapis.com/v2/" + doc.inflight.operation}
+                    auth:
+                      type: OAuth2
+                    timeout: 30
+                  result: op
+              - op_state:
+                  switch:
+                    - condition: ${not(default(map.get(op.body, "done"), false))}
+                      return: "UNKNOWN"
+                    - condition: ${map.get(op.body, "error") != null}
+                      return: "FAILED_CONFIRMED"
+                    - condition: ${spec_ok and seen_ok and settled}
+                      return: "DONE_VERIFIED"
+              - op_unknown:
+                  return: "UNKNOWN"
+    - no_operation:
+        switch:
+          - condition: ${spec_ok and seen_ok and settled}
+            return: "DONE_VERIFIED"
+          - condition: ${default(map.get(manifest, "etag_semantics_validated"), false) and doc.inflight.pre_etag != null and s.body.etag == doc.inflight.pre_etag}
+            return: "NOT_STARTED_CONFIRMED"
+    - fenced:
+        return: "UNKNOWN"
+
+static_settings_ok:
+  params: [project, region, manifest]
+  steps:
+    - check:
+        assign:
+          - ok: true
+    - each:
+        for:
+          value: key
+          in: ["save", "attention"]
+          steps:
+            - get:
+                call: http.get
+                args:
+                  url: ${"https://run.googleapis.com/v2/projects/" + project + "/locations/" + region + "/services/" + manifest.baseline.services[key].service}
+                  auth:
+                    type: OAuth2
+                  timeout: 30
+                result: s
+            - compare:
+                assign:
+                  - ok: ${ok and s.body.ingress == manifest.baseline.services[key].ingress and default(map.get(s.body, "invokerIamDisabled"), false) == manifest.baseline.services[key].invoker_iam_disabled}
+    - out:
+        return: ${ok}
+
+# ------------------------------------------------------------------ acceptance (authenticated receipts)
+legacy_receipt_ok:
+  params: [bucket, doc, now, manifest]
+  steps:
+    - read:
+        try:
+          call: gcs_read
+          args:
+            bucket: ${bucket}
+            object: ${"receipts/" + doc.release_id + "/legacy.json"}
+            generation: null
+          result: r
+        except:
+          as: e
+          steps:
+            - missing_is_waiting:
+                return: false
+    - evaluate:
+        call: receipt_ok
+        args:
+          receipt: ${r.doc}
+          kind: "legacy"
+          doc: ${doc}
+          now: ${now}
+          deadline: ${doc.hard}
+          expected: ${manifest.baseline.versions}
+          manifest: ${manifest}
+        result: ok
+    - out:
+        return: ${ok}
+
+try_accept_forward:
+  params: [bucket, gen, doc, now, project, region, manifest]
+  steps:
+    - read:
+        try:
+          call: gcs_read
+          args:
+            bucket: ${bucket}
+            object: ${"receipts/" + doc.release_id + "/forward.json"}
+            generation: null
+          result: r
+        except:
+          as: e
+          steps:
+            - waiting:
+                return: "ACTIVE"
+    - evaluate:
+        call: receipt_ok
+        args:
+          receipt: ${r.doc}
+          kind: "forward"
+          doc: ${doc}
+          now: ${now}
+          deadline: ${doc.target}
+          expected: ${manifest.candidate.versions}
+          manifest: ${manifest}
+        result: ok
+    - readback:
+        # Independent fresh readback of Hosting live version and Rules pointer; Cloud Run candidate traffic checked in manifest-driven step.
+        call: forward_readback_ok
+        args:
+          project: ${project}
+          region: ${region}
+          manifest: ${manifest}
+        result: live
+    - decide:
+        switch:
+          - condition: ${ok and live and doc.inflight == null}
+            steps:
+              - accept:
+                  assign:
+                    - doc.mode: "SUCCEEDED"
+                    - doc.accepted: true
+              - save:
+                  call: gcs_cas
+                  args:
+                    bucket: ${bucket}
+                    object: "coord/active.json"
+                    generation: ${gen}
+                    doc: ${doc}
+              - accepted_out:
+                  return: "SUCCEEDED"
+    - not_yet:
+        return: "ACTIVE"
+
+forward_readback_ok:
+  params: [project, region, manifest]
+  steps:
+    - hosting:
+        call: http.get
+        args:
+          url: ${"https://firebasehosting.googleapis.com/v1beta1/sites/" + manifest.baseline.hosting_site + "/channels/live"}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: channel
+    - rules:
+        call: http.get
+        args:
+          url: ${"https://firebaserules.googleapis.com/v1/projects/" + project + "/releases/cloud.firestore"}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: rel
+    - out:
+        return: ${channel.body.release.version.name == "sites/" + manifest.baseline.hosting_site + "/versions/" + manifest.candidate.hosting_version and rel.body.rulesetName == "projects/" + project + "/rulesets/" + manifest.candidate.ruleset}
+
+receipt_ok:
+  params: [receipt, kind, doc, now, deadline, expected, manifest]
+  steps:
+    - required:
+        assign:
+          - forward_checks: ["firebase_auth", "pm_ownership", "legacy_pm_save", "attention", "save_draft", "save_publish", "overview_pdf", "released_protection", "archive_preservation", "backend_operation", "unauthorized_rejected", "no_unexpected_mutation", "versions_match"]
+          - legacy_checks: ["firebase_auth", "pm_ownership", "legacy_pm_save", "attention", "unauthorized_rejected", "no_unexpected_mutation", "versions_match", "pdf_preserved", "archive_preservation"]
+          - ok: true
+    - binding:
+        assign:
+          - ok: ${ok and receipt.kind == kind and receipt.release_id == doc.release_id and receipt.nonce == doc.nonce and receipt.manifest_hash == doc.manifest_hash and receipt.source == doc.source}
+          - ok: ${ok and len(receipt.roles) == 2 and "Admin" in receipt.roles and "PM" in receipt.roles}
+          - ok: ${ok and receipt.started_at >= doc.start and receipt.started_at <= receipt.completed_at and receipt.completed_at <= now and now < deadline}
+          - ok: ${ok and receipt.mutation_ledger.unexpected_writes == 0 and receipt.mutation_ledger.synthetic_ids_only == true and receipt.mutation_ledger.historical_or_archive_writes == 0}
+          - ok: ${ok and len(receipt.evidence_ids) > 0}
+          - ok: ${ok and receipt.attester in manifest.attesters and not(receipt.attester in manifest.worker_principals)}
+          - ok: ${ok and receipt.versions.hosting == expected.hosting and receipt.versions.rules == expected.rules and receipt.versions.save == expected.save and receipt.versions.attention == expected.attention}
+    - checks:
+        for:
+          value: name
+          in: ${if(kind == "forward", forward_checks, legacy_checks)}
+          steps:
+            - each:
+                assign:
+                  - ok: ${ok and map.get(receipt.checks, name) == true}
+    - out:
+        return: ${ok}
+
+# ------------------------------------------------------------------ coordinator helpers (sole writer)
+request_rollback:
+  params: [bucket, gen, doc, kind]
+  steps:
+    - change:
+        assign:
+          - doc.mode: "ROLLBACK_REQUESTED"
+          - event:
+              seq: ${len(doc.events) + 1}
+              kind: ${kind}
+          - doc.events: ${list.concat(doc.events, event)}
+    - save:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${gen}
+          doc: ${doc}
+
+set_flag:
+  params: [bucket, gen, doc, kind]
+  steps:
+    - change:
+        assign:
+          - doc.incident: true
+          - event:
+              seq: ${len(doc.events) + 1}
+              kind: ${kind}
+          - doc.events: ${list.concat(doc.events, event)}
+    - save:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${gen}
+          doc: ${doc}
+        result: saved
+    - out:
+        return: ${doc}
+
+update_inflight:
+  params: [bucket, action_id, field, value]
+  steps:
+    - reread:
+        call: gcs_read
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: null
+        result: cur
+    - same_action:
+        switch:
+          - condition: ${cur.doc.inflight == null or cur.doc.inflight.action_id != action_id}
+            raise: "STALE_ACTION"
+    - change:
+        assign:
+          - doc: ${cur.doc}
+          - doc.inflight[field]: ${value}
+    - save:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${cur.generation}
+          doc: ${doc}
+
+set_hold:
+  params: [bucket, action_id, reason]
+  steps:
+    - reread:
+        call: gcs_read
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: null
+        result: cur
+    - change:
+        assign:
+          - doc: ${cur.doc}
+          - doc.mode: "RECOVERY_HOLD"
+          - doc.incident: true
+          - doc.operator_hold: ${reason}
+          # Provably never submitted (preflight precedes the precondition write): free the slot.
+          - doc.inflight: ${if(cur.doc.inflight != null and cur.doc.inflight.action_id == action_id and cur.doc.inflight.pre_etag == null and cur.doc.inflight.operation == null, null, cur.doc.inflight)}
+    - save:
+        call: gcs_cas
+        args:
+          bucket: ${bucket}
+          object: "coord/active.json"
+          generation: ${cur.generation}
+          doc: ${doc}
+
+# ------------------------------------------------------------------ Cloud Storage JSON API
+gcs_read:
+  params: [bucket, object, generation]
+  steps:
+    - meta:
+        call: http.get
+        args:
+          url: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/" + text.url_encode(object)}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: m
+    - pin:
+        assign:
+          - pinned: ${if(generation == null, m.body.generation, generation)}
+    - body:
+        call: http.get
+        args:
+          url: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/" + text.url_encode(object) + "?alt=media&generation=" + string(pinned)}
+          auth:
+            type: OAuth2
+          timeout: 30
+        result: b
+    - out:
+        return:
+          generation: ${pinned}
+          doc: ${b.body}
+
+gcs_cas:
+  params: [bucket, object, generation, doc]
+  steps:
+    - write:
+        call: http.post
+        args:
+          url: ${"https://storage.googleapis.com/upload/storage/v1/b/" + bucket + "/o?uploadType=media&name=" + text.url_encode(object) + "&ifGenerationMatch=" + string(generation)}
+          auth:
+            type: OAuth2
+          timeout: 30
+          body: ${doc}
+        result: w
+    - out:
+        return: ${w.body.generation}
