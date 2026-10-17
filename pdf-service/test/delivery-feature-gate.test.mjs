@@ -49,12 +49,12 @@ test('feature resolution never depends on a hostname, repository name or request
   assert.match(readFileSync(new URL('../src/server.js', import.meta.url), 'utf8'), /features: target\.features/);
 });
 
-test('frontend gate: verification flag is false, Production never offers it, and the old backend can never receive it', () => {
-  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), false);
+test('frontend gate: only the UAT profile can offer or send the section; Production never does', () => {
+  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, true, 'UAT frontend release candidate');
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), true);
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: true }), true);
-  const request = buildOverviewPdfRequest({ sections: ['health-focus', SECTION], projectCodes: ['A'], overviewScope: 'all' });
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: false }), false);
+  const request = buildOverviewPdfRequest({ sections: ['health-focus', SECTION], projectCodes: ['A'], overviewScope: 'all', deliveryPerformanceAvailable: false });
   assert.deepEqual(request.sections, ['health-focus']);
 });
 

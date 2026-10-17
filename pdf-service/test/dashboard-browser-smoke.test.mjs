@@ -234,38 +234,85 @@ test('L: the Production profile does not expose Delivery Trends', { timeout: 600
   } finally { await page.close(); }
 });
 
-test('PDF dialog regression: new section is hidden, never requested; existing sections and project selection still reach the backend', { timeout: 120000 }, async () => {
-  const session = await openDashboard(browser, { baseUrl: uat.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
-  const { page } = session;
-  const pdfRequests = [];
+// Captures export requests to the PDF backend (stubbed: preflight answered, POST recorded and refused with 400).
+function capturePdfRequests(page) {
+  const requests = [];
   page.removeAllListeners('request');
   page.on('request', request => {
     const url = request.url();
     if (url.includes('.run.app') && request.method() === 'OPTIONS') { request.respond({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' } }); return; }
-    if (url.includes('.run.app')) { pdfRequests.push({ url, body: request.postData() }); request.respond({ status: 400, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'stubbed backend' }) }); return; }
+    if (url.includes('.run.app')) { requests.push({ url, body: JSON.parse(request.postData() || '{}') }); request.respond({ status: 400, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'stubbed backend' }) }); return; }
     request.continue();
   });
-  // The first handler (stubs) was removed above; re-register Firebase stubs for later navigation-free use is not needed.
+  return requests;
+}
+async function exportOverview(page, { check } = {}) {
+  await page.evaluate(() => openOverviewPrintDialog());
+  await wait(300);
+  if (check) await page.click('#deliveryPerformanceOption input');
+  await page.evaluate(() => confirmOverviewPrint()); await wait(300);
+  await page.evaluate(() => confirmOverviewProjectPrint()); await wait(800);
+}
+
+test('UAT PDF dialog (release candidate): the new option is offered, unchecked by default, and existing options and project selection still work', { timeout: 120000 }, async () => {
+  const { page } = await openDashboard(browser, { baseUrl: uat.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
+  const requests = capturePdfRequests(page);
   try {
     await wait(1800);
-    await page.evaluate(() => openOverviewPrintDialog());
-    await wait(300);
-    assert.equal(await visible(page, '#deliveryPerformanceOption'), false, 'the new section is not offered while the backend flag is false');
+    await page.evaluate(() => openOverviewPrintDialog()); await wait(300);
+    assert.equal(await visible(page, '#deliveryPerformanceOption'), true, 'UAT displays the option');
+    assert.equal(await page.$eval('#deliveryPerformanceOption input', e => e.checked), false, 'never selected by default');
+    assert.match(await page.$eval('#deliveryPerformanceOption', e => e.innerText), /Portfolio delivery performance/i);
     const values = await page.$$eval('#overviewPrintSections input[type="checkbox"]', list => list.map(input => input.value));
-    assert.ok(values.includes('health-focus') && values.includes('weekly-trend'));
-    // Even if a user forced the hidden box on, the request builder refuses to send it.
-    await page.evaluate(() => { const box = document.querySelector('#deliveryPerformanceOption input'); box.checked = true; });
+    for (const section of ['health-focus', 'weekly-trend', 'executive-summary', 'attention-matrix', 'risk-actions', 'project-portfolio', 'resource-analytics', 'budget-overview']) assert.ok(values.includes(section), section);
+    // Presets keep their meaning and never silently add the new section.
+    for (const preset of ['all', 'executive', 'roadmap', 'resource', 'budget']) {
+      await page.evaluate(p => applyOverviewPrintPreset(p), preset);
+      assert.equal(await page.$eval('#deliveryPerformanceOption input', e => e.checked), false, `${preset} preset leaves the new section off`);
+    }
+    await page.evaluate(() => closeModal('overviewPrintOverlay'));
+    // Export without selecting it: the request is exactly the pre-existing shape.
+    await exportOverview(page);
+    assert.equal(requests.length, 1);
+    assert.ok(!requests[0].body.sections.includes('portfolio-delivery-performance'));
+    assert.ok(requests[0].body.sections.includes('health-focus'));
+    assert.equal(requests[0].body.overviewScope, 'all');
+    assert.equal(requests[0].body.projectCodes.length, 3, 'selected-project behavior preserved');
+    assert.equal(requests[0].body.weekId, 'W5-2026');
+    assert.deepEqual(Object.keys(requests[0].body).sort(), ['executiveAudienceView', 'mode', 'overviewScope', 'projectCodes', 'sections', 'weekId'], 'same field set as before the feature (no new fields)');
+  } finally { await page.close(); }
+});
+
+test('UAT PDF dialog (release candidate): selecting the new section sends it with the other chosen sections and the selected projects', { timeout: 120000 }, async () => {
+  const { page } = await openDashboard(browser, { baseUrl: uat.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
+  const requests = capturePdfRequests(page);
+  try {
+    await wait(1800);
+    await exportOverview(page, { check: true });
+    assert.equal(requests.length, 1);
+    const sections = requests[0].body.sections;
+    assert.ok(sections.includes('portfolio-delivery-performance'));
+    assert.ok(sections.includes('health-focus'), 'existing default sections are still requested');
+    assert.equal(new Set(sections).size, sections.length, 'sections are unique');
+    assert.equal(requests[0].body.projectCodes.length, 3);
+  } finally { await page.close(); }
+});
+
+test('Production PDF dialog is unchanged: the option is hidden and can never be sent, even if forced', { timeout: 120000 }, async () => {
+  const { page } = await openDashboard(browser, { baseUrl: prod.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
+  const requests = capturePdfRequests(page);
+  try {
+    await wait(1800);
+    await page.evaluate(() => openOverviewPrintDialog()); await wait(300);
+    assert.equal(await visible(page, '#deliveryPerformanceOption'), false);
+    const values = await page.$$eval('#overviewPrintSections input[type="checkbox"]', list => list.map(input => input.value));
+    assert.ok(values.includes('health-focus'));
+    await page.evaluate(() => { const box = document.querySelector('#deliveryPerformanceOption input'); if (box) box.checked = true; });
     await page.evaluate(() => confirmOverviewPrint()); await wait(300);
     await page.evaluate(() => confirmOverviewProjectPrint()); await wait(800);
-    assert.equal(pdfRequests.length, 1, 'exactly one export request');
-    const body = JSON.parse(pdfRequests[0].body);
-    assert.equal(body.mode, 'overview');
-    assert.ok(!body.sections.includes('portfolio-delivery-performance'), 'unsupported section never reaches the old backend');
-    assert.ok(body.sections.includes('health-focus'));
-    assert.equal(body.overviewScope, 'all');
-    assert.ok(Array.isArray(body.projectCodes) && body.projectCodes.length === 3, 'selected-project behavior preserved');
-    assert.equal(body.weekId, 'W5-2026');
-    assert.match(pdfRequests[0].url, /\/v1\/reports\/overview$/);
+    assert.equal(requests.length, 1);
+    assert.ok(!requests[0].body.sections.includes('portfolio-delivery-performance'), 'Production never sends the new section');
+    assert.ok(requests[0].body.sections.includes('health-focus'));
   } finally { await page.close(); }
 });
 
