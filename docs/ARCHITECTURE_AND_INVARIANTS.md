@@ -1,7 +1,7 @@
 # PM Dashboard — Architecture Baseline & Security Invariants
 
-**Document Version**: Phase F1 Baseline — Final Remediation (2026-10-17)  
-**Canonical Baseline SHA (`main`)**: `4a8e7ee63cdf40c3699c834b5ff18c7427e307b0` (PR #49)  
+**Document Version**: Phase F1 Baseline — Gate A Remediation (2026-10-17)
+**Canonical Baseline SHA (`main`)**: `4a8e7ee63cdf40c3699c834b5ff18c7427e307b0` (PR #49)
 **Production Pages Baseline SHA (`production-pages`)**: `9c4254142cdd59f28854ec78cf095681e916324f` (PR #48)
 
 > **Scope & Maintenance Boundary**:
@@ -46,8 +46,8 @@ The repository maintains two distinct long-lived release branches serving differ
 
 | Branch | Baseline SHA (`main` / `production-pages`) | Primary Responsibilities | Update & Promotion Policy |
 |---|---|---|---|
-| **`main`** | `4a8e7ee63cdf40c3699c834b5ff18c7427e307b0` | Canonical source of truth for:<br/>1. **UAT Firebase Hosting** (`--env uat`)<br/>2. **Production Firebase Hosting** (`--env prod`)<br/>3. **Firebase Cloud Functions** (`functions/`)<br/>4. **Firestore Rules & Indexes** (`firestore*.rules`)<br/>5. **Cloud Run PDF Service** (`pdf-service/`)<br/>6. **Release & Sync Governance Manifests** (`config/*.json`) | Changes merge via reviewed PRs passing all 5 required GitHub Actions CI checks (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds`). |
-| **`production-pages`** | `9c4254142cdd59f28854ec78cf095681e916324f` | Dedicated static publishing branch for **GitHub Pages** (`https://augusliang23-web.github.io`). Uses the committed default `env-config.js` (`dashboardProfile: "production"`). | **Never merged directly before backend readiness.** Production-approved frontend changes on `main` are explicitly ported to `production-pages` via a dedicated PR (e.g., PR #40, PR #48) **only after** Production Functions, Rules, Firebase Hosting, and authenticated smoke checks have passed (enforced by `config/deployment-manifest.json` `productionPages.mergeOnlyAfter`). |
+| **`main`** | `4a8e7ee63cdf40c3699c834b5ff18c7427e307b0` | Canonical source of truth for:<br/>1. **UAT Firebase Hosting** (`--env uat`)<br/>2. **Production Firebase Hosting** (`--env prod`)<br/>3. **Firebase Cloud Functions** (`functions/`)<br/>4. **Firestore Rules & Indexes** (`firestore*.rules`)<br/>5. **Cloud Run PDF Service** (`pdf-service/`)<br/>6. **Release & Sync Governance Manifests** (`config/*.json`) | Changes merge via reviewed PRs passing all 5 required GitHub Actions CI checks (`root-tests`, `firestore-rules`, `pdf-tests`, `sync-boundary`, `hosting-builds` in `.github/workflows/ci.yml`). |
+| **`production-pages`** | `9c4254142cdd59f28854ec78cf095681e916324f` | Dedicated static publishing branch for **GitHub Pages** (`https://augusliang23-web.github.io`). Uses the committed default `env-config.js` (`dashboardProfile: "production"`). | **Never merged before release-specific backend dependencies are ready.** Production-approved frontend changes on `main` are explicitly ported to `production-pages` via a dedicated PR (e.g., PR #40, PR #48) **only after** all release-specific Production backend and Firebase Hosting dependencies have been deployed and verified (for example, in `releases.userPermissionsV2` inside `config/deployment-manifest.json`, `productionPages.mergeOnlyAfter` requires `functions`, `rules`, `hosting`, and `authenticatedSmoke`). |
 
 ---
 
@@ -82,12 +82,12 @@ Frontend build and environment binding are governed by four distinct mechanisms 
 3. **Post-Copy Build Output Project-ID Scan (`scripts/build-hosting.mjs` $\rightarrow$ `assertNoCrossEnvironmentLeak()`)**:
    - After copying the asset closure to `dist/` and writing `dist/env-config.js`, `assertNoCrossEnvironmentLeak(outDir, files, env)` reads every generated file in `dist/` and checks **only** whether any file contains the opposite environment's **Firebase project ID string** (`'project-manager-dashboar-a067f'` when building `uat`, or `'pm-dashboard-uat-20260820-a7f3'` when building `prod`).
    - *Important Distinction*: `assertNoCrossEnvironmentLeak()` does **not** scan built files for arbitrary Hosting origins or arbitrary PDF URLs; origin and PDF URL checks occur earlier in `loadHostingEnv()`.
-4. **Critical Architectural Fact — `@uat-only` Markers Are NOT Stripped by `scripts/build-hosting.mjs`**:
-   - `scripts/build-hosting.mjs` copies `index.html` and all referenced `.js`/`.mjs` files verbatim into `dist/` and overwrites **only** `dist/env-config.js`.
+4. **Critical Architectural Fact — `@uat-only` Markers Are NOT Stripped by `scripts/build-hosting.mjs` (No Baseline Production Slice Generator)**:
+   - `scripts/build-hosting.mjs` copies `index.html` and all referenced `.js`/`.mjs` files verbatim into `dist/` and overwrites **only** `dist/env-config.js`. No standalone Production Slice generator script exists in the reviewed `main` baseline (`4a8e7ee`).
    - The `@uat-only`, `@prod-only`, `@profile-group`, and `@profile-stmt` comment markers in `index.html` are **not** stripped in `dist/index.html`.
    - Instead:
      - **At runtime in the browser**, `index.html` reads `window.PM_DASHBOARD_ENV.dashboardProfile` (`"production"` vs `"uat"`), sets `IS_UAT_PROFILE`, and applies CSS/DOM visibility rules (`[data-profile-only="uat"]`) plus `if (IS_UAT_PROFILE)` guards.
-     - **At test time**, `tests/helpers/dashboard-source.mjs` (`renderProfile()`) strips `@uat-only` / `@prod-only` blocks and resolves `@profile-group` variants to synthesize the effective Production code view (`dashboardSource('production')`) and UAT code view (`dashboardSource('uat')`).
+     - **At test time**, `tests/helpers/dashboard-source.mjs` (`renderProfile()`) strips `@uat-only` / `@prod-only` blocks and resolves `@profile-group` variants in memory to synthesize the effective Production code view (`dashboardSource('production')`) and UAT code view (`dashboardSource('uat')`) for unit/invariant tests.
 
 ### 4.2 Client-Side Gating vs Server-Enforced Authorization
 - **Client-side runtime checks and UI hiding (`IS_UAT_PROFILE`, `data-profile-only="uat"`, role-based button visibility, `canWithPermissions`) are defense-in-depth UX controls only.** Because `dist/index.html` ships all frontend code to the browser and Firestore documents read by the client contain full document payloads, client checks never constitute a security or confidentiality boundary.
@@ -107,6 +107,12 @@ Frontend build and environment binding are governed by four distinct mechanisms 
     - `addExecutiveMilestoneUpdate`, `createExecutiveMilestoneChangeRequest`, `withdrawExecutiveMilestoneChangeRequest`, `decideExecutiveMilestoneChangeRequest`, `applyDirectExecutiveMilestoneChange`, `initializeExecutiveMilestoneLiveTimeline`, `saveExecutiveMilestoneTimelineConfig`, `setExecutiveRagOverride`.
   - **3 UAT-Only Production-to-UAT Week Sync Callables** (`functions/production-week-sync.js`):
     - `syncProductionWeeksToUat`, `getProductionWeekSyncStatus`, `restoreUatWeeksSnapshot`.
+- **Named Functions Deployment & `config/deployment-manifest.json` Governance**:
+  - `config/deployment-manifest.json` is a source-of-truth **governance allowlist** (`functionsAllowlist`, `functionsPreserveExisting`, `functionsNeverDeploy`) and release-plan specification (`releases.<id>`).
+  - Being listed in `functionsAllowlist` does **not** authorize deploying every managed Function in a single pass. Every Functions release requires an **explicit, approved function-name list** (such as `releases.userPermissionsV2.functions`), and only those explicitly approved named Functions may be deployed (`firebase deploy --only functions:<fn1>,functions:<fn2> --project <PROJECT_ID>`, assembled via `buildFunctionsOnlyFlag()` / `buildReleaseFunctionsOnlyFlag()` in `scripts/deployment-manifest.mjs`). Unscoped `firebase deploy --only functions` is strictly prohibited.
+  - **Preserved & Untouched Functions**: Unrelated existing live Functions — including `functionsPreserveExisting` in Production (the 8 Executive Milestone Callables) and `untouchedManagedFunctions` outside a release's scope (e.g., `aggregatePresenceSessions`, `setDashboardProjectAttention` in `releases.userPermissionsV2`) — must be treated as preserved (`assertPreservedFunctionsUnchanged` / `assertNonSelectedUnchanged`) and never targeted for deployment, update, or deletion unless specifically approved in their own release plan.
+  - **Separately Scoped Firestore Rules Deployment**: Firestore Rules must be deployed in a separately scoped command (`firebase deploy --only firestore:rules --config <firebase.json|firebase.uat.json> --project <PROJECT_ID>`), never bundled into a combined `--only functions,firestore:rules` invocation.
+  - **Governance Allowlist vs CLI Enforcement Boundary**: `config/deployment-manifest.json` and `scripts/deployment-manifest.mjs` validate manifest/snapshot contracts and compute `--only functions:...` CLI arguments when invoked by tests or operator scripts, but the manifest does **not** automatically intercept or block arbitrary `firebase` CLI commands executed directly in a shell. Explicit Control Plane gate review and human Release Approver authorization are mandatory before any Functions or Rules deployment.
 
 ---
 
@@ -286,8 +292,11 @@ Every change to this repository must preserve the following invariants:
    - **PDF Runtime Environment & CORS Guard (`pdf-service/src/environment.js`, `cors.js`)**: Enforces at container startup and per-request that `PDF_ENVIRONMENT`, `FIREBASE_PROJECT_ID`, and `ALLOWED_ORIGIN` match the target entry in `pdf-service/src/targets/registry.json`.
 3. **Server-Side Visibility & Ownership Authority**:
    - In `functions/project-dashboard-writes.js` (`saveDashboardProject`), non-Admin users can never alter project `visibility` (new projects must start `active`; edits must echo live `visibility`). The `project.manage` capability grants project create/delete to `pm` (or `admin`) only, never `visibility` authority (`functions/test/project-visibility-authority.test.cjs`).
-4. **Deploy Order Invariant (Functions Before Restrictive Rules)**:
-   - Because browser writes to protected collections are denied by Firestore Rules, new or updated Callable Functions must always be deployed and verified before deploying restrictive Firestore Rules.
+4. **Release-Specific Dependency & Authorization Ordering Invariant**:
+   - There is **no** universal mandatory deployment sequence across all services (nor a universal rule that Functions always precede Firestore Rules for every release), and services unrelated to a release must not be deployed.
+   - Every release must determine its own **Release-Specific Dependency Order** by evaluating: **(A)** which components changed, **(B)** which existing components depend on the changes, **(C)** whether the changes are backward compatible, **(D)** which authorization boundaries must be preserved, **(E)** the required deployment order, **(F)** verification checkpoints, and **(G)** rollback order and compatibility.
+   - For **Functions and Firestore Rules**, safe ordering is determined from actual authorization and compatibility contracts: when migrating an active client write path to a Callable Function before locking down direct client writes in Rules, deploy and verify the Callable Function before the restrictive Rule removes client write access; conversely, when adding a fail-closed rule block for an Admin-SDK-only collection (where Cloud Functions use the Admin SDK and bypass Firestore Security Rules) or tightening an overly permissive rule that no active client depends on, deploying the fail-closed Rule first (or independently) preserves the security boundary without breaking active traffic.
+   - Specific verified cross-surface dependencies must be preserved (for example, PR #58 UAT PDF backend verification must precede enabling the dependent PR #59 UAT frontend functionality).
 5. **Four-Identity Execution Freeze (`config/deployment-manifest.json`)**:
    - Production promotions enforce four distinct identities: `runtimeTargetSourceSha`, external post-merge `REVIEWED_RELEASE_PLAN_SHA`, clean detached checkout equal to that reviewed SHA, and an independently pinned `rollbackBaseline` (`tests/production-promotion-v2.test.mjs`).
 6. **Production-to-UAT Sync Boundary (`config/production-week-sync-boundary.json`)**:
@@ -321,8 +330,8 @@ To support parallel feature development without freezing active tracks or introd
    - Shared-environment provenance and cross-track preservation gates apply **only when deploying to shared UAT or Production environments**; they never block independent local coding, worktree experimentation, or feature-branch CI runs.
 2. **Stacked PR Consolidation at Gate Boundaries**:
    - When a multi-phase feature uses stacked PRs (such as V2.3 PRs #50–#57), the top Gate closeout branch (e.g., PR #57 `claude/v23-gate2-closeout`) serves as the single integration base for that track once upstream phases are merged into it.
-3. **Non-Destructive Conflict Pre-Screening (`git merge-tree`)**:
-   - Before scheduling an integration or UAT deployment, run three-way in-memory merge simulations (`git merge-tree $(git merge-base A B) A B`) across active tracks to identify textual overlaps, `originalUatHash` collisions, and semantic interactions without altering any working tree.
+3. **Non-Destructive Conflict Pre-Screening (3-Argument `git merge-tree`)**:
+   - Before scheduling an integration or UAT deployment, run three-argument in-memory merge simulations (`git merge-tree $(git merge-base A B) A B`, classified as **Class A** read-only because it writes zero Git objects) across active tracks to identify textual overlaps, `originalUatHash` collisions, and semantic interactions without altering any working tree or `.git/objects/`. (Note: `git merge-tree --write-tree` is **Class B** because it writes new tree/blob objects into `.git/objects/` and must only be used when local-state modification is permitted.)
 4. **Ephemeral Gate-Scoped Integration Branches (`integration/<scope>`)**:
    - Do not maintain permanent long-lived integration branches. Create a targeted `integration/<scope>` branch in a clean worktree **only** when:
      - Two tracks must be deployed together to a shared UAT surface (e.g., combining a UAT feature candidate with a PDF hotfix so neither overwrites the other on UAT Cloud Run or UAT Hosting), or
@@ -369,7 +378,7 @@ To support parallel feature development without freezing active tracks or introd
 
 | Track Pair | Textual Conflict (`git merge-tree`) | Semantic / Test Conflict | Deployment Dependency / Hazard |
 |---|---|---|---|
-| **PR #60 (`a560292`) + PR #57 (`7c02e7f`) / PR #58 (`0ad9293`)** | **0 conflicts** (1 overlapping file: `pdf-service/src/report-model.js`) | Compatible. Resolves the `1/83` warning dictionary test mismatch noted when PR #60 was tested outside PR #57's root tree. | **Critical UAT Dependency**: Service-level Cloud Run metadata observed on 2026-10-16 reported revision `pm-dashboard-uat-pdf-pr60-a560292`, while PR #60's preserved-source manifest (`docs/rca/pdf-uat-source-preservation.json`) matches the 35-file combination of PR #58 + PR #60 (though per-revision metadata and unpacked container image contents remain `UNKNOWN`; see `docs/RELEASE_PROVENANCE_CHECKLIST.md` Section 6). Deploying either PR #58 or PR #60 alone from its branch would regress the other's changes in UAT. |
+| **PR #60 (`a560292`) + PR #57 (`7c02e7f`) / PR #58 (`0ad9293`)** | **0 conflicts** (1 overlapping file: `pdf-service/src/report-model.js`) | Compatible. Resolves the `1/83` warning dictionary test mismatch noted when PR #60 was tested outside PR #57's root tree. | **Critical UAT Dependency**: Service-level Cloud Run metadata observed on 2026-10-16 reported revision `pm-dashboard-uat-pdf-pr60-a560292`, while PR #60's preserved-source manifest (`docs/rca/pdf-uat-source-preservation.json`) matches the 35-file combination of PR #58 + PR #60 (though per-revision metadata and actual deployed image contents remain `UNKNOWN — NOT VERIFIED`; see `docs/RELEASE_PROVENANCE_CHECKLIST.md` Section 6). Deploying either PR #58 or PR #60 alone from its branch would regress the other's changes in UAT. |
 | **PR #54 (`4be45fb`) + PR #57 (`7c02e7f`)** | **2 conflict blocks** (`index.html`, `tests/role-contract.test.mjs`) | **Semantic Conflict**: `sortWeeksByLabel` vs `sortWeeksChronologically` in `index.html`, plus `originalUatHash` and `delivery-trends-integration.test.mjs` full-file hash assertions. | **UAT Hosting Exclusivity**: Both modify `index.html` for UAT Hosting. Keep PR #54 isolated from the V2.3 UAT release candidate until the designated acceptance gate passes. |
 | **PR #60 (`a560292`) + PR #54 (`4be45fb`)** | **0 conflicts** (0 overlapping files) | None (completely orthogonal directories). | None (PDF Cloud Run vs Hosting/Functions). |
 | **PR #58 (`0ad9293`) + PR #59 (`1473475`)** | **0 conflicts** (1 overlapping file: `pdf-service/test/delivery-feature-gate.test.mjs`) | Complementary Gate 3B backend/frontend activation flags. | **Deploy Order**: Backend (PR #58 + PR #60) must be verified serving before Frontend (PR #59) is deployed to UAT Hosting. |
@@ -379,14 +388,14 @@ To support parallel feature development without freezing active tracks or introd
 Commands are strictly classified by whether they mutate local or remote state (see `docs/RELEASE_PROVENANCE_CHECKLIST.md` Section 5 for the full Class A / B / C taxonomy):
 
 #### Class A — Strictly Read-Only Commands (Zero Local or Remote State Mutation)
-Safe to run during strict read-only audits; these commands inspect existing local `.git` objects or query GitHub APIs without altering any local files or refs:
+Safe to run during strict read-only audits; these commands inspect existing local `.git` objects or query GitHub APIs without altering any local files, `.git/objects/`, or refs:
 
 ```bash
 # 1. List all currently fetched remote branches unmerged into origin/main sorted by commit date (Local Git read-only)
 git for-each-ref --no-merged=origin/main --sort=-committerdate refs/remotes/origin/ \
   --format='%(committerdate:short) | %(refname:short) | %(objectname) | %(subject)'
 
-# 2. Run non-destructive 3-way merge simulation in memory using 3-arg git merge-tree (Local Git read-only; writes no objects)
+# 2. Run non-destructive 3-way merge simulation in memory using legacy 3-argument git merge-tree (Class A — writes no Git objects)
 BASE=$(git merge-base origin/codex/new-project-draft-publish origin/claude/v23-gate2-closeout)
 git merge-tree "$BASE" origin/codex/new-project-draft-publish origin/claude/v23-gate2-closeout | grep -E '^(changed in both|\+<<<<<<< )'
 
@@ -396,10 +405,13 @@ gh pr list --state open --limit 50 \
   --jq '.[] | "\(.number) | draft=\(.isDraft) | \(.baseRefName) <- \(.headRefName) | \(.headRefOid) | \(.mergeable) | \(.title)"'
 ```
 
-#### Class B — Local-State-Mutating Refresh Commands (Prohibited During Strictly Read-Only Repository Audits)
-`git fetch` updates and prunes local remote-tracking refs under `.git/refs/remotes/origin/` and writes downloaded packfiles into `.git/objects/`. Run only when updating local remote-tracking refs is permitted:
+#### Class B — Local-State-Mutating Commands (Prohibited During Strictly Read-Only Repository Audits)
+Both `git fetch` (which updates `.git/refs/remotes/origin/*` and writes downloaded packfiles into `.git/objects/`) and `git merge-tree --write-tree` (which writes synthesized tree/blob objects into `.git/objects/`) mutate local `.git` state. Run them only when local-state modification is permitted:
 
 ```bash
-# Updates local refs/remotes/origin/* from remote repository (Class B — mutates local .git refs)
+# Updates local refs/remotes/origin/* from remote repository (Class B — mutates local .git refs/objects)
 git fetch origin --prune
+
+# Modern merge-tree mode that writes resulting tree objects into .git/objects/ (Class B — mutates local .git/objects)
+git merge-tree --write-tree origin/codex/new-project-draft-publish origin/claude/v23-gate2-closeout
 ```
