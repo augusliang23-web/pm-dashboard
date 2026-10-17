@@ -89,6 +89,23 @@ const MATRIX = [
 ];
 const label = (profile, role, overrides) => `${profile} ${role} ${JSON.stringify(overrides)}`;
 
+test('UAT: a PM sees Add New Project (draft creation) without project.manage, while project deletion stays with project.manage; Production and other roles are unchanged', () => {
+  const pm = setupContext('uat', 'pm', {});
+  pm.context.IS_UAT_PROFILE = true;                                   // the real UAT page defines this flag
+  pm.context.setupUI();
+  assert.notEqual(pm.dom.element('addProjectBtn').style.display, 'none', 'UAT PM sees Add New Project');
+  assert.equal(pm.context.canCurrentUser('project.manage'), false, 'creating a draft does not grant project deletion');
+  const production = setupContext('production', 'pm', {});
+  production.context.setupUI();
+  assert.equal(production.dom.element('addProjectBtn').style.display, 'none', 'Production PM unchanged');
+  for (const role of ['vip', 'engineering', 'business']) {
+    const other = setupContext('uat', role, {});
+    other.context.IS_UAT_PROFILE = true;
+    other.context.setupUI();
+    assert.equal(other.dom.element('addProjectBtn').style.display, 'none', `${role} still cannot add projects`);
+  }
+});
+
 test('setupUI shows the Gantt settings buttons and Add Project only for effective capability holders', () => {
   for (const profile of Object.keys(PROFILES)) {
     for (const [role, overrides, gantt, project] of MATRIX) {

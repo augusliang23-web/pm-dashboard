@@ -5826,6 +5826,9 @@ function setupUI__prod() {
   document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
+  // @uat-only begin pm-new-project-button
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE && currentRole === 'pm') document.getElementById('addProjectBtn').style.display = 'inline-flex';
+  // @uat-only end pm-new-project-button
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   
@@ -5887,6 +5890,9 @@ function setupUI__uat() {
   document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
+  // @uat-only begin pm-new-project-button-2
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE && currentRole === 'pm') document.getElementById('addProjectBtn').style.display = 'inline-flex';
+  // @uat-only end pm-new-project-button-2
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   syncProjectManagerFilterOptions();
@@ -13777,7 +13783,7 @@ function syncDraftWorkspace() {
   const allowed = currentUser && ['admin', 'pm'].includes(currentRole);
   draftController.setIdentity(allowed ? { uid: currentUser.uid, email: getEmailKey(currentUser), role: currentRole } : null);
   document.getElementById('myDraftsBtn').style.display = allowed ? '' : 'none';
-  document.getElementById('newProjectDraftBtn').style.display = canCurrentUser('project.manage') ? '' : 'none';
+  document.getElementById('newProjectDraftBtn').style.display = allowed ? '' : 'none';
 }
 window.openMyDrafts = async () => {
   if (!IS_UAT_PROFILE) return;
@@ -13787,7 +13793,7 @@ window.openMyDrafts = async () => {
   try { await draftController.refresh(); } catch {} // State shows the actual error; no demo fallback.
 };
 window.openNewProjectDraft = async () => {
-  if (!IS_UAT_PROFILE || !currentUser || !canCurrentUser('project.manage')) return;
+  if (!IS_UAT_PROFILE || !currentUser || !['admin','pm'].includes(currentRole)) return;
   syncDraftWorkspace();
   const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
   await beginDraftEditor({ draftId:crypto.randomUUID(), revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
@@ -13874,7 +13880,7 @@ function configureDraftEditor(draftMode) {
   const canPublish = () => {
     const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===select.value);
     const live = target?.projects?.find(project=>project.publication?.draftId===record.draftId || (record.source?.weekId===select.value && project.code===record.source.projectCode));
-    return Boolean(target) && (!record.lastPublication || Boolean(live)) && record.project.visibility !== 'archived' && (!live?.visibility || live.visibility==='active') && (currentRole==='admin' || record.lastPublication || canCurrentUser('project.manage'));
+    return Boolean(target) && (!record.lastPublication || Boolean(live)) && record.project.visibility !== 'archived' && (!live?.visibility || live.visibility==='active');
   };
   publish.disabled = !canPublish(); select.onchange = () => {draftEditorTargetWeekId=select.value;publish.disabled=!canPublish();};
   document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'No eligible reporting week. You can still Save Draft.' : record.lastPublication?.draftRevision === record.revision ? 'Saved content is published. Save new changes as a draft when needed.' : record.lastPublication ? 'Unpublished draft changes. Overview and PDF retain the last published content.' : 'New project not yet published or included in Overview or PDF.';

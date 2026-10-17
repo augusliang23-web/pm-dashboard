@@ -15,7 +15,8 @@ function assertDraftAccess(actor, draft, action) {
   if (!['read','save','first-publish','republish'].includes(action)) fail('invalid-payload','Unsupported draft action.','invalid-argument');
   if (actor.role === 'admin') return;
   if (draft && !draft.editorEmails?.includes(emailKey(actor.email))) fail('draft-forbidden','Draft permission is required.');
-  if (((!draft && action === 'save') || action === 'first-publish') && !can('project.manage',{role:actor.role,overrides:actor.permissionOverrides})) fail('create-forbidden','Add / Delete Projects permission is required.');
+  // Product requirement (Control Plane, 2026-10-17): an Admin or PM may create, save and first-publish a project from their own draft.
+  // Deleting a project stays behind project.manage; draft access above is still limited to the draft's editors.
 }
 function validateDraftInput(project, {publishing=false,visibility='active'} = {}) {
   assertBoundedJson(project); assertAllowedKeys(project,PROJECT_KEYS,'Draft project');

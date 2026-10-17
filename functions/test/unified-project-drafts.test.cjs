@@ -15,7 +15,7 @@ test('opening and saving an owned legacy project needs no create grant and never
  assert.equal(draft.project.progress,40);assert.match(draft.source.expectedRevision,/^[a-f0-9]{64}$/);assert.equal([...state.docs.keys()].some(p=>p.startsWith('projectDrafts/')),false);
  ({draft}=await save(draft,{progress:75}));assert.equal(draft.revision,1);assert.deepEqual(state.docs.get('weeks/W1'),official);
  assert.equal((await open()).draft.project.progress,75);assert.equal((await call('getDashboardProjectDraft',{draftId:draft.draftId})).draft.project.progress,75);
- await assert.rejects(call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Actually new'}}),reason('create-forbidden'));
+ const started=await call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Actually new'}});assert.equal(started.draft.revision,1);assert.deepEqual(state.docs.get('weeks/W1'),official);   // a PM may start a new draft; it never touches published data
 });
 test('source authority rejects other PM, released source, ambiguous name and forged origin',async()=>{
  setup();await assert.rejects(call('getDashboardProjectDraft',{source},'other@example.com'),reason('ownership-forbidden'));
@@ -54,8 +54,7 @@ test('a stable new draft identifier makes first save-and-publish retry safe',asy
 });
 test('atomic action cannot publish a new project without create grant or leak a collided draft ID',async()=>{
  setup();const input={draftId:'client-new-id',expectedRevision:0,project:{name:'New',code:'NEW',projectLevel:'system',progress:30},weekId:'W1',expectedPublishedRevision:null};
- await assert.rejects(call('publishDashboardProjectDraft',input),reason('create-forbidden'));
- state.docs.set('userPermissions/'+email,{overrides:{'project.manage':true}});await call('publishDashboardProjectDraft',input);
+ await call('publishDashboardProjectDraft',input);        // a PM needs no project.manage override to publish a new project
  await assert.rejects(call('saveDashboardProjectDraft',{draftId:'client-new-id',expectedRevision:0,project:{}},'other@example.com'),reason('draft-forbidden'));
 });
 test('non-Admin cannot import hidden or archived official data through the source endpoint',async()=>{
