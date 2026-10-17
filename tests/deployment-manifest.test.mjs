@@ -24,7 +24,7 @@ test('the manifest is fully consistent with functions/index.js, hosting targets,
 test('every source Function has exactly one managed, preserved, or forbidden policy', async () => {
   const indexSource = await readFile(join(repoRoot, 'functions', 'index.js'), 'utf8');
   const sourceExports = [...indexSource.matchAll(/^exports\.([A-Za-z0-9_]+)\s*=/gm)].map(m => m[1]).sort();
-  assert.equal(sourceExports.length, 21, 'sanity: functions/index.js export count changed; update this test deliberately');
+  assert.equal(sourceExports.length, 25, 'sanity: functions/index.js export count changed; update this test deliberately');
 
   for (const name of ENVIRONMENTS) {
     const env = manifest.environments[name];
@@ -71,7 +71,7 @@ test('Production manages exactly ten Functions: the eight-function dashboard con
 });
 
 test('UAT allows every function; nothing is silently excluded there', () => {
-  assert.equal(functionsAllowlistFor(manifest, 'uat').length, 21);
+  assert.equal(functionsAllowlistFor(manifest, 'uat').length, 25);
   assert.deepEqual(manifest.environments.uat.functionsPreserveExisting, []);
   assert.deepEqual(manifest.environments.uat.functionsNeverDeploy, {});
 });
@@ -202,6 +202,13 @@ test('the Admin permission callable is managed in both environments and no longe
   assert.ok(functionsAllowlistFor(manifest, 'uat').includes('setUserPermissionOverrides'));
   assert.ok(functionsAllowlistFor(manifest, 'prod').includes('setUserPermissionOverrides'));
   assert.equal(prod.functionsNeverDeploy.userPermissionsPendingProductionGate, undefined);
-  assert.deepEqual(Object.keys(prod.functionsNeverDeploy), ['productionWeekSync']);
+  assert.deepEqual(Object.keys(prod.functionsNeverDeploy), ['productionWeekSync', 'projectDrafts']);
   assert.equal(buildFunctionsOnlyFlag(manifest, 'prod', ['setUserPermissionOverrides']), 'functions:setUserPermissionOverrides');
+});
+
+test('draft candidates never enter a Production deployment selection', () => {
+  for (const name of ['listDashboardProjectDrafts','getDashboardProjectDraft','saveDashboardProjectDraft','publishDashboardProjectDraft']) {
+    assert.throws(() => buildFunctionsOnlyFlag(manifest, 'prod', [name]));
+    assert.ok(functionsAllowlistFor(manifest, 'uat').includes(name));
+  }
 });

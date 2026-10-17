@@ -1,17 +1,23 @@
 import http from 'node:http';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import { createReportHandler, createOnePagerPreviewHandler } from './app.js';
 import { initializeFirebaseAdmin, resolveRuntimeTarget } from './environment.js';
 import { renderPdfBuffer } from './pdf-renderer.js';
 import { applyCors, handlePreflight } from './cors.js';
+import { createBoundedDeliveryHistoryReader } from './report-data.js';
 
 const target = resolveRuntimeTarget(process.env);
 const app = initializeFirebaseAdmin({ target, initializeApp, applicationDefault });
 const db = getFirestore(app);
 const auth = getAuth(app);
 const adapters = {
+  getDeliveryHistory: createBoundedDeliveryHistoryReader({ db, documentIdField: FieldPath.documentId() }),
+  getDeliveryTrendsProvenance: () => ({
+    source: target.environment === 'production' ? 'production' : target.environment === 'uat' ? 'uat' : null,
+    asOf: new Date().toISOString()
+  }),
   verifyIdToken: token => auth.verifyIdToken(token),
   getUserByEmail: async email => (await db.collection('users').doc(email).get()).data(),
   getWeekById: async id => (await db.collection('weeks').doc(id).get()).data(),

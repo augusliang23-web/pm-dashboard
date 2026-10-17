@@ -1,0 +1,123 @@
+[
+  {
+    "case": "six-projects",
+    "count": 6,
+    "windowWeeks": 6,
+    "summary": {
+      "weeklyProgressGainPp": 2,
+      "comparableCount": 6,
+      "projectsProgressedCount": 6,
+      "currentCompletionPct": 46.5,
+      "health": {
+        "green": 2,
+        "yellow": 2,
+        "red": 2,
+        "unknown": 0
+      }
+    },
+    "warnings": [],
+    "pdfPages": 3
+  },
+  {
+    "case": "seven-projects",
+    "count": 7,
+    "windowWeeks": 6,
+    "summary": {
+      "weeklyProgressGainPp": 2,
+      "comparableCount": 7,
+      "projectsProgressedCount": 7,
+      "currentCompletionPct": 49,
+      "health": {
+        "green": 3,
+        "yellow": 2,
+        "red": 2,
+        "unknown": 0
+      }
+    },
+    "warnings": [],
+    "pdfPages": 4
+  },
+  {
+    "case": "fourteen-projects",
+    "count": 14,
+    "windowWeeks": 6,
+    "summary": {
+      "weeklyProgressGainPp": 2,
+      "comparableCount": 14,
+      "projectsProgressedCount": 14,
+      "currentCompletionPct": 66.5,
+      "health": {
+        "green": 5,
+        "yellow": 5,
+        "red": 4,
+        "unknown": 0
+      }
+    },
+    "warnings": [],
+    "pdfPages": 4
+  },
+  {
+    "case": "missing-observations",
+    "count": 6,
+    "windowWeeks": 6,
+    "summary": {
+      "weeklyProgressGainPp": -10.6,
+      "comparableCount": 5,
+      "projectsProgressedCount": 2,
+      "currentCompletionPct": 36.4,
+      "health": {
+        "green": 2,
+        "yellow": 2,
+        "red": 2,
+        "unknown": 0
+      }
+    },
+    "warnings": [
+      "baseline-unverified",
+      "baseline-unverified",
+      "baseline-unverified",
+      "missing-calendar-week",
+      "comparison-baseline-unavailable",
+      "missing-or-invalid-progress"
+    ],
+    "pdfPages": 4
+  },
+  {
+    "case": "long-names",
+    "count": 6,
+    "windowWeeks": 6,
+    "summary": {
+      "weeklyProgressGainPp": 2,
+      "comparableCount": 6,
+      "projectsProgressedCount": 6,
+      "currentCompletionPct": 46.5,
+      "health": {
+        "green": 2,
+        "yellow": 2,
+        "red": 2,
+        "unknown": 0
+      }
+    },
+    "warnings": [],
+    "pdfPages": 4
+  },
+  {
+    "case": "twelve-week-input",
+    "count": 7,
+    "windowWeeks": 12,
+    "summary": {
+      "weeklyProgressGainPp": 2,
+      "comparableCount": 7,
+      "projectsProgressedCount": 7,
+      "currentCompletionPct": 49,
+      "health": {
+        "green": 3,
+        "yellow": 2,
+        "red": 2,
+        "unknown": 0
+      }
+    },
+    "warnings": [],
+    "pdfPages": 4
+  }
+]

@@ -33,6 +33,12 @@
           "syncProductionWeeksToUat",
           "getProductionWeekSyncStatus",
           "restoreUatWeeksSnapshot"
+        ],
+        "projectDrafts": [
+          "listDashboardProjectDrafts",
+          "getDashboardProjectDraft",
+          "saveDashboardProjectDraft",
+          "publishDashboardProjectDraft"
         ]
       }
     },
@@ -62,7 +68,11 @@
         "syncProductionWeeksToUat",
         "getProductionWeekSyncStatus",
         "restoreUatWeeksSnapshot",
-        "setUserPermissionOverrides"
+        "setUserPermissionOverrides",
+        "listDashboardProjectDrafts",
+        "getDashboardProjectDraft",
+        "saveDashboardProjectDraft",
+        "publishDashboardProjectDraft"
       ],
       "functionsPreserveExisting": [],
       "functionsNeverDeploy": {}
@@ -74,7 +84,8 @@
     "Production's functionsPreserveExisting explicitly permits the eight existing Executive Functions to remain live, but does not authorize deploying, updating, or deleting them as part of Core Production. Executive has a separate future release/security gate.",
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
     "setUserPermissionOverrides (Admin User Permissions) is Production-managed from the User Permissions V2 promotion onward; it deploys only with its dedicated pmdash-user-perms@ runtime identity as part of the reviewed `releases.userPermissionsV2` subset.",
-    "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization."
+    "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization.",
+    "Project Draft/Publish callables are UAT-only candidates. They are forbidden in Production and do not authorize deployment, IAM changes, or creating their dedicated runtime identity."
   ],
   "releases": {
     "userPermissionsV2": {

@@ -156,3 +156,22 @@ Approval email configuration and delivery are not part of v2.2T Phase 1.
 ## Visibility architecture blocker
 
 The current `weeks` document embeds all Executive sections. Firestore Rules can protect whole documents, but cannot return a field-filtered version to PM or Engineering. The UI applies the approved visibility matrix; it must not be treated as server-enforced confidentiality until the three sections move to independently protected documents or are served through an equivalent filtered backend read model. The schema also lacks a protected active-week marker, so callables reject released weeks but cannot distinguish the current draft from an older unreleased draft. Keep this candidate undeployed to restricted-role users until both migrations are complete.
+
+## UAT project Draft / Publish candidate (2026-10-14)
+
+`listDashboardProjectDrafts`, `getDashboardProjectDraft`, `saveDashboardProjectDraft`, and
+`publishDashboardProjectDraft` use the dedicated `pmdash-project-drafts@` runtime identity
+and fail closed outside the UAT project (or the explicitly configured local demo emulator).
+They are forbidden in the Production deployment manifest. Source inclusion is not deployment authorization.
+
+Before any separately authorized UAT deployment, review the runtime identity/database IAM,
+UAT draft query indexes, UAT Rules and coordinated Hosting/Functions rollout. The runtime
+reads trusted users/permissions and draft assignments; saves only draft documents; Publish
+atomically updates an unreleased official week, draft publication markers and an append-only
+publication audit. Clients cannot directly read or write either new collection. The old UAT
+new-project and managed-project content write paths refuse bypass requests.
+
+Application access intents are users/permissions reads, draft query/read/create/update,
+official week read/update and publication-audit creation. Do not assume database IAM offers
+collection-level isolation. No runtime identity or cloud permissions are created by this change.
+See `docs/reports/2026-10-14-project-drafts-uat-validation.md` for evidence and outstanding gates.
