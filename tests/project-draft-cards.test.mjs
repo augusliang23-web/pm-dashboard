@@ -53,6 +53,13 @@ test('UAT page: no My Drafts button, no week selector, drafts are local dashboar
   assert.match(uat, /function decorateDraftCards\(/);
   assert.match(uat, /if \(typeof decorateDraftCards === 'function'\) decorateDraftCards\(\);/);
   assert.match(uat, /ownerSelect\.value = ownName/);
+  // Visual contract (checked in a real browser with the page CSS, 2026-10-17): compact card, small inline capsule, no explanatory text.
+  assert.match(uat, /\.draft-project-card \{[^}]*align-self:start/);                                  // the grid must not stretch a short draft card to the tallest card in its row
+  assert.match(uat, /\.draft-badge \{[^}]*display:inline-block[^}]*border-radius:999px/);
+  assert.equal(uat.includes('Only you can see this draft'), false);
+  assert.match(uat, /name\.className = 'proj-name'; name\.textContent = [^;]*; name\.append\(draftBadge\('Draft'\)\)/);   // badge sits inline in the name, like the existing level badge
+  assert.match(uat, /card\.querySelector\('\.proj-name'\)\?\.append\(draftBadge\('Draft'\)\)/);          // same badge on published cards with unpublished changes
+  assert.equal(/card\.querySelector\('\.card-body'\)\?\.prepend\(draftBadge/.test(uat), false);                // a flex-column child would stretch the badge full width
   const production = dashboardSource('production');
   assert.equal(production.includes('decorateDraftCards'), false, 'Production is unchanged');
   assert.equal(production.includes('project-drafts-ui'), false);

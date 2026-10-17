@@ -20,7 +20,8 @@ const uat = dashboardSource('uat');
 // Deliberate change (2026-10-17, Control Plane product requirement): in the UAT profile a PM may create, save and publish projects without project.manage
 // (Add New Project and New Project Draft shown to PMs, canPublish no longer needs project.manage). Deleting projects stays behind project.manage. Production is unchanged.
 // Deliberate change (2026-10-17, UX refinement): no Publish-to-week selector (latest applicable week), My Drafts button removed, Draft cards/labels on the Dashboard, PM owner prefilled.
-const originalUatHash = "b13a618898ec7b8a4d3ce8d6f084300dcd7a324fb87f965422f16ab8ea977559";
+// Deliberate change (2026-10-17, Draft card UI fix): compact Draft card and small inline Draft capsule (CSS and card markup only).
+const originalUatHash = "ef3ed56d845f042be4c333c1a9bad89b7d610cf3893a678dec88fbb217f90546";
 
 const validRoles = new Map([
   ['admin', 'admin'],

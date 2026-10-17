@@ -192,9 +192,10 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
 
 /* @uat-only begin draft-card-style */
-.draft-badge { display:inline-block; padding:2px 8px; margin:0 0 6px; border:1px solid #E7D49B; border-radius:999px; background:#FFF9E9; color:#9A7429; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
-.draft-project-card { cursor:pointer; border-style:dashed; }
-.draft-project-card .draft-note { margin-top:8px; font-size:12px; color:var(--text-light); }
+/* Draft badge: a small inline capsule next to the project name (a flex-column child would stretch full width). */
+.draft-badge { display:inline-block; vertical-align:middle; margin-left:8px; padding:1px 8px; border:1px solid #E7D49B; border-radius:999px; background:#FFF9E9; color:#9A7429; font-size:10px; font-weight:800; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; }
+/* .proj-grid stretches every card to the tallest card in its row; a draft card is short, so it must size to its own content. */
+.draft-project-card { align-self:start; border-style:dashed; }
 /* @uat-only end draft-card-style */
 /* @uat-only begin unified-project-save-style */
 #projEditOverlay .unified-project-header { flex-wrap:wrap; gap:12px; align-items:center; }
@@ -13797,11 +13798,17 @@ function buildNewDraftCard(draft, weekId) {
   card.className = 'proj-card draft-project-card'; card.dataset.draftId = draft.draftId; card.tabIndex = 0;
   card.setAttribute('role', 'button'); card.title = 'Resume editing this draft'; card.setAttribute('aria-label', `Draft project ${draft.project.name || 'Untitled project'}. Resume editing.`);
   const body = document.createElement('div'); body.className = 'card-body';
-  const name = document.createElement('h3'); name.textContent = draft.project.name || 'Untitled project';
-  const meta = document.createElement('div'); meta.className = 'draft-note';
-  meta.textContent = `${draft.project.code || 'No code yet'} · Progress ${draft.project.progress ?? 0}%`;
-  const note = document.createElement('div'); note.className = 'draft-note'; note.textContent = 'Not published. Only you can see this draft.';
-  body.append(draftBadge('Draft'), name, meta, note); card.append(body);
+  const summary = document.createElement('div'); summary.className = 'card-summary';
+  const left = document.createElement('div'); left.className = 'card-summary-left';
+  const name = document.createElement('div'); name.className = 'proj-name'; name.textContent = draft.project.name || 'Untitled project'; name.append(draftBadge('Draft'));
+  const code = document.createElement('div'); code.className = 'proj-code'; code.textContent = draft.project.code || 'No code yet';
+  left.append(name, code);
+  const right = document.createElement('div'); right.className = 'card-summary-right';
+  const progress = document.createElement('div');
+  const progressLabel = document.createElement('div'); progressLabel.className = 'card-progress-label'; progressLabel.textContent = 'Progress';
+  const progressValue = document.createElement('div'); progressValue.className = 'card-progress-val'; progressValue.textContent = `${draft.project.progress ?? 0}%`;
+  progress.append(progressLabel, progressValue); right.append(progress);
+  summary.append(left, right); summary.style.marginBottom = '0'; body.append(summary); card.append(body);
   const resume = () => window.openManagedProjectDraft(draft.draftId, weekId);
   card.addEventListener('click', resume);
   card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resume(); } });
@@ -13816,7 +13823,7 @@ function decorateDraftCards() {
   const drafts = latestDraftState.drafts || [], me = getEmailKey(currentUser);
   for (const card of grid.querySelectorAll('.proj-card[data-project-code]')) {
     const project = week.projects?.find(item => item.code === card.dataset.projectCode);
-    if (project && draftForProject(drafts, me, weekId, project) && !card.querySelector('.draft-badge')) card.querySelector('.card-body')?.prepend(draftBadge('Draft · unpublished changes'));
+    if (project && draftForProject(drafts, me, weekId, project) && !card.querySelector('.draft-badge')) card.querySelector('.proj-name')?.append(draftBadge('Draft'));
   }
   const fresh = newProjectDrafts(drafts, me, allWeeks, weekId);
   if (!fresh.length) return;
