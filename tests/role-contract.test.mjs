@@ -20,9 +20,13 @@ const uat = dashboardSource('uat');
 // reproduces the accepted Delivery Trends hash 0ef4f40c... (tests/delivery-trends-integration.test.mjs). The same change set
 // contains three fixes found by the real-browser smoke tests (missing UAT import for the PDF option, explicit Executive/VIP
 // hiding of the entry, and clearing the page on sign-out), all reverted by that same test;
+// then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
+// then unified for all projects by the explicit two-button user revision (same editor; atomic current-form save/publish).
+// Archive scope restoration: English UI and lifecycle management outside Draft Publish (2026-10-15).
+// then reconciled for empty-week behavior in F4 (PR #54 + PR #63 composite candidate without implicit Prototype fallback in UAT).
 // any other UAT drift fails.
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
-const originalUatHash = '9e526abdf0d7cbc99ade1f5599b739b42c9e761c16897484fc91123993ffb2e9';
+const originalUatHash = '6297df8195cc75b597aa6233b84116dc848564a982b796114a6eb23ea97c8be3';
 
 const validRoles = new Map([
   ['admin', 'admin'],

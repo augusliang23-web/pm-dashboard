@@ -50,11 +50,11 @@ test('no valid week at all keeps the legacy default (the only available week) an
   assert.equal(weekOrder.latestValidWeekIndex(h.context.allWeeks), -1);
 });
 
-test('the prototype fallback (no saved weeks) is still selected as the only week', () => {
+test('zero saved weeks leaves official portfolio empty without synthetic prototype fallback', () => {
   const h = harness();
   h.push([]);
-  assert.equal(h.context.allWeeks.length, 1);
-  assert.equal(h.context.currentIdx, 0);
+  assert.equal(h.context.allWeeks.length, 0);
+  assert.equal(h.context.currentIdx, -1);
   assert.equal(h.context.deliveryTrendsHistoryState.source, 'synthetic');
 });
 

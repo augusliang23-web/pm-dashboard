@@ -150,10 +150,10 @@ test('weeks without verified reporting periods yield an explicit state, never gu
   } finally { await page.close(); }
 });
 
-test('prototype fallback (no saved weeks) is never shown as verified data', { timeout: 60000 }, async () => {
+test('empty portfolio (no saved weeks) is never shown as verified data', { timeout: 60000 }, async () => {
   const { page } = await open(uat, { role: 'admin', weeks: [] });
   try {
-    assert.match(await page.$eval('#bannerTitle', e => e.textContent), /Prototype/);
+    assert.match(await page.$eval('#bannerTitle', e => e.textContent), /No Data/);
     await page.click('#btnDeliveryTrends'); await wait(500);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
     assert.match(text, /prototype data/);

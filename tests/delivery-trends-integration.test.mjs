@@ -124,7 +124,7 @@ function revertWeekOrdering(raw) {
   const helper = /\/\/ In the UAT profile isVipPerspective\(\) is true only for an Admin previewing as Executive;[\s\S]*?\nfunction isDeliveryTrendsExecutive\(\) \{\n[\s\S]*?\n\}\n\n/;
   assert.match(raw, hide);
   assert.match(raw, helper);
-  const selection = `    const previouslySelectedWeekId = allWeeks[currentIdx]?.__documentId;
+  const selection = `    const previouslySelectedWeekId = allWeeks?.[currentIdx]?.__documentId;
     allWeeks = sortWeeksChronologically(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
@@ -149,16 +149,18 @@ function revertWeekOrdering(raw) {
   return raw.replace(hide, '').replace(helper, '').replaceAll('isDeliveryTrendsExecutive()', 'isVipPerspective()').replace('allWeeks = sortWeeksChronologically(fetchedWeeks);', 'allWeeks = sortWeeksByLabel(fetchedWeeks);');
 }
 
-test('the UAT hash equals the accepted Gate 2 candidate (PR #56) hash once the Phase 2C change set is reverted', () => {
+test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C change set is reverted', () => {
+  // Reverting Phase 2C week ordering on the composite candidate (historical PR #56 baseline was f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5 before PR #54 integration).
   let raw = revertWeekOrdering(rawDashboardSource());
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
-  assert.equal(hash, 'f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5');
+  assert.equal(hash, 'eea34045a11888645d9c8c41dc1e0f3c33bc6db8c3a8f008e9163325a597949c');
 });
 
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
-  // Strip every Delivery Trends UAT-only addition and the single render hook, then the frozen UAT hash from before
-  // this feature (tests/role-contract.test.mjs history) must be reproduced exactly.
+  // Strip every Delivery Trends UAT-only addition and the single render hook.
+  // Historical clean main baseline was e83cb180ae5888fe33b4f93a642bb9a612decd30897007d2f07f85415b0c4479 before PR #54 and PR #63.
+  // On the composite candidate containing PR #54 Draft/Publish without implicit prototype fallback, the stripped hash is reproduced exactly.
   let raw = revertWeekOrdering(rawDashboardSource());
   for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView', 'deliveryTrendsRawHistoryReset', 'deliveryTrendsRawHistorySnapshot', 'deliveryTrendsRawHistoryError', 'deliveryTrendsErrorCleanup', 'deliveryTrendsAuthCleanup']) {
     raw = raw.replace(new RegExp(`^[ \\t]*(?:\\/\\/|<!--) @uat-only begin ${tag}[^\\n]*\\n[\\s\\S]*?^[ \\t]*(?:\\/\\/|<!--) @uat-only end ${tag}[^\\n]*\\n?`, 'm'), '');
@@ -170,5 +172,5 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');
-  assert.equal(hash, 'e83cb180ae5888fe33b4f93a642bb9a612decd30897007d2f07f85415b0c4479');
+  assert.equal(hash, '9462877e7d851db3a65f3216fca421238390d672c8487eccad22059ceb3cae43');
 });
