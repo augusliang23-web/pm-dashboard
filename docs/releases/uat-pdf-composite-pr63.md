@@ -1,0 +1,274 @@
+# UAT PDF Service Composite Release Record (PR #63)
+
+> **Document Classification**: Official Release Record & Pre-Deployment Runbook  
+> **Target Scope**: **UAT PDF Service ONLY (`pm-dashboard-uat-pdf`)**  
+> **Release Nature**: **Release PLAN Only — NOT Evidence That Deployment Has Occurred**  
+> **Supersedes Notice**: This document serves as the authoritative release record for the composite **PR #58 + PR #60 PDF-only integration candidate**. For this specific release, it supersedes the deployment steps documented in the historical V2.3 UAT runbook ([`docs/delivery-trends-presentation/UAT_RELEASE_RUNBOOK.md`](../delivery-trends-presentation/UAT_RELEASE_RUNBOOK.md)). All historical runbooks remain unchanged for audit and baseline reference.
+
+---
+
+## 1. Release Identity & Boundary Isolation
+
+### 1.1 Candidate Identification
+* **Candidate Source SHA**: `8fc5bdb02489cbe3dfe69e07321752da7c340e03`
+* **Direct Ancestor Commits (Parents)**:
+  * **PR #58 (Backend Activation)**: `0ad92930682d86fb009b1a3f9bcbb0e669c348cd` (`claude/v23-uat-backend-activation`, which fully incorporates PR #57 Gate 2 closeout `7c02e7f44e4aac72c9a1a948512ea2bdbcdbd940`).
+  * **PR #60 (Hotfix)**: `a560292beca4746e8cdec240103b20752395f2dd` (`codex/pdf-attention-consistency-hotfix`).
+* **Integration Branch**: `integration/uat-pdf-v23-pr60`
+* **GitHub Integration PR**: [PR #63](https://github.com/augusliang23-web/pm-dashboard/pull/63) (`Draft`, `CI-ONLY INTEGRATION CANDIDATE`)
+* **Canonical Main Baseline**: `4a8e7ee63cdf40c3699c834b5ff18c7427e307b0`
+
+### 1.2 Deployment Target Surface
+* **GCP Project ID**: `pm-dashboard-uat-20260820-a7f3`
+* **Target Cloud Run Service**: `pm-dashboard-uat-pdf`
+* **Target Region**: `asia-southeast1`
+* **Dedicated Service URL**: `https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app`
+* **Deployment Scope**: **PDF SERVICE ONLY**
+
+### 1.3 Explicit Prohibitions & Anti-Scope
+1. **NO Firebase Hosting Deployment**: The UAT Hosting frontend remains on its current deployed baseline. Do **NOT** deploy PR #59 frontend flag or any new UI build.
+2. **NO Cloud Functions Deployment**: None of the 21 active Cloud Functions in `us-central1` may be modified, redeployed, or deleted.
+3. **NO Firestore Security Rules Deployment**: Neither `firestore.rules` nor `firestore.uat.rules` may be deployed.
+4. **NO Production Deployment**: Project `project-manager-dashboar-a067f` and service `pm-dashboard-pdf` must never be touched.
+5. **NO Unchecked Traffic Switching**: Cloud Run traffic must not be modified without explicit, separate release authorization.
+6. **NO Branch Merging**: PR #63 must **NOT** be merged into `main`.
+
+---
+
+## 2. Verified Source and CI Evidence
+
+### 2.1 Verification Evidence Summary
+The composite source code combining PR #58 and PR #60 has completed full local validation and independent remote CI:
+
+| Verification Category | Status | Evidence Description |
+|---|:---:|---|
+| **Git Source Ancestry** | **PASS** | Verified via `git merge-base --is-ancestor`: `0ad9293` (PR #58), `a560292` (PR #60), and `7c02e7f` (PR #57) are all true ancestors. |
+| **Source Manifest 35/35** | **PASS** | All 35 entries in [`docs/rca/pdf-uat-source-preservation.json`](../rca/pdf-uat-source-preservation.json) match candidate hashes (33 identical to previous deployed base, 2 identical to hotfix SHA). |
+| **Local PDF Test Suite** | **PASS** | `npm --prefix pdf-service test` passed **545/545 tests** (including Puppeteer headless render, attention parity, risk-table pagination). |
+| **Local Root Test Suite** | **PASS** | `npm run test:all` passed **1643/1643 tests** (0 failed, 3 deliberate root skips). |
+| **Delivery Trends Packaging** | **PASS** | `node scripts/package-delivery-trends.mjs --check` and `node pdf-service/src/verify-delivery-trends-package.mjs` passed with exit code `0`. |
+| **PDF Deploy Dry-Run** | **PASS** | `node pdf-service/scripts/deploy-pdf.mjs --target uat --dry-run` passed with exit code `0`. |
+| **Composite GitHub Actions CI** | **PASS** | Workflow run `39009717750` on Draft PR #63 passed all **5/5 checks** (`firestore-rules`, `hosting-builds`, `pdf-tests`, `root-tests`, `sync-boundary`). |
+
+### 2.2 Distinction of Tested Commit vs Documentation Commit
+* **Authoritative Tested Source Commit**: `8fc5bdb02489cbe3dfe69e07321752da7c340e03`  
+  This is the exact Git commit upon which full test suites and GitHub Actions CI Run `39009717750` executed.
+* **Release Record Commit**: Any subsequent commit creating or updating this documentation file on branch `integration/uat-pdf-v23-pr60` is strictly documentation-only. The entire `pdf-service/` tree remains **byte-for-byte identical** to `8fc5bdb`.
+
+---
+
+## 3. Pre-Deployment Safety & Metadata-Only Inspection Protocol
+
+Before executing any deployment command in the future, the operator must execute a fresh, read-only metadata inspection and verify all items below against the expected configuration generated by `pdf-service/scripts/deploy-pdf.mjs`:
+
+### 3.1 Twelve Pre-Deployment Inspection Checkpoints (Class 3A Metadata-Only)
+The following 12 checkpoints must be established using metadata-only queries:
+1. **Current Serving Revision vs. Latest Ready Revision (Point A)**:
+   * **Serving Revision**: The actual active serving revision is determined **exclusively** by traffic allocation (`percent > 0`):
+     ```bash
+     gcloud run services describe pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="json(status.traffic)"
+     ```
+   * **Latest Ready Revision (`latestReadyRevisionName`)**: Only indicates the most recent revision that successfully reached the `Ready` state; it is **NOT** necessarily the revision receiving traffic (e.g., if traffic is pinned to an earlier revision or split):
+     ```bash
+     gcloud run services describe pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(status.latestReadyRevisionName)"
+     ```
+2. **Current Traffic Distribution**:
+   * Confirm 100% traffic allocation to the verified serving revision via `status.traffic` (`percent: 100`).
+3. **Revision-Specific Image Digest Metadata (Point B)**:
+   * Retrieve the image digest directly from revision status metadata (do not rely on an assumed service-level traffic field):
+     ```bash
+     gcloud run revisions describe <REVISION_NAME> \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(status.imageDigest)"
+     ```
+   * Retrieve container image URL/tag from revision spec:
+     ```bash
+     gcloud run revisions describe <REVISION_NAME> \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(spec.template.spec.containers[0].image)"
+     ```
+4. **Multi-Command Identity & Provenance Distinction (Point C)**:
+   * **Service IAM Policy**: Inspect Cloud Run service IAM bindings independently:
+     ```bash
+     gcloud run services get-iam-policy pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3
+     ```
+     (Confirm whether `roles/run.invoker` is bound to `allUsers` or authenticated caller only).
+   * **Runtime Service Account**: Inspect runtime execution identity from service template spec:
+     ```bash
+     gcloud run services describe pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(spec.template.spec.serviceAccountName)"
+     ```
+     (Confirm expected runtime SA: `pm-dashboard-uat-pdf@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`).
+   * **Build Service Account**: Inspect build execution identity from service annotations or Cloud Build triggers:
+     ```bash
+     gcloud run services describe pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(metadata.annotations['run.googleapis.com/build-service-account'])"
+     ```
+     (Confirm expected build SA: `pm-dashboard-uat-pdf-build@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com`).
+   * **Build Provenance**: Query Cloud Build execution metadata and build source provenance:
+     ```bash
+     gcloud builds describe <BUILD_ID> \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="json(id,status,source,sourceProvenance,substitutions)"
+     ```
+5. **Ingress Configuration**:
+   * Confirm `metadata.annotations["run.googleapis.com/ingress"]` matches required policy (`all`):
+     ```bash
+     gcloud run services describe pm-dashboard-uat-pdf \
+       --region asia-southeast1 \
+       --project pm-dashboard-uat-20260820-a7f3 \
+       --format="value(metadata.annotations['run.googleapis.com/ingress'])"
+     ```
+6. **All Existing Environment Variables**:
+   * Query `spec.template.spec.containers[0].env` to verify:
+     * `PDF_ENVIRONMENT`: `"uat"`
+     * `FIREBASE_PROJECT_ID`: `"pm-dashboard-uat-20260820-a7f3"`
+     * `ALLOWED_ORIGIN`: `"https://augusliang23-web.github.io,https://pm-dashboard-uat-20260820-a7f3.web.app"`
+7. **Sizing & Scaling Limits**:
+   * Confirm `spec.template.spec.containers[0].resources.limits` (1 CPU, 1 GiB RAM), timeout (120 s), concurrency (`1`), min-instances (`0`), and max-instances (`1`).
+8. **Current Service Feature Preservation**:
+   * Confirm target `uat` in `pdf-service/src/targets/registry.json` has `deliveryPerformanceSection: true`, `projectBriefUpdateSections: true`, `liveExecutiveTimeline: true`.
+9. **Available Rollback Revisions**:
+   * Query `gcloud run revisions list --service pm-dashboard-uat-pdf --region asia-southeast1 --project pm-dashboard-uat-20260820-a7f3` to inspect existing revisions.
+10. **Rollback Functional Compatibility Notice (Point D)**:
+   * Explicit notice: existence of revisions in GCP metadata does **NOT** prove functional compatibility; **rollback functional compatibility is NOT YET VERIFIED**.
+11. **Container Image Layer Verification Status (Point E)**:
+   * Explicit notice: Class 3B actual deployed container layers remain strictly **UNKNOWN — NOT VERIFIED** under GCP egress cost guardrails (no layer pulls permitted).
+12. **Exact Approved Deployment Source**:
+   * Confirm git working tree is completely clean and matches the approved candidate SHA `8fc5bdb02489cbe3dfe69e07321752da7c340e03`.
+
+### 3.2 Critical Deploy Script Audit Notice
+> [!CAUTION]
+> **Behavioral Characteristics of `pdf-service/scripts/deploy-pdf.mjs`**:
+> 1. **Public Ingress & Invocation**: The script explicitly invokes `gcloud run deploy ... --allow-unauthenticated --ingress all`.
+> 2. **Environment Variable Replacement**: The script supplies `--env-vars-file env.yaml`, which **completely replaces** the service's environment variables rather than merging with existing variables.
+> 3. **Governance Rule**: Never assume the script preserves live configuration automatically. If pre-deployment comparison reveals that executing the script would weaken IAM policies, change ingress unexpectedly, erase critical unmanaged environment variables, or alter unrelated service settings:
+>    $$\mathbf{HOLD\; DEPLOYMENT\; IMMEDIATELY}$$
+>    Do not modify the deployment script without Control Plane approval.
+
+---
+
+## 4. GCP Artifact Registry Cost & Verification Policy
+
+All agents and engineers must strictly adhere to the mandatory GCP Cost Guardrails defined in `AGENTS.md`:
+
+1. **PROHIBITION OF IMAGE LAYER DOWNLOADS**:
+   * **NEVER** run `docker pull`, `crane pull`, `skopeo copy`, or any local container extraction from `asia-southeast1-docker.pkg.dev`.
+   * **Rationale**: The PDF service image bundles Chromium and Noto CJK fonts (~428 MB compressed). Pulling layers across the internet incurs Artifact Registry internet egress charges with zero free tier.
+2. **Strict Separation of Evidence Classes (Point E)**:
+   * **Class 1 (Git Source Evidence)**: Commit SHAs, git log, git merge-base, diff inspection.
+   * **Class 2 (Source Manifest Evidence)**: Hash records in `docs/rca/pdf-uat-source-preservation.json`.
+   * **Class 3A (Revision Metadata Evidence)**: Metadata retrieved from Cloud Run Admin APIs (`gcloud run services describe`, `revisions list`, `revisions describe`).
+   * **Class 3B (Actual Deployed Image Content / Layers)**: **UNKNOWN — NOT VERIFIED**.
+   * **Invariant**: Metadata alone (Class 3A) never proves internal container image layer equality (Class 3B). Under GCP egress guardrails, Class 3B content must remain strictly documented as **UNKNOWN — NOT VERIFIED**.
+
+---
+
+## 5. Rollback Plan & Tradeoff Analysis
+
+### 5.1 Candidate Rollback Revisions
+Prior to any release, the operator must query live Cloud Run revisions and confirm the availability of candidate rollback targets:
+
+| Candidate Revision Name | Creation Timestamp | Image Digest (Short) | Observed Historical Characteristics | Functional Compatibility Status |
+|---|---|---|---|:---:|
+| **`pm-dashboard-uat-pdf-pr60-a560292`** | 2026-10-16T03:17:28Z | `sha256:e82b2daa...` | Historical composite running PR #58 + PR #60 out-of-band; Class 3B content unverified, but known serving state. | **NOT YET VERIFIED** |
+| **`pm-dashboard-uat-pdf-00006-tg8`** | 2026-10-15T09:32:11Z | `sha256:a421faf4...` | Clean tracked PR #58 deployment; lacks PR #60 Attention and pagination fixes. | **NOT YET VERIFIED** (regressions present) |
+
+### 5.2 Rollback Tradeoffs & Functional Compatibility (Point D)
+> [!WARNING]
+> **Rollback Functional Compatibility Notice**:  
+> Availability of historical revisions in `gcloud run revisions list` only confirms revision metadata existence in GCP. It does **NOT** prove runtime functional compatibility with current backend data structures, Firestore schemas, or client frontend expectations.  
+> **Rollback functional compatibility is NOT YET VERIFIED**.
+
+* **Reverting to `pm-dashboard-uat-pdf-pr60-a560292`**: Restores the service to the configuration observed on 2026-10-16, but retains unverified container layer provenance (Class 3B UNKNOWN).
+* **Reverting to `pm-dashboard-uat-pdf-00006-tg8`**: Restores an earlier build that lacks PR #60, which will reintroduce the Attention boolean-override defect and risk-table pagination overflow.
+* **Governance Status**: **Rollback functional compatibility is NOT YET VERIFIED**.
+
+### 5.3 Rollback Execution & Verification Protocol
+If deployment fails or post-deployment acceptance uncovers critical defects:
+1. **Traffic Diversion**: Immediately redirect 100% traffic back to the pre-recorded stable revision:
+   ```bash
+   gcloud run services update-traffic pm-dashboard-uat-pdf \
+     --to-revisions <ROLLBACK_REVISION>=100 \
+     --region asia-southeast1 \
+     --project pm-dashboard-uat-20260820-a7f3
+   ```
+2. **Post-Rollback Verification Checklist**:
+   * [ ] Selected revision status transitions to `Ready`.
+   * [ ] Traffic report confirms 100% allocation to the target rollback revision.
+   * [ ] IAM bindings and environment variables remain active.
+   * [ ] Existing authenticated PDF export functions normally.
+   * [ ] Attention classification and risk-table pagination are tested.
+   * [ ] No unexpected service degradation or feature loss.
+3. **Release Hold**: If no valid rollback revision is available prior to deployment, report:
+   $$\mathbf{RELEASE\; HOLD}$$
+
+---
+
+## 6. UAT Acceptance Plan
+
+Acceptance testing is strictly scoped to the **PDF Service only** using the existing deployed Firebase Hosting frontend. Do **NOT** enable the PR #59 frontend flag.
+
+### 6.1 Eight Required Acceptance Categories
+* **Category A: Existing Authenticated PDF Export**: Verified users can export standard Overview and Project PDF reports.
+* **Category B: Existing Overview Report Layout**: Overview report formatting, summary metrics, and visual components render properly.
+* **Category C: Attention Classification Parity**: Explicit Attention values (boolean or string) and status fallbacks match report model expectations.
+* **Category D: Long Risk-Table Pagination**: Risk table headings do not split prematurely into residual space after Attention cards.
+* **Category E: Authorized Delivery Performance PDF Section**: The Delivery Performance PDF section renders correctly when requested via authorized testing paths (`deliveryPerformanceSection: true`).
+* **Category F: Role and Released-Week Restrictions**: Role permissions (F-1) enforce draft-week access restrictions (Admin/PM only).
+* **Category G: Unauthenticated Request Rejection**: Unauthenticated requests to `/v1/reports/*` return HTTP 401 or 403; CORS preflight rejects unauthorized origins.
+* **Category H: Production Configuration Isolation**: Production target registry features remain false.
+
+### 6.2 Testing Responsibility & Modality Matrix
+To maintain testing integrity, automated checks are clearly distinguished from human acceptance:
+
+| Check Category | Verification Modality | Test Suite / Execution Path | Acceptance Criteria |
+|---|---|---|---|
+| **C, D, G, H** | **Automated Local/CI** | `pdf-service/test/risk-pagination.test.mjs`, `attention-parity.test.mjs`, `delivery-feature-gate.test.mjs` | PASS in CI Run `39009717750` |
+| **E, F** | **Automated Local/CI** | `pdf-service/test/delivery-performance-report.test.mjs`, `uat-activation-smoke.test.mjs` | PASS in CI Run `39009717750` |
+| **A, B** | **Authenticated Human UAT** | Signed-in Admin/PM on `https://pm-dashboard-uat-20260820-a7f3.web.app` | PDF downloads cleanly, visual layout correct |
+| **C, D (Live)** | **Authenticated Human UAT** | Export week with 14+ projects and multiple risk items | Risk table begins on fresh page if space is insufficient |
+| **G (Live)** | **Manual / Curl Probe** | `curl -s -o /dev/null -w "%{http_code}" https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app/v1/reports/project` | Returns HTTP `401` or `403` |
+
+*(Note: Listing a test in this plan does not constitute proof that live testing has occurred.)*
+
+---
+
+## 7. Release Authorization Gate Status
+
+All deployment actions remain completely blocked until all five approvals below are formally recorded:
+
+```text
+================================================================================
+                    RELEASE AUTHORIZATION GATE (GATE B)
+================================================================================
+  Control Plane Review:           PENDING
+  Human Release Approver:         PENDING
+  Authorized Source SHA:          PENDING FINAL CONFIRMATION
+  Current Live Baseline:          PENDING FRESH READBACK
+  Rollback Target:                PENDING VERIFICATION
+--------------------------------------------------------------------------------
+  ACTUAL CLOUD DEPLOYMENT:        NOT AUTHORIZED (BLOCKED)
+================================================================================
+```
+
+---
+
+## 8. Summary of Operating Invariants
+1. This file is a release **PLAN**, not evidence that deployment occurred.
+2. The candidate commit `8fc5bdb` is fully validated by CI but is **NOT** authorized for production or unapproved UAT deployment.
+3. No feature branches, Cloud Run traffic, or Firebase services may be modified during this documentation task.

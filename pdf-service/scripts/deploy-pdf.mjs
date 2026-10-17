@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { CLOUD_ENVIRONMENTS, PdfEnvironmentError, loadTargetRegistry } from '../src/environment.js';
 import { parseAllowedOrigins } from '../src/cors.js';
+import { verifyDeliveryTrendsPackage } from '../src/verify-delivery-trends-package.mjs';
 
 const execFileAsync = promisify(execFile);
 const PDF_SERVICE_DIR = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -297,6 +298,10 @@ export async function runPdfDeploy(argv, options = {}) {
     if (git.dirty) throw new Error('Refusing to deploy: the working tree is not completely clean (modified, staged, deleted, renamed, or untracked files present).');
     await assertUploadWithinGitTrackedFiles(cwd, { getTrackedFiles, getUploadCandidates });
   }
+
+  await verifyDeliveryTrendsPackage({
+    srcDir: join(cwd, 'src'), canonicalPath: join(cwd, '../shared/delivery-trends.mjs')
+  });
 
   const directory = await mkdtemp(join(tmpdir(), 'pdf-deploy-'));
   try {
