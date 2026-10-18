@@ -26,7 +26,8 @@ const uat = dashboardSource('uat');
 // then reconciled for empty-week behavior in F4 (PR #54 + PR #63 composite candidate without implicit Prototype fallback in UAT).
 // any other UAT drift fails.
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
-const originalUatHash = '6297df8195cc75b597aa6233b84116dc848564a982b796114a6eb23ea97c8be3';
+// F7 remediation: preserve live draft contract (1af8d09, b15b040, dbcff70: PM draft creation/save/publish, compact card, inline badge, PM prefill, latestPublishWeekId) and fix cache-only empty snapshot.
+const originalUatHash = '5540075b28a4620a309ce300c3ab6aa67858dbac3821a7f5b34aa18c29cb4cad';
 
 const validRoles = new Map([
   ['admin', 'admin'],

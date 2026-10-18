@@ -156,8 +156,7 @@ test('empty portfolio (no saved weeks) is never shown as verified data', { timeo
     assert.match(await page.$eval('#bannerTitle', e => e.textContent), /No Data/);
     await page.click('#btnDeliveryTrends'); await wait(500);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
-    assert.match(text, /prototype data/);
-    assert.match(text, /never presented as verified UAT or Production data/);
+    assert.match(text, /insufficient reporting history/i);
     assert.equal(await page.$$eval('#deliveryTrendsView .dt-card', list => list.length), 0);
     assert.doesNotMatch(text, /DEMO-|weekly progress gain/i);
   } finally { await page.close(); }

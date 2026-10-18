@@ -36,8 +36,8 @@ export function buildDeliveryTrendsState({
   const anchor = Array.isArray(weeks) ? (explicitAnchorWeekId ? weeks.find(week => weekIdOf(week) === explicitAnchorWeekId) : weeks[currentIdx]) : null;
   const anchorWeekId = weekIdOf(anchor);
   if (hasUnsavedWeeks(weeks)) return { state: 'unavailable', prototype: true, reason: PROTOTYPE_REASON };
-  // With no saved weeks the dashboard falls back to built-in prototype weeks and the history source is 'synthetic'.
-  if (source === 'synthetic' && Array.isArray(weeks) && weeks.length === 0) return { state: 'unavailable', prototype: true, reason: PROTOTYPE_REASON };
+  // Confirmed zero-week reporting history in UAT is empty, not synthetic prototype data.
+  if (Array.isArray(weeks) && weeks.length === 0) return { state: 'unavailable', reason: 'Insufficient reporting history to calculate delivery trends.' };
   if (!anchorWeekId) return { state: 'unavailable', reason: 'No reporting week is selected.' };
   try {
     const input = createDeliveryTrendsInput({

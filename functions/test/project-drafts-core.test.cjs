@@ -5,12 +5,13 @@ const admin = { uid:'a', email:'admin@example.com', role:'admin', displayName:'A
 const pm = { uid:'p', email:'owner@example.com', role:'pm', displayName:'Owner', permissionOverrides:{'project.manage':true} };
 const nowIso = '2026-10-14T00:00:00Z';
 const create = (actor=pm, input={expectedRevision:0,project:{name:'',code:'',progress:0}}) => buildDraftRecord({actor,input,draftId:'draft-one',nowIso,assignmentUsers:{}});
-test('new drafts require creation authority and remain incomplete until Publish', () => {
+test('an Admin or PM can create a new draft without project.manage, and it stays incomplete until Publish', () => {
   const draft = create();
   assert.deepEqual(draft.editorEmails, ['owner@example.com']);
   assert.equal(draft.project.owner,'Owner'); assert.equal(draft.revision,1);
   assert.equal(draft.lastPublication,null);
-  assert.throws(()=>create({...pm,permissionOverrides:{}}), /permission/i);
+  assert.doesNotThrow(()=>create({...pm,permissionOverrides:{}}));                 // no project.manage needed to create a draft
+  assert.throws(()=>create({...pm,role:'vip'}), /permission/i);                      // other roles still cannot
   assert.doesNotThrow(()=>validateDraftInput(draft.project,{publishing:false}));
   assert.throws(()=>validateDraftInput(draft.project,{publishing:true}), /name|code/i);
 });
