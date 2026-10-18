@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { buildDraftSaveInput, latestPublishWeekId } from '../js/project-drafts-ui.mjs';
+import { sortWeeksChronologically, latestValidWeekIndex } from '../js/week-order.mjs';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 const source=dashboardSource('uat');
 function extract(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
@@ -41,7 +42,9 @@ test('zero persisted week documents stay an empty official portfolio without dem
  const context=vm.createContext({weeksUnsub:null,executiveTimelineConfigUnsub:null,executiveLiveTimelineUnsub:null,executivePendingMilestoneUnsub:null,
   collection:()=>null,doc:()=>null,query:()=>null,orderBy:()=>null,where:()=>null,db:{},currentRole:'pm',canReadDraftWeeks:()=>true,canCurrentUser:()=>false,
   getEmailKey:u=>u.email,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},isAuthInitializationCurrent:()=>true,
-  onSnapshot:(ref,fn)=>{callback=fn;return ()=>{};},allWeeks:null,currentIdx:-1,jumpToLatestOnNextRender:false,sortWeeksByLabel:x=>x,
+  deliveryTrendsRawWeeks:[],deliveryTrendsHistoryState:{source:null,complete:false},
+  normalizeProject:p=>({...p}),projectRevisionFingerprint:()=>'',sortWeeksChronologically,latestValidWeekIndex,
+  onSnapshot:(ref,...args)=>{const fn=typeof args[0]==='function'?args[0]:args[1];if(fn)callback=fn;return ()=>{};},allWeeks:null,currentIdx:-1,jumpToLatestOnNextRender:false,sortWeeksByLabel:x=>x,
   escHtml:x=>String(x),buildPrototypeWeeks:()=>[{projects:[{progress:62}]}],render(){},hideLoader(){},document:{getElementById:()=>select}});
  vm.runInContext(extract('initData'),context);context.initData(1,context.currentUser);callback({docs:[]});
  assert.equal(context.allWeeks.length,0);assert.equal(context.currentIdx,-1);assert.match(select.innerHTML,/No Weeks/);

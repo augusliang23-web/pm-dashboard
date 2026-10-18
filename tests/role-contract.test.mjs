@@ -13,15 +13,26 @@ const uat = dashboardSource('uat');
 // gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
 // then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
+// then by the V2.3 Delivery Trends page (UAT-only: navigation button, container, view-sync script, PDF option). The change is
+// proven to be exactly that feature: tests/delivery-trends-integration.test.mjs strips those additions and reproduces the
+// previous hash e83cb180...; Production is unchanged and no Production invariant exception was added;
+// then by the UAT-only chronological week ordering (js/week-order.mjs): reverting that one import block and one call
+// reproduces the accepted Delivery Trends hash 0ef4f40c... (tests/delivery-trends-integration.test.mjs). The same change set
+// contains three fixes found by the real-browser smoke tests (missing UAT import for the PDF option, explicit Executive/VIP
+// hiding of the entry, and clearing the page on sign-out), all reverted by that same test;
 // then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
 // then unified for all projects by the explicit two-button user revision (same editor; atomic current-form save/publish).
-// any other UAT drift fails.
 // Archive scope restoration: English UI and lifecycle management outside Draft Publish (2026-10-15).
 // Deliberate change (2026-10-17, Control Plane product requirement): in the UAT profile a PM may create, save and publish projects without project.manage
 // (Add New Project and New Project Draft shown to PMs, canPublish no longer needs project.manage). Deleting projects stays behind project.manage. Production is unchanged.
 // Deliberate change (2026-10-17, UX refinement): no Publish-to-week selector (latest applicable week), My Drafts button removed, Draft cards/labels on the Dashboard, PM owner prefilled.
 // Deliberate change (2026-10-17, Draft card UI fix): compact Draft card and small inline Draft capsule (CSS and card markup only).
-const originalUatHash = "ef3ed56d845f042be4c333c1a9bad89b7d610cf3893a678dec88fbb217f90546";
+// then reconciled for empty-week behavior in F4 (PR #54 + PR #63 composite candidate without implicit Prototype fallback in UAT).
+// any other UAT drift fails.
+// Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
+// F9 reconciliation: main Draft contract retained; F8-reviewed UAT view and hash preserved.
+// F7 remediation: preserve live draft contract (1af8d09, b15b040, dbcff70: PM draft creation/save/publish, compact card, inline badge, PM prefill, latestPublishWeekId) and fix cache-only empty snapshot.
+const originalUatHash = '5540075b28a4620a309ce300c3ab6aa67858dbac3821a7f5b34aa18c29cb4cad';
 
 const validRoles = new Map([
   ['admin', 'admin'],

@@ -32,13 +32,32 @@ export function reconcileOverviewProjectSelection(projectOptions = [], selectedP
   return uniqueTextList(selectedProjectCodes).filter(code => availableCodes.has(code));
 }
 
+export const DELIVERY_PERFORMANCE_SECTION_ID = 'portfolio-delivery-performance';
+
+// UAT release candidate: set to true ONLY together with (and after) the UAT PDF backend that accepts the new section
+// has been deployed and verified (registry.json deliveryPerformanceSection: true for the UAT target). The old backend
+// rejects unknown section ids, so deploy the backend first, verify it, then deploy this. The section is still UAT-only:
+// isDeliveryPerformancePdfAvailable() requires the UAT profile, so Production never offers or sends it. To switch the
+// feature off in an emergency, set this back to false and redeploy Hosting (or roll Hosting back).
+export const DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED = true;
+
+export function isDeliveryPerformancePdfAvailable({
+  profile,
+  backendVerified = DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED,
+} = {}) {
+  return profile === 'uat' && backendVerified === true;
+}
+
 export function buildOverviewPdfRequest({
   sections,
   overviewScope,
   projectCodes,
   executiveAudienceView,
+  deliveryPerformanceAvailable = isDeliveryPerformancePdfAvailable({ profile: globalThis.PM_DASHBOARD_ENV?.dashboardProfile }),
 } = {}) {
-  const normalizedSections = uniqueTextList(sections);
+  // Defense in depth: the new section is dropped unless this environment is explicitly verified for it.
+  const normalizedSections = uniqueTextList(sections)
+    .filter(section => section !== DELIVERY_PERFORMANCE_SECTION_ID || deliveryPerformanceAvailable === true);
   if (!normalizedSections.length) throw new Error('Select at least one section to export.');
 
   const normalizedProjectCodes = uniqueTextList(projectCodes);

@@ -80,8 +80,10 @@ function projectLevel(value) {
 }
 
 function attentionFor(project) {
-  const explicit = String(project.attentionManual || project.attention || '').toLowerCase();
-  if (VALID_ATTENTION.has(explicit)) return explicit;
+  if (VALID_ATTENTION.has(project.attention)) return project.attention;
+  // Current writers store a boolean flag; retain the older PDF string override.
+  const legacy = typeof project.attentionManual === 'string' ? project.attentionManual.toLowerCase() : '';
+  if (VALID_ATTENTION.has(legacy)) return legacy;
   if (project.status === 'red') return 'action';
   if (project.status === 'yellow') return 'monitor';
   return 'watch';
@@ -130,7 +132,7 @@ export function normalizeProjectForReport(source = {}, { ganttWindowSettings, an
     projectLevel: projectLevel(project.projectLevel),
     status,
     progress: clampPercent(project.progress),
-    attention: '',
+    attention: attentionFor({ ...project, status }),
     highlights: lines(rawHighlightText),
     risks,
     actions,
@@ -167,7 +169,6 @@ export function normalizeProjectForReport(source = {}, { ganttWindowSettings, an
     resources: project.resources && typeof project.resources === 'object' ? { ...project.resources } : {},
     budgetSource: project.budget && typeof project.budget === 'object' ? { ...project.budget } : {}
   };
-  model.attention = attentionFor(model);
   const ganttWindowMonths = resolveGanttWindowMonths(model.code, ganttWindowSettings);
   const { workstreams: windowedWorkstreams, filteredOutCount } = ganttWindowMonths
     ? filterWorkstreamsByWindow({ workstreams: model.workstreams, anchorDate, windowMonths: ganttWindowMonths })
@@ -474,8 +475,10 @@ export function buildOverviewReportModel({
   executiveAudienceView = 'leadership',
   projectSelectionApplied = false,
   projectSelectionIsPartial = false,
-  ganttWindowSettings
+  ganttWindowSettings,
+  deliveryTrends
 } = {}) {
+  if (deliveryTrends !== undefined && deliveryTrends?.contractVersion !== 'delivery-trends/v1') throw new TypeError('Invalid delivery trends contract.');
   const anchorDate = resolveReportAnchorDate(week);
   const projects = scopedProjects(week.projects, overviewScope, { ganttWindowSettings, anchorDate });
   const attention = { action: [], monitor: [], strategy: [], watch: [] };
@@ -503,6 +506,7 @@ export function buildOverviewReportModel({
     quarterlyItems,
     resource: buildResourceSummary(projects),
     budget: buildBudgetSummary(projects),
-    trend: buildTrend(trendWeeks, overviewScope)
+    trend: buildTrend(trendWeeks, overviewScope),
+    ...(deliveryTrends === undefined ? {} : { deliveryTrends })
   };
 }
