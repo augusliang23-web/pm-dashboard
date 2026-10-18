@@ -19,18 +19,12 @@ export function isWeekReleased(week) {
  * Identifies the target unreleased reporting week for restoration.
  *
  * Precedence:
- * 1. If the currently selected week exists and is unreleased, use it.
- * 2. Otherwise, find the latest chronological unreleased week in allWeeks.
- * 3. If all weeks are released (or no weeks exist), return null.
+ * Strictly resolves to the latest chronological unreleased draft week in allWeeks.
+ * Does not restore into an older week merely because it is currently selected.
+ * If all weeks are released (or no weeks exist), returns null.
  */
-export function findTargetDraftWeek(allWeeks = [], currentIdx = -1) {
+export function findTargetDraftWeek(allWeeks = []) {
   const weeks = Array.isArray(allWeeks) ? allWeeks : [];
-  if (currentIdx >= 0 && currentIdx < weeks.length) {
-    const candidate = weeks[currentIdx];
-    if (candidate && !isWeekReleased(candidate)) {
-      return candidate;
-    }
-  }
   const ordered = sortWeeksChronologically(weeks);
   for (let i = ordered.length - 1; i >= 0; i -= 1) {
     if (!isWeekReleased(ordered[i])) {
@@ -57,15 +51,26 @@ function cloneData(value) {
  * 3. Identifies a project as archived if and only if its latest known appearance
  *    has visibility === 'archived'.
  * 4. Hidden projects (visibility === 'hidden') are NOT archived.
- * 5. If the project is already active in targetWeek (or currentWeek), it is excluded
- *    from the archived collection (as it is already active).
+ * 5. If the project is already active in targetWeek, it is flagged as already active.
  * 6. Preserves existing metadata faithfully without inventing information.
+ * 7. History is considered complete only after authoritative server confirmation.
+ *    Cache-only or unconfirmed history is marked as isHistoricalIncomplete.
  */
-export function collectArchivedProjects(allWeeks = [], targetWeek = null) {
-  if (!Array.isArray(allWeeks) || allWeeks.length === 0) {
+export function collectArchivedProjects(allWeeks = [], targetWeek = null, options = {}) {
+  const isServerConfirmed = options.isServerConfirmed !== undefined
+    ? options.isServerConfirmed !== false
+    : (allWeeks?.__isServerConfirmed !== undefined ? Boolean(allWeeks.__isServerConfirmed) : true);
+  if (!Array.isArray(allWeeks) || !isServerConfirmed) {
     return {
       archived: [],
-      isHistoricalIncomplete: !Array.isArray(allWeeks),
+      isHistoricalIncomplete: true,
+    };
+  }
+
+  if (allWeeks.length === 0) {
+    return {
+      archived: [],
+      isHistoricalIncomplete: false,
     };
   }
 

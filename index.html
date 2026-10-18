@@ -6246,6 +6246,7 @@ function initData__uat(authGeneration, authUser) {
     if (snap.docs.length === 0) {
       if (isServerConfirmed) {
         hasServerConfirmation = true;
+        if (typeof window !== 'undefined') window.__weeksServerConfirmed = true;
         allWeeks = [];
         currentIdx = -1;
         const sel = document.getElementById('wNavSelect');
@@ -6258,6 +6259,7 @@ function initData__uat(authGeneration, authUser) {
 
     if (isServerConfirmed) {
       hasServerConfirmation = true;
+      if (typeof window !== 'undefined') window.__weeksServerConfirmed = true;
     }
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
@@ -14272,7 +14274,6 @@ import {
   filterArchivedProjects,
   findTargetDraftWeek,
   canRestoreProject,
-  buildRestoredProjectPayload,
 } from './js/archive-recovery.mjs';
 
 let cachedArchivedList = [];
@@ -14298,7 +14299,7 @@ window.filterArchivedProjectsUI = function filterArchivedProjectsUI() {
 };
 
 function renderArchivedProjectsModal() {
-  const targetWeek = findTargetDraftWeek(allWeeks, currentIdx);
+  const targetWeek = findTargetDraftWeek(allWeeks);
   const banner = document.getElementById('archivedTargetWeekBanner');
   const bannerLabel = document.getElementById('archivedTargetWeekLabel');
   const listContainer = document.getElementById('archivedProjectsListContainer');
@@ -14318,12 +14319,13 @@ function renderArchivedProjectsModal() {
     bannerLabel.innerHTML = `🎯 Target reporting week for restoration: <strong>${escHtml(targetWeek.weekLabel || targetWeek.__documentId)}</strong> (${escHtml(targetWeek.weekDate || 'Draft')})`;
   }
 
-  const { archived, isHistoricalIncomplete } = collectArchivedProjects(allWeeks, targetWeek);
+  const isServerConfirmed = Boolean(window.__weeksServerConfirmed);
+  const { archived, isHistoricalIncomplete } = collectArchivedProjects(allWeeks, targetWeek, { isServerConfirmed });
   cachedArchivedList = archived;
   const filtered = filterArchivedProjects(archived, query);
 
   if (isHistoricalIncomplete) {
-    listContainer.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-light);">Loading reporting weeks history...</div>';
+    listContainer.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-light);">Loading reporting weeks history from server...</div>';
     return;
   }
 
@@ -14366,7 +14368,7 @@ function renderArchivedProjectsModal() {
         <td style="padding:8px;"><span class="card-status ${statusClass}" style="display:inline-block; padding:2px 6px; font-size:10px; border-radius:4px;">${escHtml(statusText)}</span></td>
         <td style="padding:8px; text-align:right;">
           ${restoreCheck.allowed ? `
-            <button class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="handleRestoreArchivedProject('${escHtml(item.code)}')">Restore</button>
+            <button type="button" class="btn btn-primary" data-action="restore" data-project-code="${escHtml(item.code)}" style="padding:4px 10px; font-size:11px;">Restore</button>
           ` : `
             <span style="font-size:11px; color:var(--text-light); font-style:italic;" title="${escHtml(restoreCheck.reason || '')}">${item.isAlreadyActive ? 'Already Active' : 'Unavailable'}</span>
           `}
@@ -14376,6 +14378,12 @@ function renderArchivedProjectsModal() {
 
   html += `</tbody></table>`;
   listContainer.innerHTML = html;
+  listContainer.onclick = function handleArchivedProjectsListClick(event) {
+    const btn = event.target.closest('button[data-action="restore"]');
+    if (!btn) return;
+    const code = btn.getAttribute('data-project-code');
+    if (code) handleRestoreArchivedProject(code);
+  };
 }
 
 window.handleRestoreArchivedProject = async function handleRestoreArchivedProject(code) {
@@ -14383,7 +14391,7 @@ window.handleRestoreArchivedProject = async function handleRestoreArchivedProjec
     alert('Only administrators can restore archived projects.');
     return;
   }
-  const targetWeek = findTargetDraftWeek(allWeeks, currentIdx);
+  const targetWeek = findTargetDraftWeek(allWeeks);
   const check = canRestoreProject(code, targetWeek);
   if (!check.allowed) {
     alert(check.reason || 'Cannot restore project.');
@@ -14399,16 +14407,13 @@ window.handleRestoreArchivedProject = async function handleRestoreArchivedProjec
   const confirmMsg = `Restore project "${record.code}" (${record.name || 'Unnamed'}) into week "${targetWeek.weekLabel}"?\n\nThe project will become Active in this reporting week and carry forward into future weeks. Historical reporting weeks remain unchanged.`;
   if (!confirm(confirmMsg)) return;
 
-  const restoredPayload = buildRestoredProjectPayload(record);
   showLoader('Restoring Project...');
   try {
     const targetWeekId = targetWeek.__documentId || targetWeek.weekId;
-    const response = await projectDashboardApi.saveProject({
+    const response = await projectDashboardApi.restoreArchivedProject({
       weekId: targetWeekId,
-      originalCode: '',
-      projectCode: restoredPayload.code,
-      project: restoredPayload,
-      isNew: true,
+      sourceWeekId: record.archivedWeekId,
+      projectCode: record.code,
     });
 
     if (response && response.week) {

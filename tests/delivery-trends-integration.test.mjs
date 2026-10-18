@@ -169,7 +169,7 @@ test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C 
   let raw = revertWeekOrdering(rawDashboardSource());
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
-  assert.equal(hash, '6875913513a569850c6c9f416ffb0a7bcfb28d18ba59a3acb690c92d561444c3');
+  assert.equal(hash, 'ef752abac8d23ea4c0f0867ab230d64131970de6b2bc5593c2d2da3ebc17df33');
 });
 
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
@@ -187,5 +187,5 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');
-  assert.equal(hash, '16e3f6b5524d8ffe3f59b1d6d74ae4e0b2d687926428c4d0bcb49a96ec57e11c');
+  assert.equal(hash, '70903394733c80bbfb66267cf054208f8561f454da847890967c4187b45c9e3a');
 });

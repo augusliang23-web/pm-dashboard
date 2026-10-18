@@ -1,0 +1,272 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createStore } = require('./helpers/draft-store.cjs');
+
+const { state, db } = createStore();
+const firestorePath = require.resolve('firebase-admin/firestore');
+const real = require(firestorePath);
+require.cache[firestorePath] = {
+  id: firestorePath,
+  filename: firestorePath,
+  loaded: true,
+  exports: { ...real, getFirestore: () => db },
+};
+
+const api = require('../project-dashboard-writes');
+
+function setupEnvironment({ isUat = true } = {}) {
+  state.docs.clear();
+  state.failAudit = false;
+
+  // Users
+  state.docs.set('users/admin@example.com', { role: 'admin', displayName: 'Admin User' });
+  state.docs.set('userPermissions/admin@example.com', { overrides: {} });
+
+  state.docs.set('users/admin-no-pm@example.com', { role: 'admin', displayName: 'Admin Restricted' });
+  state.docs.set('userPermissions/admin-no-pm@example.com', { overrides: { 'project.manage': false } });
+
+  state.docs.set('users/pm@example.com', { role: 'pm', displayName: 'PM User' });
+  state.docs.set('userPermissions/pm@example.com', { overrides: { 'project.manage': true } });
+
+  state.docs.set('users/vip@example.com', { role: 'vip', displayName: 'VIP User' });
+  state.docs.set('userPermissions/vip@example.com', { overrides: {} });
+
+  state.docs.set('users/exec@example.com', { role: 'executive', displayName: 'Executive User' });
+  state.docs.set('userPermissions/exec@example.com', { overrides: {} });
+
+  // Weeks
+  // W1 (released) with an archived project and active project
+  state.docs.set('weeks/W1', {
+    weekLabel: 'W1 2026',
+    isReleased: true,
+    version: 1,
+    projects: [
+      { code: 'ARCH-01', name: 'Archived Project One', visibility: 'archived', owner: 'PM User', progress: 50 },
+      { code: 'ACTIVE-01', name: 'Active Project One', visibility: 'active', owner: 'PM User', progress: 60 },
+    ],
+  });
+
+  // W2 (unreleased draft) - eligible target week
+  state.docs.set('weeks/W2', {
+    weekLabel: 'W2 2026',
+    isReleased: false,
+    version: 1,
+    projects: [
+      { code: 'EXISTING-02', name: 'Existing Project', visibility: 'active', owner: 'PM User', progress: 30 },
+    ],
+  });
+
+  // W3 (released) - ineligible target week
+  state.docs.set('weeks/W3', {
+    weekLabel: 'W3 2026',
+    isReleased: true,
+    version: 1,
+    projects: [],
+  });
+
+  if (isUat) {
+    process.env.GCLOUD_PROJECT = 'pm-dashboard-uat-20260820-a7f3';
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    delete process.env.GOOGLE_CLOUD_PROJECT;
+  } else {
+    process.env.GCLOUD_PROJECT = 'project-manager-dashboar-a067f';
+    delete process.env.FUNCTIONS_EMULATOR;
+    delete process.env.GOOGLE_CLOUD_PROJECT;
+  }
+}
+
+const callAs = (email, fn, data) => api[fn].run({ auth: { uid: email, token: { email } }, data });
+
+test('Admin successful restoration into unreleased target week', async () => {
+  setupEnvironment({ isUat: true });
+  const result = await callAs('admin@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+
+  assert.equal(result.project.code, 'ARCH-01');
+  assert.equal(result.project.visibility, 'active');
+  assert.equal(result.project.name, 'Archived Project One');
+  assert.equal(result.project.progress, 50);
+
+  // Target week in store now has 2 projects
+  const targetWeek = state.docs.get('weeks/W2');
+  assert.equal(targetWeek.projects.length, 2);
+  assert.equal(targetWeek.projects[1].code, 'ARCH-01');
+  assert.equal(targetWeek.projects[1].visibility, 'active');
+});
+
+test('PM even with project.manage capability override is denied from restoring archived project', async () => {
+  setupEnvironment({ isUat: true });
+  // pm@example.com has overrides: { 'project.manage': true }
+  await assert.rejects(
+    callAs('pm@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'role-forbidden'
+  );
+});
+
+test('Duplicate code denied (exact and case-different)', async () => {
+  setupEnvironment({ isUat: true });
+  // Target week W2 has 'EXISTING-02'
+  // 1. Exact duplicate
+  state.docs.get('weeks/W1').projects.push({ code: 'EXISTING-02', visibility: 'archived' });
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'EXISTING-02',
+    }),
+    e => e.details?.reason === 'conflict'
+  );
+
+  // 2. Case-different duplicate: existing is 'EXISTING-02', restoring 'existing-02'
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'existing-02',
+    }),
+    e => e.details?.reason === 'conflict'
+  );
+});
+
+test('Concurrent restore attempts serialize and prevent duplicate writes', async () => {
+  setupEnvironment({ isUat: true });
+  // First restore succeeds
+  await callAs('admin@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+  // Second simultaneous attempt fails with conflict
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'arch-01',
+    }),
+    e => e.details?.reason === 'conflict'
+  );
+});
+
+test('Invalid source archive denied (missing project or not archived)', async () => {
+  setupEnvironment({ isUat: true });
+  // Missing project
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'NON-EXISTENT',
+    }),
+    e => e.code === 'not-found'
+  );
+
+  // Project exists in W1 but visibility is 'active', not 'archived'
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ACTIVE-01',
+    }),
+    e => e.details?.reason === 'invalid-payload'
+  );
+});
+
+test('Executive and VIP denied from restoring archived project', async () => {
+  setupEnvironment({ isUat: true });
+  for (const email of ['vip@example.com', 'exec@example.com']) {
+    await assert.rejects(
+      callAs(email, 'saveDashboardProject', {
+        isArchiveRestore: true,
+        weekId: 'W2',
+        sourceWeekId: 'W1',
+        projectCode: 'ARCH-01',
+      }),
+      e => e.details?.reason === 'role-forbidden'
+    );
+  }
+});
+
+test('Released target week is denied', async () => {
+  setupEnvironment({ isUat: true });
+  // W3 is released
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W3',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'released-week'
+  );
+});
+
+test('Target week earlier than source week is denied', async () => {
+  setupEnvironment({ isUat: true });
+  // Source is W2, target is W1 (earlier)
+  state.docs.set('weeks/W1', { weekLabel: 'W1 2026', isReleased: false, projects: [] });
+  state.docs.set('weeks/W2', { weekLabel: 'W2 2026', isReleased: true, projects: [{ code: 'ARCH-W2', visibility: 'archived' }] });
+
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W1',
+      sourceWeekId: 'W2',
+      projectCode: 'ARCH-W2',
+    }),
+    e => e.details?.reason === 'invalid-payload'
+  );
+});
+
+test('Historical week remains completely unchanged after restoration', async () => {
+  setupEnvironment({ isUat: true });
+  const w1Before = structuredClone(state.docs.get('weeks/W1'));
+  await callAs('admin@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+  const w1After = state.docs.get('weeks/W1');
+  assert.deepEqual(w1Before, w1After);
+});
+
+test('Generic isNew creation remains strictly blocked in UAT (PR #54 Draft boundary preserved)', async () => {
+  setupEnvironment({ isUat: true });
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      weekId: 'W2',
+      projectCode: 'BRAND-NEW',
+      originalCode: '',
+      isNew: true,
+      project: { code: 'BRAND-NEW', name: 'Brand New' },
+    }),
+    e => e.details?.reason === 'draft-publish-required'
+  );
+});
+
+test('Production environment rejects archive restore operation', async () => {
+  setupEnvironment({ isUat: false });
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'environment-forbidden'
+  );
+});

@@ -1,7 +1,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
-const { assertLegacyProjectWriteAllowed } = require('./draft-environment');
+const { assertLegacyProjectWriteAllowed, draftsEnabled } = require('./draft-environment');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
 const { can, normalizePermissionOverrides, normalizePermissionRole } = require('./permission-registry');
@@ -541,12 +541,142 @@ async function authenticatedActor(transaction, request) {
 const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
 const selectedDashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount, maxInstances: 20 }, handler);
 
+function parseWeekPeriod(week) {
+  if (!week) return null;
+  const label = String(week.weekLabel || '').trim();
+  const match = /^W(\d{1,2})(?:[\s-]+(\d{4}))?$/i.exec(label);
+  if (match) {
+    const weekNum = Number(match[1]);
+    const yearNum = match[2] ? Number(match[2]) : 2026;
+    return { year: yearNum, week: weekNum };
+  }
+  return null;
+}
+
+function isWeekEarlier(weekA, weekB) {
+  if (!weekA || !weekB) return false;
+  const pA = parseWeekPeriod(weekA);
+  const pB = parseWeekPeriod(weekB);
+  if (pA && pB) {
+    if (pA.year !== pB.year) return pA.year < pB.year;
+    return pA.week < pB.week;
+  }
+  const lA = String(weekA.weekLabel || '').trim();
+  const lB = String(weekB.weekLabel || '').trim();
+  if (lA && lB) {
+    return lA.localeCompare(lB, undefined, { numeric: true }) < 0;
+  }
+  return false;
+}
+
+async function executeArchiveRestore({ transaction, requestData, actor, nowIso }) {
+  assertActor(actor);
+  assertBoundedJson(requestData);
+  assertAllowedKeys(requestData, [
+    'isArchiveRestore', 'weekId', 'sourceWeekId', 'projectCode',
+  ], 'Archive restore request');
+
+  // 1. Narrowly scoped UAT-only operation:
+  if (!draftsEnabled(process.env)) {
+    throw securityError('failed-precondition', 'environment-forbidden', 'Archive restore is available only in UAT.');
+  }
+
+  // 2. Authenticated raw Admin role:
+  if (normalized(actor.role) !== 'admin') {
+    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can restore archived projects.');
+  }
+
+  // 3. Existing effective project.manage authority:
+  if (!canCreateProject(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to restore archived projects.');
+  }
+
+  // 4. Validate Target Week: must exist and be unreleased
+  const targetWeekId = requireWeekId(requestData);
+  const targetWeekRef = database().collection('weeks').doc(targetWeekId);
+  const targetWeekSnapshot = await transaction.get(targetWeekRef);
+  if (!targetWeekSnapshot.exists) {
+    throw securityError('not-found', 'not-found', 'The target reporting week no longer exists.');
+  }
+  const targetWeek = targetWeekSnapshot.data();
+  assertDraftWeek(targetWeek);
+
+  // 5. Validate Source Week: must exist
+  const sourceWeekId = requireId(requestData.sourceWeekId, 'Source week identifier');
+  const sourceWeekRef = database().collection('weeks').doc(sourceWeekId);
+  const sourceWeekSnapshot = await transaction.get(sourceWeekRef);
+  if (!sourceWeekSnapshot.exists) {
+    throw securityError('not-found', 'not-found', 'The source reporting week no longer exists.');
+  }
+  const sourceWeek = sourceWeekSnapshot.data();
+
+  // 6. Chronological Check: Target week cannot be earlier than source archive week
+  if (isWeekEarlier(targetWeek, sourceWeek)) {
+    throw securityError('failed-precondition', 'invalid-payload', 'Target reporting week cannot be earlier than the archive week.');
+  }
+
+  // 7. Verify Source Project exists and is Archived
+  const reqCode = requireProjectCode(requestData.projectCode, 'Project code');
+  const normalizedReqCode = reqCode.trim().toUpperCase();
+  const sourceProjects = Array.isArray(sourceWeek.projects) ? sourceWeek.projects : [];
+  const sourceProject = sourceProjects.find(p => String(p?.code || '').trim().toUpperCase() === normalizedReqCode);
+  if (!sourceProject) {
+    throw securityError('not-found', 'not-found', 'The archived project no longer exists in the source reporting week.');
+  }
+  if (sourceProject.visibility !== 'archived') {
+    throw securityError('failed-precondition', 'invalid-payload', 'The source project is not archived.');
+  }
+
+  // 8. Case-insensitive duplicate check in target week
+  const targetProjects = Array.isArray(targetWeek.projects) ? targetWeek.projects : [];
+  if (targetProjects.some(p => String(p?.code || '').trim().toUpperCase() === normalizedReqCode)) {
+    throw securityError('already-exists', 'conflict', 'A project with this code already exists in the target reporting week.');
+  }
+
+  // 9. Build restored project from verified source snapshot
+  const restoredProject = {
+    ...sourceProject,
+    code: sourceProject.code || reqCode,
+    visibility: 'active',
+  };
+  const sectionUpdatedAt = updateProjectSectionMetadata(
+    {}, restoredProject,
+    { editorName: actor.displayName, savedAt: nowIso }
+  );
+  if (sectionUpdatedAt) restoredProject.sectionUpdatedAt = sectionUpdatedAt;
+
+  // 10. Write ONLY to targetWeek. Source week is untouched (historical weeks remain unchanged).
+  const nextProjects = [...targetProjects, restoredProject];
+  const patch = {
+    projects: nextProjects,
+    lastModifiedBy: actor.email,
+    version: nextWeekVersion(targetWeek),
+  };
+  transaction.update(targetWeekRef, patch);
+
+  return {
+    week: { ...targetWeek, ...patch },
+    project: restoredProject,
+    revision: projectRevisionFingerprint(restoredProject),
+    committedAt: nowIso,
+  };
+}
+
+const restoreDashboardArchivedProject = selectedDashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
+  const actor = await authenticatedActor(transaction, request);
+  const nowIso = new Date().toISOString();
+  return executeArchiveRestore({ transaction, requestData: request.data, actor, nowIso });
+}));
+
 const saveDashboardProject = selectedDashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
+  const nowIso = new Date().toISOString();
+  if (request.data?.isArchiveRestore === true) {
+    return executeArchiveRestore({ transaction, requestData: request.data, actor, nowIso });
+  }
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
-  const nowIso = new Date().toISOString();
   const result = buildProjectPatch(weekSnapshot.data(), request.data, actor, nowIso);
   transaction.update(weekRef, result.patch);
   return {
@@ -704,5 +834,6 @@ module.exports = {
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,
-  saveDashboardGanttWindowSettings,
+  saveDashboardGanttWindowSettings, restoreDashboardArchivedProject, executeArchiveRestore,
+  isWeekEarlier,
 };

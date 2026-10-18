@@ -25,26 +25,22 @@ test('isWeekReleased checks week.isReleased boolean', () => {
   assert.equal(isWeekReleased(null), false);
 });
 
-test('findTargetDraftWeek prioritizes current unreleased week', () => {
+test('findTargetDraftWeek resolves strictly to latest eligible draft week', () => {
   const weeks = [
     { weekLabel: 'W1 2026', isReleased: true },
     { weekLabel: 'W2 2026', isReleased: false },
     { weekLabel: 'W3 2026', isReleased: false },
   ];
-  // currentIdx 1 points to W2 2026
-  const target = findTargetDraftWeek(weeks, 1);
-  assert.equal(target.weekLabel, 'W2 2026');
+  // Always resolves to latest unreleased draft week (W3 2026) regardless of selection
+  const target = findTargetDraftWeek(weeks);
+  assert.equal(target.weekLabel, 'W3 2026');
 
-  // currentIdx 0 points to released W1, falls back to latest unreleased (W3)
-  const fallback = findTargetDraftWeek(weeks, 0);
-  assert.equal(fallback.weekLabel, 'W3 2026');
-
-  // all released
+  // all released -> null
   const allReleased = [
     { weekLabel: 'W1 2026', isReleased: true },
     { weekLabel: 'W2 2026', isReleased: true },
   ];
-  assert.equal(findTargetDraftWeek(allReleased, 0), null);
+  assert.equal(findTargetDraftWeek(allReleased), null);
 });
 
 test('collectArchivedProjects distinguishes Archived from Hidden and Active', () => {
@@ -119,12 +115,18 @@ test('collectArchivedProjects handles missing or legacy metadata faithfully with
   assert.equal(result.archived[0].lastStatus, 'gray');
 });
 
-test('collectArchivedProjects handles incomplete historical loading', () => {
+test('collectArchivedProjects handles incomplete or unconfirmed historical loading', () => {
   assert.deepEqual(collectArchivedProjects(null, null), {
     archived: [],
     isHistoricalIncomplete: true,
   });
-  assert.deepEqual(collectArchivedProjects([], null), {
+  // Unconfirmed server state -> isHistoricalIncomplete: true
+  assert.deepEqual(collectArchivedProjects([], null, { isServerConfirmed: false }), {
+    archived: [],
+    isHistoricalIncomplete: true,
+  });
+  // Confirmed server state with 0 weeks -> isHistoricalIncomplete: false
+  assert.deepEqual(collectArchivedProjects([], null, { isServerConfirmed: true }), {
     archived: [],
     isHistoricalIncomplete: false,
   });
