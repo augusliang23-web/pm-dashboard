@@ -26,7 +26,7 @@ test('PDF renderer image installs dependencies reproducibly from the committed l
   // install itself must be `npm ci` (exact lockfile resolution), never `npm install` (which can silently drift
   // resolved versions within the declared semver ranges on every rebuild).
   assert.match(dockerfile, /^COPY package\.json package-lock\.json \.\/$/m);
-  assert.match(dockerfile, /^RUN npm ci --omit=dev$/m);
+  assert.match(dockerfile, /^RUN npm ci --omit=dev/m);
   assert.doesNotMatch(dockerfile, /npm install --omit=dev/);
   assert.doesNotMatch(dockerfile, /npm update/);
 });

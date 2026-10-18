@@ -18,7 +18,6 @@ RUN apt-get update \
     libgbm1 \
     libgcc1 \
     libglib2.0-0 \
-    libgtk-3-0 \
     libnspr4 \
     libnss3 \
     libpango-1.0-0 \
@@ -33,19 +32,23 @@ RUN apt-get update \
     libxext6 \
     libxfixes3 \
     libxi6 \
+    libxkbcommon0 \
     libxrandr2 \
     libxrender1 \
     libxshmfence1 \
     libxss1 \
     libxtst6 \
     lsb-release \
-    wget \
     xdg-utils \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
+ENV PUPPETEER_CHROME_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-RUN node --input-type=module -e "import puppeteer from 'puppeteer'; const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }); await browser.close();"
+RUN npm ci --omit=dev && npm cache clean --force
+RUN node --input-type=module -e "import puppeteer from 'puppeteer'; const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox', '--disable-setuid-sandbox'] }); await browser.close();" \
+  && PUPPETEER_BIN=$(find /root/.cache/puppeteer -name chrome-headless-shell -type f -perm -u+x | head -n 1) \
+  && ln -s "$PUPPETEER_BIN" /usr/local/bin/chrome-headless-shell
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/chrome-headless-shell
 COPY src ./src
 RUN node src/verify-delivery-trends-package.mjs
 ENV NODE_ENV=production
