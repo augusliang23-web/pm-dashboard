@@ -32,7 +32,8 @@ const uat = dashboardSource('uat');
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
 // F9 reconciliation: main Draft contract retained; F8-reviewed UAT view and hash preserved.
 // F7 remediation: preserve live draft contract (1af8d09, b15b040, dbcff70: PM draft creation/save/publish, compact card, inline badge, PM prefill, latestPublishWeekId) and fix cache-only empty snapshot.
-const originalUatHash = '5540075b28a4620a309ce300c3ab6aa67858dbac3821a7f5b34aa18c29cb4cad';
+// Deliberate change (2026-10-18, V2.3.1-B Archive Recovery): Admin-only Archived Projects management interface and modal recovery.
+const originalUatHash = 'aabbc2e65ca6f62cbb44714daa8e912fab5934b50c0df93d55163f95d48ad090';
 
 const validRoles = new Map([
   ['admin', 'admin'],
