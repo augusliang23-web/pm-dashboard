@@ -382,3 +382,30 @@ test('Production environment rejects archive restore operation', async () => {
     e => e.details?.reason === 'environment-forbidden'
   );
 });
+
+test('Invalid synthetic week cannot override latest authoritative Archive state', async () => {
+  setupEnvironment({ isUat: true });
+  // W1 (released, valid): ARCH-01 is archived
+  // W2 (unreleased draft, valid): target week
+  // Add an invalid synthetic week containing ARCH-01 as active
+  state.docs.set('weeks/W-SYNTHETIC', {
+    weekLabel: 'W26 2026 Prototype',
+    isReleased: false,
+    version: 1,
+    projects: [
+      { code: 'ARCH-01', visibility: 'active' },
+    ],
+  });
+
+  // Restore must succeed because priorWeeks strictly slices valid chronological weeks (0 .. latestValidIdx),
+  // ignoring the invalid synthetic week at the tail of orderedWeeks.
+  const result = await callAs('admin@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+
+  assert.equal(result.project.code, 'ARCH-01');
+  assert.equal(result.project.visibility, 'active');
+});

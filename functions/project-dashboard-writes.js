@@ -609,7 +609,7 @@ async function executeArchiveRestore({ transaction, requestData, actor, nowIso }
   }
 
   // RULE 3: Latest Archive Lifecycle State Verification across prior historical weeks
-  const priorWeeks = orderedWeeks.filter(w => w.__documentId !== targetWeekId);
+  const priorWeeks = orderedWeeks.slice(0, latestValidIdx);
   let latestProjectAppearance = null;
   let latestProjectWeek = null;
 

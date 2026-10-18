@@ -253,3 +253,33 @@ test('Full lifecycle: Archive in Week 1 -> dropped in Week 2 -> Restored in Week
   const duplicateCheck = canRestoreProject('prj-restore', week2);
   assert.equal(duplicateCheck.allowed, false);
 });
+
+test('valid historical Archive remains discoverable and invalid synthetic week cannot override it', () => {
+  const weeks = [
+    {
+      weekLabel: 'W1 2026',
+      projects: [
+        { code: 'ARCH-VALID', name: 'Valid Archived', visibility: 'archived', status: 'green' },
+      ],
+    },
+    {
+      weekLabel: 'W2 2026',
+      isReleased: false,
+      projects: [],
+    },
+    {
+      weekLabel: 'W26 2026 Prototype',
+      isReleased: false,
+      projects: [
+        { code: 'ARCH-VALID', name: 'Valid Archived', visibility: 'active' },
+        { code: 'SYNTH-ONLY', name: 'Synthetic Only', visibility: 'archived' },
+      ],
+    },
+  ];
+
+  const result = collectArchivedProjects(weeks, weeks[1]);
+  assert.equal(result.archived.length, 1);
+  assert.equal(result.archived[0].code, 'ARCH-VALID');
+  assert.equal(result.archived[0].archivedWeekLabel, 'W1 2026');
+  assert.equal(result.archived.some(p => p.code === 'SYNTH-ONLY'), false);
+});

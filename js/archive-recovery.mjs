@@ -78,9 +78,11 @@ export function collectArchivedProjects(allWeeks = [], targetWeek = null, option
   }
 
   const orderedWeeks = sortWeeksChronologically(allWeeks);
+  const latestValidIdx = latestValidWeekIndex(orderedWeeks);
+  const validWeeks = latestValidIdx >= 0 ? orderedWeeks.slice(0, latestValidIdx + 1) : [];
   const projectHistory = new Map();
 
-  for (const week of orderedWeeks) {
+  for (const week of validWeeks) {
     const projects = Array.isArray(week?.projects) ? week.projects : [];
     for (const project of projects) {
       const code = normalizeProjectCode(project?.code);
