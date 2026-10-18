@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2308,6 +2308,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label><input type="checkbox" value="project-portfolio" checked> Project portfolio</label>
         <label><input type="checkbox" value="resource-analytics" checked> Resource analytics</label>
         <label><input type="checkbox" value="budget-overview" checked> Budget overview</label>
+        <!-- @uat-only begin deliveryPerformanceOption -->
+        <label id="deliveryPerformanceOption" data-profile-only="uat" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> Portfolio delivery performance</label>
+        <!-- @uat-only end deliveryPerformanceOption -->
       </div>
       <div class="print-audience-field" id="executiveMilestoneAudienceField">
         <label for="executiveMilestoneAudienceView">Executive milestone visibility</label>
@@ -2407,6 +2410,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
       
+      <!-- @uat-only begin deliveryTrendsButton -->
+      <style>#btnDeliveryTrends { width:auto; padding:0 10px; gap:6px; font:700 11px 'Noto Sans TC',sans-serif; } @media (max-width:700px) { #btnDeliveryTrends .dt-nav-label { display:none; } #btnDeliveryTrends { padding:0; width:32px; } }</style>
+      <button class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends" onclick="toggleDeliveryTrends()" title="Delivery Trends" aria-label="Delivery Trends" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg><span class="dt-nav-label" aria-hidden="true">Trends</span>
+      </button>
+      <!-- @uat-only end deliveryTrendsButton -->
       <button class="btn-icon vip-hidden executive-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
@@ -2491,6 +2500,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="proj-grid" id="projGrid"></div>
   </div>
   <div id="execView" class="exec-view"></div>
+  <!-- @uat-only begin deliveryTrendsContainer -->
+  <div id="deliveryTrendsView" data-profile-only="uat" hidden style="display:none;" aria-label="Delivery Trends"></div>
+  <!-- @uat-only end deliveryTrendsContainer -->
 </div>
 
 <div class="overlay" id="projDetailOverlay" onclick="closeProjectOverlayFromBackdrop(event)">
@@ -3127,6 +3139,12 @@ import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, rec
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
 import { buildSwitchRows, createUserPermissionsApi, describeAuditEntries, isPermissionConflict, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState, switchChange } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
+// @uat-only begin deliveryPdfImport
+import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";
+// @uat-only end deliveryPdfImport
+// @uat-only begin weekOrderImport
+import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";
+// @uat-only end weekOrderImport
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
 import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome, setExecutiveOutcomeModel } from "./js/executive-outcomes.mjs";
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
@@ -4538,6 +4556,17 @@ function showDataLoadError__uat(error) {
     </div>`;
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+  // @uat-only begin deliveryTrendsErrorCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsErrorCleanup
 }
 // @profile-dispatcher
 function showDataLoadError(...args) { return (IS_UAT_PROFILE ? showDataLoadError__uat : showDataLoadError__prod)(...args); }
@@ -5434,6 +5463,17 @@ function quiesceDashboardForAuthTransition__uat() {
   allWeeks = [];
   currentIdx = -1;
   setDashboardAccessPending();
+  // @uat-only begin deliveryTrendsAuthCleanup
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  deliveryTrendsActive = false;
+  deliveryTrendsOwner = null;
+  const trendsView = document.getElementById('deliveryTrendsView');
+  if (trendsView) {
+    trendsView.innerHTML = '';
+    trendsView.style.display = 'none';
+  }
+  // @uat-only end deliveryTrendsAuthCleanup
 }
 // @profile-dispatcher
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
@@ -6080,6 +6120,10 @@ function initData__uat(authGeneration, authUser) {
     weeksUnsub = null;
   }
 
+  // @uat-only begin deliveryTrendsRawHistoryReset
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+  // @uat-only end deliveryTrendsRawHistoryReset
   const weeksRef = collection(db, "weeks");
   const weeksQuery = canReadDraftWeeks(currentRole) || canCurrentUser('week.manage')
     ? query(weeksRef, orderBy('weekLabel'))
@@ -6126,8 +6170,16 @@ function initData__uat(authGeneration, authUser) {
     window.render();
   });
 
-  weeksUnsub = onSnapshot(weeksQuery, snap => {
+  weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistorySnapshot
+    deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+    deliveryTrendsHistoryState = {
+      source: snap.docs.length ? 'uat' : 'synthetic',
+      complete: snap.metadata?.fromCache === false && snap.metadata?.hasPendingWrites === false,
+      asOf: new Date().toISOString()
+    };
+    // @uat-only end deliveryTrendsRawHistorySnapshot
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -6147,11 +6199,18 @@ function initData__uat(authGeneration, authUser) {
       });
       return normalizedWeek;
     });
-    allWeeks = sortWeeksByLabel(fetchedWeeks);
+    const previouslySelectedWeekId = allWeeks?.[currentIdx]?.__documentId;
+    allWeeks = sortWeeksChronologically(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
-      currentIdx = allWeeks.length - 1;
+      // Default to the latest VALID ISO week; invalid labels are kept (last) but are never the default selection.
+      const latestValid = latestValidWeekIndex(allWeeks);
+      currentIdx = latestValid >= 0 ? latestValid : allWeeks.length - 1;
       jumpToLatestOnNextRender = false;
+    } else if (previouslySelectedWeekId) {
+      // Keep the user's selected stored week across snapshot refreshes (the array index can shift).
+      const keptIdx = allWeeks.findIndex(week => week.__documentId === previouslySelectedWeekId);
+      if (keptIdx >= 0) currentIdx = keptIdx;
     }
 
     if (currentIdx >= allWeeks.length) {
@@ -6170,6 +6229,10 @@ function initData__uat(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    // @uat-only begin deliveryTrendsRawHistoryError
+    deliveryTrendsRawWeeks = [];
+    deliveryTrendsHistoryState = { source: null, complete: false };
+    // @uat-only end deliveryTrendsRawHistoryError
     showDataLoadError(error);
   });
 }
@@ -9974,89 +10037,89 @@ const render__uat = () => {
     document.getElementById('projGrid').innerHTML = "";
     document.getElementById('execView').innerHTML = "";
     document.getElementById('topMetricsGrid').style.display = 'none';
-    return;
-  }
-
-  const sel = document.getElementById('wNavSelect');
-  if (sel) sel.value = currentIdx;
-
-  document.getElementById('bannerTitle').textContent = week.weekLabel;
-  const editorName = getUserDisplayName(week.lastModifiedBy);
-  document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
-    || (week.weekDate + " · Last edited by " + editorName);
-
-  const bannerPills = document.getElementById('bannerPills');
-  if (isVipPerspective()) {
-    bannerPills.innerHTML = ''; 
   } else {
-    const isReleased = isWeekReleased(week);
-    if (isReleased) {
-      bannerPills.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
-          <span style="color:var(--green); font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
-            <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Released
-          </span>
-          ${canManageWeekRelease() ? `
-            <div style="width:1px; height:12px; background:var(--border2);"></div>
-            <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
-          ` : ''}
-        </div>
-      `;
+    const sel = document.getElementById('wNavSelect');
+    if (sel) sel.value = currentIdx;
+
+    document.getElementById('bannerTitle').textContent = week.weekLabel;
+    const editorName = getUserDisplayName(week.lastModifiedBy);
+    document.getElementById('bannerMeta').textContent = ganttTemplateAvailabilityStatus
+      || (week.weekDate + " · Last edited by " + editorName);
+
+    const bannerPills = document.getElementById('bannerPills');
+    if (isVipPerspective()) {
+      bannerPills.innerHTML = ''; 
     } else {
-      bannerPills.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
-          <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
-          ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
-        </div>
-      `;
+      const isReleased = isWeekReleased(week);
+      if (isReleased) {
+        bannerPills.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px; background:var(--s2); padding:4px 8px; border-radius:6px; border:1px solid var(--border);">
+            <span style="color:var(--green); font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
+              <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Released
+            </span>
+            ${canManageWeekRelease() ? `
+              <div style="width:1px; height:12px; background:var(--border2);"></div>
+              <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+            ` : ''}
+          </div>
+        `;
+      } else {
+        bannerPills.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
+            <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
+            ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
+          </div>
+        `;
+      }
     }
-  }
 
-  const allCurrentProjects = enrichProjectsPrototype(week.projects || []);
-  const roleVisibleProjects = getRoleVisibleProjectsForOverview(allCurrentProjects);
-  refreshPortfolioToolbar(roleVisibleProjects);
-  const portfolioToolbar = document.getElementById('portfolioToolbar');
-  portfolioToolbar.style.display = isOverview ? 'none' : 'flex';
+    const allCurrentProjects = enrichProjectsPrototype(week.projects || []);
+    const roleVisibleProjects = getRoleVisibleProjectsForOverview(allCurrentProjects);
+    refreshPortfolioToolbar(roleVisibleProjects);
+    const portfolioToolbar = document.getElementById('portfolioToolbar');
+    portfolioToolbar.style.display = isOverview ? 'none' : 'flex';
 
-  const overviewProjects = getOverviewProjects(roleVisibleProjects, overviewScope);
-  let portfolioProjects = roleVisibleProjects;
-  if (currentPMFilter !== 'all' && !isOverview) {
-    portfolioProjects = portfolioProjects.filter(p => p.owner === currentPMFilter);
-  }
-  portfolioProjects = filterProjects(portfolioProjects, getPortfolioFilters());
+    const overviewProjects = getOverviewProjects(roleVisibleProjects, overviewScope);
+    let portfolioProjects = roleVisibleProjects;
+    if (currentPMFilter !== 'all' && !isOverview) {
+      portfolioProjects = portfolioProjects.filter(p => p.owner === currentPMFilter);
+    }
+    portfolioProjects = filterProjects(portfolioProjects, getPortfolioFilters());
 
-  const metricProjects = isOverview ? overviewProjects : portfolioProjects;
-  const total = metricProjects.length;
-  const critical = metricProjects.filter(p => p.status === 'red').length;
-  const atRisk = metricProjects.filter(p => p.status === 'yellow').length;
-  const onTrack = total - critical - atRisk;
+    const metricProjects = isOverview ? overviewProjects : portfolioProjects;
+    const total = metricProjects.length;
+    const critical = metricProjects.filter(p => p.status === 'red').length;
+    const atRisk = metricProjects.filter(p => p.status === 'yellow').length;
+    const onTrack = total - critical - atRisk;
 
-  document.getElementById('m_total').textContent = total;
-  document.getElementById('m_critical').textContent = critical;
-  document.getElementById('m_atrisk').textContent = atRisk;
-  document.getElementById('m_ontrack').textContent = onTrack;
-  const showTopMetrics = !(isVipPerspective() || isOverview);
-  document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
+    document.getElementById('m_total').textContent = total;
+    document.getElementById('m_critical').textContent = critical;
+    document.getElementById('m_atrisk').textContent = atRisk;
+    document.getElementById('m_ontrack').textContent = onTrack;
+    const showTopMetrics = !(isVipPerspective() || isOverview);
+    document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
 
-  renderNormal(portfolioProjects);
-  if (typeof decorateDraftCards === 'function') decorateDraftCards();
-  renderExec(overviewProjects, week.summary, allCurrentProjects);
-  
-  if (isVipPerspective()) {
-    document.getElementById('normalView').style.display = 'none';
-    document.getElementById('execView').style.display = 'block';
-  } else {
-    document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
-    document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+    renderNormal(portfolioProjects);
+    if (typeof decorateDraftCards === 'function') decorateDraftCards();
+    renderExec(overviewProjects, week.summary, allCurrentProjects);
     
-    const btnOverview = document.getElementById('btnOverview');
-    if (isOverview) {
-      btnOverview.classList.add('active');
+    if (isVipPerspective()) {
+      document.getElementById('normalView').style.display = 'none';
+      document.getElementById('execView').style.display = 'block';
     } else {
-      btnOverview.classList.remove('active');
+      document.getElementById('normalView').style.display = isOverview ? 'none' : 'block';
+      document.getElementById('execView').style.display = isOverview ? 'block' : 'none';
+      
+      const btnOverview = document.getElementById('btnOverview');
+      if (isOverview) {
+        btnOverview.classList.add('active');
+      } else {
+        btnOverview.classList.remove('active');
+      }
     }
   }
+  syncDeliveryTrendsView();
 };
 // @profile-dispatcher
 window.render = (...args) => (IS_UAT_PROFILE ? render__uat : render__prod)(...args);
@@ -11451,6 +11514,129 @@ window.setOverviewScope = scope => {
   }
   render();
 };
+// @uat-only begin deliveryTrendsView
+// Delivery Trends: an independent, UAT-only navigation destination. All metrics come from the shared engine via
+// js/delivery-trends-page.mjs; nothing here calculates progress. Production never shows the button or container.
+let deliveryTrendsRawWeeks = [];
+let deliveryTrendsHistoryState = { source: null, complete: false };
+let deliveryTrendsActive = false;
+let deliveryTrendsWindow = 6;
+let deliveryTrendsOwner = null;
+let deliveryTrendsModule = null;
+let deliveryTrendsLoading = null;
+
+function loadDeliveryTrendsModule() {
+  if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);
+  deliveryTrendsLoading = deliveryTrendsLoading || import('./js/delivery-trends-page.mjs').then(module => {
+    deliveryTrendsModule = module;
+    return module;
+  }).catch(error => {
+    deliveryTrendsLoading = null;
+    throw error;
+  });
+  return deliveryTrendsLoading;
+}
+
+function currentDeliveryTrendsState(windowWeeks = deliveryTrendsWindow) {
+  if (!deliveryTrendsModule) return { state: 'unavailable', reason: 'Delivery trends are still loading.' };
+  return deliveryTrendsModule.buildDeliveryTrendsState({
+    weeks: deliveryTrendsRawWeeks, currentIdx,
+    anchorWeekId: allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekId,
+    windowWeeks, overviewScope, role: currentRole,
+    historyComplete: deliveryTrendsHistoryState.complete,
+    executivePerspective: isDeliveryTrendsExecutive(), visibilityFilter: document.getElementById('visSelect')?.value || 'active',
+    source: deliveryTrendsHistoryState.source, asOf: deliveryTrendsHistoryState.asOf
+  });
+}
+
+// In the UAT profile isVipPerspective() is true only for an Admin previewing as Executive; a signed-in Executive (or
+// legacy VIP) is identified by role. Both are "executive-like" and never get Delivery Trends.
+function isDeliveryTrendsExecutive() {
+  return ['executive', 'vip'].includes(currentRole) || isVipPerspective();
+}
+
+function deliveryTrendsUserKey() {
+  return currentUser?.uid || getEmailKey(currentUser) || null;
+}
+
+function syncDeliveryTrendsView() {
+  if (!IS_UAT_PROFILE) return;
+  const view = document.getElementById('deliveryTrendsView');
+  const button = document.getElementById('btnDeliveryTrends');
+  if (!view) return;
+  // The shared .executive-hidden class does not hide controls for a signed-in Executive in the UAT profile, so the
+  // entry is hidden explicitly: Executive/VIP perspectives never get a Delivery Trends button.
+  if (button) button.style.display = isDeliveryTrendsExecutive() ? 'none' : '';
+  // Delivery Trends never survives an Overview switch, an Executive perspective, or a different signed-in user.
+  if (isOverview || isDeliveryTrendsExecutive() || deliveryTrendsOwner !== deliveryTrendsUserKey()) deliveryTrendsActive = false;
+  if (!deliveryTrendsActive) {
+    view.hidden = true;
+    view.style.display = 'none';
+    view.replaceChildren();
+    if (button) { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); }
+    return;
+  }
+  document.getElementById('normalView').style.display = 'none';
+  document.getElementById('execView').style.display = 'none';
+  document.getElementById('portfolioToolbar').style.display = 'none';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+  view.hidden = false;
+  view.style.display = 'block';
+  if (button) { button.classList.add('active'); button.setAttribute('aria-pressed', 'true'); }
+  if (!deliveryTrendsModule) {
+    view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="status">Loading delivery trends…</div></div>';
+    loadDeliveryTrendsModule().then(() => { if (deliveryTrendsActive) syncDeliveryTrendsView(); })
+      .catch(() => { view.innerHTML = '<div class="dt-page"><div class="dt-empty" role="alert">Delivery trends could not be loaded.</div></div>'; });
+    return;
+  }
+  deliveryTrendsModule.installDeliveryTrendsStyles(document);
+  view.innerHTML = deliveryTrendsModule.renderDeliveryTrendsPageHtml(currentDeliveryTrendsState(), { windowWeeks: deliveryTrendsWindow });
+}
+
+window.toggleDeliveryTrends = () => {
+  if (!IS_UAT_PROFILE || isDeliveryTrendsExecutive()) return;
+  deliveryTrendsActive = !deliveryTrendsActive;
+  deliveryTrendsOwner = deliveryTrendsUserKey();
+  if (deliveryTrendsActive) isOverview = false;
+  render();
+};
+
+window.setDeliveryTrendsWindow = weeks => {
+  deliveryTrendsWindow = Number(weeks) === 12 ? 12 : 6;
+  syncDeliveryTrendsView();
+};
+
+// PDF dialog support. (Browser-print integration is deferred: no user-accessible entry calls renderOverviewPrintReport.)
+function syncDeliveryPerformancePdfOption() {
+  const option = document.getElementById('deliveryPerformanceOption');
+  if (!option) return;
+  const available = isDeliveryPerformancePdfAvailable({ profile: IS_UAT_PROFILE ? 'uat' : 'production' });
+  option.hidden = !available;
+  option.style.display = available ? '' : 'none';
+  const input = option.querySelector('input');
+  if (!available && input) input.checked = false;
+}
+const baseOpenOverviewPrintDialog = window.openOverviewPrintDialog;
+window.openOverviewPrintDialog = () => {
+  baseOpenOverviewPrintDialog();
+  syncDeliveryPerformancePdfOption();
+};
+if (IS_UAT_PROFILE) loadDeliveryTrendsModule().catch(() => {});
+// @uat-only end deliveryTrendsView
+// @uat-only begin deliveryTrendsLogoutReset
+// Signing out (or any return to the login overlay) must not leave authorized Delivery Trends content in the page.
+if (IS_UAT_PROFILE) {
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (loginOverlay) {
+    new MutationObserver(() => {
+      if (getComputedStyle(loginOverlay).display === 'none') return;
+      deliveryTrendsActive = false;
+      deliveryTrendsOwner = null;
+      syncDeliveryTrendsView();
+    }).observe(loginOverlay, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
+}
+// @uat-only end deliveryTrendsLogoutReset
 // @uat-only begin toggleExecutivePreview
 window.toggleExecutivePreview = () => {
   if (currentRole !== 'admin') return;
