@@ -197,6 +197,7 @@ button[aria-busy="true"] { cursor:wait; }
 /* .proj-grid stretches every card to the tallest card in its row; a draft card is short, so it must size to its own content. */
 .draft-project-card { align-self:start; border-style:dashed; }
 /* @uat-only end draft-card-style */
+
 /* @uat-only begin unified-project-save-style */
 #projEditOverlay .unified-project-header { flex-wrap:wrap; gap:12px; align-items:center; }
 #projEditOverlay .project-save-actions { flex-wrap:wrap; justify-content:flex-end; gap:10px !important; }
@@ -6170,16 +6171,62 @@ function initData__uat(authGeneration, authUser) {
     window.render();
   });
 
+  let hasServerConfirmation = false;
+
   weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    const isFromCache = Boolean(snap.metadata?.fromCache);
+    const hasPendingWrites = Boolean(snap.metadata?.hasPendingWrites);
+    const isServerConfirmed = !isFromCache && !hasPendingWrites;
+
     // @uat-only begin deliveryTrendsRawHistorySnapshot
-    deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
-    deliveryTrendsHistoryState = {
-      source: snap.docs.length ? 'uat' : 'synthetic',
-      complete: snap.metadata?.fromCache === false && snap.metadata?.hasPendingWrites === false,
-      asOf: new Date().toISOString()
-    };
+    if (snap.docs.length === 0) {
+      if (isServerConfirmed) {
+        deliveryTrendsRawWeeks = [];
+        deliveryTrendsHistoryState = {
+          source: 'uat',
+          complete: true,
+          asOf: new Date().toISOString()
+        };
+      } else if (hasServerConfirmation && allWeeks.length > 0) {
+        deliveryTrendsHistoryState = {
+          ...deliveryTrendsHistoryState,
+          complete: false,
+          asOf: new Date().toISOString()
+        };
+      } else {
+        deliveryTrendsHistoryState = {
+          source: 'uat',
+          complete: false,
+          asOf: new Date().toISOString()
+        };
+      }
+    } else {
+      deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+      deliveryTrendsHistoryState = {
+        source: 'uat',
+        complete: isServerConfirmed,
+        asOf: new Date().toISOString()
+      };
+    }
     // @uat-only end deliveryTrendsRawHistorySnapshot
+
+    if (snap.docs.length === 0) {
+      if (isServerConfirmed) {
+        hasServerConfirmation = true;
+        allWeeks = [];
+        currentIdx = -1;
+        const sel = document.getElementById('wNavSelect');
+        if (sel) sel.innerHTML = '<option value="">No Weeks Available</option>';
+        render();
+        hideLoader();
+      }
+      return;
+    }
+
+    if (isServerConfirmed) {
+      hasServerConfirmation = true;
+    }
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -14093,7 +14140,6 @@ function configureDraftEditor(draftMode) {
     return;
   }
   const record = draftEditorRecord;
-  document.getElementById('peTitle').textContent = 'Edit Project';
   overlay.querySelector('.modal-hdr').classList.add('unified-project-header');
   save.parentElement.classList.add('project-save-actions');
   save.className = 'btn btn-ghost'; save.textContent = 'Save Draft'; save.title = 'Save working content without updating Overview or PDF';

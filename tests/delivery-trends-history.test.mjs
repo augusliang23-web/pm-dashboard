@@ -180,10 +180,11 @@ test('the built-in prototype fallback is never presented as verified UAT or Prod
   const s = buildDeliveryTrendsState({ weeks: prototype, currentIdx: 0, windowWeeks: 6, overviewScope: 'system', role: 'admin', source: 'uat', asOf: AS_OF, historyComplete: true });
   assert.equal(s.state, 'unavailable');
   assert.equal(s.prototype, true);
-  // The real snapshot path: no saved weeks -> raw history is empty and its source is 'synthetic'.
-  const viaSnapshot = buildDeliveryTrendsState({ weeks: [], currentIdx: 0, anchorWeekId: undefined, windowWeeks: 6, overviewScope: 'system', role: 'admin', source: 'synthetic', asOf: AS_OF, historyComplete: true });
-  assert.equal(viaSnapshot.prototype, true);
-  assert.equal(viaSnapshot.reason, PROTOTYPE_REASON);
+  // Confirmed zero weeks: raw history is empty with source 'uat'; returns insufficient reporting history, NOT prototype data.
+  const viaSnapshot = buildDeliveryTrendsState({ weeks: [], currentIdx: 0, anchorWeekId: undefined, windowWeeks: 6, overviewScope: 'system', role: 'admin', source: 'uat', asOf: AS_OF, historyComplete: true });
+  assert.equal(viaSnapshot.state, 'unavailable');
+  assert.equal(viaSnapshot.prototype, undefined);
+  assert.equal(viaSnapshot.reason, 'Insufficient reporting history to calculate delivery trends.');
   assert.equal(s.contract, undefined);
   const html = renderDeliveryTrendsPageHtml(s);
   assert.match(html, /prototype data/);
