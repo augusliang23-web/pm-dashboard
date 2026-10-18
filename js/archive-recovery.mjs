@@ -1,4 +1,4 @@
-import { sortWeeksChronologically } from './week-order.mjs';
+import { sortWeeksChronologically, latestValidWeekIndex } from './week-order.mjs';
 
 /**
  * Normalizes a project code for identity and deduplication checks.
@@ -18,18 +18,21 @@ export function isWeekReleased(week) {
 /**
  * Identifies the target unreleased reporting week for restoration.
  *
- * Precedence:
- * Strictly resolves to the latest chronological unreleased draft week in allWeeks.
- * Does not restore into an older week merely because it is currently selected.
- * If all weeks are released (or no weeks exist), returns null.
+ * Rules:
+ * 1. Identifies the latest valid chronological reporting week using canonical week ordering.
+ * 2. Allows restore if and only if that latest week is unreleased.
+ * 3. If the latest week is released, returns null (disables restore).
+ *    Does not fall back to an older draft week.
+ * 4. If no valid chronological week exists, returns null.
  */
 export function findTargetDraftWeek(allWeeks = []) {
   const weeks = Array.isArray(allWeeks) ? allWeeks : [];
   const ordered = sortWeeksChronologically(weeks);
-  for (let i = ordered.length - 1; i >= 0; i -= 1) {
-    if (!isWeekReleased(ordered[i])) {
-      return ordered[i];
-    }
+  const latestIdx = latestValidWeekIndex(ordered);
+  if (latestIdx < 0) return null;
+  const latestValidWeek = ordered[latestIdx];
+  if (!isWeekReleased(latestValidWeek)) {
+    return latestValidWeek;
   }
   return null;
 }

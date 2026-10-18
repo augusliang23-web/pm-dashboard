@@ -4585,6 +4585,7 @@ function showDataLoadError__uat(error) {
     </div>`;
   document.getElementById('normalView').style.display = currentRole === 'executive' ? 'none' : 'block';
   document.getElementById('execView').style.display = currentRole === 'executive' ? 'block' : 'none';
+  if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
   // @uat-only begin deliveryTrendsErrorCleanup
   deliveryTrendsRawWeeks = [];
   deliveryTrendsHistoryState = { source: null, complete: false };
@@ -5491,6 +5492,7 @@ function quiesceDashboardForAuthTransition__uat() {
   isAdminVipPreview = false;
   allWeeks = [];
   currentIdx = -1;
+  if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
   setDashboardAccessPending();
   // @uat-only begin deliveryTrendsAuthCleanup
   deliveryTrendsRawWeeks = [];
@@ -5625,6 +5627,7 @@ const handleLogout__uat = async () => {
   document.getElementById('topMetricsGrid').style.display = 'none';
   allWeeks = [];
   currentIdx = -1;
+  if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
   await signOut(auth);
   if (logoutGeneration !== authSessionGeneration) return;
   hideLoader();
@@ -6152,6 +6155,7 @@ function initData__uat(authGeneration, authUser) {
     weeksUnsub();
     weeksUnsub = null;
   }
+  if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
 
   // @uat-only begin deliveryTrendsRawHistoryReset
   deliveryTrendsRawWeeks = [];
@@ -6206,7 +6210,10 @@ function initData__uat(authGeneration, authUser) {
   let hasServerConfirmation = false;
 
   weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
-    if (!isCurrentDataSession()) return;
+    if (!isCurrentDataSession()) {
+      if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
+      return;
+    }
     const isFromCache = Boolean(snap.metadata?.fromCache);
     const hasPendingWrites = Boolean(snap.metadata?.hasPendingWrites);
     const isServerConfirmed = !isFromCache && !hasPendingWrites;
@@ -6253,6 +6260,8 @@ function initData__uat(authGeneration, authUser) {
         if (sel) sel.innerHTML = '<option value="">No Weeks Available</option>';
         render();
         hideLoader();
+      } else {
+        if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
       }
       return;
     }
@@ -6260,6 +6269,8 @@ function initData__uat(authGeneration, authUser) {
     if (isServerConfirmed) {
       hasServerConfirmation = true;
       if (typeof window !== 'undefined') window.__weeksServerConfirmed = true;
+    } else {
+      if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
     }
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
@@ -6310,6 +6321,7 @@ function initData__uat(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
     // @uat-only begin deliveryTrendsRawHistoryError
     deliveryTrendsRawWeeks = [];
     deliveryTrendsHistoryState = { source: null, complete: false };

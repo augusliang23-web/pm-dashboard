@@ -46,7 +46,7 @@ function setupEnvironment({ isUat = true } = {}) {
     ],
   });
 
-  // W2 (unreleased draft) - eligible target week
+  // W2 (unreleased draft) - latest valid chronological reporting week & eligible target
   state.docs.set('weeks/W2', {
     weekLabel: 'W2 2026',
     isReleased: false,
@@ -54,14 +54,6 @@ function setupEnvironment({ isUat = true } = {}) {
     projects: [
       { code: 'EXISTING-02', name: 'Existing Project', visibility: 'active', owner: 'PM User', progress: 30 },
     ],
-  });
-
-  // W3 (released) - ineligible target week
-  state.docs.set('weeks/W3', {
-    weekLabel: 'W3 2026',
-    isReleased: true,
-    version: 1,
-    projects: [],
   });
 
   if (isUat) {
@@ -77,7 +69,7 @@ function setupEnvironment({ isUat = true } = {}) {
 
 const callAs = (email, fn, data) => api[fn].run({ auth: { uid: email, token: { email } }, data });
 
-test('Admin successful restoration into unreleased target week', async () => {
+test('Admin successful restoration into latest valid unreleased target week', async () => {
   setupEnvironment({ isUat: true });
   const result = await callAs('admin@example.com', 'saveDashboardProject', {
     isArchiveRestore: true,
@@ -98,6 +90,153 @@ test('Admin successful restoration into unreleased target week', async () => {
   assert.equal(targetWeek.projects[1].visibility, 'active');
 });
 
+test('Target week validation: restoring into older draft week when newer week exists is denied', async () => {
+  setupEnvironment({ isUat: true });
+  // Add W3 2026 as the newer unreleased week
+  state.docs.set('weeks/W3', {
+    weekLabel: 'W3 2026',
+    isReleased: false,
+    version: 1,
+    projects: [],
+  });
+
+  // Attempt to restore into older week W2 instead of latest week W3
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'invalid-payload' && e.message.includes('latest valid reporting week')
+  );
+});
+
+test('Target week validation: when latest valid week is released, restore is disabled on server', async () => {
+  setupEnvironment({ isUat: true });
+  // Add W3 2026 as the latest week, marked released
+  state.docs.set('weeks/W3', {
+    weekLabel: 'W3 2026',
+    isReleased: true,
+    version: 1,
+    projects: [],
+  });
+
+  // Attempting to restore into W3 fails because it is released
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W3',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'week-already-released'
+  );
+
+  // Attempting to restore into older draft W2 fails because it is not the latest valid week
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'invalid-payload' && e.message.includes('latest valid reporting week')
+  );
+});
+
+test('Latest archive state: rejects request when project subsequently became Active or Hidden in a later week', async () => {
+  setupEnvironment({ isUat: true });
+  // ARCH-01 was archived in W1. In W2, it was active.
+  state.docs.set('weeks/W2', {
+    weekLabel: 'W2 2026',
+    isReleased: true,
+    version: 1,
+    projects: [
+      { code: 'ARCH-01', visibility: 'active' },
+    ],
+  });
+  // W3 is latest unreleased week
+  state.docs.set('weeks/W3', {
+    weekLabel: 'W3 2026',
+    isReleased: false,
+    version: 1,
+    projects: [],
+  });
+
+  // Client attempts to restore by referencing old archived snapshot in W1
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W3',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'invalid-payload' && e.message.includes('no longer in an archived state')
+  );
+
+  // Same rejection if project became 'hidden'
+  state.docs.set('weeks/W2', {
+    weekLabel: 'W2 2026',
+    isReleased: true,
+    version: 1,
+    projects: [
+      { code: 'ARCH-01', visibility: 'hidden' },
+    ],
+  });
+
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W3',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'invalid-payload' && e.message.includes('no longer in an archived state')
+  );
+});
+
+test('Latest archive state: rejects request referencing an older archived snapshot when a newer archived snapshot exists', async () => {
+  setupEnvironment({ isUat: true });
+  // ARCH-01 archived in W1
+  // ARCH-01 modified and archived in W2
+  state.docs.set('weeks/W2', {
+    weekLabel: 'W2 2026',
+    isReleased: true,
+    version: 1,
+    projects: [
+      { code: 'ARCH-01', name: 'Archived Project Revised', visibility: 'archived', progress: 80 },
+    ],
+  });
+  // W3 is latest unreleased week
+  state.docs.set('weeks/W3', {
+    weekLabel: 'W3 2026',
+    isReleased: false,
+    version: 1,
+    projects: [],
+  });
+
+  // Referencing old snapshot W1 is rejected
+  await assert.rejects(
+    callAs('admin@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W3',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'invalid-payload' && e.message.includes('not the latest archived snapshot')
+  );
+
+  // Referencing latest snapshot W2 succeeds
+  const res = await callAs('admin@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W3',
+    sourceWeekId: 'W2',
+    projectCode: 'ARCH-01',
+  });
+  assert.equal(res.project.progress, 80);
+});
+
 test('PM even with project.manage capability override is denied from restoring archived project', async () => {
   setupEnvironment({ isUat: true });
   // pm@example.com has overrides: { 'project.manage': true }
@@ -115,7 +254,6 @@ test('PM even with project.manage capability override is denied from restoring a
 test('Duplicate code denied (exact and case-different)', async () => {
   setupEnvironment({ isUat: true });
   // Target week W2 has 'EXISTING-02'
-  // 1. Exact duplicate
   state.docs.get('weeks/W1').projects.push({ code: 'EXISTING-02', visibility: 'archived' });
   await assert.rejects(
     callAs('admin@example.com', 'saveDashboardProject', {
@@ -127,7 +265,7 @@ test('Duplicate code denied (exact and case-different)', async () => {
     e => e.details?.reason === 'conflict'
   );
 
-  // 2. Case-different duplicate: existing is 'EXISTING-02', restoring 'existing-02'
+  // Case-different duplicate: existing is 'EXISTING-02', restoring 'existing-02'
   await assert.rejects(
     callAs('admin@example.com', 'saveDashboardProject', {
       isArchiveRestore: true,
@@ -139,7 +277,12 @@ test('Duplicate code denied (exact and case-different)', async () => {
   );
 });
 
-test('Concurrent restore attempts serialize and prevent duplicate writes', async () => {
+test('Sequential duplicate restore attempts fail with conflict', async () => {
+  // Note on Concurrency:
+  // This test validates sequential deduplication in the transaction handler.
+  // Truly simultaneous/concurrent transactions across multiple processes rely on Firestore's
+  // native optimistic concurrency control (OCC) and retry mechanism, which is not simulated by
+  // the in-memory test double. Therefore, live multi-client transaction serialization is marked UNVERIFIED.
   setupEnvironment({ isUat: true });
   // First restore succeeds
   await callAs('admin@example.com', 'saveDashboardProject', {
@@ -148,7 +291,7 @@ test('Concurrent restore attempts serialize and prevent duplicate writes', async
     sourceWeekId: 'W1',
     projectCode: 'ARCH-01',
   });
-  // Second simultaneous attempt fails with conflict
+  // Second sequential attempt fails with conflict
   await assert.rejects(
     callAs('admin@example.com', 'saveDashboardProject', {
       isArchiveRestore: true,
@@ -198,37 +341,6 @@ test('Executive and VIP denied from restoring archived project', async () => {
       e => e.details?.reason === 'role-forbidden'
     );
   }
-});
-
-test('Released target week is denied', async () => {
-  setupEnvironment({ isUat: true });
-  // W3 is released
-  await assert.rejects(
-    callAs('admin@example.com', 'saveDashboardProject', {
-      isArchiveRestore: true,
-      weekId: 'W3',
-      sourceWeekId: 'W1',
-      projectCode: 'ARCH-01',
-    }),
-    e => e.details?.reason === 'released-week'
-  );
-});
-
-test('Target week earlier than source week is denied', async () => {
-  setupEnvironment({ isUat: true });
-  // Source is W2, target is W1 (earlier)
-  state.docs.set('weeks/W1', { weekLabel: 'W1 2026', isReleased: false, projects: [] });
-  state.docs.set('weeks/W2', { weekLabel: 'W2 2026', isReleased: true, projects: [{ code: 'ARCH-W2', visibility: 'archived' }] });
-
-  await assert.rejects(
-    callAs('admin@example.com', 'saveDashboardProject', {
-      isArchiveRestore: true,
-      weekId: 'W1',
-      sourceWeekId: 'W2',
-      projectCode: 'ARCH-W2',
-    }),
-    e => e.details?.reason === 'invalid-payload'
-  );
 });
 
 test('Historical week remains completely unchanged after restoration', async () => {

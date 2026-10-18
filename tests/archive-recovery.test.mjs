@@ -25,15 +25,23 @@ test('isWeekReleased checks week.isReleased boolean', () => {
   assert.equal(isWeekReleased(null), false);
 });
 
-test('findTargetDraftWeek resolves strictly to latest eligible draft week', () => {
+test('findTargetDraftWeek resolves strictly to latest eligible draft week and never falls back to older draft week', () => {
   const weeks = [
     { weekLabel: 'W1 2026', isReleased: true },
     { weekLabel: 'W2 2026', isReleased: false },
     { weekLabel: 'W3 2026', isReleased: false },
   ];
-  // Always resolves to latest unreleased draft week (W3 2026) regardless of selection
+  // Latest valid chronological week (W3 2026) is unreleased -> target is W3 2026
   const target = findTargetDraftWeek(weeks);
   assert.equal(target.weekLabel, 'W3 2026');
+
+  // If latest valid week (W3 2026) is released, disable restore (null) - do NOT fall back to W2
+  const latestReleased = [
+    { weekLabel: 'W1 2026', isReleased: true },
+    { weekLabel: 'W2 2026', isReleased: false },
+    { weekLabel: 'W3 2026', isReleased: true },
+  ];
+  assert.equal(findTargetDraftWeek(latestReleased), null);
 
   // all released -> null
   const allReleased = [
@@ -41,6 +49,13 @@ test('findTargetDraftWeek resolves strictly to latest eligible draft week', () =
     { weekLabel: 'W2 2026', isReleased: true },
   ];
   assert.equal(findTargetDraftWeek(allReleased), null);
+
+  // invalid/ambiguous labels are never latest
+  const invalidLabels = [
+    { weekLabel: 'W1 2026', isReleased: false },
+    { weekLabel: 'W26 2026 Prototype', isReleased: true },
+  ];
+  assert.equal(findTargetDraftWeek(invalidLabels).weekLabel, 'W1 2026');
 });
 
 test('collectArchivedProjects distinguishes Archived from Hidden and Active', () => {
