@@ -13,8 +13,15 @@ const uat = dashboardSource('uat');
 // gantt.manage and project.manage capabilities (capability-gated Release/Gantt/Project controls, ON/OFF switch page),
 // then by the targeted remediation of the User Permissions revision-conflict reload message (shared page block only),
 // then by the one-paste Copilot weekly update panel in the shared project editor (its stale-preview guard and the explicit "No active risks." preview);
+// then by the approved UAT-only Draft/Publish workflow (2026-10-14 spec; behavior covered by project-draft tests and local browser verification). Production baseline stays unchanged.
+// then unified for all projects by the explicit two-button user revision (same editor; atomic current-form save/publish).
 // any other UAT drift fails.
-const originalUatHash = 'e83cb180ae5888fe33b4f93a642bb9a612decd30897007d2f07f85415b0c4479';
+// Archive scope restoration: English UI and lifecycle management outside Draft Publish (2026-10-15).
+// Deliberate change (2026-10-17, Control Plane product requirement): in the UAT profile a PM may create, save and publish projects without project.manage
+// (Add New Project and New Project Draft shown to PMs, canPublish no longer needs project.manage). Deleting projects stays behind project.manage. Production is unchanged.
+// Deliberate change (2026-10-17, UX refinement): no Publish-to-week selector (latest applicable week), My Drafts button removed, Draft cards/labels on the Dashboard, PM owner prefilled.
+// Deliberate change (2026-10-17, Draft card UI fix): compact Draft card and small inline Draft capsule (CSS and card markup only).
+const originalUatHash = "ef3ed56d845f042be4c333c1a9bad89b7d610cf3893a678dec88fbb217f90546";
 
 const validRoles = new Map([
   ['admin', 'admin'],

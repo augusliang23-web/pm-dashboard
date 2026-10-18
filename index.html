@@ -190,6 +190,22 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-danger:hover { background: #C77D7D; }
 .btn-ghost { font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); transition: all .2s; white-space: nowrap; background: var(--s1); color: var(--text-light); }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
+
+/* @uat-only begin draft-card-style */
+/* Draft badge: a small inline capsule next to the project name (a flex-column child would stretch full width). */
+.draft-badge { display:inline-block; vertical-align:middle; margin-left:8px; padding:1px 8px; border:1px solid #E7D49B; border-radius:999px; background:#FFF9E9; color:#9A7429; font-size:10px; font-weight:800; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; }
+/* .proj-grid stretches every card to the tallest card in its row; a draft card is short, so it must size to its own content. */
+.draft-project-card { align-self:start; border-style:dashed; }
+/* @uat-only end draft-card-style */
+/* @uat-only begin unified-project-save-style */
+#projEditOverlay .unified-project-header { flex-wrap:wrap; gap:12px; align-items:center; }
+#projEditOverlay .project-save-actions { flex-wrap:wrap; justify-content:flex-end; gap:10px !important; }
+#projEditOverlay #pe_btn_save, #projEditOverlay #pe_btn_publish { width:auto; min-width:120px; min-height:42px; height:auto; padding:10px 16px; white-space:nowrap; flex-shrink:0; }
+#projEditOverlay .project-publication-guide { display:grid; gap:10px; margin:0 0 20px; padding:14px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+#projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+#projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
+#projEditOverlay #projectDraftManage { justify-self:start; }
+/* @uat-only end unified-project-save-style */
 </style>
 <style id="uatButtonSystem" media="not all">
 /* v2.2T button system: text actions use .btn plus one semantic variant. */
@@ -3083,6 +3099,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script src="./professional-pdf-config.js"></script>
+<!-- @uat-only begin drafts-workspace -->
+<div class="overlay" id="myDraftsOverlay" role="dialog" aria-modal="true" aria-labelledby="myDraftsTitle">
+  <div class="modal" style="max-width:850px;max-height:90vh;overflow:auto">
+    <div class="modal-header"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
+    <p>Drafts remain available across weeks. Open the editor to Save Draft or Save & Publish.</p>
+    <button class="btn btn-ghost" type="button" id="newProjectDraftBtn" onclick="openNewProjectDraft()">New Project Draft</button>
+    <div id="myDraftsContent"></div>
+  </div>
+</div>
+<div class="overlay" id="publishedProjectActionsOverlay" role="dialog" aria-modal="true" aria-labelledby="publishedProjectActionsTitle">
+ <div class="modal" style="max-width:600px"><div class="modal-header"><h3 id="publishedProjectActionsTitle">Published project actions</h3><button class="modal-x" type="button" onclick="closeModal('publishedProjectActionsOverlay')" aria-label="Close published project actions">×</button></div>
+ <p id="publishedProjectActionsMessage" role="status"></p><label id="projectVisibilityLabel" for="projectVisibilitySelect">Project visibility</label><select class="fs" id="projectVisibilitySelect" aria-label="Project visibility"><option value="active">Active</option><option value="hidden">Hidden</option><option value="archived">Archived</option></select><button type="button" class="btn btn-ghost" id="projectVisibilityAction">Save Visibility</button><button type="button" class="btn btn-ghost" id="projectDeleteAction">Delete published project</button></div>
+</div>
+<!-- @uat-only end drafts-workspace -->
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
@@ -3112,6 +3142,11 @@ import { getLocalEmulatorConfig } from "./js/local-emulator-config.mjs";
 import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs";
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
+// @uat-only begin draft-imports
+import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-scope-3";
+import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
+import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
+// @uat-only end draft-imports
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
@@ -3263,6 +3298,13 @@ let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
+// @uat-only begin draft-editor-state
+let draftEditorRecord;
+let draftOpening = false;
+let draftEditorOpenGeneration = 0;
+let draftEditorTargetWeekId = '';
+let draftEditorSaveIntent = 'draft';
+// @uat-only end draft-editor-state
 let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
 let projectEditorPdfSummaryLaneSeed = [];
@@ -5787,6 +5829,9 @@ function setupUI__prod() {
   document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
+  // @uat-only begin pm-new-project-button
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE && currentRole === 'pm') document.getElementById('addProjectBtn').style.display = 'inline-flex';
+  // @uat-only end pm-new-project-button
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   
@@ -5848,12 +5893,16 @@ function setupUI__uat() {
   document.getElementById('ganttTemplateSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('ganttWindowSettingsBtn').style.display = canCurrentUser('gantt.manage') ? 'inline-flex' : 'none';
   document.getElementById('addProjectBtn').style.display = canCurrentUser('project.manage') ? 'inline-flex' : 'none';
+  // @uat-only begin pm-new-project-button-2
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE && currentRole === 'pm') document.getElementById('addProjectBtn').style.display = 'inline-flex';
+  // @uat-only end pm-new-project-button-2
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
   syncProjectManagerFilterOptions();
   updateMasterDataLists();
   refreshExecutivePendingCount();
   refreshFxRates();
+  if (typeof syncDraftWorkspace === 'function') syncDraftWorkspace();
 }
 // @profile-dispatcher
 function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__prod)(...args); }
@@ -6098,7 +6147,6 @@ function initData__uat(authGeneration, authUser) {
       });
       return normalizedWeek;
     });
-    if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
     allWeeks = sortWeeksByLabel(fetchedWeeks);
     
     if (currentIdx < 0 || jumpToLatestOnNextRender) {
@@ -9992,6 +10040,7 @@ const render__uat = () => {
   document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
 
   renderNormal(portfolioProjects);
+  if (typeof decorateDraftCards === 'function') decorateDraftCards();
   renderExec(overviewProjects, week.summary, allCurrentProjects);
   
   if (isVipPerspective()) {
@@ -10133,6 +10182,18 @@ function renderNormal(projs) {
       openProjEdit(button.dataset.projectCode);
     });
   });
+  // @uat-only begin official-project-management
+  if (IS_UAT_PROFILE && !isReleased && (currentRole === 'admin' || canCurrentUser('project.manage'))) {
+    grid.querySelectorAll('.proj-card[data-project-code] .card-actions').forEach(actions => {
+      const card = actions.closest('.proj-card');
+      const manage = document.createElement('button');
+      manage.type = 'button'; manage.className = 'btn btn-ghost'; manage.textContent = 'Manage Project';
+      manage.onclick = event => { event.stopPropagation(); const week = allWeeks[currentIdx]; openPublishedProjectActions(card.dataset.projectCode, week.__documentId || week.weekLabel.replace(/\s+/g,'-')); };
+      manage.classList.add('no-print'); manage.style.alignSelf = 'flex-end'; manage.style.marginTop = '16px';
+      card.querySelector('.card-body').append(manage);
+    });
+  }
+  // @uat-only end official-project-management
 }
 
 function renderExec(projs, summary, allProjects = projs) {
@@ -10368,6 +10429,9 @@ function renderExec(projs, summary, allProjects = projs) {
 async function saveCurrentWeekQuietly(project, riskFields) {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser || !project) return;
+  // @uat-only begin draft-risk-guard
+  if (IS_UAT_PROFILE) throw new Error('Open the project editor and choose Save Draft or Save & Publish.');
+  // @uat-only end draft-risk-guard
   assertCurrentWeekEditable(week);
   const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
   const result = await projectDashboardApi.saveProject({
@@ -10952,6 +11016,11 @@ function findCurrentProject(code) {
 }
 
 async function updateProjectAttention(code, attention) {
+  // @uat-only begin draft-attention-guard
+  if (IS_UAT_PROFILE && findCurrentProject(code)) {
+    showSaveToast('Update Attention in the project editor, then choose Save Draft or Save & Publish.'); render(); window.openProjEdit(code); return false;
+  }
+  // @uat-only end draft-attention-guard
   const selectedWeek = allWeeks[currentIdx];
   const selectedIndex = currentIdx;
   const weekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
@@ -12268,6 +12337,9 @@ function setProjectMutationControlsDisabled(disabled) {
     const control = document.getElementById(id);
     if (control) control.disabled = disabled;
   }
+  // @uat-only begin unified-project-save-controls
+  for (const id of ['pe_btn_publish','projectDraftTargetWeek','projectDraftManage']) { const control = document.getElementById(id); if (control) control.disabled = disabled; }
+  // @uat-only end unified-project-save-controls
 }
 
 function clearProjectMutationError() {
@@ -12335,14 +12407,32 @@ function invalidateProjectEditorSession() {
 }
 
 window.openProjEdit = (code, isNew = false) => {
-  const existingProject = allWeeks[currentIdx]?.projects.find(project => project.code === code);
+  let draftMode = false;
+  // @uat-only begin draft-open-route
+  if (typeof IS_UAT_PROFILE !== 'undefined' && IS_UAT_PROFILE) {
+    if (!draftOpening) {
+      if (isNew) return window.openNewProjectDraft();
+      const official = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+      const selectedWeek = allWeeks[currentIdx];
+      if (isWeekReleased(selectedWeek)) return;
+      const targetWeekId = selectedWeek?.__documentId || selectedWeek?.weekLabel?.replace(/\s+/g, '-');
+      if (official && official.visibility !== 'archived' && canEditProject(official)) {
+        if (official.publication?.draftId) return window.openManagedProjectDraft(official.publication.draftId, targetWeekId);
+        return window.openExistingProjectDraft(code, targetWeekId);
+      }
+      draftEditorRecord = undefined;
+    }
+    draftMode = draftOpening;
+  }
+  // @uat-only end draft-open-route
+  const existingProject = draftMode ? draftEditorRecord.project : allWeeks[currentIdx]?.projects.find(project => project.code === code);
   if (!isNew && !existingProject) return;
   if (isNew && !ganttTemplateSubscriptionReady) return;
-  const week = allWeeks[currentIdx];
+  const week = draftMode ? { projects: [existingProject], weekLabel: 'Draft', __documentId: 'draft-workspace' } : allWeeks[currentIdx];
   if (isWeekReleased(week)) return;
-  if (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage'))) return;
+  if (!draftMode && (isNew ? !canCurrentUser('project.manage') : !(canEditProject(existingProject) || canCurrentUser('project.manage')))) return;
   // A project.manage holder who may not edit this project (not its owner/deputy and not Admin) gets a delete-only editor.
-  const manageOnly = !isNew && !canEditProject(existingProject);
+  const manageOnly = !draftMode && !isNew && !canEditProject(existingProject);
   isCreatingNew = isNew;
   editingProjCode = code;
   clearProjectMutationError();
@@ -12463,6 +12553,9 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_details').open = isNew;
   openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
+  // @uat-only begin draft-editor-hydration
+  if (IS_UAT_PROFILE) configureDraftEditor(draftMode);
+  // @uat-only end draft-editor-hydration
 };
 
 function getEditorPortfolioValue(id, fallback = '') {
@@ -12583,6 +12676,12 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
+  // @uat-only begin draft-save-route
+  if (IS_UAT_PROFILE && draftEditorRecord !== undefined) {
+    await saveEditorProjectDraft(pData, session);
+    return;
+  }
+  // @uat-only end draft-save-route
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -13664,6 +13763,245 @@ window.toggleVipPreview = () => {
   render();
 };
 // @prod-only end toggleVipPreview
+
+// @uat-only begin draft-workspace-wiring
+const projectDraftsApi = createProjectDraftsApi({ functions, httpsCallable });
+let draftWorkspaceUi;
+let latestDraftState = { drafts: [], nextCursor: null };
+let draftsLoadedKey = '';
+let draftRenderQueued = false;
+const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
+if (IS_UAT_PROFILE) {
+  draftWorkspaceUi = mountProjectDraftsUi({
+    root: document.getElementById('myDraftsContent'), controller: draftController,
+    getWeeks: () => allWeeks,
+    onEdit: draft => beginDraftEditor(draft),
+    onPublished: async () => { render(); }
+  });
+  onAuthStateChanged(auth, () => {
+    draftController.reset(); draftEditorRecord = undefined; draftEditorTargetWeekId = ''; draftEditorSaveIntent = 'draft'; ++draftEditorOpenGeneration;
+    document.getElementById('myDraftsOverlay')?.classList.remove('open');
+    document.getElementById('publishedProjectActionsOverlay')?.classList.remove('open');
+    draftsLoadedKey = '';
+  });
+}
+async function loadDraftCards() {
+  try {
+    await draftController.refresh();
+    for (let pages = 0; latestDraftState.nextCursor && pages < 8; pages++) await draftController.refresh({ cursor: latestDraftState.nextCursor });
+  } catch { /* the cards simply stay absent; the editor still works */ }
+}
+// Draft indicators on the Dashboard grid. Purely local to the signed-in author: they are never added to the published weeks, Overview or PDF data.
+function draftBadge(text) { const badge = document.createElement('span'); badge.className = 'draft-badge'; badge.textContent = text; return badge; }
+function buildNewDraftCard(draft, weekId) {
+  const card = document.createElement('div');
+  card.className = 'proj-card draft-project-card'; card.dataset.draftId = draft.draftId; card.tabIndex = 0;
+  card.setAttribute('role', 'button'); card.title = 'Resume editing this draft'; card.setAttribute('aria-label', `Draft project ${draft.project.name || 'Untitled project'}. Resume editing.`);
+  const body = document.createElement('div'); body.className = 'card-body';
+  const summary = document.createElement('div'); summary.className = 'card-summary';
+  const left = document.createElement('div'); left.className = 'card-summary-left';
+  const name = document.createElement('div'); name.className = 'proj-name'; name.textContent = draft.project.name || 'Untitled project'; name.append(draftBadge('Draft'));
+  const code = document.createElement('div'); code.className = 'proj-code'; code.textContent = draft.project.code || 'No code yet';
+  left.append(name, code);
+  const right = document.createElement('div'); right.className = 'card-summary-right';
+  const progress = document.createElement('div');
+  const progressLabel = document.createElement('div'); progressLabel.className = 'card-progress-label'; progressLabel.textContent = 'Progress';
+  const progressValue = document.createElement('div'); progressValue.className = 'card-progress-val'; progressValue.textContent = `${draft.project.progress ?? 0}%`;
+  progress.append(progressLabel, progressValue); right.append(progress);
+  summary.append(left, right); summary.style.marginBottom = '0'; body.append(summary); card.append(body);
+  const resume = () => window.openManagedProjectDraft(draft.draftId, weekId);
+  card.addEventListener('click', resume);
+  card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resume(); } });
+  return card;
+}
+function decorateDraftCards() {
+  const grid = document.getElementById('projGrid');
+  if (!grid || !IS_UAT_PROFILE || !currentUser || !['admin', 'pm'].includes(currentRole) || isOverview) return;
+  const week = allWeeks[currentIdx];
+  if (!week || isWeekReleased(week)) return;
+  const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+  const drafts = latestDraftState.drafts || [], me = getEmailKey(currentUser);
+  for (const card of grid.querySelectorAll('.proj-card[data-project-code]')) {
+    const project = week.projects?.find(item => item.code === card.dataset.projectCode);
+    if (project && draftForProject(drafts, me, weekId, project) && !card.querySelector('.draft-badge')) card.querySelector('.proj-name')?.append(draftBadge('Draft'));
+  }
+  const fresh = newProjectDrafts(drafts, me, allWeeks, weekId);
+  if (!fresh.length) return;
+  grid.querySelector('.empty-state')?.remove();
+  for (const draft of fresh.slice().reverse()) grid.prepend(buildNewDraftCard(draft, weekId));
+}
+function syncDraftWorkspace() {
+  if (!IS_UAT_PROFILE) return;
+  const allowed = currentUser && ['admin', 'pm'].includes(currentRole);
+  draftController.setIdentity(allowed ? { uid: currentUser.uid, email: getEmailKey(currentUser), role: currentRole } : null);
+  if (allowed && draftsLoadedKey !== currentUser.uid) { draftsLoadedKey = currentUser.uid; loadDraftCards(); }
+  document.getElementById('newProjectDraftBtn').style.display = allowed ? '' : 'none';
+}
+window.openMyDrafts = async () => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  if (!currentUser || !['admin','pm'].includes(currentRole)) return;
+  openAccessibleModal(document.getElementById('myDraftsOverlay'));
+  try { await draftController.refresh(); } catch {} // State shows the actual error; no demo fallback.
+};
+window.openNewProjectDraft = async () => {
+  if (!IS_UAT_PROFILE || !currentUser || !['admin','pm'].includes(currentRole)) return;
+  syncDraftWorkspace();
+  const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
+  await beginDraftEditor({ draftId:crypto.randomUUID(), revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
+};
+window.openManagedProjectDraft = async (draftId, targetWeekId) => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.open(draftId); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, targetWeekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+};
+window.openExistingProjectDraft = async (projectCode, weekId) => {
+  if (!IS_UAT_PROFILE) return;
+  syncDraftWorkspace();
+  const openingGeneration = ++draftEditorOpenGeneration;
+  try { const result = await draftController.openSource({weekId,projectCode}); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, weekId, openingGeneration); }
+  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+};
+async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) {
+  const uid = currentUser?.uid, email = getEmailKey(currentUser);
+  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = expectedOpeningGeneration ?? ++draftEditorOpenGeneration;
+  if (!currentUser || !['admin','pm'].includes(role)) return;
+  let options = [];
+  if (currentRole === 'admin') {
+    const users = await getDocs(collection(db, 'users'));
+    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
+  }
+  if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
+  closeModal('myDraftsOverlay', { force:true });
+  draftEditorRecord = draft; draftEditorSaveIntent = 'draft';
+  draftEditorTargetWeekId = targetWeekId || draft.source?.weekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  draftOpening = true;
+  try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
+  if (currentRole === 'pm') {
+    const ownerSelect = document.getElementById('pe_owner'), ownName = getUserDisplayName(email);
+    if (ownerSelect && ownName) { if (![...ownerSelect.options].some(option => option.value === ownName)) ownerSelect.add(new Option(ownName, ownName)); if (!draft.source && !draft.lastPublication) ownerSelect.value = ownName; }
+  }
+  if (currentRole === 'admin') {
+    for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
+      const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
+      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
+      select.value = draft.assignment[key] || '';
+    }
+  }
+  captureEditorBaseline(document.getElementById('projEditOverlay'));
+}
+function configureDraftEditor(draftMode) {
+  const save = document.getElementById('pe_btn_save');
+  const overlay = document.getElementById('projEditOverlay');
+  let publish = document.getElementById('pe_btn_publish');
+  let banner = document.getElementById('projectDraftPublicationStatus');
+  if (!draftMode) {
+    save.textContent = 'Save Project'; save.className = 'btn btn-primary'; save.title = 'Save Project';
+    save.setAttribute('aria-label','Save Project'); save.onclick = () => window.saveProjEdit();
+    document.getElementById('pe_visibility').disabled = false;
+    document.getElementById('pe_code').readOnly = false;
+    if(publish)publish.style.display = 'none';
+    if(banner)banner.style.display = 'none';
+    return;
+  }
+  const record = draftEditorRecord;
+  document.getElementById('peTitle').textContent = 'Edit Project';
+  overlay.querySelector('.modal-hdr').classList.add('unified-project-header');
+  save.parentElement.classList.add('project-save-actions');
+  save.className = 'btn btn-ghost'; save.textContent = 'Save Draft'; save.title = 'Save working content without updating Overview or PDF';
+  save.setAttribute('aria-label','Save Draft'); save.onclick = () => window.saveDraftProject();
+  if (!publish) {
+    publish = document.createElement('button'); publish.id = 'pe_btn_publish'; publish.type = 'button'; publish.className = 'btn btn-primary';
+    publish.textContent = 'Save & Publish'; publish.setAttribute('aria-label','Save & Publish'); publish.onclick = () => window.saveAndPublishProjectDraft(); save.after(publish);
+  }
+  save.style.display = ''; publish.style.display = '';
+  if (!banner) {
+    banner = document.createElement('section'); banner.id = 'projectDraftPublicationStatus'; banner.className = 'project-publication-guide';
+    const status = document.createElement('div'); status.id = 'projectDraftStatus'; status.setAttribute('role','status'); banner.append(status);
+    overlay.querySelector('.modal-hdr').after(banner);
+    overlay.addEventListener('input',()=>{if(draftEditorRecord)document.getElementById('projectDraftStatus').textContent = 'Unsaved changes. Choose Save Draft or Save & Publish.';});
+  }
+  banner.style.display = '';
+  // No week selector: Save & Publish always uses the latest applicable reporting week (same eligibility rules as before; never a released or historical week).
+  const weeks = eligibleDraftWeeks(allWeeks,record);
+  draftEditorTargetWeekId = latestPublishWeekId(allWeeks,record);
+  const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===draftEditorTargetWeekId);
+  const live = target?.projects?.find(project=>project.publication?.draftId===record.draftId || (record.source?.weekId===draftEditorTargetWeekId && project.code===record.source.projectCode));
+  const canPublish = Boolean(target) && (!record.lastPublication || Boolean(live)) && record.project.visibility !== 'archived' && (!live?.visibility || live.visibility==='active');
+  publish.disabled = !canPublish;
+  const state = draftPublicationState(record), where = target ? ` Save & Publish uses ${target.weekLabel}.` : '';
+  document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'Draft: no reporting week is open for publishing. You can still Save Draft.' : state === 'Published' ? 'Published. Save new changes as a draft when needed.' + where : state === 'Unpublished changes' ? 'Draft: unpublished changes. Overview and PDF keep the last published content.' + where : 'Draft: not published yet. Only you can see it.' + where;
+  document.getElementById('peTitle').textContent = state === 'Never published' && !record.source ? 'New Project (Draft)' : state === 'Published' ? 'Edit Project' : 'Edit Project (Draft)';
+  if(record.revision===0 && !record.source)document.getElementById('pe_details').open = true;
+  document.getElementById('pe_code').disabled = false;
+  document.getElementById('pe_code').readOnly = Boolean(record.lastPublication);
+  for(const id of ['pe_owner','pe_deputy'])document.getElementById(id).disabled = currentRole !== 'admin';
+  document.getElementById('pe_visibility').disabled = true;
+  document.getElementById('pe_btn_delete').style.display = 'none';
+  document.getElementById('adminProjActions').style.display = 'none';
+}
+window.saveDraftProject = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'draft'; await window.saveProjEdit();
+};
+window.saveAndPublishProjectDraft = async () => {
+  if(projectMutationInFlight)return;
+  draftEditorSaveIntent = 'publish'; await window.saveProjEdit();
+};
+async function saveEditorProjectDraft(project, session) {
+  const record = draftEditorRecord;
+  if (!record || !isProjectEditorSessionCurrent(session)) return;
+  const publishing = draftEditorSaveIntent === 'publish';
+  const weekId = latestPublishWeekId(allWeeks, record) || draftEditorTargetWeekId;   // re-evaluated at publish time: a newer week may have opened since the draft was loaded
+  const week = allWeeks.find(item=>(item.__documentId || item.weekLabel.replace(/\s+/g,'-'))===weekId);
+  if(publishing && !week){showProjectMutationError(null,'No eligible reporting week. You can still Save Draft.');return;}
+  let assignment;
+  if(currentRole==='admin'){
+    const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
+    if((record.revision===0 && !record.source) || selected.ownerEmail!==record.assignment.ownerEmail || selected.deputyEmail!==record.assignment.deputyEmail)assignment=selected;
+  }
+  const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
+  const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
+  clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
+  try {
+    const result = publishing ? await draftController.publish(input) : await draftController.save(input);
+    if (!result || !isProjectEditorSessionCurrent(session)) return;
+    draftEditorRecord = result.draft;
+    projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
+    document.getElementById('projEditOverlay').dataset.editorBaseline = submittedBaseline;
+    showSaveToast(publishing?'Saved and published. Overview and PDF use this official content.':'Draft saved. Overview and PDF are unchanged.');
+  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,publishing?'Save & Publish failed. Your input remains in the editor.':'Draft was not saved. Your input remains in the editor.'); }
+  finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
+}
+function openPublishedProjectActions(projectCode, weekId) {
+  if (!IS_UAT_PROFILE || !currentUser || (currentRole !== 'admin' && !canCurrentUser('project.manage'))) return;
+  const week = allWeeks.find(w => (w.__documentId || w.weekLabel.replace(/\s+/g,'-')) === weekId);
+  const project = week?.projects?.find(p => p.code === projectCode);
+  if (!project || week.isReleased === true) { showSaveToast('Select an unpublished week containing this project.'); return; }
+  const authGeneration = authSessionGeneration;
+  const revision = project.__revisionFingerprint || projectRevisionFingerprint(project);
+  const message = document.getElementById('publishedProjectActionsMessage');
+  message.textContent = `${project.name} · ${week.weekLabel}. These actions affect the published project. Lifecycle actions are separate from Draft and Publish.`;
+  const visibility = document.getElementById('projectVisibilityAction'), remove = document.getElementById('projectDeleteAction');
+  visibility.style.display = currentRole === 'admin' ? '' : 'none';
+  remove.style.display = canCurrentUser('project.manage') ? '' : 'none';
+  const selection = document.getElementById('projectVisibilitySelect');
+  selection.value = project.visibility || 'active';
+  selection.style.display = currentRole === 'admin' ? '' : 'none';
+  document.getElementById('projectVisibilityLabel').style.display = selection.style.display;
+  async function mutate(operation) {
+    visibility.disabled = true; remove.disabled = true; selection.disabled = true;
+    try { await operation(); if (authGeneration === authSessionGeneration) { closeModal('publishedProjectActionsOverlay',{force:true}); showSaveToast('Published project action saved.'); } }
+    catch(error) { if (authGeneration === authSessionGeneration) message.textContent = error.message || 'Action failed. No successful change was confirmed.'; }
+    finally { visibility.disabled = false; remove.disabled = false; selection.disabled = false; }
+  }
+  visibility.onclick = () => { if (currentRole !== 'admin') return; mutate(() => projectDashboardApi.saveProject({weekId,originalCode:project.code,projectCode:project.code,project:{code:project.code,visibility:selection.value},expectedRevision:revision})); };
+  remove.onclick = () => { if (!canCurrentUser('project.manage') || !confirm('Permanently delete this project from this reporting week?')) return; mutate(() => projectDashboardApi.deleteProject({weekId,originalCode:project.code})); };
+  openAccessibleModal(document.getElementById('publishedProjectActionsOverlay'));
+}
+// @uat-only end draft-workspace-wiring
 </script>
 </body>
 </html>
