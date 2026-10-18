@@ -164,12 +164,13 @@ function revertWeekOrdering(raw) {
   return raw.replace(hide, '').replace(helper, '').replaceAll('isDeliveryTrendsExecutive()', 'isVipPerspective()').replace('allWeeks = sortWeeksChronologically(fetchedWeeks);', 'allWeeks = sortWeeksByLabel(fetchedWeeks);');
 }
 
+// 2026-10-18: both hashes below were recomputed after integrating the merged PR54 UX changes (the index.html delta equals the PR54 delta exactly); the Delivery Trends and week-order invariants they protect are unchanged.
 test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C change set is reverted', () => {
   // Reverting Phase 2C week ordering on the composite candidate (historical PR #56 baseline was f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5 before PR #54 integration).
   let raw = revertWeekOrdering(rawDashboardSource());
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
-  assert.equal(hash, 'eea34045a11888645d9c8c41dc1e0f3c33bc6db8c3a8f008e9163325a597949c');
+  assert.equal(hash, 'e90a7e33787dc081e30a681bc3d04d212e86c83bdb3a4316d6267eca1c7b0b3c');
 });
 
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
@@ -187,5 +188,5 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');
-  assert.equal(hash, '9462877e7d851db3a65f3216fca421238390d672c8487eccad22059ceb3cae43');
+  assert.equal(hash, 'a8d5c7094b8725c5efb62b7725c967782efeb824ebda8252fb0d38d1a286e7fa');
 });

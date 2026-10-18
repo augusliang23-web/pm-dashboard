@@ -26,7 +26,12 @@ const uat = dashboardSource('uat');
 // then reconciled for empty-week behavior in F4 (PR #54 + PR #63 composite candidate without implicit Prototype fallback in UAT).
 // any other UAT drift fails.
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
-const originalUatHash = '6297df8195cc75b597aa6233b84116dc848564a982b796114a6eb23ea97c8be3';
+
+// Deliberate change (2026-10-17, Control Plane product requirement): in the UAT profile a PM may create, save and publish projects without project.manage
+// Deliberate change (2026-10-17, UX refinement): no Publish-to-week selector (latest applicable week), My Drafts button removed, Draft cards/labels on the Dashboard, PM owner prefilled.
+// Deliberate change (2026-10-17, Draft card UI fix): compact Draft card and small inline Draft capsule (CSS and card markup only).
+// Integration (2026-10-18): PR65 baseline + the merged PR54 UX changes (hash recomputed from the integrated UAT rendering; Production hash unchanged).
+const originalUatHash = '94f8ccb45442fb3c1a26b9ad755bd3b9b48d3902b3a81b15f5570982e858d923';
 
 const validRoles = new Map([
   ['admin', 'admin'],
