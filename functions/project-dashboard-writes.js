@@ -144,6 +144,11 @@ function canCreateProject(actorOrRole) {
   return actorCan(asActor(actorOrRole), 'project.manage');
 }
 
+// Effective project.archive.restore: Admin by default, or an explicit per-user override for PMs.
+function canRestoreArchivedProject(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'project.archive.restore');
+}
+
 // Effective gantt.manage: Admin by default. Covers the default Gantt templates and the Gantt display window.
 function canManageGantt(actorOrRole) {
   return actorCan(asActor(actorOrRole), 'gantt.manage');
@@ -554,14 +559,9 @@ async function executeArchiveRestore({ transaction, requestData, actor, nowIso }
     throw securityError('failed-precondition', 'environment-forbidden', 'Archive restore is available only in UAT.');
   }
 
-  // 2. Authenticated raw Admin role:
-  if (normalized(actor.role) !== 'admin') {
-    throw securityError('permission-denied', 'role-forbidden', 'Only administrators can restore archived projects.');
-  }
-
-  // 3. Existing effective project.manage authority:
-  if (!canCreateProject(actor)) {
-    throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to restore archived projects.');
+  // 2. Server-side effective capability authorization: project.archive.restore
+  if (!canRestoreArchivedProject(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Restore Archived Projects permission is required to restore archived projects.');
   }
 
   const targetWeekId = requireWeekId(requestData);
@@ -829,7 +829,7 @@ module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
   buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
   buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
-  canManageWeekFields, canManageWeeks, canManageGantt, identityTokens, ownerOrDeputyMatches, ownershipTokens,
+  canRestoreArchivedProject, canManageWeekFields, canManageWeeks, canManageGantt, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,

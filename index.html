@@ -2377,9 +2377,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <option value="active">👀 Active</option>
       <option value="all">👀 All</option>
     </select>
-    <!-- @uat-only begin archived-projects-btn -->
-    <button id="archivedProjectsBtn" class="pm-select admin-only" style="display:none; margin-right:4px; font-weight:600; cursor:pointer;" onclick="openArchivedProjectsModal()" title="View and restore archived projects">📦 Archived</button>
-    <!-- @uat-only end archived-projects-btn -->
     <select id="topPmSelect" class="pm-select vip-hidden executive-hidden" onchange="handleTopPmChange()"></select>
     <div class="week-nav" style="margin-left: 4px;">
       <button onclick="navWeek(-1)" title="Previous Week">‹</button>
@@ -2435,6 +2432,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="addProjectBtn" class="btn-icon admin-only" onclick="openProjEdit('', true)" title="Add New Project">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
       </button>
+      <!-- @uat-only begin archived-projects-btn -->
+      <button id="archivedProjectsBtn" class="btn-icon" style="display:none;" onclick="openArchivedProjectsModal()" title="Archived Projects" aria-label="Manage archived projects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+      </button>
+      <!-- @uat-only end archived-projects-btn -->
       <button id="ganttTemplateSettingsBtn" class="btn-icon admin-only" style="display:none;" onclick="openGanttTemplateSettings()" title="Default Gantt Templates" aria-label="Manage default Gantt templates">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
       </button>
@@ -5944,10 +5946,6 @@ function setupUI__uat() {
     document.getElementById('productionWeekSyncPanel').style.display = isAdminVipPreview ? 'none' : '';
     document.getElementById('onlineUsersContainer').style.display = 'flex';
     document.getElementById('visSelect').style.display = 'inline-block';
-    // @uat-only begin archived-projects-btn-display
-    const arcBtn = document.getElementById('archivedProjectsBtn');
-    if (arcBtn) arcBtn.style.display = isAdminVipPreview ? 'none' : 'inline-block';
-    // @uat-only end archived-projects-btn-display
     document.getElementById('presenceUsageBtn').style.display = 'inline-flex';
     document.getElementById('executivePreviewBtn').style.display = 'inline-flex';
     document.getElementById('addProjectBtn').style.display = 'inline-flex';
@@ -5974,6 +5972,10 @@ function setupUI__uat() {
   // @uat-only end pm-new-project-button-2
   // permissions.manage is raw-role Admin only and never delegable.
   document.getElementById('userPermissionsBtn').style.display = canCurrentUser('permissions.manage') ? 'inline-flex' : 'none';
+  // @uat-only begin archived-projects-btn-display
+  const arcBtn = document.getElementById('archivedProjectsBtn');
+  if (arcBtn) arcBtn.style.display = canCurrentUser('project.archive.restore') && !isAdminVipPreview ? 'inline-flex' : 'none';
+  // @uat-only end archived-projects-btn-display
   syncProjectManagerFilterOptions();
   updateMasterDataLists();
   refreshExecutivePendingCount();
@@ -14291,8 +14293,8 @@ import {
 let cachedArchivedList = [];
 
 window.openArchivedProjectsModal = function openArchivedProjectsModal() {
-  if (currentRole !== 'admin') {
-    showSaveToast('Admin permission required to view archived projects.');
+  if (!canCurrentUser('project.archive.restore')) {
+    showSaveToast('Restore Archived Projects permission required.', { type: 'error' });
     return;
   }
   const searchInput = document.getElementById('archivedSearchInput');
@@ -14399,8 +14401,8 @@ function renderArchivedProjectsModal() {
 }
 
 window.handleRestoreArchivedProject = async function handleRestoreArchivedProject(code) {
-  if (currentRole !== 'admin') {
-    alert('Only administrators can restore archived projects.');
+  if (!canCurrentUser('project.archive.restore')) {
+    alert('Restore Archived Projects permission is required to restore archived projects.');
     return;
   }
   const targetWeek = findTargetDraftWeek(allWeeks);

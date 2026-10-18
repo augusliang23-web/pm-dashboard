@@ -150,7 +150,7 @@ const rowOf = (dom, capability) => dom.element('userPermissionsRows').children.f
 const switchOf = (dom, capability) => rowOf(dom, capability).all().find(node => node.type === 'checkbox');
 const stateOf = (dom, capability) => rowOf(dom, capability).all().find(node => node.classList?.contains('permission-state')).textContent;
 const flip = (dom, capability, checked) => { const input = switchOf(dom, capability); input.checked = checked; input.fire('change'); };
-const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage'];
+const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
 
 async function openAndSelect(context, email) {
   await context.window.openUserPermissions();
@@ -228,7 +228,7 @@ for (const profile of Object.keys(PROFILES)) {
     assert.doesNotMatch(options.join(' '), /never shown/);
   });
 
-  test(`${profile}: each user shows four plain ON/OFF switches, with the PM release default ON`, async () => {
+  test(`${profile}: each user shows five plain ON/OFF switches, with the PM release default ON`, async () => {
     const { context, dom } = makeContext(profile, { permissions: { 'bonnie@example.test': { overrides: { 'week.manage': true }, revision: 4 } } });
     await openAndSelect(context, 'bonnie@example.test');
     assert.equal(dom.element('userPermissionsDetail').hidden, false);
@@ -239,6 +239,7 @@ for (const profile of Object.keys(PROFILES)) {
     assert.equal(stateOf(dom, 'week.release'), 'ON', 'a PM keeps Release by role default');
     assert.equal(stateOf(dom, 'gantt.manage'), 'OFF');
     assert.equal(stateOf(dom, 'project.manage'), 'OFF');
+    assert.equal(stateOf(dom, 'project.archive.restore'), 'OFF');
     for (const key of KEYS) {
       assert.equal(switchOf(dom, key).getAttribute('role'), 'switch');
       assert.ok(switchOf(dom, key).getAttribute('aria-labelledby'));
@@ -271,7 +272,7 @@ for (const profile of Object.keys(PROFILES)) {
   test(`${profile}: roles that cannot receive a capability show it unavailable instead of an inert switch`, async () => {
     const { context, dom, calls } = makeContext(profile);
     await openAndSelect(context, 'vip@example.test');
-    for (const key of ['week.release', 'project.manage']) {
+    for (const key of ['week.release', 'project.manage', 'project.archive.restore']) {
       assert.equal(switchOf(dom, key).disabled, true, key);
       assert.equal(stateOf(dom, key), 'OFF', key);
       assert.match(rowOf(dom, key).text(), /Not available for this role/, key);

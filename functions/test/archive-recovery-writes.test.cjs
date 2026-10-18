@@ -28,6 +28,21 @@ function setupEnvironment({ isUat = true } = {}) {
   state.docs.set('users/pm@example.com', { role: 'pm', displayName: 'PM User' });
   state.docs.set('userPermissions/pm@example.com', { overrides: { 'project.manage': true } });
 
+  state.docs.set('users/pm-no-override@example.com', { role: 'pm', displayName: 'PM No Override' });
+  state.docs.set('userPermissions/pm-no-override@example.com', { overrides: {} });
+
+  state.docs.set('users/pm-restore-granted@example.com', { role: 'pm', displayName: 'PM Restore Granted' });
+  state.docs.set('userPermissions/pm-restore-granted@example.com', { overrides: { 'project.archive.restore': true } });
+
+  state.docs.set('users/pm-restore-revoked@example.com', { role: 'pm', displayName: 'PM Restore Revoked' });
+  state.docs.set('userPermissions/pm-restore-revoked@example.com', { overrides: { 'project.archive.restore': false } });
+
+  state.docs.set('users/pm-manage-only@example.com', { role: 'pm', displayName: 'PM Manage Only' });
+  state.docs.set('userPermissions/pm-manage-only@example.com', { overrides: { 'project.manage': true, 'project.archive.restore': false } });
+
+  state.docs.set('users/pm-restore-only@example.com', { role: 'pm', displayName: 'PM Restore Only' });
+  state.docs.set('userPermissions/pm-restore-only@example.com', { overrides: { 'project.manage': false, 'project.archive.restore': true } });
+
   state.docs.set('users/vip@example.com', { role: 'vip', displayName: 'VIP User' });
   state.docs.set('userPermissions/vip@example.com', { overrides: {} });
 
@@ -237,11 +252,94 @@ test('Latest archive state: rejects request referencing an older archived snapsh
   assert.equal(res.project.progress, 80);
 });
 
-test('PM even with project.manage capability override is denied from restoring archived project', async () => {
+test('Admin with project.manage=false can still restore (project.archive.restore locked ON)', async () => {
   setupEnvironment({ isUat: true });
-  // pm@example.com has overrides: { 'project.manage': true }
+  const result = await callAs('admin-no-pm@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+  assert.equal(result.project.code, 'ARCH-01');
+  assert.equal(result.project.visibility, 'active');
+});
+
+test('PM without override cannot restore archived project', async () => {
+  setupEnvironment({ isUat: true });
   await assert.rejects(
-    callAs('pm@example.com', 'saveDashboardProject', {
+    callAs('pm-no-override@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'role-forbidden'
+  );
+});
+
+test('PM with project.archive.restore=true can restore archived project', async () => {
+  setupEnvironment({ isUat: true });
+  const result = await callAs('pm-restore-granted@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+  assert.equal(result.project.code, 'ARCH-01');
+  assert.equal(result.project.visibility, 'active');
+});
+
+test('PM with project.archive.restore=false cannot restore archived project', async () => {
+  setupEnvironment({ isUat: true });
+  await assert.rejects(
+    callAs('pm-restore-revoked@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'role-forbidden'
+  );
+});
+
+test('PM with project.manage=false and project.archive.restore=true can restore archived project', async () => {
+  setupEnvironment({ isUat: true });
+  const result = await callAs('pm-restore-only@example.com', 'saveDashboardProject', {
+    isArchiveRestore: true,
+    weekId: 'W2',
+    sourceWeekId: 'W1',
+    projectCode: 'ARCH-01',
+  });
+  assert.equal(result.project.code, 'ARCH-01');
+  assert.equal(result.project.visibility, 'active');
+});
+
+test('PM with project.manage=true and project.archive.restore=false cannot restore archived project', async () => {
+  setupEnvironment({ isUat: true });
+  await assert.rejects(
+    callAs('pm-manage-only@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'role-forbidden'
+  );
+});
+
+test('Executive and VIP users remain denied from restoring archived projects', async () => {
+  setupEnvironment({ isUat: true });
+  await assert.rejects(
+    callAs('exec@example.com', 'saveDashboardProject', {
+      isArchiveRestore: true,
+      weekId: 'W2',
+      sourceWeekId: 'W1',
+      projectCode: 'ARCH-01',
+    }),
+    e => e.details?.reason === 'role-forbidden'
+  );
+  await assert.rejects(
+    callAs('vip@example.com', 'saveDashboardProject', {
       isArchiveRestore: true,
       weekId: 'W2',
       sourceWeekId: 'W1',

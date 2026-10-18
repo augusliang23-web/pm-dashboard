@@ -62,6 +62,15 @@ export const CAPABILITIES = Object.freeze({
     adminLocked: true,
     grantableRoles: PM_ONLY,
   }),
+  // Restore archived projects into the latest draft reporting week.
+  'project.archive.restore': Object.freeze({
+    label: 'Restore Archived Projects',
+    description: 'Find and restore archived projects without changing other project management permissions.',
+    roleDefaults: Object.freeze(['admin']),
+    delegable: true,
+    adminLocked: true,
+    grantableRoles: PM_ONLY,
+  }),
   // Reserved: only raw-role Admin may manage user permissions. Never delegable.
   'permissions.manage': Object.freeze({
     label: 'Manage user permissions',

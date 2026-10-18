@@ -283,3 +283,40 @@ test('valid historical Archive remains discoverable and invalid synthetic week c
   assert.equal(result.archived[0].archivedWeekLabel, 'W1 2026');
   assert.equal(result.archived.some(p => p.code === 'SYNTH-ONLY'), false);
 });
+
+test('project.archive.restore capability resolution across all roles and overrides', async () => {
+  const { can, roleDefault } = await import('../js/permission-registry.mjs');
+
+  // Role defaults: Admin ON, all others OFF
+  assert.equal(roleDefault('project.archive.restore', 'admin'), true);
+  assert.equal(roleDefault('project.archive.restore', 'pm'), false);
+  assert.equal(roleDefault('project.archive.restore', 'vip'), false);
+  assert.equal(roleDefault('project.archive.restore', 'executive'), false);
+  assert.equal(roleDefault('project.archive.restore', 'engineering'), false);
+
+  // Admin is locked ON
+  assert.equal(can('project.archive.restore', { role: 'admin' }), true);
+  assert.equal(can('project.archive.restore', { role: 'admin', overrides: { 'project.archive.restore': false } }), true);
+
+  // PM default OFF
+  assert.equal(can('project.archive.restore', { role: 'pm' }), false);
+  assert.equal(can('project.archive.restore', { role: 'pm', overrides: {} }), false);
+
+  // PM granted ON
+  assert.equal(can('project.archive.restore', { role: 'pm', overrides: { 'project.archive.restore': true } }), true);
+
+  // PM revoked OFF
+  assert.equal(can('project.archive.restore', { role: 'pm', overrides: { 'project.archive.restore': false } }), false);
+
+  // Independence: project.manage vs project.archive.restore
+  assert.equal(can('project.archive.restore', { role: 'pm', overrides: { 'project.manage': true, 'project.archive.restore': false } }), false);
+  assert.equal(can('project.manage', { role: 'pm', overrides: { 'project.manage': true, 'project.archive.restore': false } }), true);
+
+  assert.equal(can('project.archive.restore', { role: 'pm', overrides: { 'project.manage': false, 'project.archive.restore': true } }), true);
+  assert.equal(can('project.manage', { role: 'pm', overrides: { 'project.manage': false, 'project.archive.restore': true } }), false);
+
+  // Non-grantable roles: VIP, Executive, Engineering remain false even with override
+  assert.equal(can('project.archive.restore', { role: 'vip', overrides: { 'project.archive.restore': true } }), false);
+  assert.equal(can('project.archive.restore', { role: 'executive', overrides: { 'project.archive.restore': true } }), false);
+  assert.equal(can('project.archive.restore', { role: 'engineering', overrides: { 'project.archive.restore': true } }), false);
+});
