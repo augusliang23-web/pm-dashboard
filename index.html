@@ -6093,14 +6093,14 @@ function initData__prod(authGeneration, authUser) {
     if (snap.docs.length === 0) {
       deliveryTrendsRawWeeks = [];
       deliveryTrendsHistoryState = {
-        source: 'prod',
+        source: 'production',
         complete: isServerConfirmed,
         asOf: new Date().toISOString()
       };
     } else {
       deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
       deliveryTrendsHistoryState = {
-        source: 'prod',
+        source: 'production',
         complete: isServerConfirmed,
         asOf: new Date().toISOString()
       };
@@ -6150,7 +6150,7 @@ function initData__prod(authGeneration, authUser) {
   }, error => {
     if (!isCurrentDataSession()) return;
     deliveryTrendsRawWeeks = [];
-    deliveryTrendsHistoryState = { source: 'prod', complete: false, asOf: new Date().toISOString() };
+    deliveryTrendsHistoryState = { source: 'production', complete: false, asOf: new Date().toISOString() };
     if (typeof window !== 'undefined') window.__weeksServerConfirmed = false;
     showDataLoadError(error);
   });

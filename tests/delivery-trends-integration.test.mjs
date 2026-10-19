@@ -253,7 +253,7 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   raw = raw.replace(deliveryTrendsBlock, '');
   raw = raw.replace(/\n\s*deliveryTrendsRawWeeks = \[\];\n\s*deliveryTrendsHistoryState = \{ source: null, complete: false \};/, '');
   raw = raw.replace(/\n\s*const isFromCache = Boolean\(snap\.metadata\?\.fromCache\);[\s\S]*?(?=\n\s*let fetchedWeeks =)/, '');
-  raw = raw.replace(/\n\s*deliveryTrendsRawWeeks = \[\];\n\s*deliveryTrendsHistoryState = \{ source: 'prod', complete: false, asOf: new Date\(\)\.toISOString\(\) \};/, '');
+  raw = raw.replace(/\n\s*deliveryTrendsRawWeeks = \[\];\n\s*deliveryTrendsHistoryState = \{ source: 'production', complete: false, asOf: new Date\(\)\.toISOString\(\) \};/, '');
 
   assert.ok(raw.includes('  syncDeliveryTrendsView();\n'));
   raw = raw.replace('  syncDeliveryTrendsView();\n', '');
