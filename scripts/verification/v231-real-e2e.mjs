@@ -60,6 +60,16 @@ try {
   const old=(await data(weekRef)).projects[0];const result=await invoke('saveDashboardProject',{weekId:'W40',projectCode:'OLD',originalCode:'OLD',isNew:false,expectedRevision:projectRevisionFingerprint(old),project:{code:'OLD',progress:41}});assert.equal(result.project.progress,41);
   await assert.rejects(invoke('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Disabled'}}),reason('draft-environment'));
  });
+ await check('AttentionBefore','real legacy attention transaction before activation plus unauthorized/released denials',async()=>{
+  const req={weekId:'W40',projectCode:'OLD',attention:'action'};
+  assert.equal((await invoke('setDashboardProjectAttention',req)).project.attention,'action');
+  const before=await data(weekRef);
+  await assert.rejects(invoke('setDashboardProjectAttention',req,null));
+  await assert.rejects(invoke('setDashboardProjectAttention',req,'vip'));
+  await assert.rejects(invoke('setDashboardProjectAttention',req,'other'),reason('ownership-forbidden'));
+  assert.deepEqual(await data(weekRef),before);
+  await weekRef.update({isReleased:true});await assert.rejects(invoke('setDashboardProjectAttention',req),reason('released-week'));await weekRef.update({isReleased:false});
+ });
  const site=resolve(root,'tmp/v231-e2e-hosting');await buildHosting({rootDir:root,outDir:site,env:await loadHostingEnv(root,'prod')});
  server=createServer(async(req,res)=>{try{const pathname=new URL(req.url,'http://localhost').pathname;const path=resolve(site,'.'+(pathname==='/'?'/index.html':pathname));if(!path.startsWith(site+'/'))return res.writeHead(403).end();const content=await readFile(path);res.setHeader('Content-Type',extname(path)==='.html'?'text/html':/\.m?js$/.test(path)?'text/javascript':'application/octet-stream');res.end(content);}catch{res.writeHead(404).end();}});
  await new Promise(r=>server.listen(4198,'127.0.0.1',r));
@@ -81,17 +91,30 @@ try {
  await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('#myDraftsBtn')?.style.display==='inline-flex',{timeout:25000});
  await logout();await login('admin');
  await check('E01','Admin creates and saves a Draft through real browser/callable',async()=>{
-  await click('#addProjectBtn');await page.waitForSelector('#projEditOverlay.open');await fill('#pe_name','Browser release draft');await fill('#pe_code','BROWSER');await page.select('#pe_owner',emails.pm);await fill('#pe_progress',43);await click('#pe_btn_save');await waitFor(async()=>(await db.collection('projectDrafts').get()).size===1);assert.equal((await data(weekRef)).projects.some(p=>p.code==='BROWSER'),false);
+  await click('#addProjectBtn');await page.waitForSelector('#projEditOverlay.open');await fill('#pe_name','Browser release draft');await fill('#pe_code','BROWSER');await page.select('#pe_owner',emails.pm);await fill('#pe_progress',43);await page.select('#pe_attention','strategy');await click('#pe_btn_save');await waitFor(async()=>(await db.collection('projectDrafts').get()).size===1);assert.equal((await data(weekRef)).projects.some(p=>p.code==='BROWSER'),false);
  });
  const draftDoc=(await db.collection('projectDrafts').get()).docs[0];let draft=draftDoc.data();
  await logout();await login('pm');
  async function reopen(){await click('#myDraftsBtn');await page.waitForFunction(()=>[...document.querySelectorAll('#myDraftsContent button')].some(e=>e.textContent==='Edit Project' && !e.disabled));await click('#myDraftsContent .draft-list-row button');await page.waitForSelector('#projEditOverlay.open');}
- await check('E02','assigned PM reopens Admin draft and saves via browser',async()=>{await reopen();await fill('#pe_progress',55);await click('#pe_btn_save');await waitFor(async()=>(await data(draftDoc.ref)).revision===2);draft=await data(draftDoc.ref);assert.equal(draft.project.progress,55);});
+ await check('E02','assigned PM reopens Admin draft and saves via browser',async()=>{await reopen();await fill('#pe_progress',55);await click('#pe_btn_save');await waitFor(async()=>(await data(draftDoc.ref)).revision===2);draft=await data(draftDoc.ref);assert.equal(draft.project.progress,55);assert.equal(draft.project.attention,'strategy');});
  await check('E03','browser reload plus logout/login persistence',async()=>{await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('#myDraftsBtn')?.style.display==='inline-flex');await reopen();assert.equal(await page.$eval('#pe_progress',e=>e.value),'55');});
  let first;
  await check('E04','PM Save & Publish button uses actual transaction',async()=>{await click('#pe_btn_publish');await waitFor(async()=>(await data(weekRef)).projects.some(p=>p.code==='BROWSER'));});
- await check('E05','authoritative official project reflects submitted publication',async()=>{first=(await data(weekRef)).projects.find(p=>p.code==='BROWSER');assert.equal(first.progress,55);assert.equal(first.owner,'Release PM');});
+ await check('E05','authoritative official project reflects submitted publication',async()=>{first=(await data(weekRef)).projects.find(p=>p.code==='BROWSER');assert.equal(first.progress,55);assert.equal(first.owner,'Release PM');assert.equal(first.attention,'strategy');});
  await check('E06','real browser republish',async()=>{await fill('#pe_progress',65);await click('#pe_btn_publish');await waitFor(async()=>(await data(weekRef)).projects.find(p=>p.code==='BROWSER')?.progress===65);draft=await data(draftDoc.ref);});
+ await check('AttentionAfter','active legacy attention denied without writes; stale clients instructed to reload',async()=>{
+  const before=await data(weekRef);
+  await assert.rejects(invoke('setDashboardProjectAttention',{weekId:'W40',projectCode:'BROWSER',attention:'action'}),e=>reason('draft-publish-required')(e) && /Reload the dashboard/.test(e.message));
+  assert.deepEqual(await data(weekRef),before);
+ });
+ await check('AttentionEditor','attention dropdown routes to editor; Save Draft preserves official attention; Save & Publish persists it',async()=>{
+  await page.evaluate(()=>window.closeModal('projEditOverlay',{force:true}));await click('#btnOverview');
+  await page.waitForSelector('.attention-select[data-code="BROWSER"]');await page.select('.attention-select[data-code="BROWSER"]','action');
+  await page.waitForSelector('#projEditOverlay.open');await page.select('#pe_attention','action');
+  const revision=(await data(draftDoc.ref)).revision;await click('#pe_btn_save');await waitFor(async()=>(await data(draftDoc.ref)).revision>revision);
+  assert.equal((await data(draftDoc.ref)).project.attention,'action');assert.equal((await data(weekRef)).projects.find(p=>p.code==='BROWSER').attention,'strategy');
+  await click('#pe_btn_publish');await waitFor(async()=>(await data(weekRef)).projects.find(p=>p.code==='BROWSER').attention==='action');draft=await data(draftDoc.ref);
+ });
  await check('Retry','actual callable repeated publish retry produces no extra audit',async()=>{const count=(await db.collection('projectDraftPublicationAudit').get()).size;const retry=await invoke('publishDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:draft.revision,weekId:'W40',expectedPublishedRevision:null});assert.equal(retry.alreadyPublished,true);assert.equal((await db.collection('projectDraftPublicationAudit').get()).size,count);});
  await check('E07','actual authenticated stale draft and official revisions are rejected',async()=>{
   await assert.rejects(invoke('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:0,project:{progress:99}}),reason('conflict'));
@@ -121,7 +144,7 @@ try {
  await check('E12','duplicate restore via real callable denied',async()=>{await assert.rejects(invoke('saveDashboardProject',restore,'admin'),reason('conflict'));});
  await check('E13','released target restore denied without write',async()=>{await weekRef.update({isReleased:true});await assert.rejects(invoke('saveDashboardProject',restore,'admin'),reason('week-already-released'));await weekRef.update({isReleased:false});});
  await check('E14','historical target restore and publication denied',async()=>{await assert.rejects(invoke('saveDashboardProject',{...restore,weekId:'W38'},'admin'));await assert.rejects(invoke('publishDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:draft.revision,weekId:'W38',expectedPublishedRevision:null}));});
- await check('E15','publication audit records match actual successful transactions',async()=>{const audits=(await db.collection('projectDraftPublicationAudit').get()).docs.map(d=>d.data());assert.equal(audits.length,2);assert.ok(audits.every(a=>a.draftId===draft.draftId && a.actorEmail===emails.pm && a.actorUid==='release-pm' && a.publishedAt));});
+ await check('E15','publication audit records match actual successful transactions',async()=>{const audits=(await db.collection('projectDraftPublicationAudit').get()).docs.map(d=>d.data());assert.equal(audits.length,3);assert.ok(audits.every(a=>a.draftId===draft.draftId && a.actorEmail===emails.pm && a.actorUid==='release-pm' && a.publishedAt));});
  await check('ArchiveConcurrency','two actual concurrent restore transactions admit one winner and retain target data',async()=>{
   const hist=await data(sourceWeekRef);hist.projects.push({...archived,code:'RACE'});await sourceWeekRef.set(hist);const req={...restore,projectCode:'RACE',expectedSourceRevision:digest(hist.projects.at(-1))};
   const results=await Promise.allSettled([invoke('saveDashboardProject',req,'admin'),invoke('saveDashboardProject',req,'admin')]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await data(weekRef)).projects.filter(p=>p.code==='RACE').length,1);

@@ -77,3 +77,25 @@ test('first publication rejects historical open weeks and case-insensitive proje
   await assert.rejects(call(drafts,'publishDashboardProjectDraft',{...payload,weekId:'W1'}),e=>e.details?.reason==='historical-week');
   await assert.rejects(call(drafts,'publishDashboardProjectDraft',{...payload,weekId:'W2'}),e=>e.details?.reason==='conflict');
 });
+
+test('Production attention stays compatible before activation and rejects legacy bypass after activation',async()=>{
+  setup({...active,drafts:false,archiveRecovery:false,enforceDraftPublish:false});
+  const request={weekId:'W2',projectCode:'OLD',attention:'action'};
+  const result=await call(writes,'setDashboardProjectAttention',request);
+  assert.equal(result.project.attention,'action');
+  const before=structuredClone(state.docs.get('weeks/W2'));
+  state.docs.set('releaseCapabilities/v231',active);
+  await assert.rejects(call(writes,'setDashboardProjectAttention',{...request,attention:'watch'}),e=>e.details?.reason==='draft-publish-required' && /Reload the dashboard/.test(e.message));
+  assert.deepEqual(state.docs.get('weeks/W2'),before);
+});
+test('Production attention denies unauthenticated, wrong role, wrong owner and released writes',async()=>{
+  setup({...active,drafts:false,enforceDraftPublish:false});
+  const request={weekId:'W2',projectCode:'OLD',attention:'action'};
+  await assert.rejects(writes.setDashboardProjectAttention.run({data:request}),e=>e.code==='unauthenticated');
+  await assert.rejects(call(writes,'setDashboardProjectAttention',request,'vip@example.com'),e=>e.code==='permission-denied');
+  state.docs.set('users/other@example.com',{role:'pm',displayName:'Other'});
+  await assert.rejects(call(writes,'setDashboardProjectAttention',request,'other@example.com'),e=>e.details?.reason==='ownership-forbidden');
+  state.docs.get('weeks/W2').isReleased=true;
+  await assert.rejects(call(writes,'setDashboardProjectAttention',request),e=>e.details?.reason==='released-week');
+  assert.equal(state.docs.get('weeks/W2').projects[0].attention,undefined);
+});

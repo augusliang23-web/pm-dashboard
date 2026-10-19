@@ -34,3 +34,12 @@
 解除候選方案衝突後：完成必要 review／CI與確切 main SHA → 專用 SA／最小 custom role/binding（不得新增 actAs）→ 兩個索引 READY → 舊版回復 targets/permissions verified → inactive backend → 舊前端相容性 → 已驗證 PDF candidate → exact-merged-SHA Hosting → 同專案 activation → 唯讀正式 smoke。若 live attention handler 存在，也須納入同樣 enforcement；不得為不存在的 handler 建立不必要 identity。
 
 Owner 已移除備份 Gate，禁止新增 PITR、備份／匯出與隔離雲端 restore DB。Application rollback 不會回復使用者的 Firestore 寫入。正式 restore／publish 寫入驗收仍需 Owner 後續確認。
+
+
+## Owner-approved Attention IAM Option A remediation
+
+Owner已核准專用pmdash-project-attn SA／pmdashAttentionRuntime role／單一binding；不沿用Compute Editor、不改動既有Compute bindings。Attention只有known-document transaction reads及exists:true update，因此角色精確三項datastore.databases.get、datastore.entities.get、datastore.entities.update，無list/create/delete或服務／憑證管理權限。依官方Native Firestore IAM API表與實際SDK核對；獨立reviewer已限定複核。Draft role仍為已核實的五項Firestore權限。
+
+Release override現精確六個Functions，新增setDashboardProjectAttention使用pmdash-project-attn；source本來已指定此SA，沒有把任何handler切換到Compute或其他共享身分。新增真實attention啟用前callable相容、unauth/wrongowner/released拒絕、啟用後legacy拒絕與refresh提示、瀏覽器dropdown→editor→Save Draft保留官方值→Save & Publish更新官方值。最終新SHA仍須CI與必要GitHub review。
+
+原兩項設計HOLD已由Owner解除，允許exact merged SHA的一次必要新PDF candidate（existing service/region/infrastructure、明確--no-traffic/new tag、old Production100% readback）。不得用舊00039作修正版，也不得直接呼叫會切換流量的舊deploy script。Artifact、IAM readback、rollback與正式smoke證據以本機最終報告為準，不以來源說明宣告部署成功。

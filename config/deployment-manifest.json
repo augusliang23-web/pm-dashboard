@@ -262,7 +262,7 @@
   },
   "authorizedReleaseOverrides": {
     "v231UnifiedProduction": {
-      "authorization": "Owner Unified Production Release and IAM Option A; backup gate removed 2026-10-19",
+      "authorization": "Owner Unified Release, Draft IAM Option A, Attention IAM Option A and one corrected no-traffic PDF candidate; backup gate removed",
       "environment": "prod",
       "firebaseProjectId": "project-manager-dashboar-a067f",
       "functions": [
@@ -270,14 +270,16 @@
         "listDashboardProjectDrafts",
         "getDashboardProjectDraft",
         "saveDashboardProjectDraft",
-        "publishDashboardProjectDraft"
+        "publishDashboardProjectDraft",
+        "setDashboardProjectAttention"
       ],
       "runtimeServiceAccounts": {
         "saveDashboardProject": "pmdash-save-project",
         "listDashboardProjectDrafts": "pmdash-project-drafts",
         "getDashboardProjectDraft": "pmdash-project-drafts",
         "saveDashboardProjectDraft": "pmdash-project-drafts",
-        "publishDashboardProjectDraft": "pmdash-project-drafts"
+        "publishDashboardProjectDraft": "pmdash-project-drafts",
+        "setDashboardProjectAttention": "pmdash-project-attn"
       },
       "sourcePolicy": "exact-final-merged-main-sha",
       "activationDocument": "releaseCapabilities/v231",
@@ -297,7 +299,27 @@
         "application-rollback-verified",
         "legacy-client-compatibility-pass",
         "no-unexpected-production-drift"
-      ]
+      ],
+      "runtimeRolePermissions": {
+        "pmdashAttentionRuntime": [
+          "datastore.databases.get",
+          "datastore.entities.get",
+          "datastore.entities.update"
+        ],
+        "pmdashDraftRuntime": [
+          "datastore.databases.get",
+          "datastore.entities.create",
+          "datastore.entities.get",
+          "datastore.entities.list",
+          "datastore.entities.update"
+        ]
+      },
+      "pdfCandidatePolicy": {
+        "source": "exact-final-merged-main-sha",
+        "buildCount": 1,
+        "noTraffic": true,
+        "preserveOldServingRevision": true
+      }
     }
   }
 }
