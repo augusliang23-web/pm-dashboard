@@ -9,5 +9,11 @@ export function createProjectDashboardApi({ functions, httpsCallable }) {
     setWeekRelease: data => call('setDashboardWeekRelease')(data).then(result => result.data),
     saveGanttTemplateSettings: data => call('saveDashboardGanttTemplateSettings')(data).then(result => result.data),
     saveGanttWindowSettings: data => call('saveDashboardGanttWindowSettings')(data).then(result => result.data),
+    restoreArchivedProject: data => call('saveDashboardProject')({
+      isArchiveRestore: true,
+      weekId: data.weekId,
+      sourceWeekId: data.sourceWeekId,
+      projectCode: data.projectCode,
+    }).then(result => result.data),
   };
 }

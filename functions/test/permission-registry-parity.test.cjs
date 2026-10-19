@@ -7,7 +7,7 @@ const server = require('../permission-registry');
 
 const ROLES = ['admin', 'pm', 'vip', 'executive', 'engineering', 'business', 'sales', 'bd', 'product', ' Admin ', 'PM', '', 'unknown', undefined];
 const VALUES = [undefined, true, false, null, 'true', 1];
-const CAPABILITY_KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'permissions.manage', 'week.unknown', '', '__proto__'];
+const CAPABILITY_KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore', 'permissions.manage', 'week.unknown', '', '__proto__'];
 
 async function browserRegistry() {
   return import(pathToFileURL(path.resolve(__dirname, '..', '..', 'js', 'permission-registry.mjs')).href);

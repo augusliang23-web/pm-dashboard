@@ -1,8 +1,9 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
-const { assertLegacyProjectWriteAllowed } = require('./draft-environment');
+const { assertLegacyProjectWriteAllowed, draftsEnabled } = require('./draft-environment');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
+const { sortWeeksChronologically, latestValidWeekIndex } = require('./week-order');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
 const { can, normalizePermissionOverrides, normalizePermissionRole } = require('./permission-registry');
 
@@ -141,6 +142,11 @@ function canDeleteProject(actorOrRole) {
 
 function canCreateProject(actorOrRole) {
   return actorCan(asActor(actorOrRole), 'project.manage');
+}
+
+// Effective project.archive.restore: Admin by default, or an explicit per-user override for PMs.
+function canRestoreArchivedProject(actorOrRole) {
+  return actorCan(asActor(actorOrRole), 'project.archive.restore');
 }
 
 // Effective gantt.manage: Admin by default. Covers the default Gantt templates and the Gantt display window.
@@ -541,12 +547,135 @@ async function authenticatedActor(transaction, request) {
 const dashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount }, handler);
 const selectedDashboardOnCall = (serviceAccount, handler) => onCall({ serviceAccount, maxInstances: 20 }, handler);
 
+async function executeArchiveRestore({ transaction, requestData, actor, nowIso }) {
+  assertActor(actor);
+  assertBoundedJson(requestData);
+  assertAllowedKeys(requestData, [
+    'isArchiveRestore', 'weekId', 'sourceWeekId', 'projectCode',
+  ], 'Archive restore request');
+
+  // 1. Narrowly scoped UAT-only operation:
+  if (!draftsEnabled(process.env)) {
+    throw securityError('failed-precondition', 'environment-forbidden', 'Archive restore is available only in UAT.');
+  }
+
+  // 2. Server-side effective capability authorization: project.archive.restore
+  if (!canRestoreArchivedProject(actor)) {
+    throw securityError('permission-denied', 'role-forbidden', 'Restore Archived Projects permission is required to restore archived projects.');
+  }
+
+  const targetWeekId = requireWeekId(requestData);
+  const sourceWeekId = requireId(requestData.sourceWeekId, 'Source week identifier');
+  const reqCode = requireProjectCode(requestData.projectCode, 'Project code');
+  const normalizedReqCode = reqCode.trim().toUpperCase();
+
+  // Load all reporting weeks authoritatively from Firestore within the transaction
+  const weeksSnapshot = await transaction.get(database().collection('weeks'));
+  const allWeeks = (weeksSnapshot?.docs || []).map(doc => ({
+    ...doc.data(),
+    __documentId: doc.id,
+  }));
+
+  if (allWeeks.length === 0) {
+    throw securityError('failed-precondition', 'invalid-payload', 'No reporting weeks exist.');
+  }
+
+  // Chronologically sort all weeks using canonical week-order semantics
+  const orderedWeeks = sortWeeksChronologically(allWeeks);
+  const latestValidIdx = latestValidWeekIndex(orderedWeeks);
+  if (latestValidIdx < 0) {
+    throw securityError('failed-precondition', 'invalid-payload', 'No valid chronological reporting week exists.');
+  }
+
+  const latestValidWeek = orderedWeeks[latestValidIdx];
+
+  // RULE 1: Target Week MUST be the latest valid chronological week
+  if (targetWeekId !== latestValidWeek.__documentId) {
+    throw securityError('failed-precondition', 'invalid-payload', 'Restore is only allowed into the latest valid reporting week.');
+  }
+
+  // RULE 1: Latest valid chronological week MUST be unreleased (draft)
+  if (latestValidWeek.isReleased === true) {
+    throw securityError('failed-precondition', 'week-already-released', 'The latest reporting week is already released.');
+  }
+
+  const targetWeek = latestValidWeek;
+  assertDraftWeek(targetWeek);
+
+  // RULE 2: Case-insensitive duplicate check in target week
+  const targetProjects = Array.isArray(targetWeek.projects) ? targetWeek.projects : [];
+  if (targetProjects.some(p => String(p?.code || '').trim().toUpperCase() === normalizedReqCode)) {
+    throw securityError('already-exists', 'conflict', 'A project with this code already exists in the target reporting week.');
+  }
+
+  // RULE 3: Latest Archive Lifecycle State Verification across prior historical weeks
+  const priorWeeks = orderedWeeks.slice(0, latestValidIdx);
+  let latestProjectAppearance = null;
+  let latestProjectWeek = null;
+
+  for (const week of priorWeeks) {
+    const projects = Array.isArray(week.projects) ? week.projects : [];
+    const found = projects.find(p => String(p?.code || '').trim().toUpperCase() === normalizedReqCode);
+    if (found) {
+      latestProjectAppearance = found;
+      latestProjectWeek = week;
+    }
+  }
+
+  if (!latestProjectAppearance || !latestProjectWeek) {
+    throw securityError('not-found', 'not-found', 'The project was not found in any reporting week.');
+  }
+
+  // The latest known state across historical weeks MUST be 'archived'
+  if (latestProjectAppearance.visibility !== 'archived') {
+    throw securityError('failed-precondition', 'invalid-payload', 'The project is no longer in an archived state.');
+  }
+
+  // Reject requests referencing an old archived snapshot when a newer state exists
+  if (latestProjectWeek.__documentId !== sourceWeekId) {
+    throw securityError('failed-precondition', 'invalid-payload', 'The requested snapshot is not the latest archived snapshot of this project.');
+  }
+
+  // Build restored project from verified latest archived snapshot
+  const sourceProject = latestProjectAppearance;
+  const restoredProject = {
+    ...sourceProject,
+    code: sourceProject.code || reqCode,
+    visibility: 'active',
+  };
+  const sectionUpdatedAt = updateProjectSectionMetadata(
+    {}, restoredProject,
+    { editorName: actor.displayName, savedAt: nowIso }
+  );
+  if (sectionUpdatedAt) restoredProject.sectionUpdatedAt = sectionUpdatedAt;
+
+  // Write ONLY to targetWeek. Source week is untouched (historical weeks remain unchanged).
+  const targetWeekRef = database().collection('weeks').doc(targetWeekId);
+  const nextProjects = [...targetProjects, restoredProject];
+  const patch = {
+    projects: nextProjects,
+    lastModifiedBy: actor.email,
+    version: nextWeekVersion(targetWeek),
+  };
+  transaction.update(targetWeekRef, patch);
+
+  return {
+    week: { ...targetWeek, ...patch },
+    project: restoredProject,
+    revision: projectRevisionFingerprint(restoredProject),
+    committedAt: nowIso,
+  };
+}
+
 const saveDashboardProject = selectedDashboardOnCall('pmdash-save-project@', async request => database().runTransaction(async transaction => {
   const actor = await authenticatedActor(transaction, request);
+  const nowIso = new Date().toISOString();
+  if (request.data?.isArchiveRestore === true) {
+    return executeArchiveRestore({ transaction, requestData: request.data, actor, nowIso });
+  }
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
-  const nowIso = new Date().toISOString();
   const result = buildProjectPatch(weekSnapshot.data(), request.data, actor, nowIso);
   transaction.update(weekRef, result.patch);
   return {
@@ -700,9 +829,9 @@ module.exports = {
   assertAllowedKeys, assertBoundedJson, assertDraftWeek, buildCreatedWeek, buildProjectPatch,
   buildAuthenticatedActor, buildGanttTemplateSettingsPatch, buildGanttWindowSettingsPatch,
   buildWeekFieldsPatch, canMutateProject, canSetWeekRelease, canDeleteProject, canCreateProject,
-  canManageWeekFields, canManageWeeks, canManageGantt, identityTokens, ownerOrDeputyMatches, ownershipTokens,
+  canRestoreArchivedProject, canManageWeekFields, canManageWeeks, canManageGantt, identityTokens, ownerOrDeputyMatches, ownershipTokens,
   projectRevisionFingerprint, updateProjectSectionMetadata, saveDashboardProject,
   deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease,
   saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings,
-  saveDashboardGanttWindowSettings,
+  saveDashboardGanttWindowSettings, executeArchiveRestore,
 };

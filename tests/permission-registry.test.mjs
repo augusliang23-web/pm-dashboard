@@ -13,7 +13,7 @@ import {
 const ROLES = ['admin', 'pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'];
 const NON_ADMIN_ROLES = ROLES.filter(role => role !== 'admin');
 const WORKING_ROLES = ['pm', 'engineering', 'business', 'sales', 'bd', 'product'];
-const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage'];
+const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
 
 // Reviewed role defaults and grantable roles. The registry must match this table exactly.
 const EXPECTED = {
@@ -21,6 +21,7 @@ const EXPECTED = {
   'week.release': { defaults: ['admin', 'pm'], grantable: ['pm'] },
   'gantt.manage': { defaults: ['admin'], grantable: NON_ADMIN_ROLES },
   'project.manage': { defaults: ['admin'], grantable: ['pm'] },
+  'project.archive.restore': { defaults: ['admin'], grantable: ['pm'] },
 };
 
 test('the registry holds exactly the reviewed delegable capabilities plus the non-delegable permissions.manage', () => {
