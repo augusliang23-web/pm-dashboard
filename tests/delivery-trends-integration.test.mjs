@@ -17,13 +17,12 @@ test('Production profile contains no Delivery Trends navigation, container, scri
   }
 });
 
-test('UAT profile has a dedicated Delivery Trends navigation entry and container', () => {
-  assert.match(uat, /id="btnDeliveryTrends"[^>]*onclick="toggleDeliveryTrends\(\)"/);
+test('UAT profile has no redundant standalone Delivery Trends button and retains container and Overview trends', () => {
+  assert.equal(uat.includes('id="btnDeliveryTrends"'), false, 'btnDeliveryTrends must not exist in UAT');
   assert.match(uat, /id="deliveryTrendsView"/);
-  assert.match(uat, /class="btn-icon executive-hidden"\s+id="btnDeliveryTrends"/);
   // Runtime profile separation: the raw page hides UAT-only markup in Production through data-profile-only.
   const raw = rawDashboardSource();
-  assert.match(raw, /class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends"/);
+  assert.equal(raw.includes('id="btnDeliveryTrends"'), false, 'btnDeliveryTrends must not exist in raw source');
   assert.match(raw, /id="deliveryTrendsView" data-profile-only="uat" hidden/);
   // Overview integrates weekly trend panel (V2.3.1-A).
   const overview = uat.slice(uat.indexOf('function renderExec('), uat.indexOf('function renderExec(') + 6000);
@@ -103,16 +102,10 @@ test('Project Manager wording from PR #49 is preserved in the new components', (
   assert.doesNotMatch(delivery, /\bOwner\b/);
 });
 
-test('navigation entry is understandable and accessible', () => {
+test('redundant standalone navigation entry is removed from UAT', () => {
   const raw = rawDashboardSource();
-  const button = raw.match(/<button[^>]*id="btnDeliveryTrends"[\s\S]*?<\/button>/)[0];
-  assert.match(button, /aria-label="Delivery Trends"/);
-  assert.match(button, /aria-pressed="false"/);
-  assert.match(button, /title="Delivery Trends"/);
-  assert.match(button, /<svg aria-hidden="true"/);
-  assert.match(button, /<span class="dt-nav-label" aria-hidden="true">Trends<\/span>/);
-  assert.match(raw, /@media \(max-width:700px\) \{ #btnDeliveryTrends \.dt-nav-label \{ display:none; \}/);
-  assert.match(uat, /setAttribute\('aria-pressed', 'true'\)/);
+  assert.equal(raw.includes('id="btnDeliveryTrends"'), false, 'btnDeliveryTrends is not in raw source');
+  assert.equal(uat.includes('id="btnDeliveryTrends"'), false, 'btnDeliveryTrends is not in rendered UAT');
 });
 
 test('Production inventory has no new exception: the shared print functions equal the approved baseline', () => {
@@ -197,7 +190,7 @@ test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C 
   let raw = revertWeekOrdering(rawDashboardSource());
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
-  assert.equal(hash, 'b16c5e908a5212756669f52ae227edd05b3339eaef8e0d243912a2df36fcec90');
+  assert.equal(hash, 'a1b2d177a760044d10fc5a184eecf581983124591b544d47f4b41474f154b8a7');
 });
 
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
@@ -215,5 +208,5 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');
-  assert.equal(hash, '5c046dc7c8dafa0c48dd73131a7fcfcbccc134936d49ebc4374859e3b7949fcc');
+  assert.equal(hash, '307bc80d77016e41a724b23a663e8c90004e540aa1ff9384ad07628e55a92f78');
 });

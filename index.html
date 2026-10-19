@@ -2410,13 +2410,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button class="btn-icon vip-hidden executive-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
-      
-      <!-- @uat-only begin deliveryTrendsButton -->
-      <style>#btnDeliveryTrends { width:auto; padding:0 10px; gap:6px; font:700 11px 'Noto Sans TC',sans-serif; } @media (max-width:700px) { #btnDeliveryTrends .dt-nav-label { display:none; } #btnDeliveryTrends { padding:0; width:32px; } }</style>
-      <button class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends" onclick="toggleDeliveryTrends()" title="Delivery Trends" aria-label="Delivery Trends" aria-pressed="false">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg><span class="dt-nav-label" aria-hidden="true">Trends</span>
-      </button>
-      <!-- @uat-only end deliveryTrendsButton -->
       <button class="btn-icon vip-hidden executive-hidden" onclick="openOverviewPrintDialog()" title="Export PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
