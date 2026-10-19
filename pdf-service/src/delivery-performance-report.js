@@ -92,7 +92,8 @@ function summaryCards(contract) {
 }
 
 function trendChart(contract) {
-  const series = list(contract.weeklySeries).slice(-PDF_DISPLAY_WEEKS).map(entry => {
+  const displayWeeks = [6, 12].includes(contract?.windowWeeks) ? contract.windowWeeks : PDF_DISPLAY_WEEKS;
+  const series = list(contract.weeklySeries).slice(-displayWeeks).map(entry => {
     const item = obj(entry);
     return {
       label: formatWeekLabel(item),
@@ -145,8 +146,8 @@ function changeSummary(contract) {
   return `<section class="dp-changes card"><h3 class="pdf-continuation-label">Portfolio Changes</h3>${rows}</section>`;
 }
 
-function sparkline(trend, name) {
-  const points = list(trend).slice(-PDF_DISPLAY_WEEKS).map(point => (isNum(point) ? point : isNum(obj(point).progressPct) ? point.progressPct : null));
+function sparkline(trend, name, displayWeeks = PDF_DISPLAY_WEEKS) {
+  const points = list(trend).slice(-displayWeeks).map(point => (isNum(point) ? point : isNum(obj(point).progressPct) ? point.progressPct : null));
   const width = 70; const height = 16; const pad = 2;
   if (!points.some(value => value !== null)) return `<span class="dp-na">${NA}</span>`;
   const step = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
@@ -181,6 +182,7 @@ function currentScopeProjects(contract) {
 }
 
 function projectTable(contract) {
+  const displayWeeks = [6, 12].includes(contract?.windowWeeks) ? contract.windowWeeks : PDF_DISPLAY_WEEKS;
   const projects = currentScopeProjects(contract);
   if (projects === null) return '<div class="empty-state">The current project list is unavailable because scope membership data (isInAnchorScope) is not provided yet.</div>';
   if (!projects.length) return '<div class="empty-state">No projects are available for this reporting week.</div>';
@@ -191,12 +193,12 @@ function projectTable(contract) {
       `<strong class="dp-name">${escapeHtml(name)}</strong>${project.comparable === false ? '<br><small>Not comparable this week</small>' : ''}`,
       `<span class="dp-pm">${escapeHtml(String(project.projectManager ?? '').trim() || NA)}</span>`,
       escapeHtml(formatPct(project.currentCompletionPct)),
-      sparkline(project.trend, name),
+      sparkline(project.trend, name, displayWeeks),
       changeText(project.weeklyChangePp),
       project.status && tone(project.status) !== 'neutral' ? statusBadge(tone(project.status), STATUS_LABELS[tone(project.status)]) : statusBadge('neutral', 'Not set')
     ];
   });
-  return dataTable({ headings: ['Project', 'Project Manager', 'Completion', `${PDF_DISPLAY_WEEKS}-week trend`, 'Weekly change', 'Status'], rows, className: 'dp-table' })
+  return dataTable({ headings: ['Project', 'Project Manager', 'Completion', `${displayWeeks}-week trend`, 'Weekly change', 'Status'], rows, className: 'dp-table' })
     .replace('<tbody><tr>', '<tbody><tr data-pdf-split-unit>')
     .replaceAll('</tr><tr>', '</tr><tr data-pdf-split-unit>');
 }

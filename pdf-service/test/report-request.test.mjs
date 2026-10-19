@@ -146,3 +146,20 @@ test('requires project selections for every Overview request', () => {
     /At least one project selection is required/
   );
 });
+
+test('accepts valid windowWeeks (6 or 12) for overview reports', () => {
+  for (const windowWeeks of [6, 12]) {
+    const request = parseReportRequest({
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['health-focus'],
+      projectCodes: ['PMS-001'],
+      windowWeeks
+    });
+    assert.equal(request.windowWeeks, windowWeeks);
+  }
+  assert.throws(
+    () => parseReportRequest({ mode: 'overview', weekId: 'W28', sections: ['health-focus'], projectCodes: ['PMS-001'], windowWeeks: 8 }),
+    /Unsupported windowWeeks/
+  );
+});

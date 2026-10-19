@@ -47,11 +47,26 @@ test('negative progress and chart gaps are visible', () => {
   assert.equal((gaps.match(/class="dp-line" d="[^"]*"/)[0].match(/ M\d/g) || []).length, 1);
 });
 
-test('only the last 6 weeks are displayed', () => {
+test('only the last 6 weeks are displayed by default', () => {
   const base = syntheticContract();
   const extra = [{ weekId: 'a', label: 'OLD1', gainPp: 9, comparableCount: 6 }, { weekId: 'b', label: 'OLD2', gainPp: 9, comparableCount: 6 }];
   const html = renderPortfolioDeliveryPerformancePages({ ...base, weeklySeries: [...extra, ...base.weeklySeries] });
   assert.doesNotMatch(html, /OLD1|OLD2/);
+});
+
+test('displays up to 12 weeks when windowWeeks is 12', () => {
+  const base = syntheticContract();
+  const extra = [
+    { weekId: 'w1', label: 'W01 2026', gainPp: 1.1, comparableCount: 6 },
+    { weekId: 'w2', label: 'W02 2026', gainPp: 2.2, comparableCount: 6 },
+    { weekId: 'w3', label: 'W03 2026', gainPp: 3.3, comparableCount: 6 },
+    { weekId: 'w4', label: 'W04 2026', gainPp: 4.4, comparableCount: 6 },
+    { weekId: 'w5', label: 'W05 2026', gainPp: 5.5, comparableCount: 6 },
+    { weekId: 'w6', label: 'W06 2026', gainPp: 6.6, comparableCount: 6 }
+  ];
+  const html = renderPortfolioDeliveryPerformancePages({ ...base, windowWeeks: 12, weeklySeries: [...extra, ...base.weeklySeries] });
+  assert.match(html, /W01 2026/);
+  assert.match(html, /12-week trend/);
 });
 
 test('empty portfolio and unsupported contract render safe messages', () => {
