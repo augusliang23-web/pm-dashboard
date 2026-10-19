@@ -6,8 +6,8 @@
 window.PM_DASHBOARD_ENV = Object.freeze({
   dashboardProfile: "production",
   environment: "prod",
-  release: "v2.1",
-  baseCommit: "6d9f7bd",
+  release: "v2.3.1",
+  baseCommit: "4adfea5",
   // null until this environment's dedicated PDF Cloud Run service is deployed and verified; professional-pdf-config.js
   // refuses cleanly (never falls back to another environment's service) when this is null.
   pdfServiceUrl: "https://pm-dashboard-pdf-a4naj265kq-as.a.run.app",

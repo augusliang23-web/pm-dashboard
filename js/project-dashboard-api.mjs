@@ -14,6 +14,7 @@ export function createProjectDashboardApi({ functions, httpsCallable }) {
       weekId: data.weekId,
       sourceWeekId: data.sourceWeekId,
       projectCode: data.projectCode,
+      ...(data.expectedSourceRevision !== undefined ? {expectedSourceRevision:data.expectedSourceRevision} : {}),
     }).then(result => result.data),
   };
 }

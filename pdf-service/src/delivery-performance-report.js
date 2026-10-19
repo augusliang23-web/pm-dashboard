@@ -92,7 +92,7 @@ function summaryCards(contract) {
 }
 
 function trendChart(contract) {
-  const displayWeeks = [6, 12].includes(contract?.windowWeeks) ? contract.windowWeeks : PDF_DISPLAY_WEEKS;
+  const displayWeeks = [6, 12].includes(contract?.provenance?.windowWeeks) ? contract.provenance.windowWeeks : PDF_DISPLAY_WEEKS;
   const series = list(contract.weeklySeries).slice(-displayWeeks).map(entry => {
     const item = obj(entry);
     return {
@@ -182,7 +182,7 @@ function currentScopeProjects(contract) {
 }
 
 function projectTable(contract) {
-  const displayWeeks = [6, 12].includes(contract?.windowWeeks) ? contract.windowWeeks : PDF_DISPLAY_WEEKS;
+  const displayWeeks = [6, 12].includes(contract?.provenance?.windowWeeks) ? contract.provenance.windowWeeks : PDF_DISPLAY_WEEKS;
   const projects = currentScopeProjects(contract);
   if (projects === null) return '<div class="empty-state">The current project list is unavailable because scope membership data (isInAnchorScope) is not provided yet.</div>';
   if (!projects.length) return '<div class="empty-state">No projects are available for this reporting week.</div>';

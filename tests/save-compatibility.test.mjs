@@ -24,7 +24,7 @@ test('risk save sends only editable fields and uses the original revision', asyn
   Object.defineProperty(project, '__revisionFingerprint', { value: 'original-revision' });
   const week = { __documentId: 'test-week', projects: [project] };
   let sent;
-  const context = { allWeeks: [week], currentIdx: 0, currentUser: {}, assertCurrentWeekEditable() {},
+  const context = {projectWriteCapabilities:{draftsEnabled:false}, allWeeks: [week], currentIdx: 0, currentUser: {}, assertCurrentWeekEditable() {},
     projectRevisionFingerprint() { throw new Error('must use original revision'); },
     projectDashboardApi: { async saveProject(data) { sent = data; return { week: { projects: [{ ...project, riskList: true }] } }; } } };
   vm.createContext(context);
@@ -43,7 +43,7 @@ test('risk save sends only editable fields and uses the original revision', asyn
 test('validation errors preserve their explanation without a misleading network instruction', () => {
   const elements = new Map();
   const document = { getElementById(id) { if (!elements.has(id)) elements.set(id, { classList: { add() {}, remove() {} } }); return elements.get(id); } };
-  const context = { document, _toastTimer: null, clearTimeout, Error };
+  const context = {projectWriteCapabilities:{draftsEnabled:false}, document, _toastTimer: null, clearTimeout, Error };
   vm.createContext(context);
   vm.runInContext(html.slice(html.indexOf('function showProjectMutationError('), html.indexOf('function isProjectEditorSessionCurrent(')), context);
   context.showProjectMutationError(new Error('Invalid project code'), 'Check your connection, refresh the dashboard.');

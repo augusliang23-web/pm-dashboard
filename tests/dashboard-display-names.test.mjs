@@ -19,6 +19,8 @@ test('directory read returns authorized records and never invents a fixed PM lis
   const directory = createDisplayNameDirectory();
   let readFails = false;
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
     db: {},
     collection: () => ({}),
@@ -51,6 +53,8 @@ test('presence names are escaped before entering HTML', () => {
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     document: { getElementById: element },
     escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
   });
@@ -68,6 +72,8 @@ test('PM selector treats a stored label as text in both value and caption', () =
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     document: { getElementById: element, querySelectorAll: () => [] },
     currentUser: { email: 'robin@example.test' },
     currentRole: 'pm',
@@ -113,6 +119,8 @@ test('authenticated header renders the stored directory display name', () => {
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
     document: { getElementById: element, querySelectorAll: () => [] },
     currentUser: { email: 'robin.lee@example.test' },
