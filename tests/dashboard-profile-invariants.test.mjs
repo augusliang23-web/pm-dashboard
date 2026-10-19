@@ -78,7 +78,15 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // for Admin/PM only (status stays visible) and toggleReleaseWeek fails closed for everyone else
   // (tests/week-release-visibility.test.mjs).
   'render',
-  'toggleReleaseWeek'
+  'toggleReleaseWeek',
+  // V2.3.1 Production Release Candidate: Overview Delivery Performance & Trends panel
+  // promotes portfolio progress and velocity across reporting weeks with 6/12-week window selection.
+  'renderWeeklyTrendPanel',
+  // V2.3.1 Production Release Candidate: passes windowWeeks to buildOverviewPdfRequest so PDF
+  // includes delivery performance section when selected.
+  'confirmOverviewProjectPrint',
+  // V2.3.1 Production Release Candidate: syncs Delivery Performance checkbox visibility in Overview print dialog.
+  'openOverviewPrintDialog'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',
@@ -177,3 +185,23 @@ test('UAT-only capabilities are unreachable from the Production profile', () => 
     assert.doesNotMatch(production.replace(/\/\/ @uat-only[\s\S]*?\/\/ @uat-only end[^\n]*\n/g, ''), forbidden, `${forbidden} must not run in Production`);
   }
 });
+
+test('Production profile renders Delivery Performance & Trends panel on Overview with 6/12-week selection', () => {
+  const production = dashboardSource('production');
+  assert.match(production, /function renderWeeklyTrendPanel\(projects\)/);
+  assert.match(production, /Delivery Performance &amp; Trends/);
+  assert.match(production, /Portfolio progress &amp; velocity across reporting weeks/);
+  assert.match(production, /data-overview-trend-window="6"/);
+  assert.match(production, /data-overview-trend-window="12"/);
+  assert.match(production, /currentDeliveryTrendsState\(deliveryTrendsWindow\)/);
+});
+
+test('Production confirmOverviewProjectPrint exports PDF with windowWeeks', () => {
+  const production = dashboardSource('production');
+  assert.match(production, /window\.confirmOverviewProjectPrint\s*=/);
+  const start = production.indexOf('window.confirmOverviewProjectPrint =');
+  const end = production.indexOf('window.setOverviewScope', start);
+  const fnBody = production.slice(start, end);
+  assert.match(fnBody, /windowWeeks:\s*typeof deliveryTrendsWindow !== 'undefined' \? deliveryTrendsWindow : 6/);
+});
+

@@ -71,7 +71,7 @@ export function resolveRuntimeTarget(environment = process.env, registry = loadT
     features: Object.freeze({
       liveExecutiveTimeline: target.features?.liveExecutiveTimeline === true,
       projectBriefUpdateSections: target.features?.projectBriefUpdateSections === true,
-      deliveryPerformanceSection: name === 'uat' && target.features?.deliveryPerformanceSection === true
+      deliveryPerformanceSection: target.features?.deliveryPerformanceSection === true
     })
   });
 }
@@ -86,7 +86,7 @@ function resolveLocalTarget(environment) {
     environment: LOCAL_ENVIRONMENT,
     firebaseProjectId: projectId,
     allowedOrigins: Object.freeze(parseAllowedOrigins(environment.ALLOWED_ORIGIN)),
-    features: Object.freeze({ liveExecutiveTimeline: true, projectBriefUpdateSections: true })
+    features: Object.freeze({ liveExecutiveTimeline: true, projectBriefUpdateSections: true, deliveryPerformanceSection: true })
   });
 }
 

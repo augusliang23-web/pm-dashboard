@@ -63,10 +63,9 @@ test('UAT target F-1 through the HTTP handler: a released-only role gets 403 for
   assert.equal(vip.statusCode, 403);
 });
 
-test('Production target (shipped registry) rejects the section exactly like the previous release and renders nothing', { timeout: 60000 }, async () => {
+test('Production target (shipped registry) accepts the section for released weeks', { timeout: 60000 }, async () => {
   const res = await post('pm', targetFeatures('production'), body('W38-2026'));
-  assert.equal(res.statusCode, 400);
-  assert.deepEqual(JSON.parse(res.body), { error: `Unknown report section: ${SECTION}.` });
+  assert.equal(res.statusCode, 200);
 });
 
 test('UAT history read is bounded to the documented limits for this dataset', { timeout: 60000 }, async () => {

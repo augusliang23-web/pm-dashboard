@@ -10,9 +10,8 @@ import {
 const uat = dashboardSource('uat');
 const production = dashboardSource('production');
 
-test('Production profile contains no Delivery Trends navigation, container, script or PDF option', () => {
-  for (const marker of ['btnDeliveryTrends', 'deliveryTrendsView', 'toggleDeliveryTrends', 'syncDeliveryTrendsView',
-    'delivery-trends-page', 'deliveryPerformanceOption', 'portfolio-delivery-performance', 'isDeliveryPerformancePdfAvailable', ]) {
+test('Production profile contains no standalone Delivery Trends navigation, container, or standalone view hooks', () => {
+  for (const marker of ['btnDeliveryTrends', 'deliveryTrendsView', 'toggleDeliveryTrends', 'syncDeliveryTrendsView']) {
     assert.ok(!production.includes(marker), `production must not contain ${marker}`);
   }
 });
@@ -54,9 +53,11 @@ test('the page never calculates metrics itself and never touches data stores', (
   assert.match(delivery, /import\('\.\/js\/delivery-trends-page\.mjs'\)/);
 });
 
-test('PDF dialog option is UAT-only, hidden and unchecked by default; browser print is deferred', () => {
+test('PDF dialog option is profile-neutral, hidden and unchecked by default; browser print is deferred', () => {
   assert.match(uat, /<label id="deliveryPerformanceOption" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> /);
   assert.doesNotMatch(uat, /value="portfolio-delivery-performance" checked/);
+  assert.match(production, /<label id="deliveryPerformanceOption" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> /);
+  assert.doesNotMatch(production, /value="portfolio-delivery-performance" checked/);
   // Browser-print integration is deferred: the shared Production print function must stay untouched.
   assert.doesNotMatch(uat, /extraOverviewPrintSections|renderExtraOverviewPrintPage/);
   assert.doesNotMatch(production, /extraOverviewPrintSections|renderExtraOverviewPrintPage/);
@@ -65,19 +66,20 @@ test('PDF dialog option is UAT-only, hidden and unchecked by default; browser pr
   assert.doesNotMatch(uat.match(/const OVERVIEW_PRINT_PRESETS = \{[\s\S]*?\n\};/)[0], /delivery/i);
 });
 
-test('UAT release candidate: the frontend flag is on, but only the UAT profile can offer or send the section', () => {
+test('Production Release Candidate: frontend flag is on for both UAT and Production profiles', () => {
   assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, true);
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), true);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production' }), false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), false);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production' }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: false }), false, 'switching flag off disables it in production');
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: undefined }), false);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: false }), false, 'switching the flag off disables it');
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: false }), false, 'switching the flag off disables it in uat');
   const args = { sections: ['health-focus', 'portfolio-delivery-performance'], projectCodes: ['A'], overviewScope: 'all' };
   const original = globalThis.PM_DASHBOARD_ENV;
   try {
     // The request builder reads the page's own profile (window.PM_DASHBOARD_ENV), never request data or a hostname.
     globalThis.PM_DASHBOARD_ENV = { dashboardProfile: 'production' };
-    assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus'], 'Production never sends the section');
+    assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus', 'portfolio-delivery-performance'], 'Production sends the section when available');
     globalThis.PM_DASHBOARD_ENV = undefined;
     assert.deepEqual(buildOverviewPdfRequest(args).sections, ['health-focus'], 'unknown profile never sends the section');
     globalThis.PM_DASHBOARD_ENV = { dashboardProfile: 'uat' };
@@ -87,8 +89,10 @@ test('UAT release candidate: the frontend flag is on, but only the UAT profile c
   } finally { globalThis.PM_DASHBOARD_ENV = original; }
 });
 
-test('Production source is unchanged by the frontend activation: it contains no activation code', () => {
-  for (const marker of ['isDeliveryPerformancePdfAvailable', 'deliveryPerformanceOption', 'portfolio-delivery-performance']) assert.ok(!production.includes(marker), marker);
+test('Production profile includes Delivery Performance Overview panel and PDF option', () => {
+  for (const marker of ['isDeliveryPerformancePdfAvailable', 'deliveryPerformanceOption', 'portfolio-delivery-performance']) {
+    assert.ok(production.includes(marker), `production must contain ${marker}`);
+  }
 });
 
 test('existing request building is unchanged for current sections', () => {
@@ -121,18 +125,58 @@ test('Production inventory has no new exception: the shared print functions equa
 
 // The chronological week ordering (UAT-only) is a separate, narrowly scoped change; reverting it must give back the
 function revertV231(raw) {
-  raw = raw.replace(/^[ \t]*\/\/ @uat-only begin deliveryTrendsStaticImport\n[\s\S]*?^[ \t]*\/\/ @uat-only end deliveryTrendsStaticImport\n/m, '');
+  raw = raw.replace('import * as deliveryTrendsPageModule from "./js/delivery-trends-page.mjs";\n', '');
+  raw = raw.replace('import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";\n', '');
   const trendGroup = /\/\/ @profile-group begin fn renderWeeklyTrendPanel\n\/\/ @profile-variant prod\n([\s\S]*?)\n\/\/ @profile-variant uat\n[\s\S]*?\n\/\/ @profile-dispatcher\n[^\n]*\n\/\/ @profile-group end renderWeeklyTrendPanel/;
   const trendMatch = raw.match(trendGroup);
-  if (trendMatch) raw = raw.replace(trendGroup, trendMatch[1].replace('function renderWeeklyTrendPanel__prod(', 'function renderWeeklyTrendPanel('));
+  if (trendMatch) {
+    const legacyProd = `function renderWeeklyTrendPanel(projects) {
+  const weeks = getTrendWeeks();
+  const points = weeklyTrendPoints(weeks, projects);
+  if (points.length < 2) return '';
+  const latest = points[points.length - 1];
+  const previous = points[points.length - 2];
+  const riskDelta = latest.riskPressure - previous.riskPressure;
+  const progressDelta = latest.avgProgress - previous.avgProgress;
+  return \`<div class="exec-decision-panel weekly-trend-panel">
+    <div class="exec-decision-head">
+      <div>
+        <div class="exec-eyebrow">Weekly Portfolio Trend</div>
+        <div class="exec-decision-title">Trend signals from accumulated weekly updates</div>
+      </div>
+      <div class="exec-panel-note">Last \${points.length} weeks</div>
+    </div>
+    <div class="weekly-trend-grid">
+      <section class="weekly-trend-card">
+        <div class="weekly-trend-head">
+          <div><div class="weekly-trend-title">Risk pressure</div><div class="weekly-trend-sub">Total risk entries across projects; Critical risk entries count 1.5x</div></div>
+          <div class="weekly-trend-value">\${latest.riskPressure}<span class="exec-panel-note"> \${riskDelta >= 0 ? '+' : ''}\${riskDelta}</span></div>
+        </div>
+        \${renderTrendSvg(points, 'riskPressure', 'risk')}
+      </section>
+      <section class="weekly-trend-card">
+        <div class="weekly-trend-head">
+          <div><div class="weekly-trend-title">Average progress</div><div class="weekly-trend-sub">Portfolio delivery progress across active projects</div></div>
+          <div class="weekly-trend-value">\${latest.avgProgress}%<span class="exec-panel-note"> \${progressDelta >= 0 ? '+' : ''}\${progressDelta}%</span></div>
+        </div>
+        \${renderTrendSvg(points, 'avgProgress')}
+      </section>
+    </div>
+  </div>\`;
+}`;
+    raw = raw.replace(trendGroup, legacyProd);
+  }
   
   const printGroup = /\/\/ @profile-group begin win confirmOverviewProjectPrint\n\/\/ @profile-variant prod\n([\s\S]*?)\n\/\/ @profile-variant uat\n[\s\S]*?\n\/\/ @profile-dispatcher\n[^\n]*\n\/\/ @profile-group end confirmOverviewProjectPrint/;
   const printMatch = raw.match(printGroup);
-  if (printMatch) raw = raw.replace(printGroup, printMatch[1].replace('const confirmOverviewProjectPrint__prod =', 'window.confirmOverviewProjectPrint ='));
+  if (printMatch) raw = raw.replace(printGroup, printMatch[1].replace('const confirmOverviewProjectPrint__prod =', 'window.confirmOverviewProjectPrint =').replace(/\n\s*windowWeeks:[^\n]*,/, ''));
 
   raw = raw.replaceAll('getCallableErrorMessage(err, getWriteErrorMessage(err))', 'getWriteErrorMessage(err)');
-  raw = raw.replace('deliveryTrendsRawWeeks = sortWeeksChronologically(snap.docs.map(d => ({ ...d.data(), weekId: d.id })));', 'deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));');
-  raw = raw.replace('  if (isOverview) render();\n  else syncDeliveryTrendsView();', '  syncDeliveryTrendsView();');
+  raw = raw.replaceAll('deliveryTrendsRawWeeks = sortWeeksChronologically(snap.docs.map(d => ({ ...d.data(), weekId: d.id })));', 'deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));');
+  raw = raw.replace(`  if (isOverview) render();
+  // @uat-only begin deliveryTrendsSyncFallback
+  else syncDeliveryTrendsView();
+  // @uat-only end deliveryTrendsSyncFallback`, '  syncDeliveryTrendsView();');
   raw = raw.replace(`let deliveryTrendsModule = typeof deliveryTrendsPageModule !== 'undefined' ? deliveryTrendsPageModule : null;\nlet deliveryTrendsLoading = null;
 
 function loadDeliveryTrendsModule() {
@@ -150,7 +194,7 @@ function loadDeliveryTrendsModule() {
 // previously accepted source exactly.
 function revertWeekOrdering(raw) {
   raw = revertV231(raw);
-  for (const tag of ['weekOrderImport', 'deliveryPdfImport', 'deliveryTrendsLogoutReset']) {
+  for (const tag of ['weekOrderImport', 'deliveryTrendsLogoutReset']) {
     const block = new RegExp(`^[ \\t]*\\/\\/ @uat-only begin ${tag}\\n[\\s\\S]*?^[ \\t]*\\/\\/ @uat-only end ${tag}\\n`, 'm');
     assert.match(raw, block);
     raw = raw.replace(block, '');
@@ -201,10 +245,17 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView', 'deliveryTrendsRawHistoryReset', 'deliveryTrendsRawHistorySnapshot', 'deliveryTrendsRawHistoryError', 'deliveryTrendsErrorCleanup', 'deliveryTrendsAuthCleanup']) {
     raw = raw.replace(new RegExp(`^[ \\t]*(?:\\/\\/|<!--) @uat-only begin ${tag}[^\\n]*\\n[\\s\\S]*?^[ \\t]*(?:\\/\\/|<!--) @uat-only end ${tag}[^\\n]*\\n?`, 'm'), '');
   }
+  raw = raw.replace(/\n\s*<label id="deliveryPerformanceOption"[^>]*>[\s\S]*?<\/label>/, '');
+  const deliveryTrendsBlock = /\/\/ Delivery Trends: an independent[\s\S]*?if \(IS_UAT_PROFILE\) loadDeliveryTrendsModule\(\)\.catch\(\(\) => \{\}\);\n/;
+  raw = raw.replace(deliveryTrendsBlock, '');
+  raw = raw.replace(/\n\s*deliveryTrendsRawWeeks = \[\];\n\s*deliveryTrendsHistoryState = \{ source: null, complete: false \};/, '');
+  raw = raw.replace(/\n\s*const isFromCache = Boolean\(snap\.metadata\?\.fromCache\);[\s\S]*?(?=\n\s*let fetchedWeeks =)/, '');
+  raw = raw.replace(/\n\s*deliveryTrendsRawWeeks = \[\];\n\s*deliveryTrendsHistoryState = \{ source: 'prod', complete: false, asOf: new Date\(\)\.toISOString\(\) \};/, '');
+
   assert.ok(raw.includes('  syncDeliveryTrendsView();\n'));
   raw = raw.replace('  syncDeliveryTrendsView();\n', '');
-  assert.equal((raw.match(/onSnapshot\(weeksQuery, \{ includeMetadataChanges: true \}, snap =>/g) || []).length, 1);
-  raw = raw.replace('onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap =>', 'onSnapshot(weeksQuery, snap =>');
+  assert.equal((raw.match(/onSnapshot\(weeksQuery, \{ includeMetadataChanges: true \}, snap =>/g) || []).length, 2);
+  raw = raw.replaceAll('onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap =>', 'onSnapshot(weeksQuery, snap =>');
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');

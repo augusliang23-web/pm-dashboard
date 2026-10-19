@@ -34,18 +34,20 @@ export function reconcileOverviewProjectSelection(projectOptions = [], selectedP
 
 export const DELIVERY_PERFORMANCE_SECTION_ID = 'portfolio-delivery-performance';
 
-// UAT release candidate: set to true ONLY together with (and after) the UAT PDF backend that accepts the new section
-// has been deployed and verified (registry.json deliveryPerformanceSection: true for the UAT target). The old backend
-// rejects unknown section ids, so deploy the backend first, verify it, then deploy this. The section is still UAT-only:
-// isDeliveryPerformancePdfAvailable() requires the UAT profile, so Production never offers or sends it. To switch the
-// feature off in an emergency, set this back to false and redeploy Hosting (or roll Hosting back).
+// Production release candidate: set to true ONLY together with (and after) the PDF backend that accepts the new section
+// has been deployed and verified (registry.json deliveryPerformanceSection: true). The old backend rejects unknown section ids,
+// so deploy the backend first, verify it, then deploy this. To switch the feature off in an emergency, set this back to false
+// and redeploy Hosting (or roll Hosting back).
 export const DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED = true;
 
 export function isDeliveryPerformancePdfAvailable({
   profile,
   backendVerified = DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED,
 } = {}) {
-  return profile === 'uat' && backendVerified === true;
+  const verified = typeof backendVerified === 'object' && backendVerified !== null
+    ? backendVerified[profile] === true
+    : backendVerified === true;
+  return ['uat', 'production'].includes(profile) && verified;
 }
 
 export function buildOverviewPdfRequest({

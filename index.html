@@ -2309,9 +2309,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label><input type="checkbox" value="project-portfolio" checked> Project portfolio</label>
         <label><input type="checkbox" value="resource-analytics" checked> Resource analytics</label>
         <label><input type="checkbox" value="budget-overview" checked> Budget overview</label>
-        <!-- @uat-only begin deliveryPerformanceOption -->
-        <label id="deliveryPerformanceOption" data-profile-only="uat" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> Portfolio delivery performance</label>
-        <!-- @uat-only end deliveryPerformanceOption -->
+        <label id="deliveryPerformanceOption" hidden style="display:none;"><input type="checkbox" value="portfolio-delivery-performance"> Portfolio delivery performance</label>
       </div>
       <div class="print-audience-field" id="executiveMilestoneAudienceField">
         <label for="executiveMilestoneAudienceView">Executive milestone visibility</label>
@@ -3163,9 +3161,7 @@ import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, rec
 import { can as canWithPermissions, normalizePermissionOverrides } from "./js/permission-registry.mjs";
 import { buildSwitchRows, createUserPermissionsApi, describeAuditEntries, isPermissionConflict, permissionUserOptions, roleLabel, storedPermissionRevision, storedPermissionState, switchChange } from "./js/user-permissions-admin.mjs";
 import { buildOverviewPdfRequest, buildOverviewProjectOptions, reconcileOverviewProjectSelection } from "./js/overview-pdf-selection.mjs";
-// @uat-only begin deliveryPdfImport
 import { isDeliveryPerformancePdfAvailable } from "./js/overview-pdf-selection.mjs";
-// @uat-only end deliveryPdfImport
 // @uat-only begin weekOrderImport
 import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";
 // @uat-only end weekOrderImport
@@ -3189,9 +3185,7 @@ import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-sc
 import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
 import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
 // @uat-only end draft-imports
-// @uat-only begin deliveryTrendsStaticImport
 import * as deliveryTrendsPageModule from "./js/delivery-trends-page.mjs";
-// @uat-only end deliveryTrendsStaticImport
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
@@ -6085,6 +6079,9 @@ function initData__prod(authGeneration, authUser) {
     weeksUnsub = null;
   }
 
+  deliveryTrendsRawWeeks = [];
+  deliveryTrendsHistoryState = { source: null, complete: false };
+
   const weeksRef = collection(db, "weeks");
   const weeksQuery = currentRole === 'vip' && !canCurrentUser('week.manage')
     ? query(weeksRef, where("isReleased", "==", true))
@@ -6099,8 +6096,28 @@ function initData__prod(authGeneration, authUser) {
     ownerEmail,
   );
 
-  weeksUnsub = onSnapshot(weeksQuery, snap => {
+  weeksUnsub = onSnapshot(weeksQuery, { includeMetadataChanges: true }, snap => {
     if (!isCurrentDataSession()) return;
+    const isFromCache = Boolean(snap.metadata?.fromCache);
+    const hasPendingWrites = Boolean(snap.metadata?.hasPendingWrites);
+    const isServerConfirmed = !isFromCache && !hasPendingWrites;
+
+    if (snap.docs.length === 0) {
+      deliveryTrendsRawWeeks = [];
+      deliveryTrendsHistoryState = {
+        source: 'prod',
+        complete: isServerConfirmed,
+        asOf: new Date().toISOString()
+      };
+    } else {
+      deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+      deliveryTrendsHistoryState = {
+        source: 'prod',
+        complete: isServerConfirmed,
+        asOf: new Date().toISOString()
+      };
+    }
+
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -6144,6 +6161,8 @@ function initData__prod(authGeneration, authUser) {
     hideLoader();
   }, error => {
     if (!isCurrentDataSession()) return;
+    deliveryTrendsRawWeeks = [];
+    deliveryTrendsHistoryState = { source: 'prod', complete: false, asOf: new Date().toISOString() };
     showDataLoadError(error);
   });
 }
@@ -7700,36 +7719,32 @@ function renderTrendSvg(points, key, className = '') {
 // @profile-group begin fn renderWeeklyTrendPanel
 // @profile-variant prod
 function renderWeeklyTrendPanel__prod(projects) {
-  const weeks = getTrendWeeks();
-  const points = weeklyTrendPoints(weeks, projects);
-  if (points.length < 2) return '';
-  const latest = points[points.length - 1];
-  const previous = points[points.length - 2];
-  const riskDelta = latest.riskPressure - previous.riskPressure;
-  const progressDelta = latest.avgProgress - previous.avgProgress;
-  return `<div class="exec-decision-panel weekly-trend-panel">
-    <div class="exec-decision-head">
+  if (!deliveryTrendsModule) {
+    return `<div class="exec-decision-panel delivery-trends-overview-panel" data-print-section="weekly-trend">
+      <div class="dt-page"><div class="dt-empty" role="status">Loading delivery performance &amp; trends…</div></div>
+    </div>`;
+  }
+  deliveryTrendsModule.installDeliveryTrendsStyles(document);
+  const state = currentDeliveryTrendsState(deliveryTrendsWindow);
+  return `<div class="exec-decision-panel delivery-trends-overview-panel" data-print-section="weekly-trend">
+    <div class="exec-decision-head" style="margin-bottom:12px;">
       <div>
-        <div class="exec-eyebrow">Weekly Portfolio Trend</div>
-        <div class="exec-decision-title">Trend signals from accumulated weekly updates</div>
+        <div class="exec-eyebrow">Delivery Performance &amp; Trends</div>
+        <div class="exec-decision-title">Portfolio progress &amp; velocity across reporting weeks</div>
       </div>
-      <div class="exec-panel-note">Last ${points.length} weeks</div>
+      <div class="dt-toolbar no-print"><div class="dt-window" role="group" aria-label="History window"><button type="button" class="${deliveryTrendsWindow === 6 ? 'active' : ''}" aria-pressed="${deliveryTrendsWindow === 6}" data-overview-trend-window="6" onclick="setDeliveryTrendsWindow(6)">6 weeks</button><button type="button" class="${deliveryTrendsWindow === 12 ? 'active' : ''}" aria-pressed="${deliveryTrendsWindow === 12}" data-overview-trend-window="12" onclick="setDeliveryTrendsWindow(12)">12 weeks</button></div></div>
     </div>
-    <div class="weekly-trend-grid">
-      <section class="weekly-trend-card">
-        <div class="weekly-trend-head">
-          <div><div class="weekly-trend-title">Risk pressure</div><div class="weekly-trend-sub">Total risk entries across projects; Critical risk entries count 1.5x</div></div>
-          <div class="weekly-trend-value">${latest.riskPressure}<span class="exec-panel-note"> ${riskDelta >= 0 ? '+' : ''}${riskDelta}</span></div>
-        </div>
-        ${renderTrendSvg(points, 'riskPressure', 'risk')}
-      </section>
-      <section class="weekly-trend-card">
-        <div class="weekly-trend-head">
-          <div><div class="weekly-trend-title">Average progress</div><div class="weekly-trend-sub">Portfolio delivery progress across active projects</div></div>
-          <div class="weekly-trend-value">${latest.avgProgress}%<span class="exec-panel-note"> ${progressDelta >= 0 ? '+' : ''}${progressDelta}%</span></div>
-        </div>
-        ${renderTrendSvg(points, 'avgProgress')}
-      </section>
+    <div class="dt-page" data-contract="${deliveryTrendsModule.escapeHtml ? deliveryTrendsModule.escapeHtml(state?.contract?.contractVersion || '') : ''}">
+      ${state?.state !== 'ready'
+        ? deliveryTrendsModule.renderDeliveryUnavailable(state?.reason || 'Delivery trends data is unavailable.')
+        : `
+          ${deliveryTrendsModule.renderDeliveryNotices(state.contract)}
+          ${deliveryTrendsModule.renderDeliverySummaryCards(state.contract)}
+          ${deliveryTrendsModule.renderDeliveryProgressTrend(state.contract, { maxWeeks: deliveryTrendsWindow })}
+          ${deliveryTrendsModule.renderDeliveryProjectRows(state.contract, { sparkWeeks: deliveryTrendsWindow })}
+          ${deliveryTrendsModule.renderDeliveryPortfolioChanges(state.contract)}
+        `
+      }
     </div>
   </div>`;
 }
@@ -11615,6 +11630,7 @@ const confirmOverviewProjectPrint__prod = async () => {
       overviewScope: 'all',
       projectCodes,
       executiveAudienceView: overviewPrintDraft?.executiveAudienceView,
+      windowWeeks: typeof deliveryTrendsWindow !== 'undefined' ? deliveryTrendsWindow : 6,
     });
   } catch (error) {
     setOverviewProjectPrintValidation(error.message, true);
@@ -11682,7 +11698,6 @@ window.setOverviewScope = scope => {
   }
   render();
 };
-// @uat-only begin deliveryTrendsView
 // Delivery Trends: an independent, UAT-only navigation destination. All metrics come from the shared engine via
 // js/delivery-trends-page.mjs; nothing here calculates progress. Production never shows the button or container.
 let deliveryTrendsRawWeeks = [];
@@ -11731,6 +11746,7 @@ function deliveryTrendsUserKey() {
   return currentUser?.uid || getEmailKey(currentUser) || null;
 }
 
+// @uat-only begin deliveryTrendsView
 function syncDeliveryTrendsView() {
   if (!IS_UAT_PROFILE) return;
   const view = document.getElementById('deliveryTrendsView');
@@ -11772,11 +11788,14 @@ window.toggleDeliveryTrends = () => {
   if (deliveryTrendsActive) isOverview = false;
   render();
 };
+// @uat-only end deliveryTrendsView
 
 window.setDeliveryTrendsWindow = weeks => {
   deliveryTrendsWindow = Number(weeks) === 12 ? 12 : 6;
   if (isOverview) render();
+  // @uat-only begin deliveryTrendsSyncFallback
   else syncDeliveryTrendsView();
+  // @uat-only end deliveryTrendsSyncFallback
 };
 
 // PDF dialog support. (Browser-print integration is deferred: no user-accessible entry calls renderOverviewPrintReport.)
@@ -11795,7 +11814,6 @@ window.openOverviewPrintDialog = () => {
   syncDeliveryPerformancePdfOption();
 };
 if (IS_UAT_PROFILE) loadDeliveryTrendsModule().catch(() => {});
-// @uat-only end deliveryTrendsView
 // @uat-only begin deliveryTrendsLogoutReset
 // Signing out (or any return to the login overlay) must not leave authorized Delivery Trends content in the page.
 if (IS_UAT_PROFILE) {
