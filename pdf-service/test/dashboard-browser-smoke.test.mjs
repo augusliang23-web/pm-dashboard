@@ -294,21 +294,33 @@ test('UAT PDF dialog (release candidate): selecting the new section sends it wit
   } finally { await page.close(); }
 });
 
-test('Production PDF dialog is unchanged: the option is hidden and can never be sent, even if forced', { timeout: 120000 }, async () => {
+test('Production PDF dialog (release candidate): the new option is offered, unchecked by default, and selecting it sends the section', { timeout: 120000 }, async () => {
   const { page } = await openDashboard(browser, { baseUrl: prod.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
   const requests = capturePdfRequests(page);
   try {
     await wait(1800);
     await page.evaluate(() => openOverviewPrintDialog()); await wait(300);
-    assert.equal(await visible(page, '#deliveryPerformanceOption'), false);
+    assert.equal(await visible(page, '#deliveryPerformanceOption'), true, 'Production displays the option when verified');
+    assert.equal(await page.$eval('#deliveryPerformanceOption input', e => e.checked), false, 'never selected by default');
+    assert.match(await page.$eval('#deliveryPerformanceOption', e => e.innerText), /Portfolio delivery performance/i);
     const values = await page.$$eval('#overviewPrintSections input[type="checkbox"]', list => list.map(input => input.value));
     assert.ok(values.includes('health-focus'));
-    await page.evaluate(() => { const box = document.querySelector('#deliveryPerformanceOption input'); if (box) box.checked = true; });
-    await page.evaluate(() => confirmOverviewPrint()); await wait(300);
-    await page.evaluate(() => confirmOverviewProjectPrint()); await wait(800);
+    await exportOverview(page, { check: true });
     assert.equal(requests.length, 1);
-    assert.ok(!requests[0].body.sections.includes('portfolio-delivery-performance'), 'Production never sends the new section');
+    assert.ok(requests[0].body.sections.includes('portfolio-delivery-performance'), 'Production sends the new section when selected');
     assert.ok(requests[0].body.sections.includes('health-focus'));
+  } finally { await page.close(); }
+});
+
+test('Production Overview (release candidate): renders Delivery Performance & Trends panel with 6/12-week selection', { timeout: 120000 }, async () => {
+  const { page } = await openDashboard(browser, { baseUrl: prod.baseUrl, fake: buildFake({ role: 'admin', weeks: weeksFixture() }) });
+  try {
+    await wait(1800);
+    await page.evaluate(() => window.toggleOverview && window.toggleOverview()); await wait(800);
+    assert.equal(await visible(page, '.delivery-trends-overview-panel'), true, 'Production renders delivery trends overview panel');
+    assert.equal(await page.$eval('[data-overview-trend-window="6"]', e => e.classList.contains('active')), true, '6-week default is active');
+    const title = await page.$eval('.delivery-trends-overview-panel .exec-decision-title', e => e.textContent);
+    assert.match(title, /Portfolio progress & velocity across reporting weeks/i);
   } finally { await page.close(); }
 });
 

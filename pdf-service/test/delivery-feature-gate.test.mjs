@@ -26,20 +26,20 @@ test('backend gate: missing, false or non-boolean flag rejects the section like 
   assert.equal(accepted.rendered, true);
 });
 
-test('target resolution: Production is always off (even if the registry says true), UAT only when registered true, absent flag is off', () => {
+test('target resolution: Production and UAT are enabled when registered true, absent flag is off', () => {
   const registry = JSON.parse(JSON.stringify(loadTargetRegistry()));
   const env = name => ({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName });
-  // UAT release candidate: the shipped UAT target is enabled, Production ships disabled.
+  // Production release candidate: both UAT and Production targets ship enabled.
   assert.equal(resolveRuntimeTarget(env('uat'), registry).features.deliveryPerformanceSection, true, 'uat ships enabled');
-  assert.equal(resolveRuntimeTarget(env('production'), registry).features.deliveryPerformanceSection, false, 'production ships disabled');
+  assert.equal(resolveRuntimeTarget(env('production'), registry).features.deliveryPerformanceSection, true, 'production ships enabled');
   // Flag removed entirely: off.
   for (const name of ['uat', 'production']) { const copy = JSON.parse(JSON.stringify(registry)); delete copy.targets[name].features.deliveryPerformanceSection; assert.equal(resolveRuntimeTarget(env(name), copy).features.deliveryPerformanceSection, false); }
-  // Controlled synthetic enablement: UAT on, Production still off.
-  const enabled = JSON.parse(JSON.stringify(registry));
-  enabled.targets.uat.features.deliveryPerformanceSection = true;
-  enabled.targets.production.features.deliveryPerformanceSection = true;
-  assert.equal(resolveRuntimeTarget(env('uat'), enabled).features.deliveryPerformanceSection, true);
-  assert.equal(resolveRuntimeTarget(env('production'), enabled).features.deliveryPerformanceSection, false);
+  // Controlled synthetic enablement:
+  const disabled = JSON.parse(JSON.stringify(registry));
+  disabled.targets.uat.features.deliveryPerformanceSection = false;
+  disabled.targets.production.features.deliveryPerformanceSection = false;
+  assert.equal(resolveRuntimeTarget(env('uat'), disabled).features.deliveryPerformanceSection, false);
+  assert.equal(resolveRuntimeTarget(env('production'), disabled).features.deliveryPerformanceSection, false);
 });
 
 test('feature resolution never depends on a hostname, repository name or request data', () => {
@@ -49,19 +49,21 @@ test('feature resolution never depends on a hostname, repository name or request
   assert.match(readFileSync(new URL('../src/server.js', import.meta.url), 'utf8'), /features: target\.features/);
 });
 
-test('frontend gate: only the UAT profile can offer or send the section; Production never does', () => {
-  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, true, 'UAT frontend release candidate');
+test('frontend gate: both UAT and Production profiles can offer and send the section when backend is verified', () => {
+  assert.equal(DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, true, 'frontend release candidate');
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat' }), true);
-  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), false);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production' }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: true }), true);
+  assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'production', backendVerified: false }), false);
   assert.equal(isDeliveryPerformancePdfAvailable({ profile: 'uat', backendVerified: false }), false);
   const request = buildOverviewPdfRequest({ sections: ['health-focus', SECTION], projectCodes: ['A'], overviewScope: 'all', deliveryPerformanceAvailable: false });
   assert.deepEqual(request.sections, ['health-focus']);
 });
 
-test('UAT release candidate: the shipped registry enables ONLY the UAT target and changes no other feature', () => {
+test('Production release candidate: the shipped registry enables deliveryPerformanceSection for both targets and changes no other feature', () => {
   const registry = loadTargetRegistry();
   assert.deepEqual(registry.targets.uat.features, { liveExecutiveTimeline: true, projectBriefUpdateSections: true, deliveryPerformanceSection: true });
-  assert.deepEqual(registry.targets.production.features, { liveExecutiveTimeline: false, projectBriefUpdateSections: false, deliveryPerformanceSection: false });
+  assert.deepEqual(registry.targets.production.features, { liveExecutiveTimeline: false, projectBriefUpdateSections: false, deliveryPerformanceSection: true });
   // Environment isolation is untouched: project, service, origins and service accounts per target.
   assert.equal(registry.targets.uat.firebaseProjectId, 'pm-dashboard-uat-20260820-a7f3');
   assert.equal(registry.targets.uat.serviceName, 'pm-dashboard-uat-pdf');
@@ -71,16 +73,15 @@ test('UAT release candidate: the shipped registry enables ONLY the UAT target an
   assert.ok(registry.targets.production.allowedOrigins.every(origin => !origin.includes('pm-dashboard-uat')));
 });
 
-test('end to end with the SHIPPED registry: the resolved UAT target accepts the section, the resolved Production target rejects it', async () => {
+test('end to end with the SHIPPED registry: both resolved targets accept the section', async () => {
   const registry = loadTargetRegistry();
   const env = name => ({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName });
   const uat = await call(resolveRuntimeTarget(env('uat'), registry).features);
   assert.equal(uat.r.statusCode, 200);
   assert.equal(uat.rendered, true);
   const production = await call(resolveRuntimeTarget(env('production'), registry).features);
-  assert.equal(production.r.statusCode, 400);
-  assert.deepEqual(JSON.parse(production.r.body), { error: `Unknown report section: ${SECTION}.` });
-  assert.equal(production.rendered, false);
+  assert.equal(production.r.statusCode, 200);
+  assert.equal(production.rendered, true);
 });
 
 test('existing Overview sections are accepted identically by both shipped targets', async () => {
