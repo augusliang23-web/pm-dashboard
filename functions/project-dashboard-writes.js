@@ -636,7 +636,7 @@ const setDashboardWeekRelease = selectedDashboardOnCall('pmdash-week-release@', 
     const liveSnapshot = await transaction.get(liveRef);
     const state = normalizeLiveTimelineState(liveSnapshot.exists ? liveSnapshot.data() : null);
     if (!state.timeline) {
-      const hint = actorCan(actor, 'executive.manage')
+      const hint = (actor.role === 'admin' || actorCan(actor, 'executive.manage'))
         ? 'Executive milestones have not been initialized. Initialize the live roadmap before releasing this week.'
         : 'Executive milestones have not been initialized. Ask an administrator to initialize the live roadmap before releasing this week.';
       throw securityError('failed-precondition', 'invalid-payload', hint);
