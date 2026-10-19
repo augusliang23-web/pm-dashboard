@@ -5998,7 +5998,7 @@ const toggleReleaseWeek__prod = async () => {
     showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
   } catch (err) {
     console.error("Release status update failed", err);
-    showSaveToast(getWriteErrorMessage(err));
+    showSaveToast(getCallableErrorMessage(err, getWriteErrorMessage(err)));
   } finally {
     releaseWriteInProgress = false;
     hideLoader();
@@ -6034,7 +6034,7 @@ const toggleReleaseWeek__uat = async () => {
     showSaveToast(newStatus ? "Week released to Executive Owner!" : "Week reverted to Draft");
   } catch (err) {
     console.error("Release status update failed", err);
-    showSaveToast(getWriteErrorMessage(err));
+    showSaveToast(getCallableErrorMessage(err, getWriteErrorMessage(err)));
   } finally {
     releaseWriteInProgress = false;
     hideLoader();
