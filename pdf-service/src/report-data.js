@@ -119,7 +119,8 @@ async function deliveryTrendsForReport({ request, week, access, adapters, overvi
   const draftReader = canReadDraftDeliveryHistory(access.role);
   const publicationMode = draftReader ? 'include-drafts' : 'released';
   const provenance = typeof adapters.getDeliveryTrendsProvenance === 'function' ? adapters.getDeliveryTrendsProvenance() : {};
-  const base = { ...provenance, anchorWeekId: request.weekId, windowWeeks: adapters.deliveryTrendsWindowWeeks ?? 6,
+  const windowWeeks = request.windowWeeks ?? adapters.deliveryTrendsWindowWeeks ?? 6;
+  const base = { ...provenance, anchorWeekId: request.weekId, windowWeeks,
     publicationMode, scope: { projectLevel: overviewScope === 'module' ? 'hardware-module' : overviewScope } };
   const unavailable = code => {
     const result = calculateDeliveryTrends({ ...base, weeks: [] });

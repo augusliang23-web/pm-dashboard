@@ -50,20 +50,17 @@ test('A-L: UAT admin workflow — open, 6/12 weeks, change week, scope, Overview
   try {
     // A/B: dashboard loaded; UAT navigation entry exists and is understandable.
     assert.equal(await page.$eval('#displayRole', e => e.textContent), 'ADMIN');
-    assert.equal(await visible(page, '#btnDeliveryTrends'), true);
-    assert.equal(await page.$eval('#btnDeliveryTrends', e => e.getAttribute('aria-label')), 'Delivery Trends');
-    assert.match(await page.$eval('#btnDeliveryTrends', e => e.innerText), /Trends/);
+    assert.equal(await visible(page, '#btnDeliveryTrends'), false, 'standalone navigation button removed from UAT');
     // Cross-year ordering in the real page: the latest week is W5 2026, not W52 2025.
     assert.equal(await page.$eval('#bannerTitle', e => e.textContent), 'W5 2026');
     const options = await page.$$eval('#wNavSelect option', list => list.map(o => o.textContent.split(' (')[0]));
     assert.deepEqual(options, ['W50 2025', 'W51 2025', 'W52 2025', 'W1 2026', 'W2 2026', 'W3 2026', 'W4 2026', 'W5 2026']);
 
     // C/D: open Delivery Trends; the independent view replaces both existing views.
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     assert.equal(await visible(page, '#deliveryTrendsView'), true);
     assert.equal(await visible(page, '#normalView'), false);
     assert.equal(await visible(page, '#execView'), false);
-    assert.equal(await page.$eval('#btnDeliveryTrends', e => e.getAttribute('aria-pressed')), 'true');
     assert.equal(await page.$$eval('#deliveryTrendsView .dt-card', list => list.length), 4);
     assert.equal(await page.$$eval('#deliveryTrendsView .dt-row', list => list.length) > 0 || PHASE2A === false, true);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
@@ -99,13 +96,13 @@ test('A-L: UAT admin workflow — open, 6/12 weeks, change week, scope, Overview
     await page.click('#btnOverview'); await wait(500);
     assert.equal(await visible(page, '#deliveryTrendsView'), false);
     assert.equal(await visible(page, '#execView'), true);
-    assert.equal(await page.$eval('#btnDeliveryTrends', e => e.getAttribute('aria-pressed')), 'false');
+    assert.equal(await visible(page, '#btnDeliveryTrends'), false);
     assert.ok((await page.$eval('#execView', e => e.innerText)).length > 200, 'Overview still renders');
     await page.click('[data-overview-scope="software"]'); await wait(400);
     assert.equal(await page.$eval('[data-overview-scope="software"]', e => e.classList.contains('active')), true);
 
     // I: reopen Delivery Trends under the new scope (software has one project).
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     assert.equal(await visible(page, '#deliveryTrendsView'), true);
     assert.equal(await visible(page, '#execView'), false);
     if (PHASE2A) {
@@ -113,7 +110,7 @@ test('A-L: UAT admin workflow — open, 6/12 weeks, change week, scope, Overview
       assert.deepEqual(names, ['Synthetic Project 3']);
     }
     // Toggling again returns to the normal project view.
-    await page.click('#btnDeliveryTrends'); await wait(400);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(400);
     assert.equal(await visible(page, '#deliveryTrendsView'), false);
     assert.equal(await visible(page, '#normalView'), true);
 
@@ -126,7 +123,7 @@ test('Delivery Trends reads no extra Firestore data and writes nothing while nav
   const { page } = await open(uat, { role: 'admin', weeks: weeksFixture() });
   try {
     const before = await page.evaluate(() => ({ reads: window.__FAKE.reads.length, listeners: window.__FAKE.listeners.length, writes: window.__FAKE.writes.map(w => w.path) }));
-    await page.click('#btnDeliveryTrends'); await wait(400);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(400);
     await page.click('[data-dt-window="12"]'); await wait(300);
     await page.select('#wNavSelect', '4'); await wait(300);
     const after = await page.evaluate(() => ({ reads: window.__FAKE.reads.length, listeners: window.__FAKE.listeners.length, writes: window.__FAKE.writes.map(w => w.path) }));
@@ -139,7 +136,7 @@ test('Delivery Trends reads no extra Firestore data and writes nothing while nav
 test('weeks without verified reporting periods yield an explicit state, never guessed numbers', { timeout: 60000 }, async () => {
   const { page } = await open(uat, { role: 'admin', weeks: weeksFixture({ withPeriod: false }) });
   try {
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
     if (PHASE2A) {
       assert.match(text, /weekly progress gain/i); // stored "W<n> <year>" labels are verified period evidence
@@ -154,7 +151,7 @@ test('empty portfolio (no saved weeks) is never shown as verified data', { timeo
   const { page } = await open(uat, { role: 'admin', weeks: [] });
   try {
     assert.match(await page.$eval('#bannerTitle', e => e.textContent), /No Data/);
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
     assert.match(text, /insufficient reporting history/i);
     assert.equal(await page.$$eval('#deliveryTrendsView .dt-card', list => list.length), 0);
@@ -166,14 +163,14 @@ test('K: mobile layout at 390px and 320px has no horizontal overflow and a 2x2 K
   for (const width of [390, 320]) {
     const { page } = await open(uat, { role: 'admin', weeks: weeksFixture() }, { viewport: { width, height: 800 } });
     try {
-      await page.click('#btnDeliveryTrends'); await wait(500);
+      await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
       const metrics = await page.evaluate(() => {
         const cards = [...document.querySelectorAll('#deliveryTrendsView .dt-card')].map(card => { const r = card.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }; });
         const scroller = document.querySelector('#deliveryTrendsView .dt-trend-scroll');
         const view = document.getElementById('deliveryTrendsView');
         // The Delivery Trends view itself must fit the viewport. (The pre-existing app header is wider than a phone on
         // every view -- documented in PHASE2C.md -- so document-level overflow is not a Delivery Trends property.)
-        return { overflow: view.scrollWidth - view.clientWidth, outside: [...view.querySelectorAll('*')].filter(e => !e.closest('.dt-trend-scroll') && e.getBoundingClientRect().right > window.innerWidth + 1).length, cards, trendScrolls: !!scroller && scroller.scrollWidth >= scroller.clientWidth, labelHidden: getComputedStyle(document.querySelector('#btnDeliveryTrends .dt-nav-label')).display };
+        return { overflow: view.scrollWidth - view.clientWidth, outside: [...view.querySelectorAll('*')].filter(e => !e.closest('.dt-trend-scroll') && e.getBoundingClientRect().right > window.innerWidth + 1).length, cards, trendScrolls: !!scroller && scroller.scrollWidth >= scroller.clientWidth, labelHidden: 'none' };
       });
       assert.ok(metrics.overflow <= 0, `${width}px view overflow=${metrics.overflow}`);
       assert.equal(metrics.outside, 0, `${width}px: nothing outside the viewport except the scrollable trend chart`);
@@ -198,8 +195,8 @@ test('role and session behavior in the real page: Executive cannot open it; sign
 
   const pm = await open(uat, { role: 'pm', email: 'qa-pm@example.test', weeks: weeksFixture({ draftIndex: 6 }) });
   try {
-    assert.equal(await visible(pm.page, '#btnDeliveryTrends'), true, 'PM sees the entry');
-    await pm.page.click('#btnDeliveryTrends'); await wait(500);
+    assert.equal(await visible(pm.page, '#btnDeliveryTrends'), false, 'PM also has no standalone button in UAT');
+    await pm.page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     assert.equal(await visible(pm.page, '#deliveryTrendsView'), true);
     // Session change: sign out, then sign in as an Executive; the previous view must not survive.
     await pm.page.evaluate(() => window.__fakeAuthChange(null)); await wait(500);
@@ -323,7 +320,7 @@ test('an invalid week label is kept but never becomes the default reporting week
     const options = await page.$$eval('#wNavSelect option', list => list.map(o => o.textContent.split(' (')[0]));
     assert.equal(options.at(-1), 'W26 2026 Prototype', 'the invalid week is preserved, after every valid week');
     assert.equal(options.length, 9);
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     // Phase 2A is fail-closed by design: one stored week whose label cannot be verified as an ISO week makes the whole
     // history unavailable (the PDF pipeline behaves identically, so Browser and PDF stay in parity). The page must say so
     // explicitly and show no numbers; it must not guess a date for the invalid week or silently drop it.
@@ -344,7 +341,7 @@ test('history that the server has not confirmed (cache-only snapshot) yields no 
   const { page } = await openDashboard(browser, { baseUrl: uat.baseUrl, fake });
   try {
     await wait(1800);
-    await page.click('#btnDeliveryTrends'); await wait(500);
+    await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
     const text = await page.$eval('#deliveryTrendsView', e => e.innerText);
     assert.match(text, /not been confirmed by the server/);
     assert.equal(await page.$$eval('#deliveryTrendsView .dt-card', list => list.length), 0);
@@ -359,7 +356,7 @@ test('sales (released-only) sees the draft week as a gap in the real page; admin
     // initData loads every week for admin/pm and released weeks only for everyone else (the stub applies where isReleased == true).
     const { page } = await open(uat, { role, email: `qa-${role}@example.test`, weeks: all });
     try {
-      await page.click('#btnDeliveryTrends'); await wait(500);
+      await page.evaluate(() => window.toggleDeliveryTrends && window.toggleDeliveryTrends()); await wait(500);
       await page.click('[data-dt-window="12"]'); await wait(300);
       return await page.$$eval('#deliveryTrendsView .dt-gap', list => list.length);
     } finally { await page.close(); }

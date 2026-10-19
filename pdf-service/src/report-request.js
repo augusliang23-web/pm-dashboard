@@ -73,7 +73,7 @@ export function parseReportRequest(input, features = {}) {
 
   const allowedFields = new Set(mode === 'project'
     ? ['mode', 'weekId', 'projectCode', 'sections']
-    : ['mode', 'weekId', 'sections', 'overviewScope', 'executiveAudienceView', 'projectCodes']);
+    : ['mode', 'weekId', 'sections', 'overviewScope', 'executiveAudienceView', 'projectCodes', 'windowWeeks']);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) {
       throw new ReportRequestError(`Unexpected report request field: ${field}.`);
@@ -131,6 +131,13 @@ export function parseReportRequest(input, features = {}) {
       throw new ReportRequestError(`Unsupported executiveAudienceView: ${executiveAudienceView}.`);
     }
     request.executiveAudienceView = executiveAudienceView;
+  }
+  if (mode === 'overview' && input.windowWeeks !== undefined) {
+    const windowWeeks = Number(input.windowWeeks);
+    if (![6, 12].includes(windowWeeks)) {
+      throw new ReportRequestError(`Unsupported windowWeeks: ${input.windowWeeks}. Must be 6 or 12.`);
+    }
+    request.windowWeeks = windowWeeks;
   }
   return request;
 }

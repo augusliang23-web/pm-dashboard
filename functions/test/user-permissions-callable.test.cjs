@@ -264,12 +264,12 @@ test('a grant to a role that is not grantable is rejected by the registry, not j
     [{ capability: 'week.manage', before: null, after: true }]);
 });
 
-const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage'];
+const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
 
 test('every reviewed delegable capability can be granted and reset to an eligible role with an audited, atomic change', async () => {
   for (const capability of DELEGABLE) {
     reset();
-    const pmOnly = capability === 'week.release' || capability === 'project.manage';
+    const pmOnly = capability === 'week.release' || capability === 'project.manage' || capability === 'project.archive.restore';
     const target = pmOnly ? 'bonnie@example.test' : 'eng@example.test';
     // week.release is already ON for a PM, so its grant is exercised through the OFF/ON test below.
     if (capability === 'week.release') continue;
@@ -285,7 +285,7 @@ test('every reviewed delegable capability can be granted and reset to an eligibl
 });
 
 test('role eligibility comes from the registry: week.release and project.manage are PM-only and reject every other role', async () => {
-  for (const capability of ['week.release', 'project.manage']) {
+  for (const capability of ['week.release', 'project.manage', 'project.archive.restore']) {
     for (const target of ['eng@example.test', 'biz@example.test', 'vip@example.test', 'exec@example.test']) {
       reset();
       assert.equal(await reasonOf(call(change(target, { [capability]: true }))), 'failed-precondition/role-not-grantable', `${capability} ${target}`);

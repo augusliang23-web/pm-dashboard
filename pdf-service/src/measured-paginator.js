@@ -93,11 +93,16 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
     if (context) context.textContent = item.dataset.pageContext || '';
   }
 
-  function fits(page) {
+  function fitsWithSafety(page, gapMm = safetyGapMm) {
     const items = page.querySelector('[data-pdf-flow-items]');
     const footer = page.querySelector('.report-footer');
     if (!items || !footer) return true;
-    return items.getBoundingClientRect().bottom <= footer.getBoundingClientRect().top - safetyGap + 0.5;
+    const gap = gapMm * pxPerMm;
+    return items.getBoundingClientRect().bottom <= footer.getBoundingClientRect().top - gap + 0.5;
+  }
+
+  function fits(page) {
+    return fitsWithSafety(page, safetyGapMm);
   }
 
   function fieldFragment(item, fieldIndex, text, { firstFragment, continuedField }) {
@@ -368,7 +373,9 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
         if (!target.querySelector('[data-pdf-repeat-on-page]')) seedRepeatedContent(target);
       }
       target.append(item);
-      if (fits(current)) continue;
+      const isFootnotes = item.dataset?.flowKind === 'delivery-footnotes' || !!item.querySelector?.('.dp-footnotes');
+      const itemFits = isFootnotes ? fitsWithSafety(current, 1.5) : fits(current);
+      if (itemFits) continue;
 
       item.remove();
       if (flowItemCount(target)) {
