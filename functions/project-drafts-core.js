@@ -97,7 +97,7 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   const target=draft.publicationTargets?.[input.weekId];
   if(draft.source && !Object.values(draft.publicationTargets||{}).some(t=>t.draftRevision>0) && input.weekId!==draft.source.weekId)fail('conflict','An existing project must first publish to its source reporting week.','aborted');
   if(!live && (target || draft.lastPublication))fail('conflict','The published project is absent from this reporting week. Draft Publish cannot recreate it. Use existing project management.','aborted');
-  if(projects.some(p=>p!==live&&String(p.code).trim()===source.code.trim()))fail('conflict','This code belongs to another project.','aborted');
+  if(projects.some(p=>p!==live&&String(p.code).trim().toLowerCase()===source.code.trim().toLowerCase()))fail('conflict','This code belongs to another project.','aborted');
   if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
   if(live && live.visibility && live.visibility!=='active')fail('visibility-admin-only','Hidden or archived projects cannot be republished through Drafts.');
   const fingerprint=live?projectRevisionFingerprint(live):null;

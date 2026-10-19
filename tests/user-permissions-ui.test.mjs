@@ -82,6 +82,8 @@ function makeContext(profile, { rawRole = 'admin', overrides = {}, permissions =
   const store = { permissions: structuredClone(permissions), audit: [...audit] };
   const snapshot = (id, data) => ({ id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : structuredClone(data)) });
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {},
     console: { error: (...args) => calls.console.push(args), warn() {} },
     Promise, Date, structuredClone,

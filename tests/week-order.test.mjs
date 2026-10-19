@@ -65,13 +65,13 @@ test('week objects, ids and non-enumerable document ids are preserved by referen
   assert.equal(same.__documentId, 'W5-2026');
 });
 
-test('UAT initData sorts chronologically; Production keeps the legacy sort byte-for-byte', () => {
+test('UAT initData sorts chronologically; Production keeps legacy navigation and imports chronology only for Archive Recovery', () => {
   const uat = dashboardSource('uat');
   const production = dashboardSource('production');
   assert.equal((uat.match(/allWeeks = sortWeeksChronologically\(fetchedWeeks\);/g) || []).length, 1);
   assert.equal((uat.match(/allWeeks = sortWeeksByLabel\(fetchedWeeks\);/g) || []).length, 0);
   assert.equal((production.match(/allWeeks = sortWeeksByLabel\(fetchedWeeks\);/g) || []).length, 1);
-  assert.doesNotMatch(production, /sortWeeksChronologically|week-order\.mjs/);
+  assert.match(production, /week-order\.mjs/);
   assert.match(uat, /import \{ latestValidWeekIndex, sortWeeksChronologically \} from "\.\/js\/week-order\.mjs";/);
 });
 

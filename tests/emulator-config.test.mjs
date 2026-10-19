@@ -32,7 +32,7 @@ test('v2.2T local preview can only opt into the isolated Firebase Emulator proje
 test('localhost only uses all emulators in explicit emulator mode', () => {
   assert.match(dashboard, /const useLocalEmulator = localEmulator !== null;/);
   assert.match(dashboard, /if \(localEmulator\) \{[\s\S]*connectFirestoreEmulator[\s\S]*connectAuthEmulator[\s\S]*connectFunctionsEmulator/);
-  assert.match(dashboard, /useLocalEmulator && IS_UAT_PROFILE[\s\S]*projectId: 'demo-pm-dashboard-v22t'/);
+  assert.match(dashboard, /initializeApp\(useLocalEmulator[\s\S]*projectId: 'demo-pm-dashboard-v22t'/);
   assert.doesNotMatch(dashboard, /if \(isLocalPreview\) \{/);
 });
 

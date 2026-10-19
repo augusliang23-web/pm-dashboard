@@ -81,6 +81,8 @@ function setupContext(profile, rawRole, overrides = {}) {
   const dom = makeDom();
   const calls = { modal: [], api: [], loader: [], toast: [], sync: 0 };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {},
     console,
     document: dom.document,
@@ -342,6 +344,8 @@ test('a delegated VIP/Executive sees Manage Weeks but keeps its normal perspecti
 function weeksQueryFor(profile, rawRole, overrides = {}) {
   const source = PROFILES[profile];
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     currentRole: 'pending',
     currentRawRole: null,
     currentPermissionOverrides: overrides,

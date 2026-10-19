@@ -191,10 +191,13 @@ function loadDeliveryTrendsModule() {
   return raw;
 }
 
-// previously accepted source exactly.
+// Unified release baseline: retains approved server capability, Draft and Archive changes while reverting only the historical Delivery Trends change.
 function revertWeekOrdering(raw) {
   raw = revertV231(raw);
-  for (const tag of ['weekOrderImport', 'deliveryTrendsLogoutReset']) {
+  // Archive Recovery now shares the exact week-order import in both profiles.
+  assert.equal(raw.split('import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";').length - 1, 1);
+  raw = raw.replace('import { latestValidWeekIndex, sortWeeksChronologically } from "./js/week-order.mjs";\n', '');
+  for (const tag of ['deliveryTrendsLogoutReset']) {
     const block = new RegExp(`^[ \\t]*\\/\\/ @uat-only begin ${tag}\\n[\\s\\S]*?^[ \\t]*\\/\\/ @uat-only end ${tag}\\n`, 'm');
     assert.match(raw, block);
     raw = raw.replace(block, '');
@@ -234,7 +237,7 @@ test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C 
   let raw = revertWeekOrdering(rawDashboardSource());
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
-  assert.equal(hash, 'a1b2d177a760044d10fc5a184eecf581983124591b544d47f4b41474f154b8a7');
+  assert.equal(hash, '64600743fd97c00b8165302e0341911fb79e647d43a63d6b8cd25ff2ca38d2f5');
 });
 
 test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => {
@@ -259,5 +262,5 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   assert.doesNotMatch(raw, /DeliveryTrends|deliveryTrends/);
   const stripped = renderProfile(raw, 'uat', environmentFor('uat'));
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(stripped)).digest('hex');
-  assert.equal(hash, '307bc80d77016e41a724b23a663e8c90004e540aa1ff9384ad07628e55a92f78');
+  assert.equal(hash, 'd2b7cc05725db3e1c6eece636a6b3acd95892fbfc03c21ceb76eab206b4c9516');
 });

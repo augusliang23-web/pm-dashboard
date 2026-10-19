@@ -27,6 +27,8 @@ test('authorized user snapshot supplies PM labels and email lookup without a pub
   const directory = createDisplayNameDirectory();
   let snapshotCallback;
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
     PM_LIST: [],
     allWeeks: [],
@@ -60,6 +62,8 @@ test('a later user-directory read error drops cached names and PM options', asyn
   let snapshotCallback;
   let errorCallback;
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
     PM_LIST: [],
     allWeeks: [],
@@ -111,6 +115,8 @@ test('authenticated header renders the stored directory display name', () => {
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
     document: { getElementById: element, querySelectorAll: () => [] },
     currentUser: { email: 'robin.lee@example.test' },

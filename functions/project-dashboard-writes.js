@@ -1,7 +1,8 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
-const { assertLegacyProjectWriteAllowed, draftsEnabled } = require('./draft-environment');
+const { createHash } = require('node:crypto');
+const { assertLegacyProjectWriteAllowed, readProjectCapabilities } = require('./draft-environment');
 const { copyPreviousWeekCarryover } = require('./week-carryover');
 const { sortWeeksChronologically, latestValidWeekIndex } = require('./week-order');
 const { withProjectEditorRowIds, mergePreservingUnknown } = require('./project-data-merge.cjs');
@@ -327,7 +328,7 @@ function assertProjectRevision(liveProject, expectedRevision) {
   }
 }
 
-function buildProjectPatch(week, data, actor, nowIso) {
+function buildProjectPatch(week, data, actor, nowIso, capabilities) {
   assertActor(actor);
   // The revision is a serialized project, not an editable text field.
   // Keep the total request cap while applying field limits to the actual draft.
@@ -343,7 +344,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
   let targetIndex = -1;
 
   if (data.isNew === true) {
-    assertLegacyProjectWriteAllowed({ isNew: true });
+    assertLegacyProjectWriteAllowed({ isNew: true, capabilities });
     if (!canCreateProject(actor)) {
       throw securityError('permission-denied', 'role-forbidden', 'Manage Projects permission is required to create projects.');
     }
@@ -360,7 +361,7 @@ function buildProjectPatch(week, data, actor, nowIso) {
     }
     const liveProject = projects[targetIndex];
     const visibilityOnly = actor.role === 'admin' && code === liveProject.code && (!Object.hasOwn(draft, 'code') || draft.code === liveProject.code) && Object.hasOwn(draft, 'visibility') && Object.keys(draft).every(key => ['code', 'visibility'].includes(key));
-    assertLegacyProjectWriteAllowed({ existingProject: liveProject, visibilityOnly });
+    assertLegacyProjectWriteAllowed({ existingProject: liveProject, visibilityOnly, capabilities });
     if (!canMutateProject({ actor, project: liveProject })) {
       throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
     }
@@ -551,12 +552,13 @@ async function executeArchiveRestore({ transaction, requestData, actor, nowIso }
   assertActor(actor);
   assertBoundedJson(requestData);
   assertAllowedKeys(requestData, [
-    'isArchiveRestore', 'weekId', 'sourceWeekId', 'projectCode',
+    'isArchiveRestore', 'weekId', 'sourceWeekId', 'projectCode', 'expectedSourceRevision',
   ], 'Archive restore request');
 
-  // 1. Narrowly scoped UAT-only operation:
-  if (!draftsEnabled(process.env)) {
-    throw securityError('failed-precondition', 'environment-forbidden', 'Archive restore is available only in UAT.');
+  // Activation is an authoritative read within the restore transaction.
+  const capabilities = await readProjectCapabilities(transaction, database());
+  if (!capabilities.archiveRecoveryEnabled) {
+    throw securityError('failed-precondition', 'environment-forbidden', 'Archive restore is not enabled in this environment.');
   }
 
   // 2. Server-side effective capability authorization: project.archive.restore
@@ -638,10 +640,16 @@ async function executeArchiveRestore({ transaction, requestData, actor, nowIso }
 
   // Build restored project from verified latest archived snapshot
   const sourceProject = latestProjectAppearance;
+  const sourceRevision = createHash('sha256').update(projectRevisionFingerprint(sourceProject)).digest('hex');
+  const production = process.env.GCLOUD_PROJECT === 'project-manager-dashboar-a067f' || process.env.GOOGLE_CLOUD_PROJECT === 'project-manager-dashboar-a067f';
+  if ((production || requestData.expectedSourceRevision !== undefined) && requestData.expectedSourceRevision !== sourceRevision) {
+    throw securityError('aborted', 'conflict', 'The archived snapshot changed. Refresh before restoring.');
+  }
   const restoredProject = {
     ...sourceProject,
     code: sourceProject.code || reqCode,
     visibility: 'active',
+    restoration: { sourceWeekId, sourceRevision, restoredAt:nowIso, restoredBy:actor.email, restoredByUid:actor.uid },
   };
   const sectionUpdatedAt = updateProjectSectionMetadata(
     {}, restoredProject,
@@ -676,7 +684,8 @@ const saveDashboardProject = selectedDashboardOnCall('pmdash-save-project@', asy
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
   if (!weekSnapshot.exists) throw securityError('not-found', 'not-found', 'The reporting week no longer exists.');
-  const result = buildProjectPatch(weekSnapshot.data(), request.data, actor, nowIso);
+  const capabilities = await readProjectCapabilities(transaction, database());
+  const result = buildProjectPatch(weekSnapshot.data(), request.data, actor, nowIso, capabilities);
   transaction.update(weekRef, result.patch);
   return {
     week: { ...weekSnapshot.data(), ...result.patch }, project: result.committedProject,
@@ -725,7 +734,8 @@ const setDashboardProjectAttention = dashboardOnCall('pmdash-project-attn@', asy
   if (!canMutateProject({ actor, project: projects[index] })) {
     throw securityError('permission-denied', 'ownership-forbidden', 'You do not have permission to edit this project.');
   }
-  assertLegacyProjectWriteAllowed({ existingProject: projects[index] });
+  const capabilities = await readProjectCapabilities(transaction, database());
+  assertLegacyProjectWriteAllowed({ existingProject: projects[index], capabilities });
   if (!ATTENTION_VALUES.has(request.data.attention)) {
     throw securityError('invalid-argument', 'invalid-payload', 'Select a valid attention category.');
   }

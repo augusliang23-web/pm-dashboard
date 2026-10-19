@@ -31,7 +31,7 @@ test('firebase.json adds a Hosting block without predeploy hooks or rewrites, an
   assert.equal(config.hosting.redirects, undefined);
   assert.equal(config.functions.source, 'functions');
   assert.equal(config.firestore.rules, 'firestore.rules');
-  assert.equal(config.firestore.indexes, undefined, 'root config must not reference the UAT-only index declarations');
+  assert.equal(config.firestore.indexes, 'firestore.prod.indexes.json', 'Production references only the reviewed two-index Draft manifest; never the UAT index declarations');
   assert.ok(config.emulators);
 });
 

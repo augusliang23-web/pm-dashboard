@@ -86,7 +86,12 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // includes delivery performance section when selected.
   'confirmOverviewProjectPrint',
   // V2.3.1 Production Release Candidate: syncs Delivery Performance checkbox visibility in Overview print dialog.
-  'openOverviewPrintDialog'
+  'openOverviewPrintDialog',
+  // Unified release: capability-gated Draft editor routes and disabled save controls.
+  // Covered by production-capabilities, project-capabilities and real isolated release E2E.
+  'saveCurrentWeekQuietly',
+  'updateProjectAttention',
+  'setProjectMutationControlsDisabled'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',

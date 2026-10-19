@@ -85,7 +85,7 @@
     "Production's functionsNeverDeploy explicitly forbids the UAT-only Production-to-UAT sync Callables; all other unlisted live Functions fail closed.",
     "setUserPermissionOverrides (Admin User Permissions) is Production-managed from the User Permissions V2 promotion onward; it deploys only with its dedicated pmdash-user-perms@ runtime identity as part of the reviewed `releases.userPermissionsV2` subset.",
     "Before any real Functions deployment: read-only enumerate live Functions and validate each as managed, preserved, forbidden, or unknown. Deploy only named managed Functions (`firebase deploy --only functions:name1,functions:name2,...`), never an unscoped deployment. Do not treat preserved Executive Functions as cleanup targets. This manifest does not perform live enumeration or deployment; each requires separate authorization.",
-    "Project Draft/Publish callables are UAT-only candidates. They are forbidden in Production and do not authorize deployment, IAM changes, or creating their dedicated runtime identity."
+    "Project Draft/Publish remains forbidden in generic/historical Production deployment flows. The Owner-authorized v231UnifiedProduction override is the sole scoped exception; it grants no Sync or unrelated deployment authority."
   ],
   "releases": {
     "userPermissionsV2": {
@@ -258,6 +258,46 @@
         "functionGeneration": "GEN_2",
         "cloudRunExecutionEnvironmentPolicy": "EXECUTION_ENVIRONMENT_UNSPECIFIED"
       }
+    }
+  },
+  "authorizedReleaseOverrides": {
+    "v231UnifiedProduction": {
+      "authorization": "Owner Unified Production Release and IAM Option A; backup gate removed 2026-10-19",
+      "environment": "prod",
+      "firebaseProjectId": "project-manager-dashboar-a067f",
+      "functions": [
+        "saveDashboardProject",
+        "listDashboardProjectDrafts",
+        "getDashboardProjectDraft",
+        "saveDashboardProjectDraft",
+        "publishDashboardProjectDraft"
+      ],
+      "runtimeServiceAccounts": {
+        "saveDashboardProject": "pmdash-save-project",
+        "listDashboardProjectDrafts": "pmdash-project-drafts",
+        "getDashboardProjectDraft": "pmdash-project-drafts",
+        "saveDashboardProjectDraft": "pmdash-project-drafts",
+        "publishDashboardProjectDraft": "pmdash-project-drafts"
+      },
+      "sourcePolicy": "exact-final-merged-main-sha",
+      "activationDocument": "releaseCapabilities/v231",
+      "firestoreIndexesFile": "firestore.prod.indexes.json",
+      "forbiddenFunctions": [
+        "syncProductionWeeksToUat",
+        "getProductionWeekSyncStatus",
+        "restoreUatWeeksSnapshot"
+      ],
+      "legacyPolicyBoundary": "This explicit v231-only Owner authorization overrides projectDrafts prohibition for exactly these four Draft Functions. Generic and historical release validators remain unchanged and continue rejecting them.",
+      "preActivationRequirements": [
+        "real-isolated-e2e-pass",
+        "security-review-resolved",
+        "required-ci-and-pr-review-pass",
+        "indexes-ready",
+        "least-privilege-iam-verified",
+        "application-rollback-verified",
+        "legacy-client-compatibility-pass",
+        "no-unexpected-production-drift"
+      ]
     }
   }
 }

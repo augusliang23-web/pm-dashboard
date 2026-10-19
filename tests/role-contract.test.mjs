@@ -33,7 +33,9 @@ const uat = dashboardSource('uat');
 // F9 reconciliation: main Draft contract retained; F8-reviewed UAT view and hash preserved.
 // F7 remediation: preserve live draft contract (1af8d09, b15b040, dbcff70: PM draft creation/save/publish, compact card, inline badge, PM prefill, latestPublishWeekId) and fix cache-only empty snapshot.
 // V2.3.1 consolidated UAT: Archive Recovery (V2.3.1-B) + Overview Trends integration (V2.3.1-A) + Release workflow + PDF integration; standalone button removed.
-const originalUatHash = '397dbc391803289da7e651ecc6c8f421ba49fcc7fb7c9fc71a0354cdfda92cec';
+// Unified release: server-authoritative capabilities, My Drafts entry and Archive source revision.
+// Production changes remain bounded by the named-function invariant and real emulator/browser coverage.
+const originalUatHash = '25cd73c6429f64a81410153be7e7ed6e428f00b4b01a54b93a00c6b38c80ab38';
 
 const validRoles = new Map([
   ['admin', 'admin'],

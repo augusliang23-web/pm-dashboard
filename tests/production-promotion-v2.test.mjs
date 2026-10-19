@@ -181,7 +181,8 @@ test('the Function code needs Firestore access only (roles/datastore.user is suf
     const text = await readFile(join(repoRoot, 'functions', file), 'utf8');
     const modules = [...text.matchAll(/require\('([^']+)'\)/g)].map(match => match[1]);
     for (const name of modules) {
-      assert.ok(name.startsWith('./') || ['firebase-functions/v2/https', 'firebase-admin/firestore'].includes(name), `${file} requires ${name}`);
+      // node:crypto only hashes the Archive source revision; it grants no cloud authority.
+      assert.ok(name.startsWith('./') || ['firebase-functions/v2/https', 'firebase-admin/firestore', 'node:crypto'].includes(name), `${file} requires ${name}`);
     }
   }
 });

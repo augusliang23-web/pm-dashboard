@@ -45,9 +45,9 @@ test('an existing project shows Draft only to the author while changes are unpub
   assert.deepEqual(newProjectDrafts([draft({ lastPublication: { draftRevision: 1 } })], mine, WEEKS, 'W40-2026'), [], 'a published new project is no longer a draft card');
 });
 
-test('UAT page: no My Drafts button, no week selector, drafts are local dashboard decorations only, PM owner is prefilled', () => {
+test('Draft UI has My Drafts entry, no target selector, local decorations and PM owner prefill', () => {
   const uat = dashboardSource('uat');
-  assert.equal(uat.includes('id="myDraftsBtn"'), false);
+  assert.equal(uat.includes('id="myDraftsBtn"'), true);
   assert.equal(uat.includes('projectDraftTargetWeek\')'), false);
   assert.equal(/createElement\('select'\)[^\n]*projectDraftTargetWeek/.test(uat), false);
   assert.match(uat, /function decorateDraftCards\(/);
@@ -61,6 +61,6 @@ test('UAT page: no My Drafts button, no week selector, drafts are local dashboar
   assert.match(uat, /card\.querySelector\('\.proj-name'\)\?\.append\(draftBadge\('Draft'\)\)/);          // same badge on published cards with unpublished changes
   assert.equal(/card\.querySelector\('\.card-body'\)\?\.prepend\(draftBadge/.test(uat), false);                // a flex-column child would stretch the badge full width
   const production = dashboardSource('production');
-  assert.equal(production.includes('decorateDraftCards'), false, 'Production is unchanged');
-  assert.equal(production.includes('project-drafts-ui'), false);
+  assert.equal(production.includes('decorateDraftCards'), true, 'Unified release promotes Draft indicators');
+  assert.equal(production.includes('project-drafts-ui'), true);
 });

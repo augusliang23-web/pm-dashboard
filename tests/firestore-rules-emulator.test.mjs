@@ -84,6 +84,16 @@ after(async () => {
   await environment?.cleanup();
 });
 
+test('Drafts, publication audit and release activation remain backend-only for every client role', async () => {
+  for (const [uid,email] of [['admin-uid','admin@example.com'],['owner-uid','owner@example.com'],['vip-uid','vip@example.com']]) {
+    const db=auth(uid,email);
+    for (const path of ['projectDrafts/fixture','projectDraftPublicationAudit/fixture','releaseCapabilities/v231']) {
+      await assertFails(setDoc(doc(db,path),{schemaVersion:1,projectId,drafts:true}));
+      await assertFails(getDoc(doc(db,path)));
+    }
+  }
+});
+
 test('all existing signed-in roles retain week reads while anonymous access stays denied', async () => {
   const anonymous = environment.unauthenticatedContext().firestore();
   const admin = auth('admin-uid', 'admin@example.com');

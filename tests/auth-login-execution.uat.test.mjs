@@ -54,6 +54,8 @@ function makeContext(overrides = {}) {
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {},
     document: { getElementById: element },
     authSessionGeneration: 0,

@@ -1,7 +1,8 @@
 const { onCall } = require('firebase-functions/v2/https');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
-const { buildAuthenticatedActor, assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
-const { assertDraftEnvironment } = require('./draft-environment');
+const { buildAuthenticatedActor, canRestoreArchivedProject, assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
+const { eligibleProject, readProjectCapabilities } = require('./draft-environment');
+const { sortWeeksChronologically, latestValidWeekIndex } = require('./week-order');
 const { emailKey, fail, assertDraftAccess, buildDraftRecord, publicDraft, publicationDigest } = require('./project-drafts-core');
 const { sourceDraftId, sourceProject, assertSourceOwnership, buildSourceDraft } = require('./project-draft-origin');
 const OPTIONS={serviceAccount:'pmdash-project-drafts@',maxInstances:20};
@@ -9,14 +10,17 @@ function safeId(value,label='Draft') {
   if(typeof value!=='string'||!value||value.length>128||/[\/\x00-\x1f]/.test(value)||['.','..','__proto__','constructor','prototype'].includes(value))fail('invalid-payload',`${label} identifier is invalid.`,'invalid-argument');
   return value;
 }
-function requestData(request,keys){assertDraftEnvironment();assertBoundedJson(request.data);assertAllowedKeys(request.data,keys,'Draft request');return request.data;}
-async function readActor(tx,db,request){
+function requestData(request,keys){assertBoundedJson(request.data);assertAllowedKeys(request.data,keys,'Draft request');return request.data;}
+async function readActor(tx,db,request,{capabilitiesOnly=false}={}){
   const email=emailKey(request.auth?.token?.email),uid=request.auth?.uid;
   if(!uid||!email)fail('unauthenticated','Sign in before using drafts.','unauthenticated');
+  const capabilities = await readProjectCapabilities(tx,db);
+  if(!capabilitiesOnly && !capabilities.draftsEnabled)fail('draft-environment','Project drafts are not enabled in this environment.','failed-precondition');
   const user=await tx.get(db.collection('users').doc(email));
   if(!user.exists)fail('role-forbidden','Draft permission is required.');
   const permission=await tx.get(db.collection('userPermissions').doc(email));
   const actor=buildAuthenticatedActor({uid,email},user.data(),permission.exists?permission.data():null);
+  if(capabilitiesOnly) return {actor,capabilities};
   assertDraftAccess(actor,null,'read');
   return actor;
 }
@@ -90,7 +94,15 @@ async function assignmentDirectory(tx,db,actor,data) {
   return assignmentUsers;
 }
 const getDashboardProjectDraft=onCall(OPTIONS,async request=>{
-  const data=requestData(request,['draftId','source']),db=getFirestore();
+  const data=requestData(request,['draftId','source','capabilities']),db=getFirestore();
+  if(data.capabilities===true){
+    assertAllowedKeys(data,['capabilities'],'Capability request');
+    return db.runTransaction(async tx=>{
+      const {actor,capabilities}=await readActor(tx,db,request,{capabilitiesOnly:true});
+      return {environmentEligible:Boolean(eligibleProject()),backendSupported:true,...capabilities,draftsEnabled:capabilities.draftsEnabled && ['admin','pm'].includes(actor.role),archiveRecoveryEnabled:capabilities.archiveRecoveryEnabled && canRestoreArchivedProject(actor)};
+    });
+  }
+  if(Object.hasOwn(data,'capabilities'))fail('invalid-payload','Capability request must be explicit.','invalid-argument');
   if(Boolean(data.draftId)===Boolean(data.source))fail('invalid-payload','Select a draft or a source project.','invalid-argument');
   return db.runTransaction(async tx=>{const actor=await readActor(tx,db,request);const {draft}=data.source?await readSourceDraft(tx,db,actor,data.source):await readDraft(tx,db,actor,data.draftId);return {draft:publicDraft(draft)};});
 });
@@ -127,7 +139,6 @@ const listDashboardProjectDrafts=onCall(OPTIONS,async request=>{
 module.exports={safeId,requestData,readActor,readDraft,OPTIONS,getDashboardProjectDraft,saveDashboardProjectDraft,listDashboardProjectDrafts};
 
 const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
-  assertDraftEnvironment();
   assertBoundedJson(request.data,{maxStringLength:256*1024});
   assertAllowedKeys(request.data,['draftId','expectedRevision','weekId','expectedPublishedRevision','project','assignment','source'],'Publish request');
   const data=request.data,db=getFirestore(),withForm=Object.hasOwn(data,'project');
@@ -139,6 +150,9 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
     const actor=await readActor(tx,db,request);
     const found=withForm?await mutationDraft(tx,db,actor,data):await readDraft(tx,db,actor,data.draftId);
     const weekRef=db.collection('weeks').doc(weekId),snapshot=await tx.get(weekRef),week=snapshot.exists?snapshot.data():null;
+    const weeksSnapshot=await tx.get(db.collection('weeks'));
+    const ordered=sortWeeksChronologically(weeksSnapshot.docs.map(doc=>({...doc.data(),__documentId:doc.id})));
+    const latest=ordered[latestValidWeekIndex(ordered)];
     const {planDraftPublication}=require('./project-drafts-core');
     const retry=found.draft?.lastSaveAndPublish;
     if(withForm && retry?.requestDigest===requestDigest && retry.actorUid===actor.uid && retry.draftRevision===found.draft.revision){
@@ -154,6 +168,7 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
       draft=buildDraftRecord({actor,existing:draft,input:saveInput,assignmentUsers,draftId:found.ref.id,nowIso});
     }
     const result=planDraftPublication({actor,draft,week,input:{...data,expectedRevision:withForm?draft.revision:data.expectedRevision},nowIso});
+    if(!result.alreadyPublished && (!latest || latest.__documentId!==weekId))fail('historical-week','Publish only to the latest reporting week.','failed-precondition');
     if(!result.alreadyPublished){
       tx.update(weekRef,result.weekPatch);
       if(withForm){

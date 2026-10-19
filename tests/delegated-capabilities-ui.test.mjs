@@ -46,6 +46,8 @@ function setupContext(profile, rawRole, overrides = {}) {
   const source = PROFILES[profile];
   const dom = makeDom();
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {}, console, document: dom.document,
     currentRole: 'pm', currentRawRole: null, currentPermissionOverrides: normalizePermissionOverrides(overrides),
     currentUser: { uid: 'uid', email: 'tester@example.com' }, PM_LIST: [], isOverview: false, isAdminVipPreview: false, isAdminExecutivePreview: false,
@@ -91,6 +93,7 @@ const label = (profile, role, overrides) => `${profile} ${role} ${JSON.stringify
 
 test('UAT: a PM sees Add New Project (draft creation) without project.manage, while project deletion stays with project.manage; Production and other roles are unchanged', () => {
   const pm = setupContext('uat', 'pm', {});
+  pm.context.projectWriteCapabilities.draftsEnabled = true;
   pm.context.IS_UAT_PROFILE = true;                                   // the real UAT page defines this flag
   pm.context.setupUI();
   assert.notEqual(pm.dom.element('addProjectBtn').style.display, 'none', 'UAT PM sees Add New Project');
@@ -153,6 +156,8 @@ function ganttContext(profile, { rawRole, overrides = {}, currentRole = 'admin' 
   const trap = name => () => { touched.push(name); throw new Error(`${name} must not be reached`); };
   const session = Object.freeze({ token: 's-1', authUid: 'uid', authEmail: 'tester', role: currentRole, revision: 1 });
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {}, console, currentRole, isAdminVipPreview: false, isAdminExecutivePreview: false, currentUser: { uid: 'uid', email: 'tester' },
     getEmailKey: () => 'tester', canCurrentUser: capability => capability === 'gantt.manage' && capabilityFor(rawRole, overrides)(capability),
     ganttTemplateSession: session, ganttWindowSession: session, ganttTemplateSaveInFlight: false, ganttWindowSaveInFlight: false,
@@ -228,6 +233,8 @@ function openProjEditGuard(profile, { rawRole, overrides = {}, isNew, canEdit, r
   const guardFunction = sliceBody(source, 'window.openProjEdit = (code, isNew = false) => {', 'isCreatingNew = isNew;')
     .replace(/isCreatingNew = isNew;$/, 'return { opened: true, manageOnly };\n};\n');
   const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {}, allWeeks: [{ projects: [{ code: 'ALPHA' }] }], currentIdx: 0, ganttTemplateSubscriptionReady: ready,
     isWeekReleased: () => released, canEditProject: () => canEdit, canCurrentUser: capabilityFor(rawRole, overrides),
   });
@@ -269,7 +276,9 @@ function actionBlock(profile, { rawRole, overrides = {}, currentRole, isNew, man
   const visibilityLabel = new Element();
   const actionDiv = Object.assign(new Element(), { querySelector: selector => (selector.includes('pe_visibility') ? visibilityLabel : null) });
   dom.document.getElementById = id => ({ adminProjActions: actionDiv }[id] || dom.element(id));
-  const context = vm.createContext({ document: dom.document, currentRole, canCurrentUser: capabilityFor(rawRole, overrides), isNew, manageOnly });
+  const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){}, document: dom.document, currentRole, canCurrentUser: capabilityFor(rawRole, overrides), isNew, manageOnly });
   vm.runInContext(sliceBody(source, "const actionDiv = document.getElementById('adminProjActions');", 'projectEditorSession = Object.freeze({').replace('projectEditorSession = Object.freeze({', ''), context);
   return { dom, actionDiv, visibilityLabel };
 }
@@ -306,6 +315,8 @@ test('deleteProject and saveProjEdit honor the capability and the delete-only mo
     const run = async (rawRole, overrides, session) => {
       const calls = { confirm: 0, collect: 0 };
       const context = vm.createContext({
+    projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
         window: {}, projectMutationInFlight: false, projectEditorSession: session, isProjectEditorSessionCurrent: () => true,
         showProjectMutationError() {}, confirm: () => { calls.confirm += 1; return false; },
         collectEditorResources: () => { calls.collect += 1; return null; }, canCurrentUser: capabilityFor(rawRole, overrides),

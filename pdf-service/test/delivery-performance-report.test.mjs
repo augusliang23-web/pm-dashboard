@@ -8,6 +8,7 @@ import { renderOverviewReportHtml } from '../src/overview-report.js';
 import { metricCard, reportPage } from '../src/report-components.js';
 import { completeOverviewReportFixture } from './report-fixtures.mjs';
 import { renderDeliveryTrendsPage } from '../../js/delivery-trends-view.mjs';
+import { calculateDeliveryTrends } from '../../shared/delivery-trends.mjs';
 import {
   emptyContract, gapContract, historicalOnlyContract, noScopeFlagContract, unavailableContract, hostileContract, largeContract, longNameContract, missingMetricsContract,
   negativeContract, syntheticContract, zeroGainContract
@@ -15,6 +16,18 @@ import {
 
 const text = html => html.replace(/<style>[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const physicalPageCount = pdf => (Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+
+test('real canonical 6/12-week contracts determine both chart slots and project trend heading', () => {
+  const weeks=Array.from({length:13},(_,index)=>({weekId:'W'+(26+index),reportingPeriod:{year:2026,week:26+index},isReleased:true,projects:[{code:'QA',name:'QA',projectLevel:'system',visibility:'active',progress:index,status:'green'}]}));
+  for(const windowWeeks of [6,12]){
+    const contract=calculateDeliveryTrends({source:'synthetic',asOf:'2026-10-19T00:00:00Z',anchorWeekId:'W38',windowWeeks,publicationMode:'released',scope:{projectLevel:'all'},weeks});
+    assert.equal(contract.provenance.windowWeeks,windowWeeks);
+    assert.equal(contract.weeklySeries.length,windowWeeks);
+    const html=renderPortfolioDeliveryPerformancePages(contract);
+    assert.match(text(html),new RegExp(windowWeeks+'-week trend','i'));
+    assert.equal((html.match(/class="dp-axis"/g)||[]).length,windowWeeks);
+  }
+});
 
 test.after(async () => { await renderPdfBuffer.close(); });
 
@@ -64,7 +77,7 @@ test('displays up to 12 weeks when windowWeeks is 12', () => {
     { weekId: 'w5', label: 'W05 2026', gainPp: 5.5, comparableCount: 6 },
     { weekId: 'w6', label: 'W06 2026', gainPp: 6.6, comparableCount: 6 }
   ];
-  const html = renderPortfolioDeliveryPerformancePages({ ...base, windowWeeks: 12, weeklySeries: [...extra, ...base.weeklySeries] });
+  const html = renderPortfolioDeliveryPerformancePages({ ...base, provenance:{...base.provenance,windowWeeks:12}, weeklySeries: [...extra, ...base.weeklySeries] });
   assert.match(html, /W01 2026/);
   assert.match(html, /12-week trend/);
 });
