@@ -4,8 +4,16 @@ import { createDeliveryTrendsInput, calculateDeliveryTrends } from './delivery-t
 import { normalizeOverviewScope } from './portfolio-core.mjs';
 import { normalizeDashboardRole } from './dashboard-access.mjs';
 import {
-  DELIVERY_TRENDS_CSS, renderDeliveryTrendsPage, renderDeliveryUnavailable, renderDeliveryWindowToggle
+  DELIVERY_TRENDS_CSS, escapeHtml, renderDeliveryNotices, renderDeliverySummaryCards,
+  renderDeliveryProjectRows, renderDeliveryProgressTrend, renderDeliveryPortfolioChanges,
+  renderDeliveryTrendsPage, renderDeliveryUnavailable, renderDeliveryWindowToggle
 } from './delivery-trends-view.mjs';
+
+export {
+  DELIVERY_TRENDS_CSS, escapeHtml, renderDeliveryNotices, renderDeliverySummaryCards,
+  renderDeliveryProjectRows, renderDeliveryProgressTrend, renderDeliveryPortfolioChanges,
+  renderDeliveryTrendsPage, renderDeliveryUnavailable, renderDeliveryWindowToggle
+};
 
 export const DELIVERY_WINDOWS = [6, 12];
 export const normalizeDeliveryWindow = value => (Number(value) === 12 ? 12 : 6);

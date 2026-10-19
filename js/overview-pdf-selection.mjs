@@ -53,6 +53,7 @@ export function buildOverviewPdfRequest({
   overviewScope,
   projectCodes,
   executiveAudienceView,
+  windowWeeks,
   deliveryPerformanceAvailable = isDeliveryPerformancePdfAvailable({ profile: globalThis.PM_DASHBOARD_ENV?.dashboardProfile }),
 } = {}) {
   // Defense in depth: the new section is dropped unless this environment is explicitly verified for it.
@@ -72,6 +73,9 @@ export function buildOverviewPdfRequest({
   const normalizedAudience = normalizeText(executiveAudienceView);
   if (normalizedAudience && normalizedSections.includes('executive-milestones')) {
     request.executiveAudienceView = normalizedAudience;
+  }
+  if (normalizedSections.includes(DELIVERY_PERFORMANCE_SECTION_ID) && windowWeeks !== undefined && [6, 12].includes(Number(windowWeeks))) {
+    request.windowWeeks = Number(windowWeeks);
   }
   return request;
 }

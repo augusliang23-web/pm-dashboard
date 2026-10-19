@@ -3196,6 +3196,9 @@ import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-sc
 import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
 import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
 // @uat-only end draft-imports
+// @uat-only begin deliveryTrendsStaticImport
+import * as deliveryTrendsPageModule from "./js/delivery-trends-page.mjs";
+// @uat-only end deliveryTrendsStaticImport
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
 
@@ -6035,7 +6038,7 @@ const toggleReleaseWeek__prod = async () => {
     showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
   } catch (err) {
     console.error("Release status update failed", err);
-    showSaveToast(getWriteErrorMessage(err));
+    showSaveToast(getCallableErrorMessage(err, getWriteErrorMessage(err)));
   } finally {
     releaseWriteInProgress = false;
     hideLoader();
@@ -6071,7 +6074,7 @@ const toggleReleaseWeek__uat = async () => {
     showSaveToast(newStatus ? "Week released to Executive Owner!" : "Week reverted to Draft");
   } catch (err) {
     console.error("Release status update failed", err);
-    showSaveToast(getWriteErrorMessage(err));
+    showSaveToast(getCallableErrorMessage(err, getWriteErrorMessage(err)));
   } finally {
     releaseWriteInProgress = false;
     hideLoader();
@@ -6243,7 +6246,7 @@ function initData__uat(authGeneration, authUser) {
         };
       }
     } else {
-      deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));
+      deliveryTrendsRawWeeks = sortWeeksChronologically(snap.docs.map(d => ({ ...d.data(), weekId: d.id })));
       deliveryTrendsHistoryState = {
         source: 'uat',
         complete: isServerConfirmed,
@@ -7701,7 +7704,9 @@ function renderTrendSvg(points, key, className = '') {
   </svg>`;
 }
 
-function renderWeeklyTrendPanel(projects) {
+// @profile-group begin fn renderWeeklyTrendPanel
+// @profile-variant prod
+function renderWeeklyTrendPanel__prod(projects) {
   const weeks = getTrendWeeks();
   const points = weeklyTrendPoints(weeks, projects);
   if (points.length < 2) return '';
@@ -7735,6 +7740,40 @@ function renderWeeklyTrendPanel(projects) {
     </div>
   </div>`;
 }
+// @profile-variant uat
+function renderWeeklyTrendPanel__uat(projects) {
+  if (!deliveryTrendsModule) {
+    return `<div class="exec-decision-panel delivery-trends-overview-panel" data-print-section="weekly-trend">
+      <div class="dt-page"><div class="dt-empty" role="status">Loading delivery performance &amp; trends…</div></div>
+    </div>`;
+  }
+  deliveryTrendsModule.installDeliveryTrendsStyles(document);
+  const state = currentDeliveryTrendsState(deliveryTrendsWindow);
+  return `<div class="exec-decision-panel delivery-trends-overview-panel" data-print-section="weekly-trend">
+    <div class="exec-decision-head" style="margin-bottom:12px;">
+      <div>
+        <div class="exec-eyebrow">Delivery Performance &amp; Trends</div>
+        <div class="exec-decision-title">Portfolio progress &amp; velocity across reporting weeks</div>
+      </div>
+      <div class="dt-toolbar no-print"><div class="dt-window" role="group" aria-label="History window"><button type="button" class="${deliveryTrendsWindow === 6 ? 'active' : ''}" aria-pressed="${deliveryTrendsWindow === 6}" data-overview-trend-window="6" onclick="setDeliveryTrendsWindow(6)">6 weeks</button><button type="button" class="${deliveryTrendsWindow === 12 ? 'active' : ''}" aria-pressed="${deliveryTrendsWindow === 12}" data-overview-trend-window="12" onclick="setDeliveryTrendsWindow(12)">12 weeks</button></div></div>
+    </div>
+    <div class="dt-page" data-contract="${deliveryTrendsModule.escapeHtml ? deliveryTrendsModule.escapeHtml(state?.contract?.contractVersion || '') : ''}">
+      ${state?.state !== 'ready'
+        ? deliveryTrendsModule.renderDeliveryUnavailable(state?.reason || 'Delivery trends data is unavailable.')
+        : `
+          ${deliveryTrendsModule.renderDeliveryNotices(state.contract)}
+          ${deliveryTrendsModule.renderDeliverySummaryCards(state.contract)}
+          ${deliveryTrendsModule.renderDeliveryProgressTrend(state.contract, { maxWeeks: deliveryTrendsWindow })}
+          ${deliveryTrendsModule.renderDeliveryProjectRows(state.contract, { sparkWeeks: deliveryTrendsWindow })}
+          ${deliveryTrendsModule.renderDeliveryPortfolioChanges(state.contract)}
+        `
+      }
+    </div>
+  </div>`;
+}
+// @profile-dispatcher
+function renderWeeklyTrendPanel(...args) { return (IS_UAT_PROFILE ? renderWeeklyTrendPanel__uat : renderWeeklyTrendPanel__prod)(...args); }
+// @profile-group end renderWeeklyTrendPanel
 
 function rawRiskItems(p) {
   return textLines(p.risk).filter(l => l && !/^no risk\b/i.test(l));
@@ -11566,7 +11605,9 @@ window.confirmOverviewPrint = () => {
   openAccessibleModal(document.getElementById('overviewProjectPrintOverlay'));
 };
 
-window.confirmOverviewProjectPrint = async () => {
+// @profile-group begin win confirmOverviewProjectPrint
+// @profile-variant prod
+const confirmOverviewProjectPrint__prod = async () => {
   const validation = document.getElementById('overviewProjectPrintValidation');
   const projectCodes = [...document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]:checked')]
     .map(input => input.value);
@@ -11600,6 +11641,45 @@ window.confirmOverviewProjectPrint = async () => {
     validation.className = 'resource-validation show error';
   }
 };
+// @profile-variant uat
+const confirmOverviewProjectPrint__uat = async () => {
+  const validation = document.getElementById('overviewProjectPrintValidation');
+  const projectCodes = [...document.querySelectorAll('#overviewProjectPrintOptions input[type="checkbox"]:checked')]
+    .map(input => input.value);
+  if (!projectCodes.length) {
+    setOverviewProjectPrintValidation('Select at least one project to export.', true);
+    return;
+  }
+  let request;
+  try {
+    request = buildOverviewPdfRequest({
+      sections: overviewPrintDraft?.sections,
+      overviewScope: 'all',
+      projectCodes,
+      executiveAudienceView: overviewPrintDraft?.executiveAudienceView,
+      windowWeeks: typeof deliveryTrendsWindow !== 'undefined' ? deliveryTrendsWindow : 6,
+    });
+  } catch (error) {
+    setOverviewProjectPrintValidation(error.message, true);
+    return;
+  }
+  const button = document.getElementById('overviewPdfExportButton');
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  setOverviewProjectPrintValidation('Generating PDF…');
+  const downloaded = await downloadProfessionalReport(request, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  if (downloaded) {
+    closeModal('overviewProjectPrintOverlay');
+    overviewPrintDraft = null;
+  } else {
+    validation.className = 'resource-validation show error';
+  }
+};
+// @profile-dispatcher
+window.confirmOverviewProjectPrint = (...args) => (IS_UAT_PROFILE ? confirmOverviewProjectPrint__uat : confirmOverviewProjectPrint__prod)(...args);
+// @profile-group end confirmOverviewProjectPrint
 
 window.setOverviewScope = scope => {
   overviewScope = normalizeOverviewScope(scope);
@@ -11617,11 +11697,15 @@ let deliveryTrendsHistoryState = { source: null, complete: false };
 let deliveryTrendsActive = false;
 let deliveryTrendsWindow = 6;
 let deliveryTrendsOwner = null;
-let deliveryTrendsModule = null;
+let deliveryTrendsModule = typeof deliveryTrendsPageModule !== 'undefined' ? deliveryTrendsPageModule : null;
 let deliveryTrendsLoading = null;
 
 function loadDeliveryTrendsModule() {
   if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);
+  if (typeof deliveryTrendsPageModule !== 'undefined') {
+    deliveryTrendsModule = deliveryTrendsPageModule;
+    return Promise.resolve(deliveryTrendsModule);
+  }
   deliveryTrendsLoading = deliveryTrendsLoading || import('./js/delivery-trends-page.mjs').then(module => {
     deliveryTrendsModule = module;
     return module;
@@ -11698,7 +11782,8 @@ window.toggleDeliveryTrends = () => {
 
 window.setDeliveryTrendsWindow = weeks => {
   deliveryTrendsWindow = Number(weeks) === 12 ? 12 : 6;
-  syncDeliveryTrendsView();
+  if (isOverview) render();
+  else syncDeliveryTrendsView();
 };
 
 // PDF dialog support. (Browser-print integration is deferred: no user-accessible entry calls renderOverviewPrintReport.)

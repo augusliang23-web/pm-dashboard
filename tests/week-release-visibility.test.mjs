@@ -10,7 +10,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 import { can } from '../js/permission-registry.mjs';
-import { confirmWeekMutation, getWriteErrorMessage } from '../sync-core.js';
+import { confirmWeekMutation, getCallableErrorMessage, getWriteErrorMessage } from '../sync-core.js';
 import { dashboardSource } from './helpers/dashboard-source.mjs';
 
 const production = dashboardSource('production');
@@ -84,6 +84,7 @@ function toggleContext(perspective, { isReleased = false, rawRole = perspective,
     releaseWriteInProgress: false,
     canCurrentUser: capability => can(capability, { role: rawRole, overrides }),
     confirmWeekMutation,
+    getCallableErrorMessage,
     getWriteErrorMessage,
     showLoader: message => calls.loader.push(message),
     hideLoader: () => { calls.hideLoader += 1; },
@@ -264,3 +265,44 @@ test('UAT keeps its own release-control contract and the Production guard does n
   // UAT shares the same effective capability.
   assert.match(sliceBody(uat, 'function canManageWeekRelease() {', '\n}\n'), /return canCurrentUser\('week\.release'\);/);
 });
+
+test('toggleReleaseWeek surfaces actionable callable error message instead of generic save error', async () => {
+  const customMessage = 'Executive milestones have not been initialized. Ask an administrator to initialize the live roadmap before releasing this week.';
+  const callableError = Object.assign(new Error(customMessage), { code: 'functions/failed-precondition' });
+
+  // Test Production
+  const { context: prodCtx, calls: prodCalls } = toggleContext('admin', { isReleased: false });
+  prodCtx.projectDashboardApi.setWeekRelease = async () => { throw callableError; };
+  await prodCtx.window.toggleReleaseWeek();
+  assert.equal(prodCalls.toast.length, 1);
+  assert.equal(prodCalls.toast[0], customMessage);
+
+  // Test UAT
+  const uatToggleSource = sliceBody(uat, 'window.toggleReleaseWeek = async () => {', '\n};\n');
+  const uatCalls = { loader: [], hideLoader: 0, toast: [], render: 0 };
+  const uatContext = vm.createContext({
+    window: {},
+    currentUser: { email: 'uat-pm@example.com' },
+    currentIdx: 0,
+    allWeeks: [weekFixture(false)],
+    releaseWriteInProgress: false,
+    canManageWeekRelease: () => true,
+    confirmWeekMutation,
+    getCallableErrorMessage,
+    getWriteErrorMessage,
+    showLoader: msg => uatCalls.loader.push(msg),
+    hideLoader: () => { uatCalls.hideLoader += 1; },
+    showSaveToast: msg => uatCalls.toast.push(msg),
+    render: () => { uatCalls.render += 1; },
+    console: { error() {} },
+    projectDashboardApi: {
+      setWeekRelease: async () => { throw callableError; }
+    },
+    isWeekReleased: week => week?.isReleased === true,
+  });
+  vm.runInContext(uatToggleSource, uatContext);
+  await uatContext.window.toggleReleaseWeek();
+  assert.equal(uatCalls.toast.length, 1);
+  assert.equal(uatCalls.toast[0], customMessage);
+});
+

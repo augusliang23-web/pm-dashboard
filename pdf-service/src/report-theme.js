@@ -31,9 +31,9 @@ export const DELIVERY_PERFORMANCE_CSS = `
   .dp-pm { overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .dp-spark { width:18mm; height:4.5mm; display:block; }
   .dp-spark-line { fill:none; stroke:var(--blue); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; } .dp-spark-dot { fill:var(--blue); }
-  .dp-footnote { break-inside:avoid; margin-bottom:.6mm; }
+  .dp-footnote { break-inside:avoid; margin-bottom:.4mm; }
   .dp-na { color:var(--muted); }
-  .dp-footnotes { column-count:2; column-gap:6mm; margin-top:0; color:var(--muted); font-size:7.2pt; line-height:1.3; }
+  .dp-footnotes { column-count:2; column-gap:6mm; margin-top:0; color:var(--muted); font-size:7pt; line-height:1.25; }
   .dp-table .positive-value { color:var(--green); font-weight:700; } .dp-table .negative-value { color:var(--red); font-weight:700; }
 `;
 
