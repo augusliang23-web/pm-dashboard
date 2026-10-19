@@ -25,9 +25,9 @@ test('UAT profile has a dedicated Delivery Trends navigation entry and container
   const raw = rawDashboardSource();
   assert.match(raw, /class="btn-icon vip-hidden executive-hidden" data-profile-only="uat" id="btnDeliveryTrends"/);
   assert.match(raw, /id="deliveryTrendsView" data-profile-only="uat" hidden/);
-  // Not a section inside the Overview markup.
+  // Overview integrates weekly trend panel (V2.3.1-A).
   const overview = uat.slice(uat.indexOf('function renderExec('), uat.indexOf('function renderExec(') + 6000);
-  assert.doesNotMatch(overview, /delivery-trends|deliveryTrends/i);
+  assert.match(overview, /renderWeeklyTrendPanel\(projs\)/);
 });
 
 test('UAT render hooks the view without changing Overview or normal view toggling', () => {
@@ -127,8 +127,36 @@ test('Production inventory has no new exception: the shared print functions equa
 });
 
 // The chronological week ordering (UAT-only) is a separate, narrowly scoped change; reverting it must give back the
+function revertV231(raw) {
+  raw = raw.replace(/^[ \t]*\/\/ @uat-only begin deliveryTrendsStaticImport\n[\s\S]*?^[ \t]*\/\/ @uat-only end deliveryTrendsStaticImport\n/m, '');
+  const trendGroup = /\/\/ @profile-group begin fn renderWeeklyTrendPanel\n\/\/ @profile-variant prod\n([\s\S]*?)\n\/\/ @profile-variant uat\n[\s\S]*?\n\/\/ @profile-dispatcher\n[^\n]*\n\/\/ @profile-group end renderWeeklyTrendPanel/;
+  const trendMatch = raw.match(trendGroup);
+  if (trendMatch) raw = raw.replace(trendGroup, trendMatch[1].replace('function renderWeeklyTrendPanel__prod(', 'function renderWeeklyTrendPanel('));
+  
+  const printGroup = /\/\/ @profile-group begin win confirmOverviewProjectPrint\n\/\/ @profile-variant prod\n([\s\S]*?)\n\/\/ @profile-variant uat\n[\s\S]*?\n\/\/ @profile-dispatcher\n[^\n]*\n\/\/ @profile-group end confirmOverviewProjectPrint/;
+  const printMatch = raw.match(printGroup);
+  if (printMatch) raw = raw.replace(printGroup, printMatch[1].replace('const confirmOverviewProjectPrint__prod =', 'window.confirmOverviewProjectPrint ='));
+
+  raw = raw.replaceAll('getCallableErrorMessage(err, getWriteErrorMessage(err))', 'getWriteErrorMessage(err)');
+  raw = raw.replace('deliveryTrendsRawWeeks = sortWeeksChronologically(snap.docs.map(d => ({ ...d.data(), weekId: d.id })));', 'deliveryTrendsRawWeeks = snap.docs.map(d => ({ ...d.data(), weekId: d.id }));');
+  raw = raw.replace('  if (isOverview) render();\n  else syncDeliveryTrendsView();', '  syncDeliveryTrendsView();');
+  raw = raw.replace(`let deliveryTrendsModule = typeof deliveryTrendsPageModule !== 'undefined' ? deliveryTrendsPageModule : null;\nlet deliveryTrendsLoading = null;
+
+function loadDeliveryTrendsModule() {
+  if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);
+  if (typeof deliveryTrendsPageModule !== 'undefined') {
+    deliveryTrendsModule = deliveryTrendsPageModule;
+    return Promise.resolve(deliveryTrendsModule);
+  }`, `let deliveryTrendsModule = null;\nlet deliveryTrendsLoading = null;
+
+function loadDeliveryTrendsModule() {
+  if (deliveryTrendsModule) return Promise.resolve(deliveryTrendsModule);`);
+  return raw;
+}
+
 // previously accepted source exactly.
 function revertWeekOrdering(raw) {
+  raw = revertV231(raw);
   for (const tag of ['weekOrderImport', 'deliveryPdfImport', 'deliveryTrendsLogoutReset']) {
     const block = new RegExp(`^[ \\t]*\\/\\/ @uat-only begin ${tag}\\n[\\s\\S]*?^[ \\t]*\\/\\/ @uat-only end ${tag}\\n`, 'm');
     assert.match(raw, block);

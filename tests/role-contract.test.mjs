@@ -32,7 +32,8 @@ const uat = dashboardSource('uat');
 // Gate 2: UAT-only raw snapshot/completeness wiring, covered by snapshot behavior and exact feature stripping.
 // F9 reconciliation: main Draft contract retained; F8-reviewed UAT view and hash preserved.
 // F7 remediation: preserve live draft contract (1af8d09, b15b040, dbcff70: PM draft creation/save/publish, compact card, inline badge, PM prefill, latestPublishWeekId) and fix cache-only empty snapshot.
-const originalUatHash = '5540075b28a4620a309ce300c3ab6aa67858dbac3821a7f5b34aa18c29cb4cad';
+// V2.3.1 consolidated UAT: actionable week release errors, Overview Delivery Trends integration with 6w/12w toggle, PDF trend window alignment and pagination.
+const originalUatHash = '9697d0dccfdb3df7116dc0bd7b967f50e21232afcf1a5c82811fa4831addff35';
 
 const validRoles = new Map([
   ['admin', 'admin'],
