@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 3,
+  "status": "REVIEW_READY_NOT_EXECUTABLE",
+  "executable": false,
+  "authorizedNow": false,
+  "supersedes": "imported/pr54-watchdog-final-local-20261016/UAT_CLOUD_DRILL_AUTHORIZATION_MANIFEST.json",
+  "statusNote": "Design and local evidence are complete for Control Plane review. Not signable until every entry in unresolvedInputs is supplied by a named human and phase G2 empirical checks pass. Nothing in this file has been applied.",
+  "project": { "id": "pm-dashboard-uat-20260820-a7f3", "number": "317352278230", "region": "us-central1" },
+  "source": "4be45fb07dfc6656fcfebedb4874e2488b41e801",
+  "designChanges": [
+    "Rollback of Save/Attention is a Cloud Run traffic pin to the pre-recorded baseline revision. No Cloud Functions update, source rebuild, Cloud Build launch or Functions IAM is used or requested.",
+    "The Cloud Build release worker identity (pmdash-pr54-release), the build-launch role and actAs on the compute/source-build identity are removed from the watchdog design.",
+    "Only one runtime identity is created: the Workflows execution identity."
+  ],
+  "cloudRun": {
+    "allowlistedServices": ["savedashboardproject", "setdashboardprojectattention"],
+    "baselineRevisions": {
+      "savedashboardproject": "savedashboardproject-00013-yow",
+      "setdashboardprojectattention": "setdashboardprojectattention-00010-tix"
+    },
+    "request": "PATCH https://run.googleapis.com/v2/projects/{project}/locations/us-central1/services/{service}?updateMask=traffic (preceded by the same request with validateOnly=true)",
+    "mutatedFields": ["traffic"],
+    "neverMutated": ["template", "ingress", "invokerIamDisabled", "iam policy", "service identity", "scaling", "environment"],
+    "documentedBehaviour": [
+      "Traffic rollback applies immediately and does not re-run deployment health checks (Cloud Run rollouts documentation). Functional proof therefore comes only from the authenticated legacy receipt.",
+      "Traffic pinned to a named revision persists for later deployments (same documentation). A later Functions deploy must explicitly re-point traffic; see postDrillObligations."
+    ]
+  },
+  "apiEnablementRequested": ["workflows.googleapis.com", "workflowexecutions.googleapis.com"],
+  "existingApisReused": ["run.googleapis.com", "firebasehosting.googleapis.com", "firebaserules.googleapis.com", "storage.googleapis.com", "logging.googleapis.com", "monitoring.googleapis.com"],
+  "apisNotUsedByWatchdog": ["cloudbuild.googleapis.com", "cloudfunctions.googleapis.com", "iam.googleapis.com (no policy writes)", "firestore.googleapis.com"],
+  "resourcesToCreate": [
+    { "type": "serviceAccount", "name": "pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com", "keys": false },
+    { "type": "workflow", "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/workflows/pr54-recovery-watchdog", "serviceAccount": "pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com", "source": "workflows/pr54-recovery-watchdog.yaml", "note": "Never compiled. Compilation happens at creation (G1); syntax/semantic fixes expected." },
+    { "type": "bucket", "name": "pm-dashboard-uat-20260820-a7f3-pr54-recovery", "location": "us-central1", "storageClass": "STANDARD", "uniformBucketLevelAccess": true, "publicAccessPrevention": "enforced", "retentionLock": false, "nameCollisionPolicy": "STOP; never silently pick another name" },
+    { "type": "customRoles", "names": ["pr54StateCas", "pr54StateRead", "pr54ReceiptWrite", "pr54RunTrafficRollback", "pr54RunOperationsRead", "pr54HostingRestore", "pr54RulesRestore", "pr54ApiConsumer"] },
+    { "type": "loggingMetricAndAlert", "status": "BLOCKED_PENDING_unresolvedInputs.approvedNotificationChannel" }
+  ],
+  "customRolePermissions": {
+    "pr54StateCas": ["storage.objects.get", "storage.objects.create", "storage.objects.delete"],
+    "pr54StateRead": ["storage.objects.get"],
+    "pr54ReceiptWrite": ["storage.objects.create"],
+    "pr54RunTrafficRollback": ["run.services.get", "run.services.getIamPolicy", "run.services.update", "run.revisions.get"],
+    "pr54RunOperationsRead": ["run.operations.get"],
+    "pr54HostingRestore": ["firebasehosting.sites.get", "firebasehosting.sites.update"],
+    "pr54RulesRestore": ["firebaserules.releases.get", "firebaserules.releases.update", "firebaserules.rulesets.get"],
+    "pr54ApiConsumer": ["serviceusage.services.use", "resourcemanager.projects.get"]
+  },
+  "proposedBindings": [
+    { "member": "watchdog", "role": "pr54StateCas", "scope": "bucket pm-dashboard-uat-20260820-a7f3-pr54-recovery", "condition": "resource.name.startsWith('projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/coord/')", "why": "sole writer of coord/active.json; delete is required by GCS to overwrite an existing object" },
+    { "member": "watchdog", "role": "pr54StateRead", "scope": "bucket (manifests/ and receipts/ prefixes via two conditional bindings)", "why": "read pinned manifest and trusted receipts; cannot write them" },
+    { "member": "receiptWriter", "role": "pr54ReceiptWrite", "scope": "bucket, condition: objects/receipts/ prefix", "status": "BLOCKED_PENDING_unresolvedInputs.receiptWriterPrincipal" },
+    { "member": "watchdog", "role": "pr54RunTrafficRollback", "scope": "Cloud Run service savedashboardproject", "status": "service-level grant is documented by Google; custom-role acceptance at this level confirmed only at G2" },
+    { "member": "watchdog", "role": "pr54RunTrafficRollback", "scope": "Cloud Run service setdashboardprojectattention", "status": "as above" },
+    { "member": "watchdog", "role": "pr54RunOperationsRead", "scope": "project (fallback)", "status": "ONLY if G2 shows service-level binding does not cover run.operations.get; the permission exposes operation status only, no resource content" },
+    { "member": "watchdog", "role": "roles/iam.serviceAccountUser", "scope": "service account pmdash-save-project (resource-level only)", "status": "REQUIRED_PER_GOOGLE_ROLLBACK_GUIDANCE; necessity for a traffic-only mask confirmed at G2; drop if validateOnly shows it is not needed" },
+    { "member": "watchdog", "role": "roles/iam.serviceAccountUser", "scope": "service account pmdash-project-attn (resource-level only)", "status": "as above" },
+    { "member": "watchdog", "role": "pr54HostingRestore", "scope": "project (Hosting sites are not individually bindable)", "status": "UNAVOIDABLE_PROJECT_SCOPE; exact permission set for POST releases confirmed with testIamPermissions at G2" },
+    { "member": "watchdog", "role": "pr54RulesRestore", "scope": "project (Rules releases are project-level)", "status": "UNAVOIDABLE_PROJECT_SCOPE" },
+    { "member": "watchdog", "role": "pr54ApiConsumer", "scope": "project", "why": "Workflows-originated Google API calls are billed/quota-checked to the project" },
+    { "member": "watchdog", "role": "roles/logging.logWriter", "scope": "project" }
+  ],
+  "neverGranted": [
+    "roles/owner", "roles/editor", "roles/run.admin", "roles/run.developer (project-wide)", "run.services.setIamPolicy",
+    "roles/cloudfunctions.admin / cloudfunctions.functions.update / sourceCodeSet (any scope)",
+    "cloudbuild.builds.create / roles/cloudbuild.*", "roles/artifactregistry.reader (withheld deliberately: see compensatingControls)",
+    "iam.serviceAccountUser on 317352278230-compute@developer.gserviceaccount.com or any data/admin identity",
+    "roles/iam.serviceAccountTokenCreator", "roles/datastore.*", "roles/storage.admin", "roles/firebase.admin", "roles/firebaseauth.admin",
+    "workflows.workflows.update/create for the runtime identity", "any Production binding", "any PDF-service (pm-dashboard-uat-pdf) binding"
+  ],
+  "compensatingControls": [
+    { "risk": "run.services.update is broader than traffic-only", "controls": [
+      "Granted only on the two allowlisted services; cannot touch the PDF service or any other service or function.",
+      "Workflow definition is the only caller; the runtime identity cannot edit the workflow (no workflows.workflows.update); definition reviewed and static-tested to emit only updateMask=traffic.",
+      "Deployers need Artifact Registry read to deploy an image (Google guidance); that role is deliberately withheld, so an image-changing update should fail. Confirmed or refuted at G2 with a validateOnly negative test; the claim is NOT relied upon until then.",
+      "Cloud Audit Logs Admin Activity (always on) records every UpdateService by the watchdog; alerting on any such event while no release is armed. Whether the logged request exposes updateMask is checked at G2.",
+      "Bindings exist only for the drill window and are removed by the setup operator afterward (cleanup)."] },
+    { "risk": "firebasehosting.sites.update and firebaserules.releases.update are project-wide", "controls": [
+      "UAT project only; Production never bound.",
+      "Workflow can only release a manifest-pinned finalized Hosting version and a manifest-pinned ruleset; both are read from an immutable, generation-pinned manifest.",
+      "G1 read-only inventory confirms the number of Hosting sites in the project; more than one site => STOP.",
+      "Admin Activity alerts on Hosting release creation and Rules release update outside an armed release."] },
+    { "risk": "actAs on the two runtime service accounts", "controls": [
+      "Resource-level on exactly pmdash-save-project and pmdash-project-attn, which already run those two services; no new identity is reachable.",
+      "No actAs on the compute, source-build, Firebase Admin or PDF identities."] },
+    { "risk": "receipt content can be false even if correctly signed off by IAM", "controls": [
+      "Receipt writer is a separately approved human/test identity with create-only access to receipts/; the watchdog and any worker cannot write receipts.",
+      "Receipt must bind release, nonce, manifest hash, source, test times inside the armed window, observed versions and a clean mutation ledger; attester must differ from worker principals.",
+      "IAM cannot prove the attester told the truth: residual human-process risk."] }
+  ],
+  "baselineCapture": {
+    "status": "MUST_BE_REFRESHED_AT_G1",
+    "note": "Historical values below come from earlier read-only snapshots (2026-10-16). Fingerprints and images are null on purpose.",
+    "hosting": { "site": "pm-dashboard-uat-20260820-a7f3", "version": "6967bf5354ce4cc5" },
+    "rules": { "ruleset": "0ea9132c-0376-4aac-997a-b24cb80bf60f" },
+    "services": {
+      "save": { "service": "savedashboardproject", "revision": "savedashboardproject-00013-yow", "image": null, "service_account": null, "ingress": null, "invoker_iam_disabled": null, "revision_fingerprint": null, "service_fingerprint": null },
+      "attention": { "service": "setdashboardprojectattention", "revision": "setdashboardprojectattention-00010-tix", "image": null, "service_account": null, "ingress": null, "invoker_iam_disabled": null, "revision_fingerprint": null, "service_fingerprint": null, "runtime": "nodejs20", "maxInstances": 20 }
+    },
+    "versions": { "hosting": "6967bf5354ce4cc5", "rules": "0ea9132c-0376-4aac-997a-b24cb80bf60f", "save": "savedashboardproject-00013-yow", "attention": "setdashboardprojectattention-00010-tix" },
+    "etag_semantics_validated": false
+  },
+  "protectedResources": {
+    "pdfService": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/pm-dashboard-uat-pdf",
+    "pdfRevision": "pm-dashboard-uat-pdf-pr60-a560292",
+    "reportingWeeks": 23,
+    "archiveAndHistory": "no mutation",
+    "production": "no identifiers, bindings or calls",
+    "businessFirestore": "no writes by the watchdog; G4 synthetic IDs only after separate approval"
+  },
+  "timingSeconds": { "rollbackOnMissingAcceptance": 1800, "forwardStop": 2700, "maintenanceMaximum": 3600, "tickInterval": 10 },
+  "unresolvedInputs": {
+    "receiptWriterPrincipal": { "value": null, "decidedBy": "user / Control Plane", "blocks": "G3 receipt tests and G4" },
+    "releaseStarterPrincipal": { "value": null, "decidedBy": "user / Control Plane", "blocks": "G3" },
+    "approvedNotificationChannel": { "value": null, "decidedBy": "user", "blocks": "alert policy; G3 PASS requires independently delivered alert" },
+    "freshBaselineCapture": { "value": null, "decidedBy": "G1 read-only operator", "blocks": "G2" },
+    "approvedSyntheticRecordIds": { "value": null, "decidedBy": "user", "blocks": "G4 only" },
+    "setupOperator": { "value": null, "decidedBy": "user", "note": "Human with the permissions listed in setupOperatorPermissionsRequested; never a runtime identity" }
+  },
+  "setupOperatorPermissionsRequested": [
+    "serviceusage.services.enable", "iam.serviceAccounts.create", "iam.roles.create",
+    "resourcemanager.projects.getIamPolicy", "resourcemanager.projects.setIamPolicy",
+    "run.services.getIamPolicy", "run.services.setIamPolicy (service-level, to bind the watchdog)",
+    "iam.serviceAccounts.getIamPolicy", "iam.serviceAccounts.setIamPolicy",
+    "storage.buckets.create", "storage.buckets.getIamPolicy", "storage.buckets.setIamPolicy",
+    "workflows.workflows.create", "workflows.workflows.get", "logging.logMetrics.create", "monitoring.alertPolicies.create"
+  ],
+  "phases": [
+    { "id": "G0", "name": "Control Plane + Codex review of this PR", "cloud": "none" },
+    { "id": "G1", "name": "Provision (human setup operator, exact names above)", "cloud": "API enablement, SA, bucket, roles, bindings, workflow creation, read-only baseline capture; no execution, no serving change", "stop": ["name collision", "more than one Hosting site", "any binding not listed", "workflow creation/compile error => fix in repo and re-review, never edit live"] },
+    { "id": "G2", "name": "Empirical read-only / validateOnly checks", "cloud": "no mutation", "checks": [
+      "Policy Troubleshooter / testIamPermissions: effective permissions of the watchdog identity equal the matrix exactly",
+      "validateOnly traffic PATCH as the watchdog: succeeds; record whether it works without iam.serviceAccountUser (drop the binding if so)",
+      "validateOnly image-change PATCH as the watchdog: must fail (confirms or refutes the Artifact Registry compensating control)",
+      "run.operations.get and run.revisions.get reachable with service-level bindings only? else add pr54RunOperationsRead at project level",
+      "Service resource exposes etag and trafficStatuses/reconciling as modelled; record real field shapes and fix the adapter + workflow if they differ",
+      "Admin Activity audit entry for a validateOnly call: does it expose updateMask?",
+      "etag semantics: does a failed/never-sent update leave etag unchanged and an applied update change it? (controls etag_semantics_validated)",
+      "Hosting: sites.list count; releases permission via testIamPermissions"
+    ] },
+    { "id": "G3", "name": "Control-plane drill with ZERO serving mutation", "cloud": "Workflow executes the real loop while UAT already serves the baseline: arm, tick, deadline at T+30, rollback request, every step verifies already-baseline and submits nothing, legacy receipt from the receipt writer, ROLLED_BACK", "observe": ["Mac and Claude/Codex sessions stopped after arming", "duplicate execution with another owner is rejected", "deadline persisted server-side", "alert delivered via the approved channel", "permission-denied and network-failure behaviour via a temporarily denied read (reversible)"], "pass": "all of the above plus unchanged serving fingerprints before/after" },
+    { "id": "G4", "name": "Real recovery drill", "cloud": "forces a candidate state then lets the watchdog restore it", "status": "NOT REQUESTED HERE; needs a separate authorization with synthetic record IDs, a candidate revision and a failure injection plan" }
+  ],
+  "passEvidence": [
+    "workflow execution ID, coordinator object generations, server-origin start/deadlines",
+    "single-operation ledger and per-step verified readback",
+    "Cloud Run service traffic/trafficStatuses/revision fingerprints before and after",
+    "Hosting live version and Rules ruleset pointer before and after",
+    "authenticated legacy receipt: PM Save, Attention, unauthorized rejection, clean mutation ledger, baseline versions",
+    "PDF revision pm-dashboard-uat-pdf-pr60-a560292, 23 weeks, Archive history unchanged",
+    "independent alert delivery",
+    "audit-log review: no mutation other than the expected traffic updates"
+  ],
+  "immediateStop": [
+    "project/source/baseline mismatch or stale fingerprints",
+    "any binding or permission outside the matrix",
+    "validateOnly or readback shape differs from the adapter model",
+    "unknown in-flight operation: fence, no competing action",
+    "attempt to grant admin roles, setIamPolicy on Run, Functions update, or to touch Production/PDF/history",
+    "no working alert route, no named receipt writer"
+  ],
+  "cleanup": [
+    "wait until no operation is in flight and the coordinator is terminal",
+    "verify legacy Save/Attention and the PDF service before revoking anything",
+    "remove only the drill-created bindings, using current IAM etags, never a stale whole-policy replace",
+    "retain immutable evidence and publication audit records; no blanket bucket delete",
+    "leave APIs enabled unless a dependency review approves disabling them"
+  ],
+  "postDrillObligations": [
+    "Cloud Run traffic stays pinned to the baseline revision. Before any future Functions/Run deploy, a reviewed step must restore LATEST routing or the deploy will not serve",
+    "Functions resource metadata (source) may still describe the candidate after a Cloud Run rollback; reconcile deliberately in a separately authorized change"
+  ],
+  "cost": {
+    "currency": "USD",
+    "basis": "ESTIMATE from remembered Workflows list rates (about 0.01 per 1,000 internal steps, 0.025 per 1,000 external steps, with a small monthly free tier). Not re-verified: the pricing page could not be read in this session.",
+    "perFullHourRun": { "ticks": 360, "externalCallsPerTickApprox": 4, "internalStepsPerTickApprox": 40, "grossApprox": 0.2 },
+    "monthlyAt10Runs": { "grossApprox": 2.0 },
+    "excludes": ["Cloud Storage operations (negligible)", "logging volume", "alerting", "any G4 test traffic"],
+    "removedFromV2": "Cloud Build default-pool worker time (about 0.9-1.8 per month) no longer applies"
+  },
+  "residualRisks": [
+    "Workflows YAML is uncompiled; semantic differences from the Python reference are possible and are only exercised at G3",
+    "Cloud Run/Hosting/Rules request and response shapes are modelled from documentation, not observed",
+    "A Cloud Run rollback leaves Functions metadata describing the candidate (see postDrillObligations)",
+    "run.services.update, firebasehosting.sites.update and firebaserules.releases.update exceed the minimum action; mitigated by compensating controls, not eliminated",
+    "Receipt truthfulness depends on a human process",
+    "A Google API outage can prevent completion inside 60 minutes; the design records an incident and alerts, it cannot guarantee recovery",
+    "The workflow YAML preflight compares a field subset; full-template fingerprint equality is proven by running the Python adapter pre-arm"
+  ]
+}

@@ -1,0 +1,69 @@
+--- before/runner.py
++++ after/runner.py
+@@ -121,10 +121,10 @@
+             self._event(c, 'PREPARED', source=sha, project=project, adapter=adapter)
+ 
+     def arm(self, now=None):
+-        now = time.time() if now is None else now
+-        with self.db() as c:
+-            c.execute('BEGIN IMMEDIATE')
+-            s = self._get(c, 'state')
++        with self.db() as c:
++            c.execute('BEGIN IMMEDIATE')
++            s = self._get(c, 'state')
++            now = time.time() if now is None else now
+             hb = s['watchdog_heartbeat']
+             if s['mode'] != 'PREPARED' or hb is None or not 0 <= now-hb <= s['heartbeat_seconds']:
+                 raise ValueError('Arming requires prepared run and independent watchdog heartbeat')
+@@ -171,6 +171,10 @@
+         with self.db() as c:
+             c.execute('BEGIN IMMEDIATE')
+             s = self._get(c, 'state')
++            # Sample live time only after serializing state access. A timestamp
++            # captured before another process committed is not clock regression.
++            # Explicit test clocks still retain strict regression detection.
++            now = time.time() if now is None else now
+             if s['mode'] in TERMINAL:
+                 return s
+             if watchdog:
+@@ -346,17 +350,18 @@
+                     c.execute('BEGIN IMMEDIATE')
+                     s = self._get(c, 'state')
+                     p = self._get(c, 'provider')
++                    completed_now = time.time() if now is None else now
+                     if direction == 'forward':
+-                        if s['mode'] != 'ACTIVE' or now >= s['target_deadline'] or not p['authenticated'] or not p['backend_verified'] or p['blackout']:
++                        if s['mode'] != 'ACTIVE' or completed_now >= s['target_deadline'] or not p['authenticated'] or not p['backend_verified'] or p['blackout']:
+                             self._abort(c, s, 'success-criteria-not-met')
+                         else:
+-                            s.update(mode='SUCCEEDED', acceptance=True, completed_at=now)
++                            s.update(mode='SUCCEEDED', acceptance=True, completed_at=completed_now)
+                             self._event(c, 'NORMAL_SERVICE_VERIFIED', evidence='SIMULATED_ONLY')
+                     else:
+                         if p['blackout'] or not p['legacy_save_ok'] or not p['attention_ok']:
+                             raise ValueError('rollback not operational')
+-                        s.update(mode='ROLLED_BACK', completed_at=now)
+-                        self._event(c, 'ROLLBACK_COMPLETED', evidence='SIMULATED_ONLY', within_ceiling=None if s.get('clock_anomaly') else now < s['hard_deadline'])
++                        s.update(mode='ROLLED_BACK', completed_at=completed_now)
++                        self._event(c, 'ROLLBACK_COMPLETED', evidence='SIMULATED_ONLY', within_ceiling=None if s.get('clock_anomaly') else completed_now < s['hard_deadline'])
+                     self._put(c, 'state', s)
+             return 'PROGRESS'
+         except SimulatedCrash:
+@@ -371,16 +376,14 @@
+             lock.close()
+ 
+     def forward_tick(self, now=None):
+-        now = time.time() if now is None else now
+         s = self._guard(now, False)
+         if s['mode'] != 'ACTIVE':
+             return 'STOPPED'
+         return self._tick_operation('forward', now)
+ 
+     def watch_tick(self, now=None):
+-        now = time.time() if now is None else now
+         s = self._guard(now, True)
+-        if s['mode'] == 'RECOVERY_HOLD' and now < s.get('retry_at', 0):
++        if s['mode'] == 'RECOVERY_HOLD' and s['last_now'] < s.get('retry_at', 0):
+             return 'BACKOFF'
+         if s['mode'] in ('ROLLBACK_REQUESTED', 'ROLLING_BACK', 'RECOVERY_HOLD'):
+             return self._tick_operation('rollback', now)
