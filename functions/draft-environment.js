@@ -15,8 +15,10 @@ function projectCapabilities(environment = process.env, configuration) {
   const id = eligibleProject(environment);
   const inactive = { draftsEnabled:false, archiveRecoveryEnabled:false, legacyWritesRestricted:false };
   if (!id) return inactive;
-  // Preserve UAT/emulator behavior. Production always requires explicit activation.
-  if (configuration === undefined && id !== PRODUCTION_PROJECT) {
+  // UAT's existing backend policy is always enabled; Production activation documents must not
+  // accidentally disable its Draft/Archive flow or reopen its legacy content-write path.
+  // The emulator retains explicit configuration support for Production activation tests.
+  if (id === UAT_PROJECT || (configuration === undefined && id === EMULATOR_PROJECT)) {
     return { draftsEnabled:true, archiveRecoveryEnabled:true, legacyWritesRestricted:true };
   }
   if (!configuration || configuration.schemaVersion !== 1 || configuration.projectId !== id) return inactive;
