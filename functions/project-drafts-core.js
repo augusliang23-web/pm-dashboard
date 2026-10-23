@@ -35,11 +35,16 @@ function validateDraftInput(project, {publishing=false,visibility='active'} = {}
 }
 function resolveAssignment({actor,existing,input,assignmentUsers={}}) {
   if (actor.role !== 'admin') {
-    if (input.assignment) fail('assignment-forbidden','Only Admin has permission to change draft assignment.');
-    return existing ? {assignment:existing.assignment, editorEmails:existing.editorEmails, owner:existing.project.owner,deputy:existing.project.deputy}
+    const active = existing ? {assignment:existing.assignment, editorEmails:existing.editorEmails, owner:existing.project.owner,deputy:existing.project.deputy}
       : {assignment:{ownerEmail:emailKey(actor.email),deputyEmail:''},editorEmails:[emailKey(actor.email)],owner:actor.displayName || actor.email,deputy:''};
+    if (!input.assignment) return {...active,...(existing?.pendingAssignment?{pendingAssignment:existing.pendingAssignment}:{})};
+    if (!can('project.assignment.delegate',{role:actor.role,overrides:actor.permissionOverrides})) fail('assignment-forbidden','Assign Project Manager permission is required.');
+    assertAllowedKeys(input.assignment,['ownerEmail'],'Primary assignment');
+    const ownerEmail=emailKey(input.assignment.ownerEmail),user=assignmentUsers[ownerEmail];
+    if (!ownerEmail || user?.role!=='pm') fail('assignment-forbidden','Assignment must select an existing PM account.');
+    return {...active,...(ownerEmail!==active.assignment.ownerEmail?{pendingAssignment:{ownerEmail}}:{})};
   }
-  if (!input.assignment && existing) return {assignment:existing.assignment,editorEmails:existing.editorEmails,owner:existing.project.owner,deputy:existing.project.deputy};
+  if (!input.assignment && existing) return {assignment:existing.assignment,editorEmails:existing.editorEmails,owner:existing.project.owner,deputy:existing.project.deputy,...(existing.pendingAssignment?{pendingAssignment:existing.pendingAssignment}:{})};
   const source = input.assignment || {ownerEmail:'',deputyEmail:''};
   assertAllowedKeys(source,['ownerEmail','deputyEmail'],'Assignment');
   const assignment={ownerEmail:emailKey(source.ownerEmail),deputyEmail:emailKey(source.deputyEmail)};
@@ -63,10 +68,10 @@ function buildDraftRecord({actor,existing=null,input,assignmentUsers,draftId,now
   for (const key of ['owner','deputy']) if (key in provided && provided[key] !== assignment[key]) fail('assignment-forbidden','Project assignment must match the server-approved account.');
   if (existing?.lastPublication && 'code' in provided && provided.code !== existing.project.code) fail('code-locked','Published project code cannot be changed.');
   const project=validateDraftInput({...mergePreservingUnknown(existing?.project || {name:'',code:'',progress:0,projectLevel:'system',visibility:'active'},provided),owner:assignment.owner,deputy:assignment.deputy},{visibility:allowedVisibility});
-  return {schemaVersion:1,draftId,project,assignment:assignment.assignment,editorEmails:assignment.editorEmails,revision:(existing?.revision||0)+1,...(existing?.source ? {source:existing.source} : {}),createdAt:existing?.createdAt||nowIso,createdBy:existing?.createdBy||actor.email,updatedAt:nowIso,updatedBy:actor.email,publicationTargets:existing?.publicationTargets||{},lastPublication:existing?.lastPublication||null};
+  return {schemaVersion:1,draftId,project,assignment:assignment.assignment,editorEmails:assignment.editorEmails,...(assignment.pendingAssignment?{pendingAssignment:assignment.pendingAssignment}:{}),revision:(existing?.revision||0)+1,...(existing?.source ? {source:existing.source} : {}),createdAt:existing?.createdAt||nowIso,createdBy:existing?.createdBy||actor.email,updatedAt:nowIso,updatedBy:actor.email,publicationTargets:existing?.publicationTargets||{},lastPublication:existing?.lastPublication||null};
 }
 function publicDraft(draft) {
-  const {publicationTargets,...result}=draft;
+  const {publicationTargets,lastAssignmentTransfer,...result}=draft;
   return structuredClone(result);
 }
 module.exports={emailKey,fail,assertDraftAccess,validateDraftInput,buildDraftRecord,publicDraft,PROJECT_KEYS,publicationDigest,reportingWeekOrder};
@@ -125,3 +130,17 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
     audit:{draftId:draft.draftId,weekId:input.weekId,draftRevision:draft.revision,actorEmail:actor.email,actorUid:actor.uid,publishedAt:nowIso}};
 }
 module.exports.planDraftPublication=planDraftPublication;
+
+// Called only after transactional actor, draft and official ownership validation.
+function preparePendingAssignment({actor,draft,assignmentUsers}) {
+  if (!draft.pendingAssignment) return {draft,editorEmails:draft.editorEmails,transferred:false};
+  if (!can('project.assignment.delegate',{role:actor.role,overrides:actor.permissionOverrides})) fail('assignment-forbidden','Assign Project Manager permission was revoked. Ask Admin to clear or reauthorize the staged assignment.');
+  const ownerEmail=emailKey(draft.pendingAssignment.ownerEmail),user=assignmentUsers[ownerEmail];
+  if (!ownerEmail || user?.role!=='pm') fail('assignment-forbidden','The staged Project Manager must still be an existing PM account.');
+  const assignment={...draft.assignment,ownerEmail};
+  const {pendingAssignment,...rest}=draft;
+  // Keep the existing ACL for the publication planner; apply the new ACL only with its successful commit.
+  return {draft:{...rest,assignment,project:{...draft.project,owner:user.displayName?.trim()||ownerEmail}},
+    editorEmails:[...new Set(Object.values(assignment).filter(Boolean))],transferred:ownerEmail!==draft.assignment.ownerEmail};
+}
+module.exports.preparePendingAssignment=preparePendingAssignment;

@@ -70,6 +70,15 @@ const CAPABILITIES = Object.freeze({
     adminLocked: true,
     grantableRoles: PM_ONLY,
   }),
+  // Primary PM reassignment only. Project access remains owner/deputy-based.
+  'project.assignment.delegate': Object.freeze({
+    label: 'Assign Project Manager',
+    description: 'Assign a valid PM to a project you already manage. Changes take effect when published.',
+    roleDefaults: Object.freeze(['admin']),
+    delegable: true,
+    adminLocked: true,
+    grantableRoles: PM_ONLY,
+  }),
   // Reserved: only raw-role Admin may manage user permissions. Never delegable.
   'permissions.manage': Object.freeze({
     label: 'Manage user permissions',

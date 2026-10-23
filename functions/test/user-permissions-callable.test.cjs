@@ -264,12 +264,12 @@ test('a grant to a role that is not grantable is rejected by the registry, not j
     [{ capability: 'week.manage', before: null, after: true }]);
 });
 
-const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
+const DELEGABLE = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore', 'project.assignment.delegate'];
 
 test('every reviewed delegable capability can be granted and reset to an eligible role with an audited, atomic change', async () => {
   for (const capability of DELEGABLE) {
     reset();
-    const pmOnly = capability === 'week.release' || capability === 'project.manage' || capability === 'project.archive.restore';
+    const pmOnly = capability === 'week.release' || capability === 'project.manage' || capability === 'project.archive.restore' || capability === 'project.assignment.delegate';
     const target = pmOnly ? 'bonnie@example.test' : 'eng@example.test';
     // week.release is already ON for a PM, so its grant is exercised through the OFF/ON test below.
     if (capability === 'week.release') continue;

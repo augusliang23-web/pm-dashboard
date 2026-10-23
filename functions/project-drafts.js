@@ -1,3 +1,4 @@
+const { can } = require('./permission-registry');
 const { onCall } = require('firebase-functions/v2/https');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { buildAuthenticatedActor, canRestoreArchivedProject, assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
@@ -28,7 +29,13 @@ async function readDraft(tx,db,actor,draftId){
   const ref=db.collection('projectDrafts').doc(safeId(draftId));const snapshot=await tx.get(ref);
   if(!snapshot.exists)fail('draft-forbidden','Draft is unavailable.');
   const draft=snapshot.data();assertDraftAccess(actor,draft,'read');
-  if(draft.source && actor.role!=='admin'){const week=await tx.get(db.collection('weeks').doc(safeId(draft.source.weekId,'Week')));assertSourceOwnership(actor,sourceProject(week.exists?week.data():null,draft.source));}
+  if(actor.role!=='admin' && (draft.source || draft.lastPublication?.draftRevision>0)) {
+    const binding=draft.lastPublication?.draftRevision>0 ? {weekId:draft.lastPublication.weekId,projectCode:draft.project.code} : draft.source;
+    const week=await tx.get(db.collection('weeks').doc(safeId(binding.weekId,'Week')));
+    const official=sourceProject(week.exists?week.data():null,binding);
+    if(draft.source)assertSourceOwnership(actor,official);
+    else if(!require('./project-dashboard-writes').ownerOrDeputyMatches(official,actor))fail('ownership-forbidden','You no longer have permission to edit this official project.');
+  }
   return {ref,draft};
 }
 function validateSource(source) {
@@ -83,8 +90,8 @@ async function mutationDraft(tx,db,actor,data) {
 async function assignmentDirectory(tx,db,actor,data) {
   const assignmentUsers={};
   if(data.assignment){
-    if(actor.role!=='admin')fail('assignment-forbidden','Only Admin has permission to change assignment.');
-    assertAllowedKeys(data.assignment,['ownerEmail','deputyEmail'],'Assignment');
+    if(actor.role!=='admin' && !can('project.assignment.delegate',{role:actor.role,overrides:actor.permissionOverrides}))fail('assignment-forbidden','Assign Project Manager permission is required.');
+    assertAllowedKeys(data.assignment,actor.role==='admin'?['ownerEmail','deputyEmail']:['ownerEmail'],'Assignment');
     for(const value of Object.values(data.assignment)){
       const email=emailKey(value);if(!email)continue;
       if(!email.includes('@')||email.includes('/')||email.length>320)fail('invalid-payload','Assignment email is invalid.','invalid-argument');
@@ -145,9 +152,21 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
   const weekId=safeId(data.weekId,'Week');
   if(withForm) safeId(data.draftId); // Stable identity makes first-publication retries safe.
   if(data.expectedPublishedRevision!==null && typeof data.expectedPublishedRevision!=='string')fail('invalid-payload','Official revision is required.','invalid-argument');
-  const requestDigest=withForm?publicationDigest(JSON.stringify({actorUid:request.auth?.uid || '',data})):null;
+  const requestDigest=publicationDigest(JSON.stringify({actorUid:request.auth?.uid || '',data}));
   return db.runTransaction(async tx=>{
     const actor=await readActor(tx,db,request);
+    // An exact retry after access was transferred returns only a success receipt, never private draft data.
+    if(data.draftId){
+      const receipt=await tx.get(db.collection('projectDrafts').doc(safeId(data.draftId)));
+      const committed=receipt.exists?receipt.data():null;
+      if(committed?.lastAssignmentTransfer?.requestDigest===requestDigest && committed.lastAssignmentTransfer.actorUid===actor.uid
+        && committed.lastAssignmentTransfer.revision===committed.revision && actor.role!=='admin' && !committed.editorEmails.includes(actor.email)){
+        const official=await tx.get(db.collection('weeks').doc(weekId));
+        const live=official.exists?official.data().projects?.find(p=>p.publication?.draftId===committed.draftId):null;
+        if(live && live.publication.draftRevision===committed.revision && publicationDigest(require('./project-dashboard-writes').projectRevisionFingerprint(live))===committed.lastPublication?.projectRevision)
+          return {transferred:true,alreadyPublished:true,weekId,ownerEmail:committed.assignment.ownerEmail,ownerName:live.owner};
+      }
+    }
     const found=withForm?await mutationDraft(tx,db,actor,data):await readDraft(tx,db,actor,data.draftId);
     const weekRef=db.collection('weeks').doc(weekId),snapshot=await tx.get(weekRef),week=snapshot.exists?snapshot.data():null;
     const weeksSnapshot=await tx.get(db.collection('weeks'));
@@ -167,16 +186,22 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
       const {weekId:ignoredWeek,expectedPublishedRevision:ignoredRevision,...saveInput}=data;
       draft=buildDraftRecord({actor,existing:draft,input:saveInput,assignmentUsers,draftId:found.ref.id,nowIso});
     }
+    const pendingUsers=draft.pendingAssignment?await assignmentDirectory(tx,db,actor,{assignment:{ownerEmail:draft.pendingAssignment.ownerEmail}}):{};
+    const prepared=require('./project-drafts-core').preparePendingAssignment({actor,draft,assignmentUsers:pendingUsers});
+    draft=prepared.draft;
     const result=planDraftPublication({actor,draft,week,input:{...data,expectedRevision:withForm?draft.revision:data.expectedRevision},nowIso});
     if(!result.alreadyPublished && (!latest || latest.__documentId!==weekId))fail('historical-week','Publish only to the latest reporting week.','failed-precondition');
     if(!result.alreadyPublished){
       tx.update(weekRef,result.weekPatch);
+      draft={...draft,editorEmails:prepared.editorEmails};
+      if(prepared.transferred)draft.lastAssignmentTransfer={actorUid:actor.uid,requestDigest,revision:draft.revision};
       if(withForm){
         draft={...draft,...result.draftPatch,lastSaveAndPublish:{requestDigest,actorUid:actor.uid,draftRevision:draft.revision}};
         tx.set(found.ref,draft);
-      }else tx.update(found.ref,result.draftPatch);
-      tx.create(db.collection('projectDraftPublicationAudit').doc(),result.audit);
+      }else tx.set(found.ref,{...draft,...result.draftPatch});
+      tx.create(db.collection('projectDraftPublicationAudit').doc(),{...result.audit,...(prepared.transferred?{assignmentChange:{before:found.draft?.assignment.ownerEmail || actor.email,after:draft.assignment.ownerEmail}}:{})});
     }
+    if(prepared.transferred && actor.role!=='admin' && !prepared.editorEmails.includes(actor.email))return {transferred:true,alreadyPublished:result.alreadyPublished,weekId,ownerEmail:draft.assignment.ownerEmail,ownerName:result.project.owner};
     return {weekId,project:result.project,projectRevision:result.projectRevision,draftRevision:draft.revision,publishedAt:result.publishedAt,alreadyPublished:result.alreadyPublished,...(withForm?{draft:publicDraft(draft)}:{})};
   });
 });

@@ -152,7 +152,7 @@ const rowOf = (dom, capability) => dom.element('userPermissionsRows').children.f
 const switchOf = (dom, capability) => rowOf(dom, capability).all().find(node => node.type === 'checkbox');
 const stateOf = (dom, capability) => rowOf(dom, capability).all().find(node => node.classList?.contains('permission-state')).textContent;
 const flip = (dom, capability, checked) => { const input = switchOf(dom, capability); input.checked = checked; input.fire('change'); };
-const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
+const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore', 'project.assignment.delegate'];
 
 async function openAndSelect(context, email) {
   await context.window.openUserPermissions();
@@ -230,7 +230,7 @@ for (const profile of Object.keys(PROFILES)) {
     assert.doesNotMatch(options.join(' '), /never shown/);
   });
 
-  test(`${profile}: each user shows five plain ON/OFF switches, with the PM release default ON`, async () => {
+  test(`${profile}: each user shows six plain ON/OFF switches, with the PM release default ON`, async () => {
     const { context, dom } = makeContext(profile, { permissions: { 'bonnie@example.test': { overrides: { 'week.manage': true }, revision: 4 } } });
     await openAndSelect(context, 'bonnie@example.test');
     assert.equal(dom.element('userPermissionsDetail').hidden, false);
