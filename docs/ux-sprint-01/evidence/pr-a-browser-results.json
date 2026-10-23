@@ -1,0 +1,90 @@
+{
+  "results": [
+    {
+      "role": "admin",
+      "name": "cancel pending opening cannot reopen or show stale private content",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "revision conflict keeps input, actionable error and retry controls",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "network failure preserves values and a retry publishes once",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "publish validation failure keeps editor and real error",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "duplicate click blocked; slow list refresh does not delay successful close",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "week changes while publish pending do not close a different editor",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "Save Draft persists through logout/login and does not publish",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "Overview, Delivery Trends and PDF selection entry survive",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "cancel pending opening cannot reopen or show stale private content",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "revision conflict keeps input, actionable error and retry controls",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "network failure preserves values and a retry publishes once",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "publish validation failure keeps editor and real error",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "duplicate click blocked; slow list refresh does not delay successful close",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "permission denied does not discard submitted form or claim success",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "week changes while publish pending do not close a different editor",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "Save Draft persists through logout/login and does not publish",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "Overview, Delivery Trends and PDF selection entry survive",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": []
+}

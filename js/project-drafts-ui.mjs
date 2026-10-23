@@ -27,7 +27,7 @@ export function buildDraftSaveInput({draft,project,assignment,weekId,week}) {
     ...(draft.source?{source:draft.source}:{}),...(assignment?{assignment}:{}),
     ...(weekId?buildDraftPublicationInput(draft,weekId,week):{})};
 }
-export function mountProjectDraftsUi({root,controller,onEdit}) {
+export function mountProjectDraftsUi({root,controller,onEdit,onOpen}) {
   const doc=root.ownerDocument;
   const node=(tag,text)=>{const n=doc.createElement(tag);if(text)n.textContent=text;return n;};
   const run=operation=>Promise.resolve().then(operation).catch(()=>{});
@@ -41,7 +41,7 @@ export function mountProjectDraftsUi({root,controller,onEdit}) {
       const label={ 'Never published':'Never published',Published:'Published','Unpublished changes':'Unpublished changes'}[draftPublicationState(draft)];
       row.append(node('h4',`${draft.project.name||'Untitled project'} · ${draft.project.code||'No code yet'}`),node('p',label),node('p',`Draft progress: ${draft.project.progress ?? 0}%`));
       if(draft.lastPublication?.publishedAt)row.append(node('p',`Last published: ${draft.lastPublication.weekId} · ${draft.lastPublication.publishedAt}`));
-      const edit=node('button','Edit Project');edit.className='btn btn-primary';edit.disabled=state.busy;edit.onclick=()=>run(async()=>{const result=await controller.open(draft.draftId);if(result)await onEdit(result.draft);});row.append(edit);
+      const edit=node('button','Edit Project');edit.className='btn btn-primary';edit.disabled=state.busy;edit.onclick=()=>run(async()=>{if(onOpen)return onOpen(draft.draftId);const result=await controller.open(draft.draftId);if(result)await onEdit(result.draft);});row.append(edit);
       root.append(row);
     }
     if(state.nextCursor){const more=node('button','Load more');more.className='btn btn-ghost';more.disabled=state.busy;more.onclick=()=>run(()=>controller.refresh({cursor:state.nextCursor}));root.append(more);}

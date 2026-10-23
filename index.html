@@ -203,6 +203,10 @@ button[aria-busy="true"] { cursor:wait; }
 #projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 #projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
 #projEditOverlay #projectDraftManage { justify-self:start; }
+#projectEditorLoading { display:none; padding:24px 0; color:var(--text-light); }
+#projEditOverlay.editor-loading #projectEditorLoading { display:block; }
+#projEditOverlay.editor-loading .modal > :not(.modal-hdr):not(#projectEditorLoading) { display:none !important; }
+#projEditOverlay.editor-loading .modal-hdr button:not(#pe_btn_close) { display:none !important; }
 </style>
 <style id="uatButtonSystem" media="not all">
 /* v2.2T button system: text actions use .btn plus one semantic variant. */
@@ -2635,7 +2639,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
   </div>
   
+  <div id="projectEditorLoading" role="status" aria-live="polite">Loading project…</div>
   <div class="resource-validation error" id="projectMutationError" role="alert" aria-live="assertive"></div>
+  <fieldset id="projectEditorFields" style="border:0;padding:0;margin:0;min-width:0">
   <div style="display:flex; gap:16px;">
     <div class="fg"><label class="fl">RAG Status</label><select class="fs" id="pe_status"><option value="green">🟢 On Track</option><option value="yellow">🟡 At Risk</option><option value="red">🔴 Critical</option></select></div>
     <div class="fg"><label class="fl">Overall Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100" placeholder="0–100" title="Overall project completion from 0% to 100%"></div>
@@ -2851,6 +2857,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       </div>
     </div>
   </details>
+  </fieldset>
 
 </div>
 </div>
@@ -3295,6 +3302,7 @@ let executiveLiveTimelineUnsub = null;
 let executiveTimelineViewMode = 'period';
 let authSessionGeneration = 0;
 const displayNameDirectory = createDisplayNameDirectory();
+let projectDraftDirectory = { authGeneration:-1, options:[] };
 let isAdminVipPreview = false;
 let currentPMFilter = 'all';
 const PORTFOLIO_SCOPE_KEY = 'team2.portfolioScope';
@@ -5424,6 +5432,7 @@ function setDashboardAccessPending() {
 function quiesceDashboardForAuthTransition__prod() {
   stopPresenceSystem();
   displayNameDirectory.clear();
+  projectDraftDirectory = { authGeneration:-1, options:[] };
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -5443,6 +5452,7 @@ function quiesceDashboardForAuthTransition__uat() {
   stopPresenceSystem();
   stopProjectManagerSubscription();
   displayNameDirectory.clear();
+  projectDraftDirectory = { authGeneration:-1, options:[] };
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -5563,6 +5573,7 @@ window.saveNewPassword = async () => {
 const handleLogout__prod = async () => {
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
+  projectDraftDirectory = { authGeneration:-1, options:[] };
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   invalidateGanttWindowSession();
@@ -5588,6 +5599,7 @@ const handleLogout__prod = async () => {
 const handleLogout__uat = async () => {
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
+  projectDraftDirectory = { authGeneration:-1, options:[] };
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
   invalidateGanttWindowSession();
@@ -5718,6 +5730,7 @@ onAuthStateChanged(auth, async user => {
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
       const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
+      projectDraftDirectory = { authGeneration, options: nextDirectory.accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
       applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data());
       PM_LIST = [...new Set(nextDirectory.accounts
         .filter(account => normalizeRole(account.role) !== 'vip')
@@ -5810,6 +5823,7 @@ function startProjectManagerSubscription(isCurrentSession) {
     projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
       if (!isCurrentSession()) return;
       const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
+      projectDraftDirectory = { authGeneration:authSessionGeneration, options:accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
       displayNameDirectory.replace(accounts);
       PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);
       syncProjectManagerFilterOptions();
@@ -5821,6 +5835,7 @@ function startProjectManagerSubscription(isCurrentSession) {
     }, error => {
       if (!isCurrentSession()) return;
       displayNameDirectory.clear();
+  projectDraftDirectory = { authGeneration:-1, options:[] };
       PM_LIST = [];
       syncProjectManagerFilterOptions();
       if (allWeeks.length) render();
@@ -11983,6 +11998,10 @@ const closeModal__prod = (id, { force = false } = {}) => {
     return false;
   }
   if (id === 'projEditOverlay') {
+    ++draftEditorOpenGeneration;
+    draftEditorRecord = undefined;
+    modal.classList.remove('editor-loading');
+    modal.removeAttribute('aria-busy');
     projectEditorSession = null;
     editingProjCode = null;
     isCreatingNew = false;
@@ -12021,6 +12040,10 @@ const closeModal__uat = (id, { force = false } = {}) => {
   if (id === 'executiveRagOverrideOverlay') executiveRagOverrideSession = null;
   if (id === 'executiveTimelineSettingsOverlay') executiveTimelineSettingsSession = null;
   if (id === 'projEditOverlay') {
+    ++draftEditorOpenGeneration;
+    draftEditorRecord = undefined;
+    modal.classList.remove('editor-loading');
+    modal.removeAttribute('aria-busy');
     projectEditorSession = null;
     editingProjCode = null;
     isCreatingNew = false;
@@ -12738,6 +12761,11 @@ function assertProjectEditorSessionCurrent(session) {
 }
 
 function invalidateProjectEditorSession() {
+  ++draftEditorOpenGeneration;
+  draftEditorRecord = undefined;
+  document.getElementById('projectEditorFields').disabled = false;
+  document.getElementById('projEditOverlay')?.classList.remove('editor-loading');
+  document.getElementById('projEditOverlay')?.removeAttribute('aria-busy');
   projectEditorSession = null;
   projectMutationInFlight = false;
   projectMutationInFlightToken = null;
@@ -14131,12 +14159,13 @@ let draftWorkspaceUi;
 let latestDraftState = { drafts: [], nextCursor: null };
 let draftsLoadedKey = '';
 let draftRenderQueued = false;
-const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
+const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/unauthenticated','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
 {
   draftWorkspaceUi = mountProjectDraftsUi({
     root: document.getElementById('myDraftsContent'), controller: draftController,
     getWeeks: () => allWeeks,
     onEdit: draft => beginDraftEditor(draft),
+    onOpen: draftId => window.openManagedProjectDraft(draftId),
     onPublished: async () => { render(); }
   });
   onAuthStateChanged(auth, () => {
@@ -14212,48 +14241,83 @@ window.openNewProjectDraft = async () => {
   const project = normalizeProject({ name:'', code:'', owner:currentRole === 'pm' ? getUserDisplayName(getEmailKey(currentUser)) : '', deputy:'', visibility:'active', progress:0 });
   await beginDraftEditor({ draftId:crypto.randomUUID(), revision:0, project, lastPublication:null, assignment:{ownerEmail:currentRole === 'pm' ? getEmailKey(currentUser) : '',deputyEmail:''} });
 };
+function startDraftEditorOpening() {
+  if (!projectWriteCapabilities.draftsEnabled || !currentUser || !['admin','pm'].includes(currentRole) || projectMutationInFlight) return null;
+  const overlay = document.getElementById('projEditOverlay');
+  if (overlay.classList.contains('open') && !overlay.classList.contains('editor-loading')) return null;
+  closeModal('myDraftsOverlay', { force:true });
+  invalidateProjectEditorSession();
+  const opening = { generation:++draftEditorOpenGeneration, authGeneration:authSessionGeneration, uid:currentUser.uid, email:getEmailKey(currentUser), role:currentRole,
+    weekId:allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel || '' };
+  for (const phase of ['click','shell','data','hydrate-start','ready']) performance.clearMarks(`pm-editor:${phase}`);
+  for (const phase of ['feedback','backend','hydrate','editable']) performance.clearMeasures(`pm-editor:${phase}`);
+  performance.mark('pm-editor:click');
+  overlay.classList.add('editor-loading'); overlay.setAttribute('aria-busy','true');
+  document.getElementById('peTitle').textContent = 'Edit Project';
+  document.getElementById('projectEditorLoading').textContent = 'Loading project…';
+  openAccessibleModal(overlay);
+  requestAnimationFrame(() => {
+    if (!isDraftEditorOpeningCurrent(opening)) return;
+    performance.mark('pm-editor:shell'); performance.measure('pm-editor:feedback','pm-editor:click','pm-editor:shell');
+    document.getElementById('pe_btn_close').focus();
+  });
+  return opening;
+}
+function isDraftEditorOpeningCurrent(opening) {
+  return Boolean(opening && opening.generation === draftEditorOpenGeneration && opening.authGeneration === authSessionGeneration
+    && opening.role === currentRole && opening.uid === currentUser?.uid && opening.email === getEmailKey(currentUser)
+    && opening.weekId === (allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel || '')
+    && document.getElementById('projEditOverlay').classList.contains('open'));
+}
+function failDraftEditorOpening(opening, error) {
+  if (!isDraftEditorOpeningCurrent(opening)) return;
+  const overlay = document.getElementById('projEditOverlay'); overlay.setAttribute('aria-busy','false');
+  document.getElementById('projectEditorLoading').textContent = error?.message || 'Unable to open the project. Close and try again.';
+}
 window.openManagedProjectDraft = async (draftId, targetWeekId) => {
   if (!projectWriteCapabilities.draftsEnabled) return;
   syncDraftWorkspace();
-  const openingGeneration = ++draftEditorOpenGeneration;
-  try { const result = await draftController.open(draftId); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, targetWeekId, openingGeneration); }
-  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+  const opening = startDraftEditorOpening(); if (!opening) return;
+  try { const result = await draftController.open(draftId); if (result && isDraftEditorOpeningCurrent(opening)) await beginDraftEditor(result.draft, targetWeekId, opening); }
+  catch (error) { failDraftEditorOpening(opening, error); }
 };
 window.openExistingProjectDraft = async (projectCode, weekId) => {
   if (!projectWriteCapabilities.draftsEnabled) return;
   syncDraftWorkspace();
-  const openingGeneration = ++draftEditorOpenGeneration;
-  try { const result = await draftController.openSource({weekId,projectCode}); if (result && openingGeneration === draftEditorOpenGeneration) await beginDraftEditor(result.draft, weekId, openingGeneration); }
-  catch (error) { showSaveToast(error.message || 'Unable to open the project draft.'); }
+  const opening = startDraftEditorOpening(); if (!opening) return;
+  try { const result = await draftController.openSource({weekId,projectCode}); if (result && isDraftEditorOpeningCurrent(opening)) await beginDraftEditor(result.draft, weekId, opening); }
+  catch (error) { failDraftEditorOpening(opening, error); }
 };
-async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) {
-  const uid = currentUser?.uid, email = getEmailKey(currentUser);
-  const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = expectedOpeningGeneration ?? ++draftEditorOpenGeneration;
-  if (!currentUser || !['admin','pm'].includes(role)) return;
-  let options = [];
-  if (currentRole === 'admin') {
-    const users = await getDocs(collection(db, 'users'));
-    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
-  }
-  if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
-  closeModal('myDraftsOverlay', { force:true });
+async function beginDraftEditor(draft, targetWeekId, expectedOpening) {
+  const opening = expectedOpening || startDraftEditorOpening();
+  if (!isDraftEditorOpeningCurrent(opening)) return;
+  performance.mark('pm-editor:data'); performance.measure('pm-editor:backend','pm-editor:click','pm-editor:data');
+  const options = projectDraftDirectory.authGeneration === authSessionGeneration ? projectDraftDirectory.options : [];
   draftEditorRecord = draft; draftEditorSaveIntent = 'draft';
   draftEditorTargetWeekId = targetWeekId || draft.source?.weekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  const overlay = document.getElementById('projEditOverlay');
+  performance.mark('pm-editor:hydrate-start');
+  overlay.classList.remove('editor-loading'); overlay.setAttribute('aria-busy','false');
   draftOpening = true;
   try { window.openProjEdit(draft.project.code, false); } finally { draftOpening = false; }
   if (currentRole === 'pm') {
-    const ownerSelect = document.getElementById('pe_owner'), ownName = getUserDisplayName(email);
+    const ownerSelect = document.getElementById('pe_owner'), ownName = getUserDisplayName(opening.email);
     if (ownerSelect && ownName) { if (![...ownerSelect.options].some(option => option.value === ownName)) ownerSelect.add(new Option(ownName, ownName)); if (!draft.source && !draft.lastPublication) ownerSelect.value = ownName; }
   }
   if (currentRole === 'admin') {
     for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
       const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
       options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
-      select.value = draft.assignment[key] || '';
+      const assigned = draft.assignment[key] || '';
+      if (assigned && !options.some(user => user.email === assigned)) select.add(new Option(assigned,assigned));
+      select.value = assigned;
     }
   }
-  captureEditorBaseline(document.getElementById('projEditOverlay'));
+  captureEditorBaseline(overlay);
+  performance.mark('pm-editor:ready'); performance.measure('pm-editor:hydrate','pm-editor:hydrate-start','pm-editor:ready');
+  performance.measure('pm-editor:editable','pm-editor:click','pm-editor:ready');
 }
+
 function configureDraftEditor(draftMode) {
   const save = document.getElementById('pe_btn_save');
   const overlay = document.getElementById('projEditOverlay');
@@ -14325,16 +14389,33 @@ async function saveEditorProjectDraft(project, session) {
   }
   const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
   const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
-  clearProjectMutationError(); projectMutationInFlight = true; setProjectMutationControlsDisabled(true);
+  clearProjectMutationError(); projectMutationInFlight = true; projectMutationInFlightToken = session.token; setProjectMutationControlsDisabled(true);
+  const publishButton = document.getElementById('pe_btn_publish');
+  const fields = document.getElementById('projectEditorFields');
+  if (publishing) fields.disabled = true;
+  if (publishing) publishButton.textContent = 'Publishing…';
   try {
     const result = publishing ? await draftController.publish(input) : await draftController.save(input);
     if (!result || !isProjectEditorSessionCurrent(session)) return;
     draftEditorRecord = result.draft;
     projectEditorSession = Object.freeze({...session,originalProject:result.draft.project});
     document.getElementById('projEditOverlay').dataset.editorBaseline = submittedBaseline;
+    if (publishing) {
+      // The callable returned after its transaction committed. List/snapshot refresh runs independently.
+      projectMutationInFlight = false;
+      closeModal('projEditOverlay', { force:true });
+    }
     showSaveToast(publishing?'Saved and published. Overview and PDF use this official content.':'Draft saved. Overview and PDF are unchanged.');
   } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,publishing?'Save & Publish failed. Your input remains in the editor.':'Draft was not saved. Your input remains in the editor.'); }
-  finally { if (projectEditorSession?.token === session.token && currentUser?.uid === session.authUid) { projectMutationInFlight = false; setProjectMutationControlsDisabled(false); configureDraftEditor(true); } }
+  finally {
+    if (projectMutationInFlightToken === session.token && currentUser?.uid === session.authUid) {
+      projectMutationInFlight = false; projectMutationInFlightToken = null;
+      fields.disabled = false;
+      publishButton.textContent = 'Save & Publish';
+      setProjectMutationControlsDisabled(false);
+      if (projectEditorSession?.token === session.token) configureDraftEditor(true);
+    }
+  }
 }
 function openPublishedProjectActions(projectCode, weekId) {
   if (!projectWriteCapabilities.draftsEnabled || !currentUser || (currentRole !== 'admin' && !canCurrentUser('project.manage'))) return;
