@@ -1,15 +1,20 @@
+// Assignment validation is recoverable; authentication/access loss must still clear private state.
+export function isProjectDraftAccessLoss({code,details}={}) {
+  return ['unauthenticated','functions/unauthenticated'].includes(code)
+    || (['permission-denied','functions/permission-denied'].includes(code) && details?.reason !== 'assignment-forbidden');
+}
 // This state never contains or mutates official reporting weeks.
 export function createProjectDraftsController({api,onState=()=>{}}) {
   let identity=null,generation=0,sequence=0;
-  let state={drafts:[],nextCursor:null,selected:null,busy:false,error:'',errorCode:'',message:''};
+  let state={drafts:[],nextCursor:null,selected:null,busy:false,error:'',errorCode:'',errorReason:'',message:''};
   const emit=()=>onState(structuredClone(state));
-  function reset(){generation++;sequence++;identity=null;state={drafts:[],nextCursor:null,selected:null,busy:false,error:'',errorCode:'',message:''};emit();}
+  function reset(){generation++;sequence++;identity=null;state={drafts:[],nextCursor:null,selected:null,busy:false,error:'',errorCode:'',errorReason:'',message:''};emit();}
   function setIdentity(value){if(JSON.stringify(value)!==JSON.stringify(identity)){reset();identity=value;}}
   async function execute(operation,update){
     if(!identity)throw Error('Sign in before using drafts.');
-    const g=generation,s=++sequence;state={...state,busy:true,error:'',errorCode:'',message:''};emit();
+    const g=generation,s=++sequence;state={...state,busy:true,error:'',errorCode:'',errorReason:'',message:''};emit();
     try{const result=await operation();if(g!==generation||s!==sequence)return null;update(result);return result;}
-    catch(error){if(g===generation&&s===sequence){state={...state,error:error.message||'Draft request failed.',errorCode:error.code||''};if(['permission-denied','unauthenticated','functions/permission-denied','functions/unauthenticated'].includes(error.code))state={...state,selected:null,drafts:[],nextCursor:null};}throw error;}
+    catch(error){if(g===generation&&s===sequence){state={...state,error:error.message||'Draft request failed.',errorCode:error.code||'',errorReason:error.details?.reason||''};if(isProjectDraftAccessLoss(error))state={...state,selected:null,drafts:[],nextCursor:null};}throw error;}
     finally{if(g===generation&&s===sequence){state={...state,busy:false};emit();}}
   }
   return {reset,setIdentity,

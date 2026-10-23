@@ -1,0 +1,1069 @@
+{
+  "results": [
+    {
+      "name": "Baseline old PM and missing capability document",
+      "status": "PASS"
+    },
+    {
+      "name": "R1 old Hosting remains forbidden: absent Admin option; persisted data unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "R2 new existing Admin owner progress saves by two Admins",
+      "status": "PASS"
+    },
+    {
+      "name": "R3 new old Publish preserves official Admin owner and content",
+      "status": "PASS"
+    },
+    {
+      "name": "R5 new old backend PM browser save and publish",
+      "status": "PASS"
+    },
+    {
+      "name": "R6 new save assignment rejection retains all inputs, inline error and retry",
+      "status": "PASS"
+    },
+    {
+      "name": "R6 new publish assignment rejection retains all inputs, inline error and retry",
+      "status": "PASS"
+    },
+    {
+      "name": "Security new unauthenticated real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "Security new role-forbidden real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "Security new draft-forbidden real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "R2 prod existing Admin owner progress saves by two Admins",
+      "status": "PASS"
+    },
+    {
+      "name": "R3 prod old Publish preserves official Admin owner and content",
+      "status": "PASS"
+    },
+    {
+      "name": "R5 prod old backend PM browser save and publish",
+      "status": "PASS"
+    },
+    {
+      "name": "R6 prod save assignment rejection retains all inputs, inline error and retry",
+      "status": "PASS"
+    },
+    {
+      "name": "R6 prod publish assignment rejection retains all inputs, inline error and retry",
+      "status": "PASS"
+    },
+    {
+      "name": "Security prod unauthenticated real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "Security prod role-forbidden real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "Security prod draft-forbidden real backend rejection clears protected editor",
+      "status": "PASS"
+    },
+    {
+      "name": "R4 old backend API denies new assignment without writes and permits PM",
+      "status": "PASS"
+    },
+    {
+      "name": "R7 original self owner and published content remain intact",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "trace": [
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "new",
+      "name": "saveDashboardProjectDraft",
+      "target": "newSave"
+    },
+    {
+      "mode": "new",
+      "name": "publishDashboardProjectDraft",
+      "target": "newPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "assignment-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "assignment-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "UNAUTHENTICATED",
+      "errorReason": "unauthenticated"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "role-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "draft-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "assignment-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "assignment-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "UNAUTHENTICATED",
+      "errorReason": "unauthenticated"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "role-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "draft-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave",
+      "errorCode": "PERMISSION_DENIED",
+      "errorReason": "assignment-forbidden"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "publishDashboardProjectDraft",
+      "target": "oldPublish"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    }
+  ],
+  "missingCapabilityDocument": true,
+  "selfOwnerProof": {
+    "drafts": [
+      {
+        "id": "0lyO35eIxsBXwdX7lE5d",
+        "schemaVersion": 1,
+        "draftId": "0lyO35eIxsBXwdX7lE5d",
+        "project": {
+          "name": "T3-SELF",
+          "code": "T3-SELF",
+          "progress": 83,
+          "projectLevel": "system",
+          "visibility": "active",
+          "owner": "Mixed admin",
+          "deputy": "",
+          "lifecycle": "active",
+          "ganttWorkstreams": [],
+          "pdfSummaryLanes": [],
+          "resources": {},
+          "customer": "",
+          "location": "",
+          "milestones": [],
+          "quarterlyMilestones": [],
+          "status": "green",
+          "attention": "watch",
+          "attentionManual": true,
+          "highlight": "",
+          "weeklyActions": "",
+          "riskActions": [],
+          "risk": "",
+          "next": "",
+          "teamMembers": [],
+          "budget": {
+            "mode": "manual",
+            "currency": "USD",
+            "totalEstimated": 0,
+            "monthlyPlans": [],
+            "actuals": []
+          },
+          "dataStatus": {
+            "team": {
+              "state": "unconfirmed",
+              "confirmedAt": null,
+              "confirmedBy": null,
+              "noAllocationRequired": false
+            },
+            "budgetPlan": {
+              "state": "unconfirmed",
+              "confirmedAt": null,
+              "confirmedBy": null,
+              "overBudgetAcknowledged": false
+            },
+            "budgetActual": {
+              "state": "not-available",
+              "confirmedAt": null,
+              "confirmedBy": null
+            }
+          }
+        },
+        "assignment": {
+          "ownerEmail": "mixed.admin@example.test",
+          "deputyEmail": ""
+        },
+        "editorEmails": [
+          "mixed.admin@example.test"
+        ],
+        "revision": 7,
+        "createdAt": "2026-10-23T15:04:37.249Z",
+        "createdBy": "mixed.admin@example.test",
+        "updatedAt": "2026-10-23T15:04:55.738Z",
+        "updatedBy": "mixed.admin@example.test",
+        "publicationTargets": {
+          "W43": {
+            "draftRevision": 7,
+            "projectRevision": "442df4f10e5762a4576c2e994d5dfb64985c497d7c726dd1744217824e2c64f5"
+          }
+        },
+        "lastPublication": {
+          "weekId": "W43",
+          "weekOrder": 202643,
+          "draftRevision": 7,
+          "publishedAt": "2026-10-23T15:04:55.738Z",
+          "publishedBy": "mixed.admin@example.test",
+          "projectRevision": "442df4f10e5762a4576c2e994d5dfb64985c497d7c726dd1744217824e2c64f5"
+        },
+        "lastSaveAndPublish": {
+          "requestDigest": "202b9603f49ed4109d14075edca526c0762f07cc68102387e430ab5a49742136",
+          "actorUid": "mixed-admin",
+          "draftRevision": 7
+        }
+      }
+    ],
+    "officialProjects": [
+      {
+        "name": "T3-SELF",
+        "code": "T3-SELF",
+        "progress": 83,
+        "projectLevel": "system",
+        "visibility": "active",
+        "owner": "Mixed admin",
+        "deputy": "",
+        "publication": {
+          "draftId": "0lyO35eIxsBXwdX7lE5d",
+          "draftRevision": 7,
+          "publishedAt": "2026-10-23T15:04:55.738Z",
+          "publishedBy": "mixed.admin@example.test"
+        },
+        "sectionUpdatedAt": {
+          "status": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "highlights": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "weeklyActions": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "riskActions": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "milestones": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "schedule": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "teamAllocation": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "budgetPlan": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "actualSpend": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          },
+          "disciplineHours": {
+            "savedAt": "2026-10-23T15:04:42.809Z",
+            "editorName": "Mixed admin"
+          }
+        },
+        "lifecycle": "active",
+        "ganttWorkstreams": [],
+        "pdfSummaryLanes": [],
+        "resources": {},
+        "customer": "",
+        "location": "",
+        "milestones": [],
+        "quarterlyMilestones": [],
+        "status": "green",
+        "attention": "watch",
+        "attentionManual": true,
+        "highlight": "",
+        "weeklyActions": "",
+        "riskActions": [],
+        "risk": "",
+        "next": "",
+        "teamMembers": [],
+        "budget": {
+          "mode": "manual",
+          "currency": "USD",
+          "totalEstimated": 0,
+          "monthlyPlans": [],
+          "actuals": []
+        },
+        "dataStatus": {
+          "team": {
+            "state": "unconfirmed",
+            "confirmedAt": null,
+            "confirmedBy": null,
+            "noAllocationRequired": false
+          },
+          "budgetPlan": {
+            "state": "unconfirmed",
+            "confirmedAt": null,
+            "confirmedBy": null,
+            "overBudgetAcknowledged": false
+          },
+          "budgetActual": {
+            "state": "not-available",
+            "confirmedAt": null,
+            "confirmedBy": null
+          }
+        }
+      }
+    ]
+  }
+}

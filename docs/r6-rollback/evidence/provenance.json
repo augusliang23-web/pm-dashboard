@@ -1,0 +1,35 @@
+{
+  "candidateSha": "ce01cb0a4dac7d5de7b8b1a472b50ee9ac5a18ab",
+  "artifacts": [
+    {
+      "label": "oldsave",
+      "function": "saveDashboardProjectDraft",
+      "generation": "1792246605343539",
+      "zipSha256": "9086cabb90e7f9466f2298670bdfce12ddb0e804c5078764a472bac3105252d9"
+    },
+    {
+      "label": "oldpublish",
+      "function": "publishDashboardProjectDraft",
+      "generation": "1792246708585409",
+      "zipSha256": "9086cabb90e7f9466f2298670bdfce12ddb0e804c5078764a472bac3105252d9"
+    },
+    {
+      "label": "get",
+      "function": "getDashboardProjectDraft",
+      "generation": "1792472787289328",
+      "zipSha256": "fd9cbadf618fe62a896418615db71b4337d1e6cce257b75a106568046247d9bf"
+    },
+    {
+      "label": "list",
+      "function": "listDashboardProjectDrafts",
+      "generation": "1792246434915775",
+      "zipSha256": "9086cabb90e7f9466f2298670bdfce12ddb0e804c5078764a472bac3105252d9"
+    },
+    {
+      "label": "legacy",
+      "function": "saveDashboardProject",
+      "generation": "1792472904180830",
+      "zipSha256": "f04014e67f1ee97448ff4fd33bc79827b189096df4aa0a720ceac91f60a6e187"
+    }
+  ]
+}

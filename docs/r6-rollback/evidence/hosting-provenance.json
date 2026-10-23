@@ -1,0 +1,162 @@
+{
+  "oldRelease": "1792473025892000",
+  "oldVersion": "638b61132880b294",
+  "files": [
+    {
+      "file": "env-config.js",
+      "sha256": "594b1feeee06ee882c73e4efcc679551411c0f3db42e7982ff340a677198f599"
+    },
+    {
+      "file": "executive-timeline-core.js",
+      "sha256": "8f3e09a5ebb0f3ab13578d4d998fc7306aa74a9c7c689d26450b1f296db888fe"
+    },
+    {
+      "file": "index.html",
+      "sha256": "7753c50ab84906d93cef1de86e748e56d315170b5baabebd73aa9d9df4f77cab"
+    },
+    {
+      "file": "js/archive-recovery.mjs",
+      "sha256": "228bb60c3c75d8d92cedc8b3434563e2c92e4f716504037c69ff5110ad226e16"
+    },
+    {
+      "file": "js/auth-session.mjs",
+      "sha256": "fee7dda8f26716b634325f980455e006071f9be63aa66e5568479bfbce2013a2"
+    },
+    {
+      "file": "js/copilot-weekly-update-prompt.mjs",
+      "sha256": "cdc9ee1a243c99bac0203999f6cdf1ddc69bdfb59087bddf3f766aa377c8765b"
+    },
+    {
+      "file": "js/dashboard-access.mjs",
+      "sha256": "28d60c38e38eef8f3684e8e74b23e6c4b4edc2114096b9567561936c1dfde8e9"
+    },
+    {
+      "file": "js/delivery-trends-adapter.mjs",
+      "sha256": "0d524dcbcf3ca8d065cfcf98789e0f31b7585fc016c15da84897af5ee084871c"
+    },
+    {
+      "file": "js/delivery-trends-page.mjs",
+      "sha256": "e19388527aba2ac4200c54921781f7c7b295a430372ec7f8e8939880b7202e6c"
+    },
+    {
+      "file": "js/delivery-trends-view.mjs",
+      "sha256": "4c0212339fdebc2c2fd21c7242c35710efec7cd95e61fd9c0e62be4ac86bcef1"
+    },
+    {
+      "file": "js/display-name-directory.mjs",
+      "sha256": "fce5cedb3ee9533bb67854c8acee112815e95b839fa92f0f5bae2a1847d9f672"
+    },
+    {
+      "file": "js/executive-api.mjs",
+      "sha256": "4d25549fc7d57dfb20c33ab4cb3992fde8694894ee75ad08dfce99a0f4cb6221"
+    },
+    {
+      "file": "js/executive-governance.mjs",
+      "sha256": "fca62796094640e6ec90fa5e7d9645f01d8029a2c400c6ca63f99377c9f38e70"
+    },
+    {
+      "file": "js/executive-outcomes.mjs",
+      "sha256": "e93c16a28278edb240523d4132900385e2915d287e233c9bda62f2e31a102e29"
+    },
+    {
+      "file": "js/executive-pending-lock.mjs",
+      "sha256": "54282f1261f49292f3954701bf4d2fed7bff47d041fae5fff1eee7318af95110"
+    },
+    {
+      "file": "js/executive-timeline-config.mjs",
+      "sha256": "06f315a6b7c9b8977140d8e6a89f841eb3142ce32a097c58e8f724b0710b7383"
+    },
+    {
+      "file": "js/list-editor.mjs",
+      "sha256": "efd2e69587dc35da6958b4292e6b9d8264b36a52836404035d50ce67b38f539a"
+    },
+    {
+      "file": "js/local-emulator-config.mjs",
+      "sha256": "15942da9f36c31c51a22035255ffad089bebc247e07f399b1a88437d8f72b127"
+    },
+    {
+      "file": "js/overview-pdf-selection.mjs",
+      "sha256": "a5c68337298f1b797fb08777961397934e3b46807bd6384aa607af401db6aed3"
+    },
+    {
+      "file": "js/permission-registry.mjs",
+      "sha256": "8c89bda3d1b382f8be9ee7c086a98a29c98a3941514f1d1186ac9d259e16b4bd"
+    },
+    {
+      "file": "js/portfolio-core.mjs",
+      "sha256": "da1912d0a0cb9443fd399f592f520468b0e53be57d465668daa65319fd9c5b04"
+    },
+    {
+      "file": "js/presence-usage.mjs",
+      "sha256": "3ffb82c104e9c043317dbdd9922e9d82e89d6b26cc9f16bc238e2ccd341e58f1"
+    },
+    {
+      "file": "js/project-capabilities.mjs",
+      "sha256": "2f6ab10b4dca4f3808ac86ac4160c54eaa5db9bf4e92286f96a012e82c6d38f4"
+    },
+    {
+      "file": "js/project-dashboard-api.mjs",
+      "sha256": "7bfb0873d3db641e76dff3f60f9c1850a4d0b6c838bdd51ae36480baa426cb87"
+    },
+    {
+      "file": "js/project-drafts-api.mjs",
+      "sha256": "0a4ca3b6c396246bcb78a01f28250ca2fc8f6e3755e3b9a72af8d03dea02dfcf"
+    },
+    {
+      "file": "js/project-drafts-controller.mjs",
+      "sha256": "a6c0d53891c493666a02907b682d87d48502c3fd6dd497de3c98c170a6fab7b6"
+    },
+    {
+      "file": "js/project-drafts-ui.mjs",
+      "sha256": "a15643fee95e7cb236f74d49840296b060ff73b625c448228771345034d7c494"
+    },
+    {
+      "file": "js/project-mutations.mjs",
+      "sha256": "d31cc72121c9de398359e0a02453839f11587b9e38ed13ca4d3d032e8efdf996"
+    },
+    {
+      "file": "js/quarterly-kpi.mjs",
+      "sha256": "038aa56b8b049ffa42542872866e95ec3e8e2da3ba586b114c0a6725703544af"
+    },
+    {
+      "file": "js/uat-production-sync.mjs",
+      "sha256": "66412b4accc2e6b520ec7fd883b0ab86a01de6f8de900c5b93c5333b8a3c555b"
+    },
+    {
+      "file": "js/user-permissions-admin.mjs",
+      "sha256": "edb33425a77ccd40c9c0f3eafc055767b6aa13dfd83c335268e2ca44f18f62ef"
+    },
+    {
+      "file": "js/week-order.mjs",
+      "sha256": "18a2f6c8b615eaf79650d42f1bda504a2905df4551b9aa0ada0b8dfe134606ff"
+    },
+    {
+      "file": "js/weekly-summary-contract.mjs",
+      "sha256": "c044b4bd114c3db0ded1d4d824152bcf73967edcf00a6d3808fc9efb9eb66767"
+    },
+    {
+      "file": "js/weekly-update-paste.mjs",
+      "sha256": "3ba7b3578e8af4233b72ffaac31aeacb9f1f562494fc669a6b1a8fa6dd069f3d"
+    },
+    {
+      "file": "professional-pdf-client.mjs",
+      "sha256": "ed0b84d2b88f999e825820ebb9086e5f9bf0c51637d99e6157225fc4da697a1a"
+    },
+    {
+      "file": "professional-pdf-config.js",
+      "sha256": "84fc9db1a159e3ae53e6a24bf2cd13beb90dbf8aa46d4fe868da911af12f7be2"
+    },
+    {
+      "file": "shared/delivery-trends.mjs",
+      "sha256": "ae6cf302525be654c2bb7e2a5091dd44964c3fb6b712f31fb4e2fa0045d0112a"
+    },
+    {
+      "file": "sync-core.js",
+      "sha256": "1569a36b8ba0eedc92638a7e17865c860c6c8826e3b30066069ff5dfba750ae5"
+    },
+    {
+      "file": "week-carryover.mjs",
+      "sha256": "e1d4c38b12526a27d5c1ff28a34e1f5b7bf1d1b24c8a666bfb6cfb14032666c5"
+    }
+  ]
+}
