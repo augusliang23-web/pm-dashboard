@@ -4,7 +4,7 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
  const visible=()=>page.$eval('#projEditOverlay',e=>e.classList.contains('open'));
  const fill=(selector,value)=>page.$eval(selector,(e,v)=>{e.value=String(v);e.dispatchEvent(new Event('input',{bubbles:true}));},value);
  const ready=()=>page.waitForFunction(()=>document.querySelector('#projEditOverlay.open')?.getAttribute('aria-busy')!=='true'&&Boolean(document.querySelector('#pe_name').value));
- const open=async(id=draftId)=>{await page.evaluate(id=>window.openManagedProjectDraft(id),id);await ready();};
+ const open=async(id=draftId)=>{await page.waitForFunction(()=>document.querySelector('#bannerTitle')?.textContent.includes('W43')&&getComputedStyle(document.querySelector('#globalLoader')).display==='none');await page.evaluate(id=>window.openManagedProjectDraft(id),id);await ready();};
  const close=()=>page.evaluate(()=>window.closeModal('projEditOverlay',{force:true}));
  const wait=async fn=>{for(let i=0;i<80;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Timed out waiting for committed synthetic result');};
  const check=async(name,fn)=>{try{await fn();results.push({role,name,status:'PASS'});console.log('PASS',role,name);}catch(e){await page.screenshot({path:resolve(out,`${role}-failure.png`),fullPage:true});console.log('DIAGNOSTIC',await page.evaluate(()=>({error:document.querySelector('#projectMutationError')?.textContent,toast:document.querySelector('#saveToast')?.textContent,invalid:[...document.querySelectorAll('#projEditOverlay :invalid')].map(e=>e.id)})));throw e;}};
@@ -56,7 +56,15 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   await page.click('#btnOverview');await page.waitForSelector('.delivery-trends-overview-panel');assert.ok(await page.$('.delivery-trends-overview-panel .dt-card-value'));
   await page.evaluate(()=>window.openOverviewPrintDialog());assert.ok(await page.$('#overviewPrintOverlay.open'));await page.evaluate(()=>window.closeModal('overviewPrintOverlay',{force:true}));await page.click('#btnOverview');
  });
+ await check('lifecycle entry permissions and keyboard dialog',async()=>{
+ const buttons=await page.$$('.project-more-actions');assert.equal(buttons.length>0,role==='admin');
+ if(role==='admin'){await buttons[0].focus();await page.keyboard.press('Enter');await page.waitForSelector('#publishedProjectActionsOverlay.open');assert.equal(await page.$eval('#projectVisibilityAction',e=>getComputedStyle(e).display==='none'),false);page.once('dialog',d=>d.dismiss());await page.click('#projectDeleteAction');await page.keyboard.press('Escape');assert.equal(await page.$eval('#publishedProjectActionsOverlay',e=>e.classList.contains('open')),false);}
+ });
  await page.evaluate(()=>window.openMyDrafts());await page.waitForFunction(()=>document.querySelectorAll('#myDraftsContent .draft-list-row').length>0);
+ await page.waitForFunction(()=>!document.querySelector('#myDraftsContent button')?.disabled);
+ await page.$eval('[data-draft-focus="refresh"]',e=>e.focus());await page.keyboard.press('Enter');await page.waitForFunction(()=>!document.querySelector('#myDraftsContent button')?.disabled);assert.ok(await page.$eval('#myDraftsContent',e=>e.contains(document.activeElement)));
+ assert.equal(await page.$$eval('#myDraftsContent table tbody tr',r=>r.length),2);assert.equal(await page.$$eval('#myDraftsContent #newProjectDraftBtn',r=>r.length),1);
+ results.push({role,name:'semantic table, keyboard refresh focus, mobile horizontal actions',status:'PASS'});
  await page.screenshot({path:resolve(out,`${role}-drafts-desktop.png`),fullPage:true});
- await page.setViewport({width:390,height:844});await page.screenshot({path:resolve(out,`${role}-drafts-mobile.png`),fullPage:true});await page.setViewport({width:1440,height:1100});await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));
+ await page.setViewport({width:390,height:844});const bounds=await page.$eval('#myDraftsOverlay .modal',e=>({left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}));assert.ok(bounds.left>=0&&bounds.right<=391);await page.$eval('.draft-table-scroll',e=>{e.scrollLeft=e.scrollWidth;});assert.ok(await page.$eval('.draft-table-scroll',e=>e.scrollLeft>0));await page.screenshot({path:resolve(out,`${role}-drafts-mobile.png`),fullPage:false});await page.setViewport({width:1440,height:1100});await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));
 }
