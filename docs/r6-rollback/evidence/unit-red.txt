@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: permission-denied assignment rejection retains private selection and editor
+not ok 1 - permission-denied assignment rejection retains private selection and editor
+  ---
+  duration_ms: 1.434333
+  type: 'test'
+  location: '/private/tmp/pm-admin-self-hotfix/tests/project-draft-assignment-error.test.mjs:17:71'
+  failureType: 'testCodeFailure'
+  error: 'assignment rejection must retain selected draft'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: ~
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/pm-admin-self-hotfix/tests/project-draft-assignment-error.test.mjs:20:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: functions/permission-denied assignment rejection retains private selection and editor
+not ok 2 - functions/permission-denied assignment rejection retains private selection and editor
+  ---
+  duration_ms: 0.305875
+  type: 'test'
+  location: '/private/tmp/pm-admin-self-hotfix/tests/project-draft-assignment-error.test.mjs:17:71'
+  failureType: 'testCodeFailure'
+  error: 'assignment rejection must retain selected draft'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: ~
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/pm-admin-self-hotfix/tests/project-draft-assignment-error.test.mjs:20:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unauthenticated still clears protected controller and editor state
+ok 3 - unauthenticated still clears protected controller and editor state
+  ---
+  duration_ms: 0.613459
+  type: 'test'
+  ...
+# Subtest: unauthenticated misleading reason still clears protected controller and editor state
+ok 4 - unauthenticated misleading reason still clears protected controller and editor state
+  ---
+  duration_ms: 0.229291
+  type: 'test'
+  ...
+# Subtest: raw unauthenticated still clears protected controller and editor state
+ok 5 - raw unauthenticated still clears protected controller and editor state
+  ---
+  duration_ms: 0.265791
+  type: 'test'
+  ...
+# Subtest: role revoked still clears protected controller and editor state
+ok 6 - role revoked still clears protected controller and editor state
+  ---
+  duration_ms: 0.205167
+  type: 'test'
+  ...
+# Subtest: draft revoked still clears protected controller and editor state
+ok 7 - draft revoked still clears protected controller and editor state
+  ---
+  duration_ms: 0.504125
+  type: 'test'
+  ...
+# Subtest: ownership revoked still clears protected controller and editor state
+ok 8 - ownership revoked still clears protected controller and editor state
+  ---
+  duration_ms: 0.183458
+  type: 'test'
+  ...
+# Subtest: missing details still clears protected controller and editor state
+ok 9 - missing details still clears protected controller and editor state
+  ---
+  duration_ms: 0.42875
+  type: 'test'
+  ...
+# Subtest: empty details still clears protected controller and editor state
+ok 10 - empty details still clears protected controller and editor state
+  ---
+  duration_ms: 0.359041
+  type: 'test'
+  ...
+# Subtest: malformed reason still clears protected controller and editor state
+ok 11 - malformed reason still clears protected controller and editor state
+  ---
+  duration_ms: 0.256708
+  type: 'test'
+  ...
+# Subtest: unknown denial still clears protected controller and editor state
+ok 12 - unknown denial still clears protected controller and editor state
+  ---
+  duration_ms: 0.209333
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 10
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.777917

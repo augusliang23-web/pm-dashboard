@@ -3171,7 +3171,7 @@ import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } fro
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
 import { createProjectCapabilitiesController, DISABLED_PROJECT_CAPABILITIES } from "./js/project-capabilities.mjs";
 import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-scope-3";
-import { createProjectDraftsController } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
+import { createProjectDraftsController, isProjectDraftAccessLoss } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
 import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
 import * as deliveryTrendsPageModule from "./js/delivery-trends-page.mjs";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
@@ -14131,7 +14131,7 @@ let draftWorkspaceUi;
 let latestDraftState = { drafts: [], nextCursor: null };
 let draftsLoadedKey = '';
 let draftRenderQueued = false;
-const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
+const draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (isProjectDraftAccessLoss({code:state.errorCode,details:{reason:state.errorReason}}) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });
 {
   draftWorkspaceUi = mountProjectDraftsUi({
     root: document.getElementById('myDraftsContent'), controller: draftController,

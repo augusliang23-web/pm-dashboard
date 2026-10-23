@@ -10,5 +10,13 @@
   {
     "before": "      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));\n",
     "after": "      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));\n      if (key === 'ownerEmail' && adminSelfOption && !options.some(user => user.email === email)) select.add(new Option(`${adminSelfOption.name} (${email})`,email));\n      if (key === 'ownerEmail' && currentAdminOwner && draft.assignment.ownerEmail !== email) {\n        const current = new Option(`${draft.project.owner || draft.assignment.ownerEmail} (current assignment)`,draft.assignment.ownerEmail);\n        current.disabled = true; select.add(current);\n      }\n"
+  },
+  {
+    "before": "import { createProjectDraftsController } from \"./js/project-drafts-controller.mjs?v=archive-scope-3\";",
+    "after": "import { createProjectDraftsController, isProjectDraftAccessLoss } from \"./js/project-drafts-controller.mjs?v=archive-scope-3\";"
+  },
+  {
+    "before": "['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode)",
+    "after": "isProjectDraftAccessLoss({code:state.errorCode,details:{reason:state.errorReason}})"
   }
 ]
