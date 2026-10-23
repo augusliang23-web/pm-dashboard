@@ -5981,11 +5981,13 @@ function setupUI(...args) { return (IS_UAT_PROFILE ? setupUI__uat : setupUI__pro
 // @profile-group begin win jumpToWeek
 // @profile-variant prod
 const jumpToWeek__prod = (idx) => {
+  if (parseInt(idx,10) !== currentIdx) invalidateProjectEditorSession();
   currentIdx = parseInt(idx, 10);
   render();
 };
 // @profile-variant uat
 const jumpToWeek__uat = (idx) => {
+  if (parseInt(idx,10) !== currentIdx) invalidateProjectEditorSession();
   currentIdx = parseInt(idx, 10);
   resetExecutiveTimelineView();
   render();
@@ -11865,6 +11867,7 @@ window.setOverviewCurrency = (currency) => {
 const navWeek__prod = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
+    invalidateProjectEditorSession();
     currentIdx = nextIndex;
   }
   render();
@@ -11873,6 +11876,7 @@ const navWeek__prod = (dir) => {
 const navWeek__uat = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
+    invalidateProjectEditorSession();
     currentIdx = nextIndex;
     resetExecutiveTimelineView();
   }
@@ -12764,6 +12768,7 @@ function invalidateProjectEditorSession() {
   ++draftEditorOpenGeneration;
   draftEditorRecord = undefined;
   document.getElementById('projectEditorFields').disabled = false;
+  document.getElementById('projectEditorFields').inert = false;
   document.getElementById('projEditOverlay')?.classList.remove('editor-loading');
   document.getElementById('projEditOverlay')?.removeAttribute('aria-busy');
   projectEditorSession = null;
@@ -14392,7 +14397,7 @@ async function saveEditorProjectDraft(project, session) {
   clearProjectMutationError(); projectMutationInFlight = true; projectMutationInFlightToken = session.token; setProjectMutationControlsDisabled(true);
   const publishButton = document.getElementById('pe_btn_publish');
   const fields = document.getElementById('projectEditorFields');
-  if (publishing) fields.disabled = true;
+  if (publishing) { fields.disabled = true; fields.inert = true; }
   if (publishing) publishButton.textContent = 'Publishing…';
   try {
     const result = publishing ? await draftController.publish(input) : await draftController.save(input);
@@ -14410,7 +14415,7 @@ async function saveEditorProjectDraft(project, session) {
   finally {
     if (projectMutationInFlightToken === session.token && currentUser?.uid === session.authUid) {
       projectMutationInFlight = false; projectMutationInFlightToken = null;
-      fields.disabled = false;
+      fields.disabled = false; fields.inert = false;
       publishButton.textContent = 'Save & Publish';
       setProjectMutationControlsDisabled(false);
       if (projectEditorSession?.token === session.token) configureDraftEditor(true);

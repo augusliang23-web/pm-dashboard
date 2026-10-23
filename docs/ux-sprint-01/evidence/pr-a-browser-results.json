@@ -2,6 +2,11 @@
   "results": [
     {
       "role": "admin",
+      "name": "week round trip cancels pending opening permanently",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
       "name": "cancel pending opening cannot reopen or show stale private content",
       "status": "PASS"
     },
@@ -38,6 +43,11 @@
     {
       "role": "admin",
       "name": "Overview, Delivery Trends and PDF selection entry survive",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "week round trip cancels pending opening permanently",
       "status": "PASS"
     },
     {

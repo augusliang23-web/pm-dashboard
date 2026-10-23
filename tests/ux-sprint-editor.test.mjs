@@ -36,3 +36,9 @@ test('every managed opening shows a shell before awaiting private draft data',()
  }
  assert.doesNotMatch(extract('beginDraftEditor'),/getDocs/,'reuse the authenticated directory, never repeat a users query per editor opening');
 });
+test('a week round trip permanently cancels a pending opening',()=>{
+ for(const name of ['jumpToWeek','navWeek']){
+ const start=source.indexOf(`window.${name} =`),body=source.slice(start,source.indexOf('\n};',start));
+ assert.match(body,/invalidateProjectEditorSession\(\)/,`${name} must cancel before a delayed response can match the week again`);
+ }
+});

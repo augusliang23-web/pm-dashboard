@@ -52,7 +52,15 @@ async function seed() {
   return draft.draft.draftId;
 }
 const draftId=await seed();
-const site=resolve(root,`tmp/ux-sprint-01/site-${mode}`);if(mode!=='baseline'||process.env.SPRINT_REBUILD_BASELINE==='1')await buildHosting({rootDir:root,outDir:site,env:await loadHostingEnv(root,'prod')});
+const site=resolve(root,`tmp/ux-sprint-01/site-${mode}`);
+let sourceRoot=root;
+if(mode==='baseline'){
+ sourceRoot=resolve(root,'tmp/ux-sprint-01/baseline-source');await mkdir(sourceRoot,{recursive:true});
+ const archive=resolve(root,'tmp/ux-sprint-01/baseline.tar');
+ await writeFile(archive,execFileSync('git',['archive','b3b7a51d5db680cfc87acdf24d06d73a9de2aaac'],{maxBuffer:64*1024*1024}));
+ execFileSync('tar',['-xf',archive,'-C',sourceRoot]);
+}
+await buildHosting({rootDir:sourceRoot,outDir:site,env:await loadHostingEnv(sourceRoot,'prod')});
 const server=createServer(async(req,res)=>{try { const pathname=new URL(req.url,'http://localhost').pathname; const path=resolve(site,'.'+(pathname==='/'?'/index.html':pathname));if(!path.startsWith(site+'/'))return res.writeHead(403).end(); const content=await readFile(path);res.setHeader('Content-Type',extname(path)==='.html'?'text/html':/\.m?js$/.test(path)?'text/javascript':'application/octet-stream');res.end(content); } catch {res.writeHead(404).end();}});
 await new Promise(r=>server.listen(4198,'127.0.0.1',r));
 let browser;
