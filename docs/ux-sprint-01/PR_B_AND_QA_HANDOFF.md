@@ -50,3 +50,22 @@ Root、Rules、PDF（含 CI Docker local build）、sync-boundary、prod/uat Hos
 建議 UAT：先解除上述阻礙、Antigravity QA 與 ChatGPT Gate；再提出單獨的 Hosting-only UAT 部署授權，綁定候選 SHA/設定/環境，準備原 Hosting release 回復方法。驗證 UAT 使用者旅程後才討論 Production readiness；本任務未授權任何部署、合併、Functions/Rules/PDF/IAM/billing 變更。
 
 本地最終組合驗證：root 1,793 pass / 3 skip / 3 frozen-hash fail；focused 20/20、prod/uat Hosting build、sync-boundary、package parity passed。Rules/PDF 共用未變更部分沿用本次 A 的 50/50、551/551 證據。最新 browser results 與桌機/390px screenshots 見 evidence/pr-b-* 及 after-*。測試曾因登入後週次 snapshot 尚未到達而正確取消開窗；測試已改為等待 W43 就緒，不以更改 runtime 規則消除此等待。
+
+## Pinned candidates / final performance
+
+PR A #74：`c1d652c731c76b1805514bdff1cdf2e4bd26e353`。PR B #75 application candidate：`8b16c866eee47f717eb207511e2066b13a320797`；後續僅報告/證據提交不改 runtime。
+
+23 browser checks passed; zero page errors. Final 320-sample benchmark completed on PR B candidate above. Full JSON: evidence/final-performance.json.
+
+| Role / entry | Baseline shell median / p95 ms | Final shell median / p95 ms | Final editable median / p95 ms |
+|---|---|---|---|
+| admin / source-card | 289.8 / 301.6 | 4.0 / 15.6 | 284.1 / 293.3 |
+| admin / published-card | 284.0 / 290.2 | 10.2 / 14.9 | 275.1 / 285.0 |
+| admin / my-drafts | 278.3 / 317.7 | 21.8 / 24.4 | 278.7 / 284.2 |
+| admin / draft-card | 286.9 / 294.3 | 7.3 / 15.2 | 277.2 / 291.0 |
+| pm / source-card | 282.7 / 530.4 | 5.9 / 16.2 | 280.2 / 530.6 |
+| pm / published-card | 282.0 / 291.3 | 6.5 / 15.5 | 274.0 / 286.4 |
+| pm / my-drafts | 271.0 / 279.2 | 21.0 / 23.7 | 278.3 / 285.5 |
+| pm / draft-card | 285.0 / 291.2 | 4.8 / 14.9 | 272.5 / 287.7 |
+
+GitHub CI at report capture: A4/5 pass, root fail; B sync/build pass, root/rules/pdf pending. Neither is CI PASS. Final independent Antigravity QA NOT RUN. VERDICT: UX_SPRINT_01_HOLD.
