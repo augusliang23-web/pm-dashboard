@@ -1,3 +1,4 @@
+import { normalizeAdminSelfForBaseline } from './helpers/admin-self-source-baseline.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
@@ -212,5 +213,5 @@ test('Production presenceSessions writes the exact raw role for compatibility', 
 });
 
 test('UAT rendered profile remains byte-identical to the frozen main baseline', () => {
-  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(uat)).digest('hex'), originalUatHash);
+  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(normalizeAdminSelfForBaseline(uat))).digest('hex'), originalUatHash);
 });

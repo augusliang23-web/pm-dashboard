@@ -14231,9 +14231,14 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) 
   const authGeneration = authSessionGeneration, role = currentRole, openingGeneration = expectedOpeningGeneration ?? ++draftEditorOpenGeneration;
   if (!currentUser || !['admin','pm'].includes(role)) return;
   let options = [];
+  let adminSelfOption;
+  let currentAdminOwner;
   if (currentRole === 'admin') {
     const users = await getDocs(collection(db, 'users'));
     options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));
+    const self = users.docs.find(d => getEmailKey({email:d.id}) === email && d.data().role === 'admin');
+    if (self) adminSelfOption = {email, name:self.data().displayName || email};
+    currentAdminOwner = users.docs.find(d => getEmailKey({email:d.id}) === draft.assignment.ownerEmail && d.data().role === 'admin');
   }
   if (authSessionGeneration !== authGeneration || currentRole !== role || openingGeneration !== draftEditorOpenGeneration || !currentUser || currentUser.uid !== uid || getEmailKey(currentUser) !== email) return;
   closeModal('myDraftsOverlay', { force:true });
@@ -14249,6 +14254,11 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpeningGeneration) 
     for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
       const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
       options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
+      if (key === 'ownerEmail' && adminSelfOption && !options.some(user => user.email === email)) select.add(new Option(`${adminSelfOption.name} (${email})`,email));
+      if (key === 'ownerEmail' && currentAdminOwner && draft.assignment.ownerEmail !== email) {
+        const current = new Option(`${draft.project.owner || draft.assignment.ownerEmail} (current assignment)`,draft.assignment.ownerEmail);
+        current.disabled = true; select.add(current);
+      }
       select.value = draft.assignment[key] || '';
     }
   }
