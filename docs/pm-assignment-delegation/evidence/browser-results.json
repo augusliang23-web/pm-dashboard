@@ -1,0 +1,46 @@
+{
+  "commit": "ce01cb0a4dac7d5de7b8b1a472b50ee9ac5a18ab",
+  "results": [
+    {
+      "name": "prod Admin-only switch default OFF and audited grant",
+      "status": "PASS"
+    },
+    {
+      "name": "prod delegated stage / invalid targets / unrelated denial",
+      "status": "PASS"
+    },
+    {
+      "name": "prod revoke blocks publication and preserves staged form",
+      "status": "PASS"
+    },
+    {
+      "name": "prod publish atomically hands over; former owner denied; limited retry receipt",
+      "status": "PASS"
+    },
+    {
+      "name": "prod recipient resume/save/publish and revoke does not revert completed handoff",
+      "status": "PASS"
+    },
+    {
+      "name": "uat Admin-only switch default OFF and audited grant",
+      "status": "PASS"
+    },
+    {
+      "name": "uat delegated stage / invalid targets / unrelated denial",
+      "status": "PASS"
+    },
+    {
+      "name": "uat revoke blocks publication and preserves staged form",
+      "status": "PASS"
+    },
+    {
+      "name": "uat publish atomically hands over; former owner denied; limited retry receipt",
+      "status": "PASS"
+    },
+    {
+      "name": "uat recipient resume/save/publish and revoke does not revert completed handoff",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": []
+}

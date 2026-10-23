@@ -9,7 +9,7 @@ function extract(name){const start=source.indexOf(`function ${name}(`);assert.ok
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 test('typing while Save Draft is pending remains dirty after the submitted revision is saved',async()=>{
  const pending=deferred(),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};
- const context=vm.createContext({buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+ const context=vm.createContext({canCurrentUser:()=>false,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
   isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},
   document:{getElementById:()=>overlay},serializeEditorState:()=>context.form,captureEditorBaseline:()=>{overlay.dataset.editorBaseline=context.form;},
   draftController:{save:()=>pending.promise},form:'submitted'});
@@ -20,7 +20,7 @@ test('typing while Save Draft is pending remains dirty after the submitted revis
 });
 test('delayed Admin directory request cannot reopen a draft after auth generation or role changes',async()=>{
  const pending=deferred();let opened=0;
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
+ const context=vm.createContext({canCurrentUser:()=>false,currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
   getEmailKey:u=>u?.email,getDocs:()=>pending.promise,collection:()=>null,db:{},normalizeDashboardRole:x=>x,
   closeModal(){},window:{openProjEdit(){opened++;}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
  vm.runInContext(extract('beginDraftEditor'),context);
@@ -30,7 +30,7 @@ test('delayed Admin directory request cannot reopen a draft after auth generatio
 });
 test('a newer editor opening supersedes an older pending opening in the same auth session',async()=>{
  const pending=[];const opened=[];
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
+ const context=vm.createContext({canCurrentUser:()=>false,currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
   getEmailKey:u=>u?.email,getDocs:()=>{const d=deferred();pending.push(d);return d.promise;},collection:()=>null,db:{},normalizeDashboardRole:x=>x,
   closeModal(){},window:{openProjEdit(code){opened.push(code);}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
  vm.runInContext(extract('beginDraftEditor'),context);
@@ -39,7 +39,7 @@ test('a newer editor opening supersedes an older pending opening in the same aut
 });
 test('zero persisted week documents stay an empty official portfolio without demo fallback',()=>{
  let callback;const select={};
- const context=vm.createContext({weeksUnsub:null,executiveTimelineConfigUnsub:null,executiveLiveTimelineUnsub:null,executivePendingMilestoneUnsub:null,
+ const context=vm.createContext({canCurrentUser:()=>false,weeksUnsub:null,executiveTimelineConfigUnsub:null,executiveLiveTimelineUnsub:null,executivePendingMilestoneUnsub:null,
   collection:()=>null,doc:()=>null,query:()=>null,orderBy:()=>null,where:()=>null,db:{},currentRole:'pm',canReadDraftWeeks:()=>true,canCurrentUser:()=>false,
   getEmailKey:u=>u.email,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},isAuthInitializationCurrent:()=>true,
   deliveryTrendsRawWeeks:[],deliveryTrendsHistoryState:{source:null,complete:false},

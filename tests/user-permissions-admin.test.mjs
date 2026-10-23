@@ -19,12 +19,12 @@ import {
 } from '../js/user-permissions-admin.mjs';
 
 const ROLES = ['admin', 'pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'];
-const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore'];
+const KEYS = ['week.manage', 'week.release', 'gantt.manage', 'project.manage', 'project.archive.restore', 'project.assignment.delegate'];
 const rowOf = (role, stored, key) => buildSwitchRows({ role, stored }).find(row => row.key === key);
 
 test('the reviewed delegable capabilities get a switch, in registry order, never permissions.manage', () => {
   assert.deepEqual(configurableCapabilities().map(entry => entry.key), KEYS);
-  assert.deepEqual(configurableCapabilities().map(entry => entry.label), ['Manage Weeks', 'Release Week', 'Manage Gantt', 'Add / Delete Projects', 'Restore Archived Projects']);
+  assert.deepEqual(configurableCapabilities().map(entry => entry.label), ['Manage Weeks', 'Release Week', 'Manage Gantt', 'Add / Delete Projects', 'Restore Archived Projects', 'Assign Project Manager']);
   for (const entry of configurableCapabilities()) assert.ok(entry.description.length > 10, entry.key);
   assert.equal(configurableCapabilities().some(entry => entry.key === 'permissions.manage'), false);
 });
@@ -98,7 +98,7 @@ test('rows never expose the internal permission-state vocabulary', () => {
 test('stored overrides read as tri-state internally, ignoring malformed, stale and non-configurable keys', () => {
   assert.deepEqual(storedPermissionState(undefined), Object.fromEntries(KEYS.map(key => [key, null])));
   assert.deepEqual(storedPermissionState({ 'week.manage': true, 'week.release': false, 'permissions.manage': true, stale: true }),
-    { 'week.manage': true, 'week.release': false, 'gantt.manage': null, 'project.manage': null, 'project.archive.restore': null });
+    { 'week.manage': true, 'week.release': false, 'gantt.manage': null, 'project.manage': null, 'project.archive.restore': null, 'project.assignment.delegate': null });
   assert.equal(storedPermissionState({ 'week.manage': 'true' })['week.manage'], null);
   assert.equal(storedPermissionState(['week.manage'])['week.manage'], null);
   assert.equal(storedPermissionRevision({ revision: 3 }), 3);

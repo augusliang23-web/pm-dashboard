@@ -1,0 +1,38 @@
+[
+  {
+    "before": "let draftRenderQueued = false;\nconst draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });\n",
+    "after": "let draftRenderQueued = false;\nconst draftController = createProjectDraftsController({ api: projectDraftsApi, onState: state => { latestDraftState = state; draftWorkspaceUi?.render(state); if (!draftRenderQueued && allWeeks?.length) { draftRenderQueued = true; requestAnimationFrame(() => { draftRenderQueued = false; if (allWeeks?.length) window.render(); }); } if (['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode) && state.errorReason !== 'assignment-forbidden' && draftEditorRecord !== undefined) { draftEditorRecord = undefined; invalidateProjectEditorSession(); showSaveToast(state.error); } } });\n"
+  },
+  {
+    "before": "  let currentAdminOwner;\n  if (currentRole === 'admin') {\n",
+    "after": "  let currentAdminOwner;\n  if (currentRole === 'admin' || canCurrentUser('project.assignment.delegate')) {\n"
+  },
+  {
+    "before": "  }\n  if (currentRole === 'admin') {\n",
+    "after": "  }\n  if (currentRole === 'admin' || canCurrentUser('project.assignment.delegate')) {\n"
+  },
+  {
+    "before": "      }\n      select.value = draft.assignment[key] || '';\n",
+    "after": "      }\n      select.value = (key === 'ownerEmail' ? draft.pendingAssignment?.ownerEmail : '') || draft.assignment[key] || '';\n"
+  },
+  {
+    "before": "  document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'Draft: no reporting week is open for publishing. You can still Save Draft.' : state === 'Published' ? 'Published. Save new changes as a draft when needed.' + where : state === 'Unpublished changes' ? 'Draft: unpublished changes. Overview and PDF keep the last published content.' + where : 'Draft: not published yet. Only you can see it.' + where;\n",
+    "after": "  document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'Draft: no reporting week is open for publishing. You can still Save Draft.' : state === 'Published' ? 'Published. Save new changes as a draft when needed.' + where : state === 'Unpublished changes' ? 'Draft: unpublished changes. Overview and PDF keep the last published content.' + where : 'Draft: not published yet. Only you can see it.' + where;\n  if(record.pendingAssignment)document.getElementById('projectDraftStatus').textContent += ` Pending Project Manager: ${getUserDisplayName(record.pendingAssignment.ownerEmail)} (${record.pendingAssignment.ownerEmail}). Access changes only after Save & Publish; assignment permission is checked again then.`;\n"
+  },
+  {
+    "before": "  document.getElementById('pe_code').readOnly = Boolean(record.lastPublication);\n  for(const id of ['pe_owner','pe_deputy'])document.getElementById(id).disabled = currentRole !== 'admin';\n",
+    "after": "  document.getElementById('pe_code').readOnly = Boolean(record.lastPublication);\n  document.getElementById('pe_owner').disabled = currentRole !== 'admin' && !canCurrentUser('project.assignment.delegate');\n  document.getElementById('pe_deputy').disabled = currentRole !== 'admin';\n"
+  },
+  {
+    "before": "  let assignment;\n  if(currentRole==='admin'){\n",
+    "after": "  let assignment;\n  if(currentRole==='admin' || canCurrentUser('project.assignment.delegate')){\n"
+  },
+  {
+    "before": "    const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};\n    if((record.revision===0 && !record.source) || selected.ownerEmail!==record.assignment.ownerEmail || selected.deputyEmail!==record.assignment.deputyEmail)assignment=selected;\n",
+    "after": "    const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};\n    const displayedOwner = record.pendingAssignment?.ownerEmail || record.assignment.ownerEmail;\n    if((currentRole==='admin' && record.revision===0 && !record.source) || selected.ownerEmail!==displayedOwner || (currentRole==='admin' && selected.deputyEmail!==record.assignment.deputyEmail))assignment=currentRole==='admin'?selected:{ownerEmail:selected.ownerEmail};\n"
+  },
+  {
+    "before": "    if (!result || !isProjectEditorSessionCurrent(session)) return;\n",
+    "after": "    if (!result || !isProjectEditorSessionCurrent(session)) return;\n    if(result.transferred){\n      projectMutationInFlight = false;\n      draftEditorRecord = undefined;\n      closeModal('projEditOverlay',{force:true});\n      showSaveToast(`Published. Project Manager transferred to ${result.ownerName || result.ownerEmail}. You no longer have owner-based editing access.`);\n      draftController.reset(); draftsLoadedKey=''; syncDraftWorkspace();\n      return;\n    }\n"
+  }
+]
