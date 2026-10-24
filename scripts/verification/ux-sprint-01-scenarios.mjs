@@ -4,7 +4,7 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
  const visible=()=>page.$eval('#projEditOverlay',e=>e.classList.contains('open'));
  const fill=(selector,value)=>page.$eval(selector,(e,v)=>{e.value=String(v);e.dispatchEvent(new Event('input',{bubbles:true}));},value);
  const ready=()=>page.waitForFunction(()=>document.querySelector('#projEditOverlay.open')?.getAttribute('aria-busy')!=='true'&&Boolean(document.querySelector('#pe_name').value));
- const open=async(id=draftId)=>{await page.evaluate(id=>window.openManagedProjectDraft(id),id);await ready();};
+ const open=async(id=draftId)=>{await page.waitForFunction(()=>document.querySelector('#bannerTitle')?.textContent.includes('W43')&&getComputedStyle(document.querySelector('#globalLoader')).display==='none');await page.evaluate(id=>window.openManagedProjectDraft(id),id);await ready();};
  const close=()=>page.evaluate(()=>window.closeModal('projEditOverlay',{force:true}));
  const wait=async fn=>{for(let i=0;i<80;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Timed out waiting for committed synthetic result');};
  const check=async(name,fn)=>{try{await fn();results.push({role,name,status:'PASS'});console.log('PASS',role,name);}catch(e){await page.screenshot({path:resolve(out,`${role}-failure.png`),fullPage:true});console.log('DIAGNOSTIC',await page.evaluate(()=>({error:document.querySelector('#projectMutationError')?.textContent,toast:document.querySelector('#saveToast')?.textContent,invalid:[...document.querySelectorAll('#projEditOverlay :invalid')].map(e=>e.id)})));throw e;}};
@@ -15,6 +15,11 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   page.sprintRequestHook=async req=>{if(!req.url().endsWith('/getDashboardProjectDraft'))return false;await gate;return false;};
   await page.evaluate(id=>{window.openManagedProjectDraft(id);},draftId);await page.waitForSelector('#projEditOverlay.editor-loading.open');
   assert.equal(await page.$eval('#pe_name',e=>e.value),'');await close();release();await new Promise(r=>setTimeout(r,300));assert.equal(await visible(),false);page.sprintRequestHook=null;
+ });
+ await check('logout cancels a delayed opening and relogin does not reveal its result',async()=>{
+  let release;const gate=new Promise(r=>release=r);page.sprintRequestHook=async req=>{if(req.url().endsWith('/getDashboardProjectDraft'))await gate;return false;};
+  await page.evaluate(id=>{window.openManagedProjectDraft(id);},draftId);await page.waitForSelector('#projEditOverlay.editor-loading.open');await page.evaluate(()=>window.handleLogout());await page.waitForSelector('#email',{visible:true});release();await new Promise(r=>setTimeout(r,350));assert.equal(await visible(),false);assert.equal(await page.$eval('#pe_name',e=>e.value),'');page.sprintRequestHook=null;
+  await fill('#email',emails[role]);await fill('#password',process.env.SPRINT_TEST_PASSWORD);await page.waitForFunction(()=>getComputedStyle(document.querySelector('#globalLoader')).display==='none');await page.click('#loginOverlay button');await page.waitForFunction(()=>document.querySelector('#syncDot')?.classList.contains('ok')&&document.querySelector('#bannerTitle')?.textContent.includes('W43'));
  });
  await check('revision conflict keeps input, actionable error and retry controls',async()=>{
   await open();await fill('#pe_highlight','retain revision conflict');await draftRef.update({revision:(await draftRef.get()).data().revision+1});
@@ -37,9 +42,14 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   const start=Date.now();release();await page.waitForFunction(()=>!document.querySelector('#projEditOverlay').classList.contains('open'));assert.ok(Date.now()-start<1400,'closing must not wait for the delayed list');assert.equal(calls,1);page.sprintRequestHook=null;
   await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));await wait(async()=>(await db.collection('weeks').doc('W43').get()).data().projects.some(p=>p.code==='DRAFT'&&p.progress===61));
  });
- if(role==='pm')await check('permission denied does not discard submitted form or claim success',async()=>{
-  await open();await fill('#pe_highlight','retain denied form');const original=(await draftRef.get()).data();await draftRef.update({editorEmails:[emails.other]});
-  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain denied form');assert.equal(await page.$eval('#saveToast',e=>e.classList.contains('show')),false);await close();await draftRef.update({editorEmails:original.editorEmails});
+ if(role==='admin')await check('assignment validation retains inputs and controls without weakening access-loss handling',async()=>{
+  await open();await fill('#pe_highlight','retain rejected assignment');
+  await page.$eval('#pe_deputy',(e,email)=>{e.add(new Option('Forbidden Admin deputy',email));e.value=email;},emails.admin);
+  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain rejected assignment');assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
+ });
+ if(role==='pm')await check('real draft access revocation clears private inputs and closes the editor',async()=>{
+  await open();await fill('#pe_highlight','protected revoked form');const original=(await draftRef.get()).data();await draftRef.update({editorEmails:[emails.other]});
+  await page.click('#pe_btn_publish');await page.waitForFunction(()=>!document.querySelector('#projEditOverlay').classList.contains('open'));assert.equal(await page.$eval('#pe_highlight',e=>e.value),'');await draftRef.update({editorEmails:original.editorEmails});
  });
  await check('week changes while publish pending do not close a different editor',async()=>{
   await open();let release;const gate=new Promise(r=>release=r);page.sprintRequestHook=async req=>{if(req.url().endsWith('/publishDashboardProjectDraft'))await gate;return false;};

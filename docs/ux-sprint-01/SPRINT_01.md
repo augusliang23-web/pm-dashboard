@@ -10,8 +10,8 @@
 
 | Task | Owner requirement | Root cause / proposed change | Verification | PR | Final status |
 |---|---|---|---|---|---|
-| UX-01 P0 | Edit Project 開啟延遲 | 開窗前串行等 callable；Admin 再讀 users。先顯示安全的空白 shell；沿用當次登入已載入的 PM 目錄，保留 auth/open generation 檢查 | baseline / candidate median、p95、真實模擬器 browser；取消、換週、換帳號 | A 待建立 | 調查中 |
-| UX-02 P0 | Publishing 回饋、成功關窗 | 現有成功路徑只 toast；補 busy 文案、確認後關窗，列表更新不阻塞；錯誤保留表單 | conflict/permission/network/validation/duplicate/session/week/slow-refresh | A 待建立 | 待實作 |
+| UX-01 P0 | Edit Project 開啟延遲 | 開窗前串行等 callable；Admin 再讀 users。先顯示安全的空白 shell；沿用當次登入已載入的 PM 目錄，保留 auth/open generation 檢查 | baseline / candidate median、p95、真實模擬器 browser；取消、換週、換帳號 | [PR74](https://github.com/augusliang23-web/pm-dashboard/pull/74) | 實作及本機驗證通過；獨立 QA 待辦 |
+| UX-02 P0 | Publishing 回饋、成功關窗 | 現有成功路徑只 toast；補 busy 文案、確認後關窗，列表更新不阻塞；錯誤保留表單 | conflict/permission/network/validation/duplicate/session/week/slow-refresh | [PR74](https://github.com/augusliang23-web/pm-dashboard/pull/74) | 實作及本機驗證通過；獨立 QA 待辦 |
 | UX-03 P1 | My Drafts table | 重複說明與垂直 article；改 semantic table、SGT、載入/空/錯誤、單一 New Draft | 真實資料映射、排序、keyboard、390px、隔離 | B 待建立 | 待實作 |
 | UX-04 P1 | 移除卡片冗餘 Manage Project | 同一卡片 Edit + 大型 Manage；將既有管理操作放在低顯著、可鍵盤操作入口 | Admin/PM/delegated/denied、visibility/archive/delete/confirm、dialog focus | B 待建立 | 待實作 |
 
@@ -51,3 +51,7 @@
 - Source review P2: pending open on W43→W42→W43 could become current again. Fixed navigation cancellation, RED→GREEN regression and actual browser round-trip. 19 browser scenarios now passed, including actual logout/login persistence; disabled+inert fieldset blocks pending publish edits/reorder. Rules 50/50 and PDF 551/551 passed.
 - PR A: https://github.com/augusliang23-web/pm-dashboard/pull/74 (Draft, HOLD on 3 frozen source hashes).
 - Packaging ruling: PR B will target the new Sprint PR A branch so its table can directly reuse UX-01. This is a new bounded Sprint stack rooted at latest main, not any old V2.3 stack. No merge authorization; rebase/retarget B to main only after a separately authorized A merge.
+
+## S01 PR74 unblock (2026-10-24)
+
+See [PR74_UNBLOCK.md](PR74_UNBLOCK.md). Original three historical hashes are unchanged; exact context-checked source reversal plus fail-closed negative tests replaces a blanket hash refresh. Current permission-loss handling retains PR78 semantics. PR75 stays untouched and must be reconciled later by its owner. Deployment, Product Acceptance and final Antigravity QA remain outside this task.
