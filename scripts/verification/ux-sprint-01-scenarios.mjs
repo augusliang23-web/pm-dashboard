@@ -45,7 +45,7 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
  if(role==='admin')await check('assignment validation retains inputs and controls without weakening access-loss handling',async()=>{
   await open();await fill('#pe_highlight','retain rejected assignment');
   await page.$eval('#pe_deputy',(e,email)=>{e.add(new Option('Forbidden Admin deputy',email));e.value=email;},emails.admin);
-  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain rejected assignment');assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
+  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain rejected assignment');assert.ok(await page.$$eval('#myDraftsContent tbody tr',rows=>rows.length>0),'recoverable assignment keeps the draft table');assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
  });
  if(role==='pm')await check('real draft access revocation clears private inputs and closes the editor',async()=>{
   await open();await fill('#pe_highlight','protected revoked form');const original=(await draftRef.get()).data();await draftRef.update({editorEmails:[emails.other]});
@@ -66,7 +66,25 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   await page.click('#btnOverview');await page.waitForSelector('.delivery-trends-overview-panel');assert.ok(await page.$('.delivery-trends-overview-panel .dt-card-value'));
   await page.evaluate(()=>window.openOverviewPrintDialog());assert.ok(await page.$('#overviewPrintOverlay.open'));await page.evaluate(()=>window.closeModal('overviewPrintOverlay',{force:true}));await page.click('#btnOverview');
  });
+ await check('lifecycle entry permissions and keyboard dialog',async()=>{
+ const buttons=await page.$$('.project-more-actions');assert.equal(buttons.length>0,role==='admin');
+ if(role==='admin'){await buttons[0].focus();await page.keyboard.press('Enter');await page.waitForSelector('#publishedProjectActionsOverlay.open');assert.equal(await page.$eval('#projectVisibilityAction',e=>getComputedStyle(e).display==='none'),false);page.once('dialog',d=>d.dismiss());await page.click('#projectDeleteAction');await page.keyboard.press('Escape');assert.equal(await page.$eval('#publishedProjectActionsOverlay',e=>e.classList.contains('open')),false);}
+ });
  await page.evaluate(()=>window.openMyDrafts());await page.waitForFunction(()=>document.querySelectorAll('#myDraftsContent .draft-list-row').length>0);
+ await page.waitForFunction(()=>!document.querySelector('#myDraftsContent button')?.disabled);
+ await check('Refresh returns keyboard focus to Refresh after success and network failure',async()=>{
+  for(const failure of [false,true]){
+   let release;const gate=new Promise(r=>release=r);
+   page.sprintRequestHook=async req=>{if(!req.url().endsWith('/listDashboardProjectDrafts'))return false;await gate;if(failure){await req.abort('failed');return true;}return false;};
+   await page.$eval('[data-draft-focus="refresh"]',e=>e.focus());await page.keyboard.press('Enter');
+   await page.waitForFunction(()=>document.querySelector('#myDraftsContent').getAttribute('aria-busy')==='true');release();
+   await page.waitForFunction(()=>!document.querySelector('[data-draft-focus="refresh"]').disabled);
+   assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('data-draft-focus')),'refresh');page.sprintRequestHook=null;
+  }
+ });
+ await page.$eval('[data-draft-focus="refresh"]',e=>e.click());await page.waitForFunction(()=>!document.querySelector('[data-draft-focus="refresh"]').disabled);
+ assert.equal(await page.$$eval('#myDraftsContent table tbody tr',r=>r.length),2);assert.equal(await page.$$eval('#myDraftsContent #newProjectDraftBtn',r=>r.length),1);
+ results.push({role,name:'semantic table, keyboard refresh focus, mobile horizontal actions',status:'PASS'});
  await page.screenshot({path:resolve(out,`${role}-drafts-desktop.png`),fullPage:true});
- await page.setViewport({width:390,height:844});await page.screenshot({path:resolve(out,`${role}-drafts-mobile.png`),fullPage:true});await page.setViewport({width:1440,height:1100});await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));
+ await page.setViewport({width:390,height:844});const bounds=await page.$eval('#myDraftsOverlay .modal',e=>({left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}));assert.ok(bounds.left>=0&&bounds.right<=391);await page.$eval('.draft-table-scroll',e=>{e.scrollLeft=e.scrollWidth;});assert.ok(await page.$eval('.draft-table-scroll',e=>e.scrollLeft>0));await page.screenshot({path:resolve(out,`${role}-drafts-mobile.png`),fullPage:false});await page.setViewport({width:1440,height:1100});await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));
 }

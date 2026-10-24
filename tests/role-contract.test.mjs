@@ -1,3 +1,4 @@
+import {normalizeDraftWorkspaceForBaseline} from './helpers/draft-workspace-source-baseline.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
@@ -214,5 +215,5 @@ test('Production presenceSessions writes the exact raw role for compatibility', 
 });
 
 test('UAT frozen main hash survives only the exact Sprint editor reversal', () => {
-  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(normalizeSprintEditorForBaseline(rawDashboardSource()), 'uat', environmentFor('uat')))).digest('hex'), originalUatHash);
+  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(normalizeSprintEditorForBaseline(normalizeDraftWorkspaceForBaseline(rawDashboardSource())), 'uat', environmentFor('uat')))).digest('hex'), originalUatHash);
 });

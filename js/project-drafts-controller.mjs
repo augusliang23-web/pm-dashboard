@@ -21,7 +21,10 @@ export function createProjectDraftsController({api,onState=()=>{}}) {
       if(lane==='mutation')latest.delete('list');
       update(result);return result;
     }
-    catch(error){if(g===generation&&latest.get(lane)===s){state={...state,error:error.message||'Draft request failed.',errorCode:error.code||'',errorReason:error.details?.reason||''};if(isProjectDraftAccessLoss(error))state={...state,selected:null,drafts:[],nextCursor:null};}throw error;}
+    catch(error){if(g===generation&&latest.get(lane)===s){state={...state,error:error.message||'Draft request failed.',errorCode:error.code||'',errorReason:error.details?.reason||''};if(isProjectDraftAccessLoss(error)){
+        // Access loss also cancels older reads in other lanes; they must not restore private data.
+        generation++;latest.clear();pending.clear();state={...state,selected:null,drafts:[],nextCursor:null,busy:false};emit();
+      }}throw error;}
     finally{if(g===generation){pending.delete(s);state={...state,busy:pending.size>0};emit();}}
   }
   return {reset,setIdentity,

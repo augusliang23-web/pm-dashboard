@@ -13,7 +13,7 @@ test('My Drafts resumes editing instead of exposing a separate publication step'
  const doc={createElement:tag=>new Node(tag)},root=new Node('main');let edited;
  const controller={open:async id=>({draft:{draftId:id,revision:3}})};
  const ui=mountProjectDraftsUi({root,controller,onEdit:draft=>{edited=draft;},canManage:()=>true,onManage:()=>{throw Error('Drafts must not launch lifecycle actions');}});ui.render({drafts:[{draftId:'a',revision:3,project:{},lastPublication:{weekId:'W1'}}]});
- const row=root.children.find(node=>node.tag==='article');assert.equal(row.children.filter(node=>node.textContent==='Publish').length,0);
- assert.equal(row.children.filter(node=>node.tag==='button').length,1);
- row.children.find(node=>node.textContent==='Edit Project').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(edited.revision,3);
+ const all=node=>[node,...node.children.flatMap(all)];const row=all(root).find(node=>node.tag==='tr'&&node.className==='draft-list-row');const cells=all(row);assert.equal(cells.filter(node=>node.textContent==='Publish').length,0);
+ assert.equal(cells.filter(node=>node.tag==='button').length,1);
+ cells.find(node=>node.textContent==='Edit Project').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(edited.revision,3);
 });

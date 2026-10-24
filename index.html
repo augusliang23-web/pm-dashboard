@@ -192,6 +192,33 @@ button[aria-busy="true"] { cursor:wait; }
 .btn-ghost:hover { background: var(--s2); color: var(--text); }
 
 /* Draft badge: a small inline capsule next to the project name (a flex-column child would stretch full width). */
+
+.draft-workspace-toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.draft-workspace-status { color:var(--text-light); font-size:13px; line-height:1.5; margin:8px 0; }
+.draft-workspace-status:empty { display:none; }
+.draft-table-scroll { overflow-x:auto; max-width:100%; border:1px solid var(--border); border-radius:8px; }
+.draft-table { border-collapse:collapse; width:100%; min-width:670px; text-align:left; font-size:13px; }
+.draft-table th { color:var(--text-light); background:var(--bg); font-size:12px; white-space:nowrap; }
+.draft-table th, .draft-table td { padding:14px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.draft-table tr:last-child td { border-bottom:0; }
+.draft-table td:first-child { min-width:170px; overflow-wrap:anywhere; }
+.draft-table td span { display:block; color:var(--text-light); margin-top:4px; font-size:12px; }
+.draft-table td:nth-child(2) { font-variant-numeric:tabular-nums; }
+.draft-table td:last-child .btn { white-space:nowrap; }
+#myDraftsOverlay .modal-hdr, #publishedProjectActionsOverlay .modal-hdr { gap:16px; align-items:center; }
+#myDraftsOverlay .modal-hdr h3, #publishedProjectActionsOverlay .modal-hdr h3 { margin:0; }
+#myDraftsOverlay .modal-x, #publishedProjectActionsOverlay .modal-x { flex:0 0 36px; height:36px; }
+.published-project-actions-body { display:grid; gap:12px; }
+#publishedProjectActionsMessage { margin:0 0 8px; font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.project-lifecycle-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+.project-lifecycle-actions .btn { white-space:normal; height:auto; min-height:42px; }
+.project-more-actions { flex:0 0 32px; width:32px; height:32px; font-size:22px; }
+@media (max-width:600px) {
+  #myDraftsOverlay .modal, #publishedProjectActionsOverlay .modal { width:calc(100vw - 24px) !important; padding:18px; }
+  .draft-table th, .draft-table td { padding:12px 10px; }
+  .project-lifecycle-actions .btn { flex:1 1 180px; }
+}
+
 .draft-badge { display:inline-block; vertical-align:middle; margin-left:8px; padding:1px 8px; border:1px solid #E7D49B; border-radius:999px; background:#FFF9E9; color:#9A7429; font-size:10px; font-weight:800; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; }
 /* .proj-grid stretches every card to the tallest card in its row; a draft card is short, so it must size to its own content. */
 .draft-project-card { align-self:start; border-style:dashed; }
@@ -3112,15 +3139,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <div class="overlay" id="myDraftsOverlay" role="dialog" aria-modal="true" aria-labelledby="myDraftsTitle">
   <div class="modal" style="max-width:850px;max-height:90vh;overflow:auto">
-    <div class="modal-header"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
-    <p>Drafts remain available across weeks. Open the editor to Save Draft or Save & Publish.</p>
-    <button class="btn btn-ghost" type="button" id="newProjectDraftBtn" onclick="openNewProjectDraft()">New Project Draft</button>
+    <div class="modal-hdr"><h3 id="myDraftsTitle">My Drafts</h3><button class="modal-x" type="button" onclick="closeModal('myDraftsOverlay')" aria-label="Close My Drafts">×</button></div>
     <div id="myDraftsContent"></div>
   </div>
 </div>
 <div class="overlay" id="publishedProjectActionsOverlay" role="dialog" aria-modal="true" aria-labelledby="publishedProjectActionsTitle">
- <div class="modal" style="max-width:600px"><div class="modal-header"><h3 id="publishedProjectActionsTitle">Published project actions</h3><button class="modal-x" type="button" onclick="closeModal('publishedProjectActionsOverlay')" aria-label="Close published project actions">×</button></div>
- <p id="publishedProjectActionsMessage" role="status"></p><label id="projectVisibilityLabel" for="projectVisibilitySelect">Project visibility</label><select class="fs" id="projectVisibilitySelect" aria-label="Project visibility"><option value="active">Active</option><option value="hidden">Hidden</option><option value="archived">Archived</option></select><button type="button" class="btn btn-ghost" id="projectVisibilityAction">Save Visibility</button><button type="button" class="btn btn-ghost" id="projectDeleteAction">Delete published project</button></div>
+ <div class="modal" style="max-width:600px"><div class="modal-hdr"><h3 id="publishedProjectActionsTitle">Published project actions</h3><button class="modal-x" type="button" onclick="closeModal('publishedProjectActionsOverlay')" aria-label="Close published project actions">×</button></div>
+ <div class="published-project-actions-body"><p id="publishedProjectActionsMessage" role="status"></p><label id="projectVisibilityLabel" for="projectVisibilitySelect">Project visibility</label><select class="fs" id="projectVisibilitySelect" aria-label="Project visibility"><option value="active">Active</option><option value="hidden">Hidden</option><option value="archived">Archived</option></select><div class="project-lifecycle-actions"><button type="button" class="btn btn-ghost" id="projectVisibilityAction">Save Visibility</button><button type="button" class="btn btn-ghost" id="projectDeleteAction">Delete published project</button></div></div></div>
 </div>
 <div class="overlay" id="archivedProjectsOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="archivedProjectsTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:920px; max-height:90vh; display:flex; flex-direction:column;">
@@ -10396,10 +10421,13 @@ function renderNormal(projs) {
     grid.querySelectorAll('.proj-card[data-project-code] .card-actions').forEach(actions => {
       const card = actions.closest('.proj-card');
       const manage = document.createElement('button');
-      manage.type = 'button'; manage.className = 'btn btn-ghost'; manage.textContent = 'Manage Project';
+      manage.type = 'button'; manage.className = 'btn-icon project-more-actions no-print'; manage.textContent = '⋯';
+      manage.setAttribute('aria-label', `Published project actions for ${card.dataset.projectCode}`);
+      manage.setAttribute('aria-haspopup', 'dialog'); manage.setAttribute('aria-controls','publishedProjectActionsOverlay');
+      manage.title = 'Published project actions';
+      manage.addEventListener('dblclick',event => event.stopPropagation());
       manage.onclick = event => { event.stopPropagation(); const week = allWeeks[currentIdx]; openPublishedProjectActions(card.dataset.projectCode, week.__documentId || week.weekLabel.replace(/\s+/g,'-')); };
-      manage.classList.add('no-print'); manage.style.alignSelf = 'flex-end'; manage.style.marginTop = '16px';
-      card.querySelector('.card-body').append(manage);
+      actions.append(manage);
     });
   }
   if (typeof updateProjectCapabilityUi === 'function') updateProjectCapabilityUi();
@@ -12077,7 +12105,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.key === 'Tab') {
-    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(control => !['myDraftsOverlay','publishedProjectActionsOverlay','projEditOverlay'].includes(modal.id) || (control.getClientRects().length > 0 && !control.closest('[inert]')));
     const currentIndex = focusable.indexOf(document.activeElement);
     const targetIndex = getFocusTrapIndex(currentIndex, focusable.length, event.shiftKey);
     if (targetIndex !== currentIndex && targetIndex >= 0) {
@@ -14171,6 +14199,7 @@ const draftController = createProjectDraftsController({ api: projectDraftsApi, o
     getWeeks: () => allWeeks,
     onEdit: draft => beginDraftEditor(draft),
     onOpen: draftId => window.openManagedProjectDraft(draftId),
+    onNew: () => window.openNewProjectDraft(),
     onPublished: async () => { render(); }
   });
   onAuthStateChanged(auth, () => {

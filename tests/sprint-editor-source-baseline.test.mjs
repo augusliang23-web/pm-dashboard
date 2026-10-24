@@ -1,9 +1,10 @@
+import {normalizeDraftWorkspaceForBaseline} from './helpers/draft-workspace-source-baseline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {normalizeSprintEditorForBaseline} from './helpers/sprint-editor-source-baseline.mjs';
-const raw=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const raw=normalizeDraftWorkspaceForBaseline(readFileSync(new URL('../index.html',import.meta.url),'utf8'));
 const changes=JSON.parse(readFileSync(new URL('./fixtures/sprint-editor-source-delta.json',import.meta.url),'utf8'));
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const baseline='7753c50ab84906d93cef1de86e748e56d315170b5baabebd73aa9d9df4f77cab';

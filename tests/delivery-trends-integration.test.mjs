@@ -1,3 +1,4 @@
+import {normalizeDraftWorkspaceForBaseline} from './helpers/draft-workspace-source-baseline.mjs';
 import {normalizeSprintEditorForBaseline} from './helpers/sprint-editor-source-baseline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -235,7 +236,7 @@ function revertWeekOrdering(raw) {
 
 test('the UAT hash equals the composite pre-2C candidate hash once the Phase 2C change set is reverted', () => {
   // Reverting Phase 2C week ordering on the composite candidate (historical PR #56 baseline was f248c88710f3589bacb2d6fc73135393ef106aa97a0a62621e901b492dfa29a5 before PR #54 integration).
-  let raw = revertWeekOrdering(normalizeSprintEditorForBaseline(rawDashboardSource()));
+  let raw = revertWeekOrdering(normalizeSprintEditorForBaseline(normalizeDraftWorkspaceForBaseline(rawDashboardSource())));
   assert.doesNotMatch(raw, /sortWeeksChronologically|week-order\.mjs/);
   const hash = createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(raw, 'uat', environmentFor('uat')))).digest('hex');
   assert.equal(hash, '64600743fd97c00b8165302e0341911fb79e647d43a63d6b8cd25ff2ca38d2f5');
@@ -245,7 +246,7 @@ test('the UAT frozen-hash change is exactly the Delivery Trends feature', () => 
   // Strip every Delivery Trends UAT-only addition and the single render hook.
   // Historical clean main baseline was e83cb180ae5888fe33b4f93a642bb9a612decd30897007d2f07f85415b0c4479 before PR #54 and PR #63.
   // On the composite candidate containing PR #54 Draft/Publish without implicit prototype fallback, the stripped hash is reproduced exactly.
-  let raw = revertWeekOrdering(normalizeSprintEditorForBaseline(rawDashboardSource()));
+  let raw = revertWeekOrdering(normalizeSprintEditorForBaseline(normalizeDraftWorkspaceForBaseline(rawDashboardSource())));
   for (const tag of ['deliveryTrendsButton', 'deliveryTrendsContainer', 'deliveryPerformanceOption', 'deliveryTrendsView', 'deliveryTrendsRawHistoryReset', 'deliveryTrendsRawHistorySnapshot', 'deliveryTrendsRawHistoryError', 'deliveryTrendsErrorCleanup', 'deliveryTrendsAuthCleanup']) {
     raw = raw.replace(new RegExp(`^[ \\t]*(?:\\/\\/|<!--) @uat-only begin ${tag}[^\\n]*\\n[\\s\\S]*?^[ \\t]*(?:\\/\\/|<!--) @uat-only end ${tag}[^\\n]*\\n?`, 'm'), '');
   }
