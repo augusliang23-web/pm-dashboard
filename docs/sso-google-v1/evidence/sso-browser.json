@@ -1,0 +1,54 @@
+{
+  "results": [
+    {
+      "name": "existing Admin and PM password sessions are independently authorized",
+      "status": "PASS"
+    },
+    {
+      "name": "Admin explicit popup linking preserves UID/role/password and requires Owner provider approval",
+      "status": "PASS"
+    },
+    {
+      "name": "PM is separately provisioned; linking cannot create or inherit Admin role",
+      "status": "PASS"
+    },
+    {
+      "name": "both approved Google identities can sign in simultaneously through native emulator popups",
+      "status": "PASS"
+    },
+    {
+      "name": "refresh preserves independent sessions and PM cannot expose Admin actions",
+      "status": "PASS"
+    },
+    {
+      "name": "Admin Google session retains self assignment Save/Publish/reopen",
+      "status": "PASS"
+    },
+    {
+      "name": "logout and cancelled late Google popup cannot affect the other profile or restore private UI",
+      "status": "PASS"
+    },
+    {
+      "name": "unprovisioned Google account is signed out with no role record or inherited private data",
+      "status": "PASS"
+    },
+    {
+      "name": "server revocation clears PM private state while Admin remains independent",
+      "status": "PASS"
+    },
+    {
+      "name": "native Auth emulator rejects a Google credential collision without UID/role transfer",
+      "status": "PASS"
+    },
+    {
+      "name": "PDF validates a real synthetic Firebase token and rejects mismatched UID before week reads",
+      "status": "PASS"
+    },
+    {
+      "name": "Email/password fallback still works after Google linking",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": [],
+  "scope": "Real Auth emulator popup, Firestore/Functions; separate Chromium storage contexts, not live Google chooser or manual Chrome profiles"
+}

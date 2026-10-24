@@ -1,0 +1,154 @@
+i  emulators: Starting emulators: auth, functions, firestore
+i  emulators: Detected demo project ID "demo-pm-dashboard-v22t", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  functions: Watching "/private/tmp/pm-s02-google-sso/functions" for Cloud Functions...
+⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory.
+⚠  functions: Please note that there will be breaking changes when you upgrade.
+✔  functions: Using node@22 from host.
+Serving at port 8028
+
+✔  functions: Loaded functions definitions from source: aggregatePresenceSessions, addExecutiveMilestoneUpdate, createExecutiveMilestoneChangeRequest, withdrawExecutiveMilestoneChangeRequest, decideExecutiveMilestoneChangeRequest, applyDirectExecutiveMilestoneChange, initializeExecutiveMilestoneLiveTimeline, saveExecutiveMilestoneTimelineConfig, setExecutiveRagOverride, syncProductionWeeksToUat, getProductionWeekSyncStatus, restoreUatWeeksSnapshot, saveDashboardProject, deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease, saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings, saveDashboardGanttWindowSettings, setUserPermissionOverrides, listDashboardProjectDrafts, getDashboardProjectDraft, saveDashboardProjectDraft, publishDashboardProjectDraft.
+i  functions[us-central1-aggregatePresenceSessions]: function ignored because the pubsub emulator does not exist or is not running.
+✔  functions[us-central1-addExecutiveMilestoneUpdate]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/addExecutiveMilestoneUpdate).
+✔  functions[us-central1-createExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/createExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-withdrawExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/withdrawExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-decideExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/decideExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-applyDirectExecutiveMilestoneChange]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/applyDirectExecutiveMilestoneChange).
+✔  functions[us-central1-initializeExecutiveMilestoneLiveTimeline]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/initializeExecutiveMilestoneLiveTimeline).
+✔  functions[us-central1-saveExecutiveMilestoneTimelineConfig]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveExecutiveMilestoneTimelineConfig).
+✔  functions[us-central1-setExecutiveRagOverride]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setExecutiveRagOverride).
+✔  functions[us-central1-syncProductionWeeksToUat]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/syncProductionWeeksToUat).
+✔  functions[us-central1-getProductionWeekSyncStatus]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/getProductionWeekSyncStatus).
+✔  functions[us-central1-restoreUatWeeksSnapshot]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/restoreUatWeeksSnapshot).
+✔  functions[us-central1-saveDashboardProject]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardProject).
+✔  functions[us-central1-deleteDashboardProject]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/deleteDashboardProject).
+✔  functions[us-central1-setDashboardProjectAttention]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setDashboardProjectAttention).
+✔  functions[us-central1-setDashboardWeekRelease]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setDashboardWeekRelease).
+✔  functions[us-central1-saveDashboardWeekFields]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardWeekFields).
+✔  functions[us-central1-createDashboardWeek]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/createDashboardWeek).
+✔  functions[us-central1-saveDashboardGanttTemplateSettings]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardGanttTemplateSettings).
+✔  functions[us-central1-saveDashboardGanttWindowSettings]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardGanttWindowSettings).
+✔  functions[us-central1-setUserPermissionOverrides]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setUserPermissionOverrides).
+✔  functions[us-central1-listDashboardProjectDrafts]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/listDashboardProjectDrafts).
+✔  functions[us-central1-getDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/getDashboardProjectDraft).
+✔  functions[us-central1-saveDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardProjectDraft).
+✔  functions[us-central1-publishDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/publishDashboardProjectDraft).
+i  Running script: node scripts/verification/sso-dual-account-browser.mjs
+PASSWORD_CLICK_TARGET { disabled: false, target: 'passwordLoginBtn' }
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 15.482458ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 108.073042ms
+PASSWORD_CLICK_TARGET { disabled: false, target: 'passwordLoginBtn' }
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 0.990542ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 0.837458ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 14.5285ms
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 123.137666ms
+PASS existing Admin and PM password sessions are independently authorized
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 0.527875ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 23.654ms
+PASSWORD_CLICK_TARGET { disabled: false, target: 'passwordLoginBtn' }
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 17.436708ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 27.447083ms
+PASS Admin explicit popup linking preserves UID/role/password and requires Owner provider approval
+PASSWORD_CLICK_TARGET { disabled: false, target: 'passwordLoginBtn' }
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 16.431625ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 23.739375ms
+PASS PM is separately provisioned; linking cannot create or inherit Admin role
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.311291ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 20.077083ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.345416ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 19.774542ms
+PASS both approved Google identities can sign in simultaneously through native emulator popups
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.410458ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 26.514333ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 9.242209ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 19.346458ms
+PASS refresh preserves independent sessions and PM cannot expose Admin actions
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 1.205333ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 97.704084ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 1.205083ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 131.646125ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 0.839875ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 20.971042ms
+PASS Admin Google session retains self assignment Save/Publish/reopen
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.839ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 0.997292ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 26.741375ms
+PASS logout and cancelled late Google popup cannot affect the other profile or restore private UI
+PASS unprovisioned Google account is signed out with no role record or inherited private data
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 1.294334ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 34.213833ms
+PASS server revocation clears PM private state while Admin remains independent
+PASS native Auth emulator rejects a Google credential collision without UID/role transfer
+PASS PDF validates a real synthetic Firebase token and rejects mismatched UID before week reads
+PASSWORD_CLICK_TARGET { disabled: false, target: 'passwordLoginBtn' }
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.260959ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 23.283416ms
+PASS Email/password fallback still works after Google linking
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  functions: Stopping Functions Emulator
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  eventarc: Stopping Eventarc Emulator
+i  tasks: Stopping Cloud Tasks Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

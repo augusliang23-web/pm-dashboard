@@ -12,7 +12,7 @@ const weeks=()=>Array.from({length:13},(_,i)=>({weekId:`W${29+i}-2026`,weekLabel
 const browser=(ws,options={})=>buildDeliveryTrendsState({...base,weeks:ws,currentIdx:ws.length-1,...options});
 async function pdf(ws,options={}){
  const request=parseReportRequest({mode:'overview',weekId:ws.at(-1).weekId,overviewScope:'system',sections:['health-focus','portfolio-delivery-performance'],projectCodes:ws.at(-1).projects.map(p=>p.code)},{deliveryPerformanceSection:true});
- return loadAuthorizedReport({request,idToken:'synthetic',adapters:{verifyIdToken:async()=>({email:'synthetic@example.test'}),getUserByEmail:async()=>({role:options.role||'pm'}),getWeekById:async()=>ws.at(-1),getDeliveryHistory:async()=>({weeks:ws,complete:true}),deliveryTrendsWindowWeeks:options.windowWeeks||6,getDeliveryTrendsProvenance:()=>({source:base.source,asOf:base.asOf})}});
+ return loadAuthorizedReport({request,idToken:'synthetic',adapters:{verifyIdToken:async()=>({uid:'synthetic-uid',email:'synthetic@example.test',firebase:{sign_in_provider:'password'}}),getUserByEmail:async()=>({authUid:'synthetic-uid',role:options.role||'pm'}),getWeekById:async()=>ws.at(-1),getDeliveryHistory:async()=>({weeks:ws,complete:true}),deliveryTrendsWindowWeeks:options.windowWeeks||6,getDeliveryTrendsProvenance:()=>({source:base.source,asOf:base.asOf})}});
 }
 test('actual page→data→model→renderer share six/twelve-week metric definitions',async()=>{
  for(const windowWeeks of [6,12]){
@@ -72,6 +72,6 @@ test('server-complete short history remains partial with explicit missing-week/b
 test('combined Overview excludes future ISO years from the legacy weekly trend section',async()=>{
  const ws=weeks();const anchor=ws.at(-1);const future={...anchor,weekId:'W1-2027',weekLabel:'W1 2027',projects:[project({name:'FUTURE PRIVATE'})]};
  const request=parseReportRequest({mode:'overview',weekId:anchor.weekId,projectCodes:['A'],sections:['weekly-trend','portfolio-delivery-performance']},{deliveryPerformanceSection:true});
- const report=await loadAuthorizedReport({request,idToken:'synthetic',adapters:{verifyIdToken:async()=>({email:'synthetic@example.test'}),getUserByEmail:async()=>({role:'pm'}),getWeekById:async()=>anchor,getTrendWeeks:async()=>[ws.at(-2),anchor,future],getDeliveryHistory:async()=>({weeks:[...ws,future],complete:true}),getDeliveryTrendsProvenance:()=>({source:'synthetic'})}});
+ const report=await loadAuthorizedReport({request,idToken:'synthetic',adapters:{verifyIdToken:async()=>({uid:'synthetic-uid',email:'synthetic@example.test',firebase:{sign_in_provider:'password'}}),getUserByEmail:async()=>({authUid:'synthetic-uid',role:'pm'}),getWeekById:async()=>anchor,getTrendWeeks:async()=>[ws.at(-2),anchor,future],getDeliveryHistory:async()=>({weeks:[...ws,future],complete:true}),getDeliveryTrendsProvenance:()=>({source:'synthetic'})}});
  assert.ok(!JSON.stringify(report).includes('FUTURE PRIVATE'));assert.equal(report.trendWeeks.length,2);
 });

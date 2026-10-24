@@ -43,17 +43,17 @@ function rootInitialPresencePayload() {
 }
 
 function auth(uid, email) {
-  return environment.authenticatedContext(uid, { email }).firestore();
+  return environment.authenticatedContext(uid, { email,firebase:{sign_in_provider:'password'} }).firestore();
 }
 
 async function seed() {
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await Promise.all([
-      setDoc(doc(db, 'users/admin@example.com'), { role: 'admin', displayName: 'Admin' }),
-      setDoc(doc(db, 'users/owner@example.com'), { role: 'pm', displayName: 'Owner' }),
-      setDoc(doc(db, 'users/other@example.com'), { role: 'pm', displayName: 'Other' }),
-      setDoc(doc(db, 'users/vip@example.com'), { role: 'vip', displayName: 'VIP' }),
+      setDoc(doc(db, 'users/admin@example.com'), { authUid:'admin-uid', role: 'admin', displayName: 'Admin' }),
+      setDoc(doc(db, 'users/owner@example.com'), { authUid:'owner-uid', role: 'pm', displayName: 'Owner' }),
+      setDoc(doc(db, 'users/other@example.com'), { authUid:'other-uid', role: 'pm', displayName: 'Other' }),
+      setDoc(doc(db, 'users/vip@example.com'), { authUid:'vip-uid', role: 'vip', displayName: 'VIP' }),
       setDoc(doc(db, 'weeks/draft-week'), {
         weekLabel: 'W33 2026', isReleased: false,
         projects: [{ code: 'ALPHA', owner: 'Owner' }],
@@ -373,18 +373,18 @@ test('a server-stored week.manage override lets any recognized non-Admin role re
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await Promise.all([
-      ...delegates.map(role => setDoc(doc(db, `users/${role}-delegate@example.com`), { role, displayName: role })),
+      ...delegates.map(role => setDoc(doc(db, `users/${role}-delegate@example.com`), { authUid:`${role}-delegate-uid`,role, displayName: role })),
       ...delegates.map(role => setDoc(doc(db, `userPermissions/${role}-delegate@example.com`), {
         schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1,
       })),
-      setDoc(doc(db, 'users/engineering@example.com'), { role: 'engineering', displayName: 'Engineering' }),
-      setDoc(doc(db, 'users/denied@example.com'), { role: 'engineering', displayName: 'Denied' }),
+      setDoc(doc(db, 'users/engineering@example.com'), { authUid:'engineering-uid', role: 'engineering', displayName: 'Engineering' }),
+      setDoc(doc(db, 'users/denied@example.com'), { authUid:'denied-uid', role: 'engineering', displayName: 'Denied' }),
       setDoc(doc(db, 'userPermissions/denied@example.com'), { overrides: { 'week.manage': false } }),
-      setDoc(doc(db, 'users/malformed@example.com'), { role: 'sales', displayName: 'Malformed' }),
+      setDoc(doc(db, 'users/malformed@example.com'), { authUid:'malformed-uid', role: 'sales', displayName: 'Malformed' }),
       setDoc(doc(db, 'userPermissions/malformed@example.com'), { overrides: { 'week.manage': 'true' } }),
-      setDoc(doc(db, 'users/not-a-map@example.com'), { role: 'sales', displayName: 'Not a map' }),
+      setDoc(doc(db, 'users/not-a-map@example.com'), { authUid:'not-a-map-uid', role: 'sales', displayName: 'Not a map' }),
       setDoc(doc(db, 'userPermissions/not-a-map@example.com'), { overrides: 'week.manage' }),
-      setDoc(doc(db, 'users/unknown-role@example.com'), { role: 'contractor', displayName: 'Unknown' }),
+      setDoc(doc(db, 'users/unknown-role@example.com'), { authUid:'unknown-role-uid', role: 'contractor', displayName: 'Unknown' }),
       setDoc(doc(db, 'userPermissions/unknown-role@example.com'), { overrides: { 'week.manage': true } }),
       setDoc(doc(db, 'userPermissions/vip@example.com'), { overrides: { 'permissions.manage': true } }),
     ]);
@@ -420,7 +420,7 @@ test('raw role variants have matching dashboard, client, Functions and rules aut
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await Promise.all(cases.map(async ({ raw, value, email }) => {
-      await setDoc(doc(db, `users/${email}`), raw === undefined ? {} : { role: raw });
+      await setDoc(doc(db, `users/${email}`), raw === undefined ? {authUid:email} : { authUid:email,role: raw });
       if (value !== undefined) await setDoc(doc(db, `userPermissions/${email}`), { overrides: { 'week.manage': value } });
     }));
   });
@@ -436,8 +436,8 @@ test('raw role variants have matching dashboard, client, Functions and rules aut
     const readDraft = getDoc(doc(client, 'weeks/draft-week'));
     if (manage || expected === 'pm') await assertSucceeds(readDraft);
     else await assertFails(readDraft);
-    // Released reads retain the existing directory-membership behavior, even for unknown roles.
-    await assertSucceeds(getDoc(doc(client, 'weeks/released-week')));
+    // UID binding now also requires a recognized server role; unknown roles fail closed.
+    await (expected?assertSucceeds:assertFails)(getDoc(doc(client, 'weeks/released-week')));
     // A Manage Weeks grant never becomes Admin permission-document access.
     const readOtherPermissions = getDoc(doc(client, 'userPermissions/other@example.com'));
     if (expected === 'admin') await assertSucceeds(readOtherPermissions);
@@ -480,11 +480,11 @@ test('week.release and project.manage overrides never grant draft-week reads (no
     const db = context.firestore();
     const roles = ['engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'];
     await Promise.all([
-      ...roles.map(role => setDoc(doc(db, `users/${role}-release@example.com`), { role, displayName: role })),
+      ...roles.map(role => setDoc(doc(db, `users/${role}-release@example.com`), { authUid:`${role}-release-uid`,role, displayName: role })),
       ...roles.map(role => setDoc(doc(db, `userPermissions/${role}-release@example.com`), {
         schemaVersion: 1, overrides: { 'week.release': true, 'project.manage': true, 'gantt.manage': true }, revision: 1,
       })),
-      setDoc(doc(db, 'users/pm-release-off@example.com'), { role: 'pm', displayName: 'PM release off' }),
+      setDoc(doc(db, 'users/pm-release-off@example.com'), { authUid:'pm-release-off-uid', role: 'pm', displayName: 'PM release off' }),
       setDoc(doc(db, 'userPermissions/pm-release-off@example.com'), { overrides: { 'week.release': false } }),
     ]);
   });
@@ -509,7 +509,7 @@ test('drafts and publication audit cannot be accessed directly by any client rol
     await setDoc(doc(context.firestore(), 'projectDraftPublicationAudit/private'), { draftId: 'private' });
   });
   for (const email of ['admin@example.com', 'owner@example.com', 'other@example.com', 'vip@example.com']) {
-    const client = environment.authenticatedContext(email, { email }).firestore();
+    const client = environment.authenticatedContext(email, { email,firebase:{sign_in_provider:'password'} }).firestore();
     for (const collectionName of ['projectDrafts', 'projectDraftPublicationAudit']) {
       await assertFails(getDoc(doc(client, collectionName, 'private')));
       await assertFails(getDocs(collection(client, collectionName)));

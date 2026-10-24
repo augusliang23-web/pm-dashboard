@@ -7,8 +7,8 @@ function response() {
 }
 
 const adapters = {
-  verifyIdToken: async () => ({ email: 'pm@example.com' }),
-  getUserByEmail: async () => ({ role: 'pm' }),
+  verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'pm@example.com' }),
+  getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'pm' }),
   getWeekById: async () => ({ weekLabel: 'W28', projects: [{ code: 'PMS-001', name: 'PMS' }] })
 };
 
@@ -167,8 +167,8 @@ test('an unrecognized Firebase Admin/internal auth failure remains a generic 500
 test('role/access denial from a decoded, valid token remains 403', async () => {
   const deniedAdapters = {
     ...adapters,
-    verifyIdToken: async () => ({ email: 'nobody@example.com' }),
-    getUserByEmail: async () => ({ role: 'unknown-role' })
+    verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'nobody@example.com' }),
+    getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'unknown-role' })
   };
   const handle = createReportHandler({ adapters: deniedAdapters, renderPdf: async () => Buffer.from('%PDF') });
   const res = response();

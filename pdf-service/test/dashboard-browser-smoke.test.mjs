@@ -202,7 +202,7 @@ test('role and session behavior in the real page: Executive cannot open it; sign
     await pm.page.evaluate(() => window.__fakeAuthChange(null)); await wait(500);
     assert.equal(await visible(pm.page, '#deliveryTrendsView'), false, 'signed-out page shows no Delivery Trends');
     await pm.page.evaluate(() => {
-      window.__FAKE.documents['users/qa-exec@example.test'] = { role: 'executive', displayName: 'QA Exec', email: 'qa-exec@example.test' };
+      window.__FAKE.documents['users/qa-exec@example.test'] = { authUid:'synthetic-exec',role: 'executive', displayName: 'QA Exec', email: 'qa-exec@example.test' };
       window.__fakeAuthChange({ uid: 'synthetic-exec', email: 'qa-exec@example.test', displayName: 'QA Exec', getIdToken: async () => 't' });
     });
     await wait(1500);

@@ -10,14 +10,14 @@ const writes = require('../project-dashboard-writes');
 const drafts = require('../project-drafts');
 const prod = 'project-manager-dashboar-a067f';
 const active = {schemaVersion:1, projectId:prod, drafts:true, archiveRecovery:true, enforceDraftPublish:true};
-const call = (api, fn, data, email='pm@example.com') => api[fn].run({auth:{uid:email,token:{email}},data});
+const call = (api, fn, data, email='pm@example.com') => api[fn].run({auth:{uid:email,token:{email,firebase:{sign_in_provider:'password'}}},data});
 function setup(config=active) {
   state.docs.clear(); process.env.GCLOUD_PROJECT=prod;
   delete process.env.GOOGLE_CLOUD_PROJECT; delete process.env.FUNCTIONS_EMULATOR;
   if(config) state.docs.set('releaseCapabilities/v231',structuredClone(config));
-  state.docs.set('users/pm@example.com',{role:'pm',displayName:'PM'});
-  state.docs.set('users/admin@example.com',{role:'admin',displayName:'Admin'});
-  state.docs.set('users/vip@example.com',{role:'vip',displayName:'VIP'});
+  state.docs.set('users/pm@example.com',{authUid:'pm@example.com',role:'pm',displayName:'PM'});
+  state.docs.set('users/admin@example.com',{authUid:'admin@example.com',role:'admin',displayName:'Admin'});
+  state.docs.set('users/vip@example.com',{authUid:'vip@example.com',role:'vip',displayName:'VIP'});
   state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:true,projects:[{code:'ARCH',name:'Archived',visibility:'archived',progress:30}]});
   state.docs.set('weeks/W2',{weekLabel:'W2 2026',isReleased:false,projects:[{code:'OLD',owner:'PM',progress:20}]});
 }
@@ -93,7 +93,7 @@ test('Production attention denies unauthenticated, wrong role, wrong owner and r
   const request={weekId:'W2',projectCode:'OLD',attention:'action'};
   await assert.rejects(writes.setDashboardProjectAttention.run({data:request}),e=>e.code==='unauthenticated');
   await assert.rejects(call(writes,'setDashboardProjectAttention',request,'vip@example.com'),e=>e.code==='permission-denied');
-  state.docs.set('users/other@example.com',{role:'pm',displayName:'Other'});
+  state.docs.set('users/other@example.com',{authUid:'other@example.com',role:'pm',displayName:'Other'});
   await assert.rejects(call(writes,'setDashboardProjectAttention',request,'other@example.com'),e=>e.details?.reason==='ownership-forbidden');
   state.docs.get('weeks/W2').isReleased=true;
   await assert.rejects(call(writes,'setDashboardProjectAttention',request),e=>e.details?.reason==='released-week');

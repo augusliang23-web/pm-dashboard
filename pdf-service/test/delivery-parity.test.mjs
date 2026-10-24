@@ -34,7 +34,7 @@ const fakeDb = (map) => ({ collection: () => ({ f: null, lim: 50, after: null, w
 async function pdf(role, weekId, map, { windowWeeks, overviewScope = 'all', projectCodes } = {}) {
   const reader = createBoundedDeliveryHistoryReader({ db: fakeDb(map) });
   const request = parseReportRequest({ mode: 'overview', weekId, sections: [SECTION], overviewScope, projectCodes }, { deliveryPerformanceSection: true });
-  return loadAuthorizedReport({ request, idToken: 't', adapters: { verifyIdToken: async () => ({ email: 'qa@example.test' }), getUserByEmail: async () => ({ role }),
+  return loadAuthorizedReport({ request, idToken: 't', adapters: { verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'qa@example.test' }), getUserByEmail: async () => ({authUid:'pdf-fixture',role }),
     getWeekById: async id => JSON.parse(JSON.stringify(map.get(id))), getDeliveryHistory: reader, deliveryTrendsWindowWeeks: windowWeeks, getDeliveryTrendsProvenance: () => ({ source: 'synthetic', asOf: AS_OF }) } });
 }
 // What the dashboard has loaded for a role (initData): admin/pm read every week, everyone else released weeks only.
@@ -106,7 +106,7 @@ test('Browser requires server-confirmed history; the PDF reader requires complet
   const web = buildDeliveryTrendsState({ weeks: raw, anchorWeekId: 'W5-2026', currentIdx: 0, role: 'pm', historyComplete: false, source: 'uat', asOf: AS_OF });
   assert.equal(web.state, 'unavailable');
   const report = await loadAuthorizedReport({ request: parseReportRequest({ mode: 'overview', weekId: 'W5-2026', sections: [SECTION], overviewScope: 'all', projectCodes: ['A'] }, { deliveryPerformanceSection: true }), idToken: 't',
-    adapters: { verifyIdToken: async () => ({ email: 'qa@example.test' }), getUserByEmail: async () => ({ role: 'pm' }), getWeekById: async id => map.get(id), getDeliveryHistory: async () => ({ weeks: [...map.values()], complete: false }) } });
+    adapters: { verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'qa@example.test' }), getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'pm' }), getWeekById: async id => map.get(id), getDeliveryHistory: async () => ({ weeks: [...map.values()], complete: false }) } });
   assert.equal(report.deliveryTrends.status, 'unavailable');
   assert.equal(report.deliveryTrends.summary.weeklyProgressGainPp, null);
 });

@@ -64,6 +64,8 @@ function makeContext(overrides = {}) {
     PM_LIST: [],
     isAuthInitializationCurrent,
     getEmailKey: user => (user?.email || '').trim().toLowerCase(),
+    stopDashboardIdentitySubscription: () => {},
+    verifyAndWatchDashboardIdentity: async () => true,
     quiesceDashboardForAuthTransition: () => {},
     resetCurrentUserPermissions: () => {},
     loadCurrentUserPermissionOverrides: async () => ({}),
@@ -91,6 +93,7 @@ function makeContext(overrides = {}) {
     console: { error: () => { calls.consoleError += 1; } },
     ...overrides,
   });
+  context.getDashboardUserFromServer=(...args)=>context.getDoc(...args);
   vm.runInContext(`var handler = ${extractOnAuthStateChangedHandlerSource()};`, context);
   return { context, calls };
 }

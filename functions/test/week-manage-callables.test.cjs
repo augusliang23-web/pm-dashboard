@@ -63,7 +63,7 @@ const USERS = {
 
 function reset(permissions = {}) {
   store = new Map();
-  for (const [key, user] of Object.entries(USERS)) store.set(`users/${key}@example.test`, user);
+  for (const [key, user] of Object.entries(USERS)) store.set(`users/${key}@example.test`, {...user,authUid:`${key}-uid`});
   for (const [key, overrides] of Object.entries(permissions)) {
     store.set(`userPermissions/${key}@example.test`, { schemaVersion: 1, overrides, revision: 1 });
   }
@@ -75,7 +75,7 @@ function reset(permissions = {}) {
 }
 
 const request = (key, data, token = {}) => ({
-  auth: { uid: `${key}-uid`, token: { email: `${key}@example.test`, ...token } },
+  auth: { uid: `${key}-uid`, token: { email: `${key}@example.test`,firebase:{sign_in_provider:'password'}, ...token } },
   data,
 });
 const createData = (extra = {}) => ({ weekId: 'W41-2026', weekLabel: 'W41 2026', weekDate: 'Oct 5 - Oct 9', sourceWeekId: 'W40-2026', ...extra });

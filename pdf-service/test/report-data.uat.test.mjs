@@ -7,8 +7,8 @@ import { normalizeWeeklySummaryForSave } from '../../js/weekly-summary-contract.
 import { packedHeadingAndAskSummary, packedMissingFieldSummary, packedSummaryContext } from '../../tests/weekly-summary-packed-fixtures.mjs';
 
 const adapters = {
-  verifyIdToken: async token => ({ email: token }),
-  getUserByEmail: async email => ({ role: email.startsWith('owner') ? 'executive' : 'pm' }),
+  verifyIdToken: async token => ({ uid:'pdf-fixture',email: token,firebase:{sign_in_provider:'password'} }),
+  getUserByEmail: async email => ({authUid:'pdf-fixture',role: email.startsWith('owner') ? 'executive' : 'pm' }),
   getWeekById: async () => ({
     weekLabel: 'W28 2026',
     isReleased: true,
@@ -65,7 +65,7 @@ test('limits trend history to released weeks for both Executive role vocabularie
       idToken: `${role}@example.com`,
       adapters: {
         ...adapters,
-        getUserByEmail: async () => ({ role }),
+        getUserByEmail: async () => ({authUid:'pdf-fixture',role }),
         getTrendWeeks: async () => [
           { weekLabel: 'W26', isReleased: false, projects: [{ code: 'PMS-001' }] },
           { weekLabel: 'W27', isReleased: true, projects: [{ code: 'PMS-001' }] }
@@ -115,7 +115,7 @@ test('propagates the authorized Executive milestone audience view', async () => 
     idToken: 'sales@example.com',
     adapters: {
       ...adapters,
-      getUserByEmail: async () => ({ role: 'sales' })
+      getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'sales' })
     }
   });
 
@@ -126,7 +126,7 @@ test('rejects an unknown stored role instead of widening Executive milestone acc
   await assert.rejects(() => loadAuthorizedReport({
     request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
     idToken: 'unknown@example.com',
-    adapters: { ...adapters, getUserByEmail: async () => ({ role: 'unknown-role' }) }
+    adapters: { ...adapters, getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'unknown-role' }) }
   }), ReportAccessError);
 });
 

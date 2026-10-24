@@ -1,3 +1,4 @@
+const {dashboardIdentityError}=require('./dashboard-identity');
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
@@ -38,6 +39,8 @@ async function getActor(transaction, request) {
   if (!userSnapshot.exists || userSnapshot.data().active === false) {
     throw new HttpsError('permission-denied', 'The dashboard account is not active.');
   }
+  const identityReason=dashboardIdentityError({uid:request.auth.uid,email,claims:request.auth.token},userSnapshot.data());
+  if(identityReason)throw new HttpsError('permission-denied','Dashboard identity is not approved.',{reason:identityReason});
   const role = normalizeRole(userSnapshot.data().role);
   if (!role) throw new HttpsError('permission-denied', 'The dashboard role is not authorized.');
   return { email, role, uid: request.auth.uid, userRef };

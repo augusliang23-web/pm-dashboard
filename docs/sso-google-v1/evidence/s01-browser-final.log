@@ -1,0 +1,488 @@
+i  emulators: Starting emulators: auth, functions, firestore
+i  emulators: Detected demo project ID "demo-pm-dashboard-v22t", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  functions: Watching "/private/tmp/pm-s02-google-sso/functions" for Cloud Functions...
+⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory.
+⚠  functions: Please note that there will be breaking changes when you upgrade.
+✔  functions: Using node@22 from host.
+Serving at port 8584
+
+✔  functions: Loaded functions definitions from source: aggregatePresenceSessions, addExecutiveMilestoneUpdate, createExecutiveMilestoneChangeRequest, withdrawExecutiveMilestoneChangeRequest, decideExecutiveMilestoneChangeRequest, applyDirectExecutiveMilestoneChange, initializeExecutiveMilestoneLiveTimeline, saveExecutiveMilestoneTimelineConfig, setExecutiveRagOverride, syncProductionWeeksToUat, getProductionWeekSyncStatus, restoreUatWeeksSnapshot, saveDashboardProject, deleteDashboardProject, setDashboardProjectAttention, setDashboardWeekRelease, saveDashboardWeekFields, createDashboardWeek, saveDashboardGanttTemplateSettings, saveDashboardGanttWindowSettings, setUserPermissionOverrides, listDashboardProjectDrafts, getDashboardProjectDraft, saveDashboardProjectDraft, publishDashboardProjectDraft.
+i  functions[us-central1-aggregatePresenceSessions]: function ignored because the pubsub emulator does not exist or is not running.
+✔  functions[us-central1-addExecutiveMilestoneUpdate]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/addExecutiveMilestoneUpdate).
+✔  functions[us-central1-createExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/createExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-withdrawExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/withdrawExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-decideExecutiveMilestoneChangeRequest]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/decideExecutiveMilestoneChangeRequest).
+✔  functions[us-central1-applyDirectExecutiveMilestoneChange]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/applyDirectExecutiveMilestoneChange).
+✔  functions[us-central1-initializeExecutiveMilestoneLiveTimeline]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/initializeExecutiveMilestoneLiveTimeline).
+✔  functions[us-central1-saveExecutiveMilestoneTimelineConfig]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveExecutiveMilestoneTimelineConfig).
+✔  functions[us-central1-setExecutiveRagOverride]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setExecutiveRagOverride).
+✔  functions[us-central1-syncProductionWeeksToUat]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/syncProductionWeeksToUat).
+✔  functions[us-central1-getProductionWeekSyncStatus]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/getProductionWeekSyncStatus).
+✔  functions[us-central1-restoreUatWeeksSnapshot]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/restoreUatWeeksSnapshot).
+✔  functions[us-central1-saveDashboardProject]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardProject).
+✔  functions[us-central1-deleteDashboardProject]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/deleteDashboardProject).
+✔  functions[us-central1-setDashboardProjectAttention]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setDashboardProjectAttention).
+✔  functions[us-central1-setDashboardWeekRelease]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setDashboardWeekRelease).
+✔  functions[us-central1-saveDashboardWeekFields]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardWeekFields).
+✔  functions[us-central1-createDashboardWeek]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/createDashboardWeek).
+✔  functions[us-central1-saveDashboardGanttTemplateSettings]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardGanttTemplateSettings).
+✔  functions[us-central1-saveDashboardGanttWindowSettings]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardGanttWindowSettings).
+✔  functions[us-central1-setUserPermissionOverrides]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/setUserPermissionOverrides).
+✔  functions[us-central1-listDashboardProjectDrafts]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/listDashboardProjectDrafts).
+✔  functions[us-central1-getDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/getDashboardProjectDraft).
+✔  functions[us-central1-saveDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/saveDashboardProjectDraft).
+✔  functions[us-central1-publishDashboardProjectDraft]: http function initialized (http://127.0.0.1:5108/demo-pm-dashboard-v22t/us-central1/publishDashboardProjectDraft).
+i  Running script: node scripts/verification/ux-sprint-01-browser.mjs --functional && node scripts/verification/admin-self-hotfix-e2e.mjs --functional
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 105.003167ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 135.524208ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 20.41275ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 1.124667ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 99.778292ms
+BROWSER Failed to load resource: net::ERR_FAILED
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 19.673875ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 1.054875ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 115.34725ms
+PASS admin week round trip cancels pending opening permanently
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 18.413083ms
+PASS admin cancel pending opening cannot reopen or show stale private content
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 18.779291ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.634041ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+BROWSER Failed to load resource: net::ERR_FAILED
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 32.965667ms
+PASS admin logout cancels a delayed opening and relogin does not reveal its result
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 14.556042ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 1.373416ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 27.916375ms
+BROWSER Failed to load resource: the server responded with a status of 409 (Conflict)
+PASS admin revision conflict keeps input, actionable error and retry controls
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 16.173333ms
+BROWSER Failed to load resource: net::ERR_FAILED
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 43.528459ms
+PASS admin network failure preserves values and a retry publishes once
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 17.829334ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 24.506166ms
+BROWSER Failed to load resource: the server responded with a status of 400 (Bad Request)
+PASS admin publish validation failure keeps editor and real error
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 15.822542ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 39.742417ms
+PASS admin duplicate click blocked; slow list refresh does not delay successful close
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.44875ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 28.964208ms
+BROWSER Failed to load resource: the server responded with a status of 403 (Forbidden)
+PASS admin assignment validation retains inputs and controls without weakening access-loss handling
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 15.947334ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 40.471292ms
+PASS admin week changes while publish pending do not close a different editor
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 16.478375ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 1.108541ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 21.554209ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.233292ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+BROWSER Failed to load resource: net::ERR_FAILED
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 30.502167ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.194875ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+BROWSER Failed to load resource: net::ERR_FAILED
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 25.299875ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.607ms
+PASS admin Save Draft persists through logout/login and does not publish
+PASS admin Overview, Delivery Trends and PDF selection entry survive
+PASS admin lifecycle entry permissions and keyboard dialog
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 18.692ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 21.343416ms
+BROWSER Failed to load resource: net::ERR_FAILED
+PASS admin Refresh returns keyboard focus to Refresh after success and network failure
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 20.576458ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 1.009541ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.543ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 1.246ms
+BROWSER Failed to load resource: net::ERR_FAILED
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 32.579042ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.566833ms
+PASS pm week round trip cancels pending opening permanently
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 14.363417ms
+PASS pm cancel pending opening cannot reopen or show stale private content
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 21.759ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.184375ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+BROWSER Failed to load resource: net::ERR_FAILED
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+PASS pm logout cancels a delayed opening and relogin does not reveal its result
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 29.31275ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.153208ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 1.069208ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 26.354583ms
+BROWSER Failed to load resource: the server responded with a status of 409 (Conflict)
+PASS pm revision conflict keeps input, actionable error and retry controls
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 15.939417ms
+BROWSER Failed to load resource: net::ERR_FAILED
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 54.473166ms
+PASS pm network failure preserves values and a retry publishes once
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.018625ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 23.9955ms
+BROWSER Failed to load resource: the server responded with a status of 400 (Bad Request)
+PASS pm publish validation failure keeps editor and real error
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.760875ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 42.686084ms
+PASS pm duplicate click blocked; slow list refresh does not delay successful close
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.992708ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 15.839708ms
+BROWSER Failed to load resource: the server responded with a status of 403 (Forbidden)
+PASS pm real draft access revocation clears private inputs and closes the editor
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.824375ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 38.225209ms
+PASS pm week changes while publish pending do not close a different editor
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 17.559ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 1.14775ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 18.322167ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.198625ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+BROWSER Failed to load resource: net::ERR_FAILED
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 30.361375ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.396458ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+BROWSER Failed to load resource: net::ERR_FAILED
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 29.580084ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.331208ms
+PASS pm Save Draft persists through logout/login and does not publish
+PASS pm Overview, Delivery Trends and PDF selection entry survive
+PASS pm lifecycle entry permissions and keyboard dialog
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 19.039542ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 20.075792ms
+BROWSER Failed to load resource: net::ERR_FAILED
+PASS pm Refresh returns keyboard focus to Refresh after success and network failure
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 19.919ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 13.617292ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 21.22925ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 13.700208ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 13.067333ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 18.944375ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 14.486ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 25.832167ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 18.0375ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 12.285875ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 15.048333ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.906959ms
+PASS backend A-G create/save/publish/reopen/republish and PM contracts
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 11.17875ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.715875ms
+PASS backend rejects other Admin on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 10.2725ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.625917ms
+PASS backend rejects PM assigning Admin on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 10.130791ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.67825ms
+PASS backend rejects VIP on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 0.739333ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.774583ms
+PASS backend rejects forged role on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 10.277041ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.665292ms
+PASS backend rejects missing target on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 10.579833ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.604583ms
+PASS backend rejects invalid role on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 11.582042ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.599125ms
+PASS backend rejects deputy Admin on save AND publish without writes
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"MISSING"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 2.221417ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"MISSING"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.620208ms
+PASS backend rejects anonymous on save AND publish without writes
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 0.787417ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.302333ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 0.866666ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 28.657375ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 0.510458ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 11.213083ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.635667ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 29.944625ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 13.547958ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 36.8305ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 11.84125ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 30.724167ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 8.308625ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 35.551875ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.782958ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 8.200792ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 33.95425ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.719583ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 14.627291ms
+PASS prod browser create/save/publish/reopen/relogin/week/edit
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 0.628208ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 9.121667ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 1.295083ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 33.254416ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 0.700833ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 15.064167ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 0.588833ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 30.780708ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 9.450583ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 32.428125ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.293166ms
+i  functions: Beginning execution of "us-central1-publishDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-publishDashboardProjectDraft" in 34.716375ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 9.2075ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 35.494166ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 12.07775ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 10.811458ms
+i  functions: Beginning execution of "us-central1-listDashboardProjectDrafts"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-listDashboardProjectDrafts" in 43.701208ms
+i  functions: Beginning execution of "us-central1-getDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-getDashboardProjectDraft" in 16.899417ms
+i  functions: Beginning execution of "us-central1-saveDashboardProjectDraft"
+>  {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+i  functions: Finished "us-central1-saveDashboardProjectDraft" in 16.041667ms
+PASS uat browser create/save/publish/reopen/relogin/week/edit
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  functions: Stopping Functions Emulator
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  eventarc: Stopping Eventarc Emulator
+i  tasks: Stopping Cloud Tasks Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

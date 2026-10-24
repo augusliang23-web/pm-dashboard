@@ -57,7 +57,7 @@ const email = key => `${key}@example.test`;
 
 function reset(overridesByUser = {}) {
   store = new Map();
-  for (const [key, user] of Object.entries(USERS)) store.set(`users/${email(key)}`, user);
+  for (const [key, user] of Object.entries(USERS)) store.set(`users/${email(key)}`, {...user,authUid:`${key}-uid`});
   for (const [key, overrides] of Object.entries(overridesByUser)) {
     store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides, revision: 1 });
   }
@@ -71,7 +71,7 @@ function reset(overridesByUser = {}) {
     strategyLayer: { executiveMilestoneTimelineSnapshot: { timeline: { rows: [] } } },
   });
 }
-const request = (key, data, token = {}) => ({ auth: { uid: `${key}-uid`, token: { email: email(key), ...token } }, data });
+const request = (key, data, token = {}) => ({ auth: { uid: `${key}-uid`, token: { email: email(key),firebase:{sign_in_provider:'password'}, ...token } }, data });
 async function reasonOf(promise) {
   try {
     await promise;

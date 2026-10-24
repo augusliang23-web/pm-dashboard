@@ -51,8 +51,8 @@ for (const windowWeeks of [6, 12]) {
     const pdf = await loadAuthorizedReport({ idToken: 'synthetic',
       request: { mode: 'overview', weekId: anchor.weekId, overviewScope: 'system', windowWeeks,
         sections: ['portfolio-delivery-performance'], projectCodes: anchor.projects.map(p => p.code) },
-      adapters: { verifyIdToken: async () => ({ email: 'synthetic@example.test' }),
-        getUserByEmail: async () => ({ role: 'admin' }), getWeekById: async () => anchor,
+      adapters: { verifyIdToken: async () => ({ uid:'synthetic-uid',email: 'synthetic@example.test',firebase:{sign_in_provider:'password'} }),
+        getUserByEmail: async () => ({ authUid:'synthetic-uid',role: 'admin' }), getWeekById: async () => anchor,
         getDeliveryHistory: async () => ({ complete: true, weeks }),
         getDeliveryTrendsProvenance: () => ({ source: 'production', asOf: web.provenance.asOf }) }
     });

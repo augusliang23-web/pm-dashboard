@@ -56,7 +56,7 @@ const WEEK = 'weeks/W40-2026';
 
 function reset({ overrides = {}, projects } = {}) {
   store = new Map();
-  for (const [key, user] of Object.entries(USERS)) store.set(`users/${email(key)}`, user);
+  for (const [key, user] of Object.entries(USERS)) store.set(`users/${email(key)}`, {...user,authUid:`${key}-uid`});
   for (const [key, value] of Object.entries(overrides)) {
     store.set(`userPermissions/${email(key)}`, { schemaVersion: 1, overrides: value, revision: 1 });
   }
@@ -69,7 +69,7 @@ function reset({ overrides = {}, projects } = {}) {
     ],
   });
 }
-const request = (key, data, token = {}) => ({ auth: { uid: `${key}-uid`, token: { email: email(key), ...token } }, data });
+const request = (key, data, token = {}) => ({ auth: { uid: `${key}-uid`, token: { email: email(key),firebase:{sign_in_provider:'password'}, ...token } }, data });
 const project = code => store.get(WEEK).projects.find(entry => entry.code === code);
 const codes = () => store.get(WEEK).projects.map(entry => entry.code);
 async function reasonOf(promise) {
