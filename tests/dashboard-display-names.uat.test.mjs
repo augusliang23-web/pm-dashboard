@@ -6,6 +6,16 @@ import vm from 'node:vm';
 
 import { buildProjectManagerList } from '../js/dashboard-access.mjs';
 import { createDisplayNameDirectory } from '../js/display-name-directory.mjs';
+import '../js/project-assignment-eligibility.js';
+
+function assignmentContext() {
+  return {
+    projectAssignmentOptions: globalThis.PMProjectAssignment.projectAssignmentOptions,
+    currentRole: 'admin',
+    currentUser: { uid: 'directory-admin', email: ' ADMIN@EXAMPLE.TEST ' },
+    getEmailKey: user => (user?.email || '').trim().toLowerCase(),
+  };
+}
 
 const dashboard = await dashboardSourceAsync('uat');
 
@@ -27,6 +37,7 @@ test('authorized user snapshot supplies PM labels and email lookup without a pub
   const directory = createDisplayNameDirectory();
   let snapshotCallback;
   const context = vm.createContext({authSessionGeneration:1,projectDraftDirectory:{authGeneration:-1,options:[]},normalizeDashboardRole:role=>role,
+    ...assignmentContext(),
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
@@ -55,6 +66,11 @@ test('authorized user snapshot supplies PM labels and email lookup without a pub
 
   assert.deepEqual(Array.from(context.PM_LIST), ['Delivery Lead', 'Project Lead']);
   assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Project Lead');
+  assert.equal(context.projectDraftDirectory.authGeneration, 1);
+  assert.deepEqual(Array.from(context.projectDraftDirectory.options), [
+    { email: 'robin.lee@example.test', name: 'Project Lead' },
+    { email: 'kai.lin@example.test', name: 'Delivery Lead' },
+  ]);
 });
 
 test('a later user-directory read error drops cached names and PM options', async () => {
@@ -62,6 +78,7 @@ test('a later user-directory read error drops cached names and PM options', asyn
   let snapshotCallback;
   let errorCallback;
   const context = vm.createContext({authSessionGeneration:1,projectDraftDirectory:{authGeneration:-1,options:[]},normalizeDashboardRole:role=>role,
+    ...assignmentContext(),
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
@@ -89,10 +106,13 @@ test('a later user-directory read error drops cached names and PM options', asyn
   ] });
   await pending;
   assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Project Lead');
+  assert.equal(context.projectDraftDirectory.options.length, 1);
 
   errorCallback(new Error('permission revoked'));
   assert.deepEqual(Array.from(context.PM_LIST), []);
   assert.equal(context.getUserDisplayName('robin.lee@example.test'), 'Robin');
+  assert.equal(context.projectDraftDirectory.authGeneration, -1);
+  assert.deepEqual(Array.from(context.projectDraftDirectory.options), []);
 });
 
 test('authenticated header renders the stored directory display name', () => {
