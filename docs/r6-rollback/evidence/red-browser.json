@@ -1,0 +1,120 @@
+{
+  "results": [
+    {
+      "name": "R6 RED base Hosting and authentic old backend preserves unsaved form",
+      "status": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'' !== 'R6-UNSAVED'\n\n    at file:///private/tmp/pr76-mixed-version-20261023/r6-red.mjs:56:673\n    at async check (file:///private/tmp/pr76-mixed-version-20261023/r6-red.mjs:15:35)\n    at async file:///private/tmp/pr76-mixed-version-20261023/r6-red.mjs:56:2"
+    }
+  ],
+  "errors": [],
+  "trace": [
+    {
+      "mode": "new",
+      "name": "saveDashboardProjectDraft",
+      "target": "newSave"
+    },
+    {
+      "mode": "new",
+      "name": "publishDashboardProjectDraft",
+      "target": "newPublish"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "getDashboardProjectDraft",
+      "target": "getDashboardProjectDraft"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "listDashboardProjectDrafts",
+      "target": "listDashboardProjectDrafts"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    },
+    {
+      "mode": "old",
+      "name": "saveDashboardProjectDraft",
+      "target": "oldSave"
+    }
+  ],
+  "missingCapabilityDocument": true,
+  "selfOwnerProof": {
+    "drafts": [
+      {
+        "id": "aApehhmMUAkV2y5G9aBi",
+        "schemaVersion": 1,
+        "draftId": "aApehhmMUAkV2y5G9aBi",
+        "project": {
+          "name": "Synthetic T3-SELF",
+          "code": "T3-SELF",
+          "progress": 21,
+          "projectLevel": "system",
+          "visibility": "active",
+          "owner": "Mixed admin",
+          "deputy": ""
+        },
+        "assignment": {
+          "ownerEmail": "mixed.admin@example.test",
+          "deputyEmail": ""
+        },
+        "editorEmails": [
+          "mixed.admin@example.test"
+        ],
+        "revision": 1,
+        "createdAt": "2026-10-23T15:00:32.352Z",
+        "createdBy": "mixed.admin@example.test",
+        "updatedAt": "2026-10-23T15:00:32.352Z",
+        "updatedBy": "mixed.admin@example.test",
+        "publicationTargets": {
+          "W43": {
+            "draftRevision": 1,
+            "projectRevision": "f6077f6c4b6ad850e9900acd5d67fb07ec36843d343196f41628df2b384cde2d"
+          }
+        },
+        "lastPublication": {
+          "weekId": "W43",
+          "weekOrder": 202643,
+          "draftRevision": 1,
+          "publishedAt": "2026-10-23T15:00:32.900Z",
+          "publishedBy": "mixed.admin@example.test",
+          "projectRevision": "f6077f6c4b6ad850e9900acd5d67fb07ec36843d343196f41628df2b384cde2d"
+        }
+      }
+    ],
+    "officialProjects": [
+      {
+        "name": "Synthetic T3-SELF",
+        "code": "T3-SELF",
+        "progress": 21,
+        "projectLevel": "system",
+        "visibility": "active",
+        "owner": "Mixed admin",
+        "deputy": "",
+        "publication": {
+          "draftId": "aApehhmMUAkV2y5G9aBi",
+          "draftRevision": 1,
+          "publishedAt": "2026-10-23T15:00:32.900Z",
+          "publishedBy": "mixed.admin@example.test"
+        },
+        "sectionUpdatedAt": {
+          "status": {
+            "savedAt": "2026-10-23T15:00:32.900Z",
+            "editorName": "Mixed admin"
+          }
+        }
+      }
+    ]
+  }
+}

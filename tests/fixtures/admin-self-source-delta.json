@@ -1,0 +1,22 @@
+[
+  {
+    "before": "  let options = [];\n",
+    "after": "  let options = [];\n  let adminSelfOption;\n  let currentAdminOwner;\n"
+  },
+  {
+    "before": "    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));\n",
+    "after": "    options = users.docs.filter(d => normalizeDashboardRole(d.data().role) === 'pm').map(d => ({email:d.id,name:d.data().displayName || d.id}));\n    const self = users.docs.find(d => getEmailKey({email:d.id}) === email && d.data().role === 'admin');\n    if (self) adminSelfOption = {email, name:self.data().displayName || email};\n    currentAdminOwner = users.docs.find(d => getEmailKey({email:d.id}) === draft.assignment.ownerEmail && d.data().role === 'admin');\n"
+  },
+  {
+    "before": "      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));\n",
+    "after": "      options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));\n      if (key === 'ownerEmail' && adminSelfOption && !options.some(user => user.email === email)) select.add(new Option(`${adminSelfOption.name} (${email})`,email));\n      if (key === 'ownerEmail' && currentAdminOwner && draft.assignment.ownerEmail !== email) {\n        const current = new Option(`${draft.project.owner || draft.assignment.ownerEmail} (current assignment)`,draft.assignment.ownerEmail);\n        current.disabled = true; select.add(current);\n      }\n"
+  },
+  {
+    "before": "import { createProjectDraftsController } from \"./js/project-drafts-controller.mjs?v=archive-scope-3\";",
+    "after": "import { createProjectDraftsController, isProjectDraftAccessLoss } from \"./js/project-drafts-controller.mjs?v=archive-scope-3\";"
+  },
+  {
+    "before": "['functions/permission-denied','functions/unauthenticated','permission-denied','unauthenticated'].includes(state.errorCode)",
+    "after": "isProjectDraftAccessLoss({code:state.errorCode,details:{reason:state.errorReason}})"
+  }
+]

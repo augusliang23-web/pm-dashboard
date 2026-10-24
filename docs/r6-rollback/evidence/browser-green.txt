@@ -1,0 +1,21 @@
+PASS Baseline old PM and missing capability document
+PASS R1 old Hosting remains forbidden: absent Admin option; persisted data unchanged
+PASS R2 new existing Admin owner progress saves by two Admins
+PASS R3 new old Publish preserves official Admin owner and content
+PASS R5 new old backend PM browser save and publish
+PASS R6 new save assignment rejection retains all inputs, inline error and retry
+PASS R6 new publish assignment rejection retains all inputs, inline error and retry
+PASS Security new unauthenticated real backend rejection clears protected editor
+PASS Security new role-forbidden real backend rejection clears protected editor
+PASS Security new draft-forbidden real backend rejection clears protected editor
+PASS R2 prod existing Admin owner progress saves by two Admins
+PASS R3 prod old Publish preserves official Admin owner and content
+PASS R5 prod old backend PM browser save and publish
+PASS R6 prod save assignment rejection retains all inputs, inline error and retry
+PASS R6 prod publish assignment rejection retains all inputs, inline error and retry
+PASS Security prod unauthenticated real backend rejection clears protected editor
+PASS Security prod role-forbidden real backend rejection clears protected editor
+PASS Security prod draft-forbidden real backend rejection clears protected editor
+PASS R4 old backend API denies new assignment without writes and permits PM
+PASS R7 original self owner and published content remain intact
+ALL 20 GROUPS PASS

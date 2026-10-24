@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "name": "backend A-G create/save/publish/reopen/republish and PM contracts",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects other Admin on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects PM assigning Admin on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects VIP on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects forged role on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects missing target on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects invalid role on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects deputy Admin on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "backend rejects anonymous on save AND publish without writes",
+      "status": "PASS"
+    },
+    {
+      "name": "prod browser create/save/publish/reopen/relogin/week/edit",
+      "status": "PASS"
+    },
+    {
+      "name": "uat browser create/save/publish/reopen/relogin/week/edit",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": [],
+  "testedSource": "source-manifest.json"
+}

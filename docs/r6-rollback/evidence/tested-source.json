@@ -1,0 +1,9 @@
+{
+  "baseSha": "ce01cb0a4dac7d5de7b8b1a472b50ee9ac5a18ab",
+  "frontendFilesSha256": {
+    "index.html": "4f6639a81fc43e47bb7212f8f5c4c1578e1df1934e2352f30a51eece4ecd1320",
+    "js/project-drafts-controller.mjs": "fd4e608e373be48ec9c024f5bd6d846b243dd2d003378414475fc4741af50453",
+    "scripts/verification/r6-rollback-e2e.mjs": "8e97815d0b3b84d1b431e5c123f8e013d6b7deace18db091d03f806921f53b68"
+  },
+  "normalization": "exact two R6 substitutions; original frozen hashes unchanged"
+}
