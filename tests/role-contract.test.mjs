@@ -5,7 +5,9 @@ import vm from 'node:vm';
 
 import { authorizeExecutiveAudienceView } from '../pdf-service/src/report-access.js';
 import { can } from '../js/permission-registry.mjs';
-import { dashboardSource, normalizeProjectManagerLabelsForBaseline } from './helpers/dashboard-source.mjs';
+import { dashboardSource, rawDashboardSource, renderProfile, environmentFor, normalizeProjectManagerLabelsForBaseline } from './helpers/dashboard-source.mjs';
+
+import {normalizeSprintEditorForBaseline} from './helpers/sprint-editor-source-baseline.mjs';
 
 const production = dashboardSource('production');
 const uat = dashboardSource('uat');
@@ -211,6 +213,6 @@ test('Production presenceSessions writes the exact raw role for compatibility', 
   }
 });
 
-test('UAT rendered profile remains byte-identical to the frozen main baseline', () => {
-  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(uat)).digest('hex'), originalUatHash);
+test('UAT frozen main hash survives only the exact Sprint editor reversal', () => {
+  assert.equal(createHash('sha256').update(normalizeProjectManagerLabelsForBaseline(renderProfile(normalizeSprintEditorForBaseline(rawDashboardSource()), 'uat', environmentFor('uat')))).digest('hex'), originalUatHash);
 });

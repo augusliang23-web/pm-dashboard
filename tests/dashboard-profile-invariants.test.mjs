@@ -91,7 +91,10 @@ const DELIBERATE_PRODUCTION_EXCEPTIONS = new Set([
   // Covered by production-capabilities, project-capabilities and real isolated release E2E.
   'saveCurrentWeekQuietly',
   'updateProjectAttention',
-  'setProjectMutationControlsDisabled'
+  'setProjectMutationControlsDisabled',
+  // Owner UX Sprint 01: cancel pending opens and clear session-bound PM options on auth/close.
+  // Actual session cancellation and retry behavior: ux-sprint-editor and emulator browser suite.
+  'quiesceDashboardForAuthTransition', 'handleLogout', 'closeModal', 'invalidateProjectEditorSession', 'navWeek', 'jumpToWeek'
 ]);
 const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
   'openProjectPdfSectionPicker',

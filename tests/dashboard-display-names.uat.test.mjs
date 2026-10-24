@@ -26,7 +26,7 @@ function sourceBetween(startText, endText) {
 test('authorized user snapshot supplies PM labels and email lookup without a public alias list', async () => {
   const directory = createDisplayNameDirectory();
   let snapshotCallback;
-  const context = vm.createContext({
+  const context = vm.createContext({authSessionGeneration:1,projectDraftDirectory:{authGeneration:-1,options:[]},normalizeDashboardRole:role=>role,
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
@@ -61,7 +61,7 @@ test('a later user-directory read error drops cached names and PM options', asyn
   const directory = createDisplayNameDirectory();
   let snapshotCallback;
   let errorCallback;
-  const context = vm.createContext({
+  const context = vm.createContext({authSessionGeneration:1,projectDraftDirectory:{authGeneration:-1,options:[]},normalizeDashboardRole:role=>role,
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
@@ -114,7 +114,7 @@ test('authenticated header renders the stored directory display name', () => {
     }
     return elements.get(id);
   };
-  const context = vm.createContext({
+  const context = vm.createContext({authSessionGeneration:1,projectDraftDirectory:{authGeneration:-1,options:[]},normalizeDashboardRole:role=>role,
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     displayNameDirectory: directory,
