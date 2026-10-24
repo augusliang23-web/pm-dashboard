@@ -15,15 +15,15 @@ test('controller loads a source project and keeps the committed form revision af
  controller.setIdentity({uid:'u'});await controller.openSource({weekId:'W1',projectCode:'OLD'});await controller.publish({});
  assert.ok(requests.some(x=>x.source?.projectCode==='OLD'));assert.equal(requests.at(-1).selected.revision,1);assert.equal(requests.at(-1).drafts[0].project.progress,85);
 });
-test('same editor offers both text actions and keeps later typing dirty during atomic publishing',async()=>{
+test('same editor offers atomic publishing, locks fields and closes after confirmation',async()=>{
  let resolve;const pending=new Promise(r=>resolve=r),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};let sent;
  const context=vm.createContext({
     projectWriteCapabilities: {draftsEnabled:true,archiveRecoveryEnabled:true},
-    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},draftEditorRecord:{draftId:'a',revision:2,assignment:{}},draftEditorSaveIntent:'publish',draftEditorTargetWeekId:'W1',allWeeks:[{__documentId:'W1',projects:[]}],currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},draftEditorRecord:{draftId:'a',revision:2,assignment:{}},draftEditorSaveIntent:'publish',draftEditorTargetWeekId:'W1',allWeeks:[{__documentId:'W1',projects:[]}],currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,projectMutationInFlightToken:null,closeModal(){context.closed=true;},
   buildDraftSaveInput:ui.buildDraftSaveInput,latestPublishWeekId:ui.latestPublishWeekId,isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},serializeEditorState:()=>context.form,
   document:{getElementById:id=>id==='projectDraftTargetWeek'?{value:'W1'}:overlay},draftController:{publish:input=>{sent=input;return pending;},save(){throw Error('must be one atomic request');}},form:'submitted'});
  vm.runInContext(fn('saveEditorProjectDraft'),context);const operation=context.saveEditorProjectDraft({progress:85},session);context.form='typed later';resolve({draft:{draftId:'a',revision:3,project:{progress:85}}});await operation;
- assert.equal(sent.project.progress,85);assert.equal(sent.weekId,'W1');assert.equal(overlay.dataset.editorBaseline,'submitted');assert.notEqual(context.form,overlay.dataset.editorBaseline);
+ assert.equal(context.closed,true);assert.equal(sent.project.progress,85);assert.equal(sent.weekId,'W1');assert.equal(overlay.dataset.editorBaseline,'submitted');assert.notEqual(context.form,overlay.dataset.editorBaseline);
 });
 test('first publication locks the code without falsely marking saved fields dirty',()=>{
  const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{id,style:{},dataset:{},classList:{add(){}},setAttribute(){},hasAttribute:()=>false,replaceChildren(){},add(){},value:'',tagName:'INPUT',type:'text',disabled:false});return nodes.get(id);};

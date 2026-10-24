@@ -1,0 +1,10 @@
+{
+  "backendSourceSha": "ed3f81445732f488c163890c1d8f1da8cb15b166",
+  "frontend": "PR74 uncommitted candidate",
+  "files": {
+    "functions/project-drafts-core.js": "0e55a7bef4eeb98dde218efeff6cc812b2660f184f78df18375058609610f71d",
+    "index.html": "f2e2d4c51f3fdf4c67daffcfab7ac51ed26b4531af2d040cc0f9cb961fb977c1",
+    "js/project-drafts-controller.mjs": "f6f0321811665e099fee1cf2dd163846650861111d6db936532874cf1924ae15"
+  },
+  "published": false
+}

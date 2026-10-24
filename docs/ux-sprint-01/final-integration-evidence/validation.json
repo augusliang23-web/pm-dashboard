@@ -1,0 +1,47 @@
+{
+  "root": {
+    "pass": 1889,
+    "fail": 0,
+    "existingSkip": 3,
+    "node": "22.23.3"
+  },
+  "focused": {
+    "pass": 117,
+    "fail": 0
+  },
+  "rules": {
+    "production": 16,
+    "uat": 17,
+    "sharedBackend": 17,
+    "fail": 0
+  },
+  "pdf": {
+    "pass": 551,
+    "fail": 0,
+    "skip": 0,
+    "runner": "Node22 local; hosted CI uses Node24.21.0"
+  },
+  "hosting": {
+    "prodAssets": 39,
+    "uatAssets": 39
+  },
+  "syncBoundary": "PASS",
+  "packageParity": "PASS",
+  "pdfDeployDryRuns": "PASS; gcloud not started",
+  "linuxContainer": {
+    "build": "PASS",
+    "platform": "linux/amd64",
+    "runtime": "Node24.21.0",
+    "optionsNoOrigin": 403,
+    "unknownRoute": 404,
+    "image": "sha256:54e68515e07e655789297c6f72ca7259c65aa1be2417a7033b5d756994eff904"
+  },
+  "browser": {
+    "uxGroups": 28,
+    "adminHotfixGroups": 11,
+    "pageErrors": []
+  },
+  "hostedCI": "NOT_RUN; no new PR, branch does not match workflow push filter",
+  "independentBrowserQA": "PENDING",
+  "deployment": "NOT_AUTHORIZED/NOT_EXECUTED"
+}

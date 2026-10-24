@@ -47,7 +47,8 @@ function resolveAssignment({actor,existing,input,assignmentUsers={}}) {
   for (const [key,email] of Object.entries(assignment)) {
     if (!email) { labels[key]=''; continue; }
     const user=assignmentUsers[email];
-    if (user?.role !== 'pm') fail('assignment-forbidden','Assignment must select an existing PM account.');
+    const adminSelf = key === 'ownerEmail' && actor.role === 'admin' && email === emailKey(actor.email) && user?.role === 'admin';
+    if (user?.role !== 'pm' && !adminSelf) fail('assignment-forbidden','Assignment must select an existing PM account.');
     labels[key]=user.displayName?.trim() || email;
   }
   return {assignment,editorEmails:[...new Set(Object.values(assignment).filter(Boolean))],owner:labels.ownerEmail,deputy:labels.deputyEmail};

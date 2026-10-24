@@ -18,24 +18,12 @@ test('typing while Save Draft is pending remains dirty after the submitted revis
  pending.resolve({draft:{draftId:'a',revision:2,project:{name:'submitted'}}});await saving;
  assert.equal(overlay.dataset.editorBaseline,'submitted');assert.notEqual(context.form,overlay.dataset.editorBaseline);
 });
-test('delayed Admin directory request cannot reopen a draft after auth generation or role changes',async()=>{
- const pending=deferred();let opened=0;
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
-  getEmailKey:u=>u?.email,getDocs:()=>pending.promise,collection:()=>null,db:{},normalizeDashboardRole:x=>x,
-  closeModal(){},window:{openProjEdit(){opened++;}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
- vm.runInContext(extract('beginDraftEditor'),context);
- const opening=context.beginDraftEditor({project:{code:'SECRET'},assignment:{}});
- context.authSessionGeneration=2;context.currentRole='engineering';pending.resolve({docs:[]});await opening;
- assert.equal(opened,0);
-});
-test('a newer editor opening supersedes an older pending opening in the same auth session',async()=>{
- const pending=[];const opened=[];
- const context=vm.createContext({currentUser:{uid:'same',email:'same@ex.com'},currentRole:'admin',authSessionGeneration:1,draftEditorOpenGeneration:0,allWeeks:[],currentIdx:-1,
-  getEmailKey:u=>u?.email,getDocs:()=>{const d=deferred();pending.push(d);return d.promise;},collection:()=>null,db:{},normalizeDashboardRole:x=>x,
-  closeModal(){},window:{openProjEdit(code){opened.push(code);}},captureEditorBaseline(){},document:{getElementById:()=>({replaceChildren(){},add(){},value:''})},Option:class{},draftOpening:false});
- vm.runInContext(extract('beginDraftEditor'),context);
- const first=context.beginDraftEditor({project:{code:'OLD'},assignment:{}}),second=context.beginDraftEditor({project:{code:'NEW'},assignment:{}});
- pending[1].resolve({docs:[]});await second;pending[0].resolve({docs:[]});await first;assert.deepEqual(opened,['NEW']);
+for (const change of ['auth','role','generation','week','closed']) test(`pending opening cannot hydrate after ${change} changes`,()=>{
+ const opening={generation:1,authGeneration:1,uid:'u',email:'u@ex.com',role:'admin',weekId:'W43'};
+ const context=vm.createContext({draftEditorOpenGeneration:1,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],getEmailKey:u=>u?.email,document:{getElementById:()=>({classList:{contains:()=>change!=='closed'}})}});
+ vm.runInContext(extract('isDraftEditorOpeningCurrent'),context);
+ if(change==='auth')context.authSessionGeneration=2;if(change==='role')context.currentRole='engineering';if(change==='generation')context.draftEditorOpenGeneration=2;if(change==='week')context.allWeeks=[{__documentId:'W42'}];
+ assert.equal(context.isDraftEditorOpeningCurrent(opening),false);
 });
 test('zero persisted week documents stay an empty official portfolio without demo fallback',()=>{
  let callback;const select={};
