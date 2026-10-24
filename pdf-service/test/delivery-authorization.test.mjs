@@ -34,7 +34,7 @@ function fakeDb(docs, counters) {
 function setup(role, { docs = buildDocs(), tokenExtras = {}, userRole = role } = {}) {
   const counters = { queries: 0, docs: 0, history: 0 };
   const reader = createBoundedDeliveryHistoryReader({ db: fakeDb(docs, counters) });
-  const adapters = { verifyIdToken: async () => ({ email: 'qa@example.test', ...tokenExtras }), getUserByEmail: async () => ({ role: userRole }),
+  const adapters = { verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'qa@example.test', ...tokenExtras }), getUserByEmail: async () => ({authUid:'pdf-fixture',role: userRole }),
     getWeekById: async id => (docs.has(id) ? JSON.parse(JSON.stringify(docs.get(id))) : undefined),
     getDeliveryHistory: async options => { counters.history += 1; return reader(options); }, getDeliveryTrendsProvenance: () => ({ source: 'synthetic', asOf: '2026-10-14T00:00:00.000Z' }) };
   return { adapters, counters };
@@ -129,7 +129,7 @@ test('client-supplied role or capability claims are never trusted', async () => 
 test('a delegated week.manage override is not trusted by the PDF backend (documented fail-closed mismatch)', async () => {
   // The backend only has users/{email}; even an override-like field on that record does not grant draft history.
   const { adapters } = setup('sales');
-  adapters.getUserByEmail = async () => ({ role: 'sales', permissions: { 'week.manage': true }, overrides: { 'week.manage': true } });
+  adapters.getUserByEmail = async () => ({authUid:'pdf-fixture',role: 'sales', permissions: { 'week.manage': true }, overrides: { 'week.manage': true } });
   const docs = buildDocs();
   const request = parseReportRequest({ mode: 'overview', weekId: 'W41-2026', sections: [SECTION], overviewScope: 'all', projectCodes: ['P1'] }, { deliveryPerformanceSection: true });
   adapters.getWeekById = async id => JSON.parse(JSON.stringify(docs.get(id)));

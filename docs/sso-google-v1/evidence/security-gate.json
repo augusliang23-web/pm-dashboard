@@ -1,0 +1,121 @@
+{
+  "results": [
+    {
+      "name": "firestore.rules",
+      "status": "PASS"
+    },
+    {
+      "name": "firestore.uat.rules",
+      "status": "PASS"
+    },
+    {
+      "name": "firestore.shared-backend.rules",
+      "status": "PASS"
+    },
+    {
+      "name": "addExecutiveMilestoneUpdate",
+      "status": "PASS"
+    },
+    {
+      "name": "createExecutiveMilestoneChangeRequest",
+      "status": "PASS"
+    },
+    {
+      "name": "withdrawExecutiveMilestoneChangeRequest",
+      "status": "PASS"
+    },
+    {
+      "name": "decideExecutiveMilestoneChangeRequest",
+      "status": "PASS"
+    },
+    {
+      "name": "applyDirectExecutiveMilestoneChange",
+      "status": "PASS"
+    },
+    {
+      "name": "initializeExecutiveMilestoneLiveTimeline",
+      "status": "PASS"
+    },
+    {
+      "name": "saveExecutiveMilestoneTimelineConfig",
+      "status": "PASS"
+    },
+    {
+      "name": "setExecutiveRagOverride",
+      "status": "PASS"
+    },
+    {
+      "name": "saveDashboardProject",
+      "status": "PASS"
+    },
+    {
+      "name": "deleteDashboardProject",
+      "status": "PASS"
+    },
+    {
+      "name": "setDashboardProjectAttention",
+      "status": "PASS"
+    },
+    {
+      "name": "setDashboardWeekRelease",
+      "status": "PASS"
+    },
+    {
+      "name": "saveDashboardWeekFields",
+      "status": "PASS"
+    },
+    {
+      "name": "createDashboardWeek",
+      "status": "PASS"
+    },
+    {
+      "name": "saveDashboardGanttTemplateSettings",
+      "status": "PASS"
+    },
+    {
+      "name": "saveDashboardGanttWindowSettings",
+      "status": "PASS"
+    },
+    {
+      "name": "setUserPermissionOverrides",
+      "status": "PASS"
+    },
+    {
+      "name": "syncProductionWeeksToUat",
+      "status": "PASS"
+    },
+    {
+      "name": "getProductionWeekSyncStatus",
+      "status": "PASS"
+    },
+    {
+      "name": "restoreUatWeeksSnapshot",
+      "status": "PASS"
+    },
+    {
+      "name": "listDashboardProjectDrafts",
+      "status": "PASS"
+    },
+    {
+      "name": "getDashboardProjectDraft",
+      "status": "PASS"
+    },
+    {
+      "name": "saveDashboardProjectDraft",
+      "status": "PASS"
+    },
+    {
+      "name": "publishDashboardProjectDraft",
+      "status": "PASS"
+    },
+    {
+      "name": "PM callable UID isolation",
+      "status": "PASS"
+    },
+    {
+      "name": "pdf binding before data read",
+      "status": "PASS"
+    }
+  ],
+  "evidence": "Rules real emulator; callables actual .run handlers with synthetic auth context; PDF real loader with synthetic verified-token adapter"
+}

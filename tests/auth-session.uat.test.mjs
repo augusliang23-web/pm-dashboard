@@ -59,7 +59,7 @@ test('dashboard gates every awaited auth initialization stage with generation an
   const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
   const authEnd = dashboard.indexOf('function getUserDisplayName(', authStart);
   const source = dashboard.slice(authStart, authEnd);
-  const roleAwait = source.indexOf('await getDoc(doc(db, "users", authEmail))');
+  const roleAwait = source.indexOf('await getDashboardUserFromServer(doc(db, "users", authEmail))');
   const roleGuard = source.indexOf('isCurrentAuthInitialization()', roleAwait);
   const roleCommit = source.indexOf('currentRole = getDashboardRole(userDoc)', roleAwait);
   const templateAwait = source.indexOf('await loadGanttTemplateConfig(', roleCommit);
@@ -94,7 +94,7 @@ test('an initialized user is quiesced before a replacement user waits for access
   const generation = source.indexOf('const authGeneration = ++authSessionGeneration;');
   const quiesce = source.indexOf('quiesceDashboardForAuthTransition();');
   const assignUser = source.indexOf('currentUser = user;');
-  const roleAwait = source.indexOf('await getDoc(doc(db, "users", authEmail))');
+  const roleAwait = source.indexOf('await getDashboardUserFromServer(doc(db, "users", authEmail))');
 
   assert.ok(generation >= 0 && quiesce > generation);
   assert.ok(quiesce < assignUser && assignUser < roleAwait);

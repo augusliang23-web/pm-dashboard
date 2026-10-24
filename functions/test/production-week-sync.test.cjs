@@ -33,12 +33,12 @@ async function reasonOf(operation) {
 }
 
 test('authenticatedSyncAdmin rejects every incomplete or non-Admin identity with stable reasons', async () => {
-  const uatDb = fakeUatDb({ user: { role: 'admin' } });
+  const uatDb = fakeUatDb({ user: { role: 'admin',authUid:'a' } });
   assert.deepEqual(await reasonOf(() => sync.authenticatedSyncAdmin({ auth: null }, uatDb)), {
     code: 'unauthenticated', reason: 'authentication-required',
   });
   assert.deepEqual(await reasonOf(() => sync.authenticatedSyncAdmin({
-    auth: { token: { email: 'admin@example.com', name: 'Admin' } },
+    auth: { token: { firebase:{sign_in_provider:'password'}, email: 'admin@example.com', name: 'Admin' } },
   }, uatDb)), {
     code: 'unauthenticated', reason: 'authenticated-uid-required',
   });
@@ -46,26 +46,26 @@ test('authenticatedSyncAdmin rejects every incomplete or non-Admin identity with
     code: 'unauthenticated', reason: 'authenticated-email-required',
   });
   assert.deepEqual(await reasonOf(() => sync.authenticatedSyncAdmin({
-    auth: { uid: 'a', token: { email: 'admin@example.com' } },
+    auth: { uid: 'a', token: { firebase:{sign_in_provider:'password'}, email: 'admin@example.com' } },
   }, uatDb)), {
     code: 'unauthenticated', reason: 'authenticated-display-name-required',
   });
   assert.deepEqual(await reasonOf(() => sync.authenticatedSyncAdmin({
-    auth: { uid: 'a', token: { email: 'admin@example.com', name: 'Admin' } },
+    auth: { uid: 'a', token: { firebase:{sign_in_provider:'password'}, email: 'admin@example.com', name: 'Admin' } },
   }, fakeUatDb())), {
     code: 'permission-denied', reason: 'dashboard-user-not-found',
   });
   assert.deepEqual(await reasonOf(() => sync.authenticatedSyncAdmin({
-    auth: { uid: 'a', token: { email: 'admin@example.com', name: 'Admin' } },
-  }, fakeUatDb({ user: { role: 'pm' } }))), {
+    auth: { uid: 'a', token: { firebase:{sign_in_provider:'password'}, email: 'admin@example.com', name: 'Admin' } },
+  }, fakeUatDb({ user: { role: 'pm',authUid:'a' } }))), {
     code: 'permission-denied', reason: 'admin-role-required',
   });
 });
 
 test('authenticatedSyncAdmin loads the normalized UAT email and returns the authenticated Admin', async () => {
-  const uatDb = fakeUatDb({ user: { role: ' ADMIN ', displayName: ' Trusted UAT Admin ' } });
+  const uatDb = fakeUatDb({ user: { authUid:'admin-1',role: ' ADMIN ', displayName: ' Trusted UAT Admin ' } });
   const actor = await sync.authenticatedSyncAdmin({
-    auth: { uid: 'admin-1', token: { email: ' Admin@Example.COM ', name: 'Untrusted Auth Name' } },
+    auth: { uid: 'admin-1', token: { firebase:{sign_in_provider:'password'}, email: ' Admin@Example.COM ', name: 'Untrusted Auth Name' } },
   }, uatDb);
 
   assert.deepEqual(actor, {
@@ -79,7 +79,7 @@ test('seeded Admin callable authorization trusts the UAT user display name witho
   const handlers = sync.createCallableHandlers({
     onCall: (_options, handler) => handler,
     environment: { GCLOUD_PROJECT: 'pm-dashboard-uat-20260820-a7f3' },
-    getUatDb: () => fakeUatDb({ user: { role: 'admin', displayName: 'Test' } }),
+    getUatDb: () => fakeUatDb({ user: { authUid:'seeded-admin-uid',role: 'admin', displayName: 'Test' } }),
     getProductionDb: () => ({}),
     createService: () => ({
       sync: async ({ actor }) => { actors.push(actor); return { phase: 'succeeded' }; },
@@ -87,7 +87,7 @@ test('seeded Admin callable authorization trusts the UAT user display name witho
   });
 
   assert.deepEqual(await handlers.syncProductionWeeksToUat({
-    auth: { uid: 'seeded-admin-uid', token: { email: 'test.admin@pm-dashboard.local' } },
+    auth: { uid: 'seeded-admin-uid', token: { firebase:{sign_in_provider:'password'}, email: 'test.admin@pm-dashboard.local' } },
     data: {},
   }), { phase: 'succeeded' });
   assert.deepEqual(actors, [{
@@ -144,7 +144,7 @@ test('callable handlers use fixed empty and restore request contracts', async ()
   const handlers = sync.createCallableHandlers({
     onCall: (_options, handler) => handler,
     environment: { GCLOUD_PROJECT: 'pm-dashboard-uat-20260820-a7f3' },
-    getUatDb: () => fakeUatDb({ user: { role: 'admin', displayName: 'Admin' } }),
+    getUatDb: () => fakeUatDb({ user: { authUid:'admin-1',role: 'admin', displayName: 'Admin' } }),
     getProductionDb: () => ({}),
     createService: () => ({
       sync: async ({ actor }) => { calls.push(['sync', actor.email]); return { phase: 'succeeded' }; },
@@ -152,7 +152,7 @@ test('callable handlers use fixed empty and restore request contracts', async ()
       restore: async ({ actor, snapshotId }) => { calls.push(['restore', actor.email, snapshotId]); return { phase: 'restored' }; },
     }),
   });
-  const request = { auth: { uid: 'admin-1', token: { email: 'ADMIN@example.com', name: 'Admin' } } };
+  const request = { auth: { uid: 'admin-1', token: { firebase:{sign_in_provider:'password'}, email: 'ADMIN@example.com', name: 'Admin' } } };
 
   assert.deepEqual(await handlers.syncProductionWeeksToUat({ ...request, data: {} }), { phase: 'succeeded' });
   assert.deepEqual(await handlers.getProductionWeekSyncStatus({ ...request, data: {} }), { running: false });
@@ -180,7 +180,7 @@ test('callables expose only the closed safe domain reason set', async () => {
     const handlers = sync.createCallableHandlers({
       onCall: (_options, handler) => handler,
       environment: { GCLOUD_PROJECT: 'pm-dashboard-uat-20260820-a7f3' },
-      getUatDb: () => fakeUatDb({ user: { role: 'admin', displayName: 'Admin' } }),
+      getUatDb: () => fakeUatDb({ user: { authUid:'admin-1',role: 'admin', displayName: 'Admin' } }),
       getProductionDb: () => ({}),
       createService: () => ({
         sync: async () => { throw new core.SyncDomainError(reason); },
@@ -188,7 +188,7 @@ test('callables expose only the closed safe domain reason set', async () => {
     });
     await assert.rejects(
       () => handlers.syncProductionWeeksToUat({
-        auth: { uid: 'admin-1', token: { email: 'admin@example.com' } }, data: {},
+        auth: { uid: 'admin-1', token: { firebase:{sign_in_provider:'password'}, email: 'admin@example.com' } }, data: {},
       }),
       error => error.code === callableCode && error.details?.reason === reason
         && !JSON.stringify(error).includes('projects'),

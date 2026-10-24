@@ -1,3 +1,4 @@
+const {dashboardIdentityError}=require('./dashboard-identity');
 const { DocumentReference, Firestore, GeoPoint, Timestamp, v1 } = require('firebase-admin/firestore');
 const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const core = require('./production-week-sync-core');
@@ -78,6 +79,8 @@ async function authenticatedSyncAdmin(request, uatDb) {
     throw callableError('permission-denied', 'The dashboard account was not found.', 'dashboard-user-not-found');
   }
   const user = userSnapshot.data() || {};
+  const identityReason=dashboardIdentityError({uid:auth.uid,email,claims:auth.token},user);
+  if(identityReason)throw callableError('permission-denied','Dashboard identity is not approved.',identityReason);
   if (String(user.role || '').trim().toLowerCase() !== 'admin') {
     throw callableError('permission-denied', 'Only UAT administrators can run this operation.', 'admin-role-required');
   }

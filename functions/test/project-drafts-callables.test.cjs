@@ -4,8 +4,8 @@ const path=require.resolve('firebase-admin/firestore'); const real=require(path)
 require.cache[path]={id:path,filename:path,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../project-drafts');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t'; process.env.FUNCTIONS_EMULATOR='true'; delete process.env.GOOGLE_CLOUD_PROJECT;
-function reset(){state.docs.clear();state.seq=0;for(const [email,role] of [['owner@example.com','pm'],['other@example.com','pm'],['admin@example.com','admin']])state.docs.set('users/'+email,{role,displayName:email.split('@')[0]});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});}
-const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email}}});
+function reset(){state.docs.clear();state.seq=0;for(const [email,role] of [['owner@example.com','pm'],['other@example.com','pm'],['admin@example.com','admin']])state.docs.set('users/'+email,{authUid:email,role,displayName:email.split('@')[0]});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});}
+const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email,firebase:{sign_in_provider:'password'}}}});
 const save=(project={name:'Alpha',code:'ALPHA',progress:40})=>call('saveDashboardProjectDraft',{expectedRevision:0,project});
 const denied=e=>['permission-denied','not-found','unauthenticated'].includes(e.code);
 const conflict=e=>e.details?.reason==='conflict';

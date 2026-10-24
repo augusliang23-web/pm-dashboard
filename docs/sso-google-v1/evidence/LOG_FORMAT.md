@@ -1,0 +1,1 @@
+Saved logs preserve diagnostic content; trailing whitespace and line-ending control characters were normalized for repository checks. Raw originals remain in /private/tmp/s02-evidence on the implementation host.

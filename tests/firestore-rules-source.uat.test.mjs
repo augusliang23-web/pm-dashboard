@@ -120,7 +120,7 @@ test('Firestore draft week reads are limited to PM, Admin and effective week.man
     assert.match(fn, /dashboardRole\(\) in \['pm', 'engineering', 'business', 'sales', 'bd', 'product', 'vip', 'executive'\]/);
     assert.match(fn, /weekManageOverride\(\) is map/);
     assert.match(fn, /weekManageOverride\(\)\.get\('week\.manage', false\) == true/);
-    assert.match(rules, /userPermissions\/\$\(request\.auth\.token\.email\)/);
+    assert.match(rules, /userPermissions\/\$\(request\.auth\.token\.email\.trim\(\)\.lower\(\)\)/);
     assert.doesNotMatch(fn, /request\.resource|resource\.data/);
   }
 });

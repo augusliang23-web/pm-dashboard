@@ -2371,12 +2371,26 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <datalist id="teamRoleOptions"></datalist>
 <datalist id="budgetCategoryOptions"></datalist>
 
+<div class="overlay" id="accountSecurityOverlay" role="dialog" aria-modal="true" aria-labelledby="accountSecurityTitle">
+  <div class="modal" style="width:min(440px,94vw)">
+    <div class="modal-hdr"><h3 id="accountSecurityTitle">Account security</h3><button class="modal-x" type="button" onclick="closeModal('accountSecurityOverlay')" aria-label="Close account security">×</button></div>
+    <p id="approvedIdentity" style="overflow-wrap:anywhere"></p>
+    <p>Link only your own Google account. Your dashboard role will stay unchanged. New Google links need Owner approval before Google sign-in.</p>
+    <label class="fl" for="linkGooglePassword">Current password</label>
+    <input class="fi" type="password" id="linkGooglePassword" autocomplete="current-password">
+    <button class="btn btn-primary" id="linkGoogleBtn" type="button" onclick="linkGoogleAccount()" style="margin-top:12px">Link Google account</button>
+    <p id="accountSecurityStatus" role="status" aria-live="polite"></p>
+  </div>
+</div>
 <div id="loginOverlay">
   <div class="login-card">
     <h2>Project Dashboard</h2>
     <input type="email" id="email" placeholder="Email">
     <input type="password" id="password" placeholder="Password" onkeypress="if(event.key==='Enter')handleLogin()">
-    <button onclick="handleLogin()">Sign In</button>
+    <button id="passwordLoginBtn" onclick="handleLogin()">Sign In</button>
+    <button id="googleLoginBtn" type="button" onclick="handleGoogleLogin()" hidden style="margin-top:12px;background:var(--s1);color:var(--text);border:1px solid var(--border2)">Continue with Google</button>
+    <button id="cancelAuthBtn" type="button" onclick="cancelPendingAuth()" hidden style="margin-top:8px">Cancel sign-in</button>
+    <div id="authProgress" role="status" aria-live="polite"></div>
     <div id="authMsg" class="auth-msg"></div>
     <div style="margin-top:16px; font-size:12px;">
       <a href="#" onclick="handleResetPassword(); return false;" style="color:var(--accent-hov); text-decoration:none; font-weight:600;">Forgot your password?</a>
@@ -2468,6 +2482,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="user-block">
       <span id="displayUser" class="display-name">...</span>
       <span id="displayRole" class="role-badge">USER</span>
+      <button id="accountSecurityBtn" class="btn-icon" type="button" onclick="openAccountSecurity()" title="Account security" aria-label="Account security" hidden>Account</button>
       <button onclick="openChangePassword()" class="btn-icon" style="margin-left:6px;" title="Change Password">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
       </button>
@@ -3171,6 +3186,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 <script type="module">
+import "./js/dashboard-identity.js";
+import { createGoogleAuthFlow } from "./js/google-auth-flow.mjs";
+const {dashboardIdentityError}=globalThis.PMDashboardIdentity;
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
@@ -3191,8 +3209,8 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocFromServer as getDashboardUserFromServer, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, GoogleAuthProvider, signInWithPopup, linkWithPopup, unlink, beforeAuthStateChanged, onIdTokenChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getCallableErrorMessage, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
@@ -5524,13 +5542,82 @@ function quiesceDashboardForAuthTransition__uat() {
 function quiesceDashboardForAuthTransition(...args) { return (IS_UAT_PROFILE ? quiesceDashboardForAuthTransition__uat : quiesceDashboardForAuthTransition__prod)(...args); }
 // @profile-group end quiesceDashboardForAuthTransition
 
+let approvedDashboardIdentity=null, dashboardIdentityUnsub=null, identityCheckSequence=0;
+function stopDashboardIdentitySubscription(){
+  ++identityCheckSequence; dashboardIdentityUnsub?.();dashboardIdentityUnsub=null;approvedDashboardIdentity=null;
+  document.getElementById('approvedIdentity').textContent='';document.getElementById('linkGooglePassword').value='';
+  document.getElementById('accountSecurityOverlay').classList.remove('open');
+}
+function ssoErrorMessage(error){
+  if(error?.code==='auth/popup-closed-by-user')return 'Google sign-in was cancelled. You can try again or use your password.';
+  if(['auth/account-exists-with-different-credential','auth/credential-already-in-use','auth/provider-already-linked'].includes(error?.code))return 'This account is already associated with another sign-in method. Use your existing password and ask the Owner to review the link.';
+  if(error?.code==='auth/popup-blocked')return 'Allow the Google sign-in popup, then try again.';
+  return error?.message||'Sign-in failed. Try again or use your password.';
+}
+const googleAuthFlow=createGoogleAuthFlow({auth,api:{GoogleAuthProvider,EmailAuthProvider,beforeAuthStateChanged,reauthenticateWithCredential,signInWithEmailAndPassword,signInWithPopup,linkWithPopup,unlink,signOut},
+  getSession:()=>({uid:currentUser?.uid,email:getEmailKey(currentUser),generation:authSessionGeneration,record:approvedDashboardIdentity}),
+  onState:state=>{
+    for(const id of ['googleLoginBtn','passwordLoginBtn','linkGoogleBtn'])document.getElementById(id).disabled=state.busy;
+    document.getElementById('googleLoginBtn').textContent=state.busy&&state.operation==='google'?'Signing in…':'Continue with Google';
+    document.getElementById('linkGoogleBtn').textContent=state.busy&&state.operation==='link'?'Linking…':'Link Google account';
+    document.getElementById('cancelAuthBtn').hidden=!state.busy||state.operation==='link';
+    document.getElementById('authProgress').textContent=state.busy&&state.operation!=='link'?'Signing in…':'';
+    if(state.operation==='link')document.getElementById('accountSecurityStatus').textContent=state.error||state.message;
+  }});
+document.getElementById('googleLoginBtn').hidden=!IS_UAT_PROFILE;
+document.getElementById('accountSecurityBtn').hidden=!IS_UAT_PROFILE;
+window.handleGoogleLogin=async()=>{if(!IS_UAT_PROFILE)return;try{await googleAuthFlow.google();}catch(error){showAuthError(ssoErrorMessage(error));}finally{hideLoader();}};
+window.cancelPendingAuth=()=>{googleAuthFlow.cancel();hideLoader();};
+window.openAccountSecurity=()=>{
+  if(!IS_UAT_PROFILE||!approvedDashboardIdentity||!currentUser)return;
+  document.getElementById('approvedIdentity').textContent=`${currentUser.email} · ${currentRole.toUpperCase()} · Approved account`;
+  document.getElementById('linkGooglePassword').value='';document.getElementById('accountSecurityStatus').textContent='';
+  openAccessibleModal(document.getElementById('accountSecurityOverlay'));
+};
+window.linkGoogleAccount=async()=>{
+  if(!IS_UAT_PROFILE)return;
+  const input=document.getElementById('linkGooglePassword'),password=input.value;input.value='';
+  try{await googleAuthFlow.link(password);}catch(error){document.getElementById('accountSecurityStatus').textContent=ssoErrorMessage(error);if(error.recoveryRequired)showAuthError(ssoErrorMessage(error));}
+};
+async function revokeDashboardIdentity(user,generation,message){
+  if(generation!==authSessionGeneration||user.uid!==currentUser?.uid)return;
+  if(googleAuthFlow.operation==='link')message='Dashboard access changed during Google linking. Use password sign-in and ask the Owner to review Google approval.';
+  googleAuthFlow.cancel();++authSessionGeneration;stopDashboardIdentitySubscription();quiesceDashboardForAuthTransition();resetCurrentUserPermissions();draftController.reset();
+  document.querySelectorAll('.overlay.open').forEach(el=>el.classList.remove('open'));
+  document.getElementById('loginOverlay').style.display='flex';showAuthError(message);await signOut(auth).catch(()=>{});
+}
+async function verifyAndWatchDashboardIdentity(user,userDoc,generation,isCurrent){
+  const claims=(await user.getIdTokenResult()).claims;if(!isCurrent())return false;
+  const record=userDoc.exists()?userDoc.data():null;
+  const reason=dashboardIdentityError({uid:user.uid,email:getEmailKey(user),claims},record);
+  if(reason)throw Error('This sign-in identity is not approved for Dashboard access. Ask the Owner to verify its UID and Google binding.');
+  approvedDashboardIdentity=record;
+  const capturedRole=normalizeDashboardRole(record.role);
+  dashboardIdentityUnsub=onSnapshot(doc(db,'users',getEmailKey(user)),{includeMetadataChanges:true},async snapshot=>{
+    if(snapshot.metadata.fromCache||!isCurrent())return;
+    const sequence=++identityCheckSequence;
+    try{
+      const latestClaims=(await user.getIdTokenResult()).claims;if(sequence!==identityCheckSequence||!isCurrent())return;
+      const latest=snapshot.exists()?snapshot.data():null;
+      if(dashboardIdentityError({uid:user.uid,email:getEmailKey(user),claims:latestClaims},latest)||normalizeDashboardRole(latest?.role)!==capturedRole){await revokeDashboardIdentity(user,generation,'Dashboard access changed. Sign in again or contact the Owner.');return;}
+      approvedDashboardIdentity=latest;
+    }catch{if(sequence===identityCheckSequence&&isCurrent())await revokeDashboardIdentity(user,generation,'Dashboard identity could not be verified. Sign in again.');}
+  },()=>{if(isCurrent())revokeDashboardIdentity(user,generation,'Dashboard access was revoked or could not be verified.');});
+  return true;
+}
+onIdTokenChanged(auth,async user=>{
+  const generation=authSessionGeneration,record=approvedDashboardIdentity;
+  if(!user||!record||user.uid!==currentUser?.uid)return;
+  try{const claims=(await user.getIdTokenResult()).claims;if(dashboardIdentityError({uid:user.uid,email:getEmailKey(user),claims},record))await revokeDashboardIdentity(user,generation,'Your sign-in identity is no longer approved.');}
+  catch{await revokeDashboardIdentity(user,generation,'Your sign-in session could not be verified.');}
+});
+
 // ── AUTH ──
 window.handleLogin = async () => {
   const email = document.getElementById('email').value.trim();
   const pass = document.getElementById('password').value;
   try {
-    showLoader("Authenticating...");
-    await signInWithEmailAndPassword(auth, email, pass);
+    await googleAuthFlow.password(email, pass);
   } catch (e) {
     hideLoader();
     const msg = document.getElementById('authMsg');
@@ -5596,6 +5683,7 @@ window.saveNewPassword = async () => {
 // @profile-group begin win handleLogout
 // @profile-variant prod
 const handleLogout__prod = async () => {
+  googleAuthFlow.cancel();stopDashboardIdentitySubscription();
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
   projectDraftDirectory = { authGeneration:-1, options:[] };
@@ -5622,6 +5710,7 @@ const handleLogout__prod = async () => {
 };
 // @profile-variant uat
 const handleLogout__uat = async () => {
+  googleAuthFlow.cancel();stopDashboardIdentitySubscription();
   const logoutGeneration = ++authSessionGeneration;
   displayNameDirectory.clear();
   projectDraftDirectory = { authGeneration:-1, options:[] };
@@ -5660,6 +5749,7 @@ onAuthStateChanged(auth, async user => {
   const authGeneration = ++authSessionGeneration;
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
+  stopDashboardIdentitySubscription();
   quiesceDashboardForAuthTransition();
   resetCurrentUserPermissions();
   currentUser = user;
@@ -5675,8 +5765,9 @@ onAuthStateChanged(auth, async user => {
     try {
       document.getElementById('loginOverlay').style.display = 'none';
 
-      const userDoc = await getDoc(doc(db, "users", authEmail));
+      const userDoc = await getDashboardUserFromServer(doc(db, "users", authEmail));
       if (!isCurrentAuthInitialization()) return;
+      if (!await verifyAndWatchDashboardIdentity(user,userDoc,authGeneration,isCurrentAuthInitialization)) return;
       currentRole = getDashboardRole(userDoc);
       const permissionOverrides = await loadCurrentUserPermissionOverrides(authEmail);
       if (!isCurrentAuthInitialization()) return;
@@ -5727,6 +5818,7 @@ onAuthStateChanged(auth, async user => {
   const authGeneration = ++authSessionGeneration;
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
+  stopDashboardIdentitySubscription();
   quiesceDashboardForAuthTransition();
   resetCurrentUserPermissions();
   currentUser = user;
@@ -5742,8 +5834,9 @@ onAuthStateChanged(auth, async user => {
     try {
       document.getElementById('loginOverlay').style.display = 'none';
 
-      const userDoc = await getDoc(doc(db, "users", authEmail));
+      const userDoc = await getDashboardUserFromServer(doc(db, "users", authEmail));
       if (!isCurrentAuthInitialization()) return;
+      if (!await verifyAndWatchDashboardIdentity(user,userDoc,authGeneration,isCurrentAuthInitialization)) return;
       currentRole = getDashboardRole(userDoc);
       const permissionOverrides = await loadCurrentUserPermissionOverrides(authEmail);
       if (!isCurrentAuthInitialization()) return;

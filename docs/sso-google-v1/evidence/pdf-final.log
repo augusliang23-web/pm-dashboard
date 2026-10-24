@@ -1,0 +1,3321 @@
+
+> test
+> node scripts/run-tests.mjs
+
+TAP version 13
+# Subtest: requires a bearer token before reading or rendering a report
+ok 1 - requires a bearer token before reading or rendering a report
+  ---
+  duration_ms: 1.367
+  type: 'test'
+  ...
+# Subtest: returns an attachment PDF without persistence when authorized
+ok 2 - returns an attachment PDF without persistence when authorized
+  ---
+  duration_ms: 2.22
+  type: 'test'
+  ...
+# Subtest: a Production-shaped handler rejects project-brief/project-update and never renders the UAT section picker
+ok 3 - a Production-shaped handler rejects project-brief/project-update and never renders the UAT section picker
+  ---
+  duration_ms: 1.507042
+  type: 'test'
+  ...
+# Subtest: returns an actionable error when generated output exceeds 8 MiB
+ok 4 - returns an actionable error when generated output exceeds 8 MiB
+  ---
+  duration_ms: 3.503416
+  type: 'test'
+  ...
+# Subtest: one-pager preview requires a bearer token
+ok 5 - one-pager preview requires a bearer token
+  ---
+  duration_ms: 0.379375
+  type: 'test'
+  ...
+# Subtest: one-pager preview returns standalone HTML without invoking a PDF renderer
+ok 6 - one-pager preview returns standalone HTML without invoking a PDF renderer
+  ---
+  duration_ms: 12.716667
+  type: 'test'
+  ...
+# Subtest: one-pager preview uses the draft Gantt window instead of the persisted dashboardSettings
+ok 7 - one-pager preview uses the draft Gantt window instead of the persisted dashboardSettings
+  ---
+  duration_ms: 1.270334
+  type: 'test'
+  ...
+# Subtest: one-pager preview reports a 404 for a project that no longer exists
+ok 8 - one-pager preview reports a 404 for a project that no longer exists
+  ---
+  duration_ms: 0.108584
+  type: 'test'
+  ...
+# Subtest: an invalid Firebase ID token yields 401, not the generic 500 fallback
+ok 9 - an invalid Firebase ID token yields 401, not the generic 500 fallback
+  ---
+  duration_ms: 2.178208
+  type: 'test'
+  ...
+# Subtest: an expired Firebase ID token yields 401
+ok 10 - an expired Firebase ID token yields 401
+  ---
+  duration_ms: 1.30975
+  type: 'test'
+  ...
+# Subtest: an unrecognized Firebase Admin/internal auth failure remains a generic 500 and leaks no internal detail
+ok 11 - an unrecognized Firebase Admin/internal auth failure remains a generic 500 and leaks no internal detail
+  ---
+  duration_ms: 0.782208
+  type: 'test'
+  ...
+# Subtest: role/access denial from a decoded, valid token remains 403
+ok 12 - role/access denial from a decoded, valid token remains 403
+  ---
+  duration_ms: 0.4125
+  type: 'test'
+  ...
+# Subtest: the one-pager preview handler classifies a surfaced revoked-token error the same way the report handler does
+ok 13 - the one-pager preview handler classifies a surfaced revoked-token error the same way the report handler does
+  ---
+  duration_ms: 0.0855
+  type: 'test'
+  ...
+# Subtest: requires a bearer token before reading or rendering a report
+ok 14 - requires a bearer token before reading or rendering a report
+  ---
+  duration_ms: 0.585584
+  type: 'test'
+  ...
+# Subtest: returns an attachment PDF without persistence when authorized
+ok 15 - returns an attachment PDF without persistence when authorized
+  ---
+  duration_ms: 1.178625
+  type: 'test'
+  ...
+# Subtest: returns an actionable error when generated output exceeds 8 MiB
+ok 16 - returns an actionable error when generated output exceeds 8 MiB
+  ---
+  duration_ms: 6.885041
+  type: 'test'
+  ...
+# Subtest: manual boolean preserves explicit green/monitor
+ok 17 - manual boolean preserves explicit green/monitor
+  ---
+  duration_ms: 0.947791
+  type: 'test'
+  ...
+# Subtest: manual boolean preserves explicit yellow/watch
+ok 18 - manual boolean preserves explicit yellow/watch
+  ---
+  duration_ms: 0.099375
+  type: 'test'
+  ...
+# Subtest: manual boolean preserves explicit red/strategy
+ok 19 - manual boolean preserves explicit red/strategy
+  ---
+  duration_ms: 0.038292
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: action, manual=true
+ok 20 - Overview/PDF category parity: action, manual=true
+  ---
+  duration_ms: 0.058792
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: action, manual=false
+ok 21 - Overview/PDF category parity: action, manual=false
+  ---
+  duration_ms: 0.151625
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: action, manual=undefined
+ok 22 - Overview/PDF category parity: action, manual=undefined
+  ---
+  duration_ms: 0.035625
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: monitor, manual=true
+ok 23 - Overview/PDF category parity: monitor, manual=true
+  ---
+  duration_ms: 0.061917
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: monitor, manual=false
+ok 24 - Overview/PDF category parity: monitor, manual=false
+  ---
+  duration_ms: 0.027666
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: monitor, manual=undefined
+ok 25 - Overview/PDF category parity: monitor, manual=undefined
+  ---
+  duration_ms: 0.178417
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: strategy, manual=true
+ok 26 - Overview/PDF category parity: strategy, manual=true
+  ---
+  duration_ms: 0.250541
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: strategy, manual=false
+ok 27 - Overview/PDF category parity: strategy, manual=false
+  ---
+  duration_ms: 0.074791
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: strategy, manual=undefined
+ok 28 - Overview/PDF category parity: strategy, manual=undefined
+  ---
+  duration_ms: 0.026
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: watch, manual=true
+ok 29 - Overview/PDF category parity: watch, manual=true
+  ---
+  duration_ms: 0.021542
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: watch, manual=false
+ok 30 - Overview/PDF category parity: watch, manual=false
+  ---
+  duration_ms: 0.022958
+  type: 'test'
+  ...
+# Subtest: Overview/PDF category parity: watch, manual=undefined
+ok 31 - Overview/PDF category parity: watch, manual=undefined
+  ---
+  duration_ms: 0.018417
+  type: 'test'
+  ...
+# Subtest: missing or invalid explicit attention falls back for red
+ok 32 - missing or invalid explicit attention falls back for red
+  ---
+  duration_ms: 0.140958
+  type: 'test'
+  ...
+# Subtest: missing or invalid explicit attention falls back for yellow
+ok 33 - missing or invalid explicit attention falls back for yellow
+  ---
+  duration_ms: 0.043833
+  type: 'test'
+  ...
+# Subtest: missing or invalid explicit attention falls back for green
+ok 34 - missing or invalid explicit attention falls back for green
+  ---
+  duration_ms: 0.036
+  type: 'test'
+  ...
+# Subtest: retains the PDF legacy string override only when no valid attention exists
+ok 35 - retains the PDF legacy string override only when no valid attention exists
+  ---
+  duration_ms: 0.079916
+  type: 'test'
+  ...
+# Subtest: normalization does not mutate the original project or unrelated fields
+ok 36 - normalization does not mutate the original project or unrelated fields
+  ---
+  duration_ms: 0.59625
+  type: 'test'
+  ...
+# Subtest: actual Overview PDF render keeps each category, identity and week in its quadrant
+ok 37 - actual Overview PDF render keeps each category, identity and week in its quadrant
+  ---
+  duration_ms: 4356.3645
+  type: 'test'
+  ...
+# Subtest: passes through the decoded token on success
+ok 38 - passes through the decoded token on success
+  ---
+  duration_ms: 0.881333
+  type: 'test'
+  ...
+# Subtest: maps an expired-token Firebase Auth error to 401
+ok 39 - maps an expired-token Firebase Auth error to 401
+  ---
+  duration_ms: 0.285417
+  type: 'test'
+  ...
+# Subtest: maps a surfaced revoked-token Firebase Auth error to 401 (defensive only -- the current live verifyIdToken call does not itself perform revocation checking)
+ok 40 - maps a surfaced revoked-token Firebase Auth error to 401 (defensive only -- the current live verifyIdToken call does not itself perform revocation checking)
+  ---
+  duration_ms: 0.048834
+  type: 'test'
+  ...
+# Subtest: maps an invalid-token Firebase Auth error to 401
+ok 41 - maps an invalid-token Firebase Auth error to 401
+  ---
+  duration_ms: 0.042709
+  type: 'test'
+  ...
+# Subtest: maps a malformed-token-argument Firebase Auth error to 401
+ok 42 - maps a malformed-token-argument Firebase Auth error to 401
+  ---
+  duration_ms: 0.084
+  type: 'test'
+  ...
+# Subtest: rethrows an unrecognized Firebase Admin error unchanged (fails safe as 500, not 401)
+ok 43 - rethrows an unrecognized Firebase Admin error unchanged (fails safe as 500, not 401)
+  ---
+  duration_ms: 0.056917
+  type: 'test'
+  ...
+# Subtest: rethrows an error with no recognizable code unchanged (fails safe as 500)
+ok 44 - rethrows an error with no recognizable code unchanged (fails safe as 500)
+  ---
+  duration_ms: 0.087458
+  type: 'test'
+  ...
+# Subtest: serializes independent acquisitions of the same browser-test lock
+ok 45 - serializes independent acquisitions of the same browser-test lock
+  ---
+  duration_ms: 75.364083
+  type: 'test'
+  ...
+# Subtest: reclaims a lock whose recorded owner process is no longer alive
+ok 46 - reclaims a lock whose recorded owner process is no longer alive
+  ---
+  duration_ms: 2.876625
+  type: 'test'
+  ...
+# Subtest: serializes all waiters while reclaiming one stale owner record
+ok 47 - serializes all waiters while reclaiming one stale owner record
+  ---
+  duration_ms: 59.293709
+  type: 'test'
+  ...
+# Subtest: recovers when a stale-lock reclaimer crashes after acquiring its claim
+ok 48 - recovers when a stale-lock reclaimer crashes after acquiring its claim
+  ---
+  duration_ms: 60.772792
+  type: 'test'
+  ...
+# Subtest: does not let an old owner release a replacement lock
+ok 49 - does not let an old owner release a replacement lock
+  ---
+  duration_ms: 1.020958
+  type: 'test'
+  ...
+# Subtest: waits for a fresh malformed lock record before reclaiming it
+ok 50 - waits for a fresh malformed lock record before reclaiming it
+  ---
+  duration_ms: 91.412584
+  type: 'test'
+  ...
+# Subtest: allows a preflight request only from the configured dashboard origin
+ok 51 - allows a preflight request only from the configured dashboard origin
+  ---
+  duration_ms: 0.582792
+  type: 'test'
+  ...
+# Subtest: rejects CORS requests from an unconfigured origin
+ok 52 - rejects CORS requests from an unconfigured origin
+  ---
+  duration_ms: 0.478417
+  type: 'test'
+  ...
+# Subtest: parses a comma-separated origin list and ignores blank segments (not malformed entries)
+ok 53 - parses a comma-separated origin list and ignores blank segments (not malformed entries)
+  ---
+  duration_ms: 0.085792
+  type: 'test'
+  ...
+# Subtest: fails closed (throws) on a malformed origin entry instead of silently dropping it
+ok 54 - fails closed (throws) on a malformed origin entry instead of silently dropping it
+  ---
+  duration_ms: 0.233667
+  type: 'test'
+  ...
+# Subtest: a single malformed entry invalidates the whole configured list, not just that entry
+ok 55 - a single malformed entry invalidates the whole configured list, not just that entry
+  ---
+  duration_ms: 0.0405
+  type: 'test'
+  ...
+# Subtest: accepts every exact, canonical origin form used by the real registered targets
+ok 56 - accepts every exact, canonical origin form used by the real registered targets
+  ---
+  duration_ms: 0.157583
+  type: 'test'
+  ...
+# Subtest: echoes back only the matching origin when several origins are allowed
+ok 57 - echoes back only the matching origin when several origins are allowed
+  ---
+  duration_ms: 0.051542
+  type: 'test'
+  ...
+# Subtest: multi-origin preflight answers 204 for a listed origin and 403 for others
+ok 58 - multi-origin preflight answers 204 for a listed origin and 403 for others
+  ---
+  duration_ms: 0.043875
+  type: 'test'
+  ...
+# Subtest: matches the configured origin exactly: no wildcard, prefix, path, or case-folding matches
+ok 59 - matches the configured origin exactly: no wildcard, prefix, path, or case-folding matches
+  ---
+  duration_ms: 0.203167
+  type: 'test'
+  ...
+# Subtest: fails closed when no origins are configured or the request has no Origin header
+ok 60 - fails closed when no origins are configured or the request has no Origin header
+  ---
+  duration_ms: 0.21875
+  type: 'test'
+  ...
+# Subtest: A-L: UAT admin workflow — open, 6/12 weeks, change week, scope, Overview round-trip, no JS errors
+ok 61 - A-L: UAT admin workflow — open, 6/12 weeks, change week, scope, Overview round-trip, no JS errors
+  ---
+  duration_ms: 6465.008208
+  type: 'test'
+  ...
+# Subtest: Delivery Trends reads no extra Firestore data and writes nothing while navigating
+ok 62 - Delivery Trends reads no extra Firestore data and writes nothing while navigating
+  ---
+  duration_ms: 2991.3695
+  type: 'test'
+  ...
+# Subtest: weeks without verified reporting periods yield an explicit state, never guessed numbers
+ok 63 - weeks without verified reporting periods yield an explicit state, never guessed numbers
+  ---
+  duration_ms: 2466.376833
+  type: 'test'
+  ...
+# Subtest: empty portfolio (no saved weeks) is never shown as verified data
+ok 64 - empty portfolio (no saved weeks) is never shown as verified data
+  ---
+  duration_ms: 2459.3235
+  type: 'test'
+  ...
+# Subtest: K: mobile layout at 390px and 320px has no horizontal overflow and a 2x2 KPI grid
+ok 65 - K: mobile layout at 390px and 320px has no horizontal overflow and a 2x2 KPI grid
+  ---
+  duration_ms: 4902.557583
+  type: 'test'
+  ...
+# Subtest: role and session behavior in the real page: Executive cannot open it; signing in/out resets the view
+ok 66 - role and session behavior in the real page: Executive cannot open it; signing in/out resets the view
+  ---
+  duration_ms: 6702.387791
+  type: 'test'
+  ...
+# Subtest: L: the Production profile does not expose Delivery Trends
+ok 67 - L: the Production profile does not expose Delivery Trends
+  ---
+  duration_ms: 2656.458917
+  type: 'test'
+  ...
+# Subtest: UAT PDF dialog (release candidate): the new option is offered, unchecked by default, and existing options and project selection still work
+ok 68 - UAT PDF dialog (release candidate): the new option is offered, unchecked by default, and existing options and project selection still work
+  ---
+  duration_ms: 3676.119166
+  type: 'test'
+  ...
+# Subtest: UAT PDF dialog (release candidate): selecting the new section sends it with the other chosen sections and the selected projects
+ok 69 - UAT PDF dialog (release candidate): selecting the new section sends it with the other chosen sections and the selected projects
+  ---
+  duration_ms: 3341.042292
+  type: 'test'
+  ...
+# Subtest: Production PDF dialog (release candidate): the new option is offered, unchecked by default, and selecting it sends the section
+ok 70 - Production PDF dialog (release candidate): the new option is offered, unchecked by default, and selecting it sends the section
+  ---
+  duration_ms: 3651.651666
+  type: 'test'
+  ...
+# Subtest: Production Overview (release candidate): renders Delivery Performance & Trends panel with 6/12-week selection
+ok 71 - Production Overview (release candidate): renders Delivery Performance & Trends panel with 6/12-week selection
+  ---
+  duration_ms: 2763.977209
+  type: 'test'
+  ...
+# Subtest: an invalid week label is kept but never becomes the default reporting week (real page, cross-year order)
+ok 72 - an invalid week label is kept but never becomes the default reporting week (real page, cross-year order)
+  ---
+  duration_ms: 2946.935708
+  type: 'test'
+  ...
+# Subtest: history that the server has not confirmed (cache-only snapshot) yields no trusted numbers
+ok 73 - history that the server has not confirmed (cache-only snapshot) yields no trusted numbers
+  ---
+  duration_ms: 2425.680625
+  type: 'test'
+  ...
+# Subtest: sales (released-only) sees the draft week as a gap in the real page; admin sees data for it
+ok 74 - sales (released-only) sees the draft week as a gap in the real page; admin sees data for it
+  ---
+  duration_ms: 5546.302458
+  type: 'test'
+  ...
+# Subtest: draft-reader roles are exactly the dashboard contract (admin, pm) and the backend helper mirrors the browser helper
+ok 75 - draft-reader roles are exactly the dashboard contract (admin, pm) and the backend helper mirrors the browser helper
+  ---
+  duration_ms: 1.154916
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: admin receives draft-week history only if it is a draft reader
+ok 76 - B/D/E/G/H/I/J released anchor: admin receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 12.801958
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: pm receives draft-week history only if it is a draft reader
+ok 77 - B/D/E/G/H/I/J released anchor: pm receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 1.326417
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: sales receives draft-week history only if it is a draft reader
+ok 78 - B/D/E/G/H/I/J released anchor: sales receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 1.141583
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: engineering receives draft-week history only if it is a draft reader
+ok 79 - B/D/E/G/H/I/J released anchor: engineering receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 1.161334
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: business receives draft-week history only if it is a draft reader
+ok 80 - B/D/E/G/H/I/J released anchor: business receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.695583
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: product receives draft-week history only if it is a draft reader
+ok 81 - B/D/E/G/H/I/J released anchor: product receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.772042
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: bd receives draft-week history only if it is a draft reader
+ok 82 - B/D/E/G/H/I/J released anchor: bd receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.744083
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: vip receives draft-week history only if it is a draft reader
+ok 83 - B/D/E/G/H/I/J released anchor: vip receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.77925
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: executive receives draft-week history only if it is a draft reader
+ok 84 - B/D/E/G/H/I/J released anchor: executive receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 2.003583
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: admin requesting only Delivery Performance for a draft weekId
+ok 85 - C/F draft anchor: admin requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.740167
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: pm requesting only Delivery Performance for a draft weekId
+ok 86 - C/F draft anchor: pm requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.5
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: sales requesting only Delivery Performance for a draft weekId
+ok 87 - C/F draft anchor: sales requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.59525
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: engineering requesting only Delivery Performance for a draft weekId
+ok 88 - C/F draft anchor: engineering requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.4555
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: business requesting only Delivery Performance for a draft weekId
+ok 89 - C/F draft anchor: business requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.407292
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: product requesting only Delivery Performance for a draft weekId
+ok 90 - C/F draft anchor: product requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.396625
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: bd requesting only Delivery Performance for a draft weekId
+ok 91 - C/F draft anchor: bd requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.429208
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: vip requesting only Delivery Performance for a draft weekId
+ok 92 - C/F draft anchor: vip requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.391958
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: executive requesting only Delivery Performance for a draft weekId
+ok 93 - C/F draft anchor: executive requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.390208
+  type: 'test'
+  ...
+# Subtest: draft anchor + other sections: roles without draft access get a fail-closed section and unchanged existing behavior
+ok 94 - draft anchor + other sections: roles without draft access get a fail-closed section and unchanged existing behavior
+  ---
+  duration_ms: 1.957291
+  type: 'test'
+  ...
+# Subtest: existing sections are not affected: requests without Delivery Performance never read history or change behavior
+ok 95 - existing sections are not affected: requests without Delivery Performance never read history or change behavior
+  ---
+  duration_ms: 2.649125
+  type: 'test'
+  ...
+# Subtest: client-supplied role or capability claims are never trusted
+ok 96 - client-supplied role or capability claims are never trusted
+  ---
+  duration_ms: 0.591
+  type: 'test'
+  ...
+# Subtest: a delegated week.manage override is not trusted by the PDF backend (documented fail-closed mismatch)
+ok 97 - a delegated week.manage override is not trusted by the PDF backend (documented fail-closed mismatch)
+  ---
+  duration_ms: 0.864333
+  type: 'test'
+  ...
+# Subtest: an unknown or missing role is rejected before any history is requested
+ok 98 - an unknown or missing role is rejected before any history is requested
+  ---
+  duration_ms: 1.206
+  type: 'test'
+  ...
+# Subtest: released-only roles read ONLY released documents (the published filter is applied at the query)
+ok 99 - released-only roles read ONLY released documents (the published filter is applied at the query)
+  ---
+  duration_ms: 0.525083
+  type: 'test'
+  ...
+# Subtest: draft readers use include-drafts, and a draft week never appears for released-only roles in the rendered PDF HTML
+ok 100 - draft readers use include-drafts, and a draft week never appears for released-only roles in the rendered PDF HTML
+  ---
+  duration_ms: 1.339625
+  type: 'test'
+  ...
+# Subtest: backend gate: missing, false or non-boolean flag rejects the section like the old backend; only explicit true accepts it
+ok 101 - backend gate: missing, false or non-boolean flag rejects the section like the old backend; only explicit true accepts it
+  ---
+  duration_ms: 3.105166
+  type: 'test'
+  ...
+# Subtest: target resolution: Production and UAT are enabled when registered true, absent flag is off
+ok 102 - target resolution: Production and UAT are enabled when registered true, absent flag is off
+  ---
+  duration_ms: 0.453042
+  type: 'test'
+  ...
+# Subtest: feature resolution never depends on a hostname, repository name or request data
+ok 103 - feature resolution never depends on a hostname, repository name or request data
+  ---
+  duration_ms: 0.493542
+  type: 'test'
+  ...
+# Subtest: frontend gate: both UAT and Production profiles can offer and send the section when backend is verified
+ok 104 - frontend gate: both UAT and Production profiles can offer and send the section when backend is verified
+  ---
+  duration_ms: 0.118709
+  type: 'test'
+  ...
+# Subtest: Production release candidate: the shipped registry enables deliveryPerformanceSection for both targets and changes no other feature
+ok 105 - Production release candidate: the shipped registry enables deliveryPerformanceSection for both targets and changes no other feature
+  ---
+  duration_ms: 0.173917
+  type: 'test'
+  ...
+# Subtest: end to end with the SHIPPED registry: both resolved targets accept the section
+ok 106 - end to end with the SHIPPED registry: both resolved targets accept the section
+  ---
+  duration_ms: 0.446583
+  type: 'test'
+  ...
+# Subtest: existing Overview sections are accepted identically by both shipped targets
+ok 107 - existing Overview sections are accepted identically by both shipped targets
+  ---
+  duration_ms: 2.101459
+  type: 'test'
+  ...
+# Subtest: PDF report/model expose canonical contract identical to browser authorized calculation
+ok 108 - PDF report/model expose canonical contract identical to browser authorized calculation
+  ---
+  duration_ms: 3.4205
+  type: 'test'
+  ...
+# Subtest: VIP and executive draft history is removed before period/identity diagnostics
+ok 109 - VIP and executive draft history is removed before period/identity diagnostics
+  ---
+  duration_ms: 0.690458
+  type: 'test'
+  ...
+# Subtest: role authorization runs before requesting historical data
+ok 110 - role authorization runs before requesting historical data
+  ---
+  duration_ms: 0.12475
+  type: 'test'
+  ...
+# Subtest: scope and code selection retain missing-progress current projects and hide unselected projects
+ok 111 - scope and code selection retain missing-progress current projects and hide unselected projects
+  ---
+  duration_ms: 0.209792
+  type: 'test'
+  ...
+# Subtest: incomplete or unavailable history never falls back to six legacy raw records
+ok 112 - incomplete or unavailable history never falls back to six legacy raw records
+  ---
+  duration_ms: 0.123791
+  type: 'test'
+  ...
+# Subtest: anchor revision change during history read makes metric snapshot unavailable
+ok 113 - anchor revision change during history read makes metric snapshot unavailable
+  ---
+  duration_ms: 0.075792
+  type: 'test'
+  ...
+# Subtest: legacy Overview sections neither read delivery history nor change existing model shape
+ok 114 - legacy Overview sections neither read delivery history nor change existing model shape
+  ---
+  duration_ms: 0.232667
+  type: 'test'
+  ...
+# Subtest: bounded Firestore reader filters publication before pagination and reads beyond six raw records
+ok 115 - bounded Firestore reader filters publication before pagination and reads beyond six raw records
+  ---
+  duration_ms: 0.659625
+  type: 'test'
+  ...
+# Subtest: bounded Firestore reader explicitly reports truncation; unsafe configuration is rejected
+ok 116 - bounded Firestore reader explicitly reports truncation; unsafe configuration is rejected
+  ---
+  duration_ms: 0.292625
+  type: 'test'
+  ...
+# Subtest: authorized scope exit and confirmed completion match Browser without exposing hidden current metadata
+ok 117 - authorized scope exit and confirmed completion match Browser without exposing hidden current metadata
+  ---
+  duration_ms: 0.930542
+  type: 'test'
+  ...
+# Subtest: null project rows with explicit selection produce diagnostics rather than HTTP failure
+ok 118 - null project rows with explicit selection produce diagnostics rather than HTTP failure
+  ---
+  duration_ms: 0.1795
+  type: 'test'
+  ...
+# Subtest: malformed truthy visibility cannot broaden legacy Overview scope or reveal current metadata
+ok 119 - malformed truthy visibility cannot broaden legacy Overview scope or reveal current metadata
+  ---
+  duration_ms: 0.608667
+  type: 'test'
+  ...
+# Subtest: parity: admin — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 120 - parity: admin — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 19.350458
+  type: 'test'
+  ...
+# Subtest: parity: pm — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 121 - parity: pm — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 2.334958
+  type: 'test'
+  ...
+# Subtest: parity: sales — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 122 - parity: sales — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 1.695291
+  type: 'test'
+  ...
+# Subtest: parity: engineering — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 123 - parity: engineering — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 2.295375
+  type: 'test'
+  ...
+# Subtest: parity: business — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 124 - parity: business — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 2.005959
+  type: 'test'
+  ...
+# Subtest: parity: product — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 125 - parity: product — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 3.072208
+  type: 'test'
+  ...
+# Subtest: parity: bd — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 126 - parity: bd — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 2.001375
+  type: 'test'
+  ...
+# Subtest: parity: vip — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 127 - parity: vip — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 1.234792
+  type: 'test'
+  ...
+# Subtest: parity: executive — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+ok 128 - parity: executive — Browser state equals PDF report data for a released anchor (cross-year window, drafts, hidden, out-of-scope)
+  ---
+  duration_ms: 2.670166
+  type: 'test'
+  ...
+# Subtest: parity holds for a six-week PDF and the six-week Browser window, and the Browser 12-week view is a superset of the same definitions
+ok 129 - parity holds for a six-week PDF and the six-week Browser window, and the Browser 12-week view is a superset of the same definitions
+  ---
+  duration_ms: 1.8665
+  type: 'test'
+  ...
+# Subtest: parity: the explicit reporting-week anchor (not array order) decides the result in both pipelines, historical anchors included
+ok 130 - parity: the explicit reporting-week anchor (not array order) decides the result in both pipelines, historical anchors included
+  ---
+  duration_ms: 2.303291
+  type: 'test'
+  ...
+# Subtest: parity: project scope and partial project selection
+ok 131 - parity: project scope and partial project selection
+  ---
+  duration_ms: 1.530375
+  type: 'test'
+  ...
+# Subtest: parity: the Browser sorts weeks chronologically, the engine sorts by ISO period; both agree across the year rollover
+ok 132 - parity: the Browser sorts weeks chronologically, the engine sorts by ISO period; both agree across the year rollover
+  ---
+  duration_ms: 0.788875
+  type: 'test'
+  ...
+# Subtest: Browser requires server-confirmed history; the PDF reader requires complete history: neither invents numbers
+ok 133 - Browser requires server-confirmed history; the PDF reader requires complete history: neither invents numbers
+  ---
+  duration_ms: 0.587542
+  type: 'test'
+  ...
+# Subtest: parity: a stored week with an unverifiable label makes Browser and PDF equally unavailable (fail closed, no guessed dates)
+ok 134 - parity: a stored week with an unverifiable label makes Browser and PDF equally unavailable (fail closed, no guessed dates)
+  ---
+  duration_ms: 0.692542
+  type: 'test'
+  ...
+# Subtest: request whitelist: the new section is rejected unless the target explicitly enables it
+ok 135 - request whitelist: the new section is rejected unless the target explicitly enables it
+  ---
+  duration_ms: 1.336334
+  type: 'test'
+  ...
+# Subtest: request whitelist: every existing Overview section still parses and project mode is untouched
+ok 136 - request whitelist: every existing Overview section still parses and project mode is untouched
+  ---
+  duration_ms: 0.242708
+  type: 'test'
+  ...
+# Subtest: overview report renders the new section only when selected and keeps existing sections
+ok 137 - overview report renders the new section only when selected and keeps existing sections
+  ---
+  duration_ms: 23.615625
+  type: 'test'
+  ...
+# Subtest: without a deliveryTrends contract the PDF shows an explicit unavailable page, never numbers
+ok 138 - without a deliveryTrends contract the PDF shows an explicit unavailable page, never numbers
+  ---
+  duration_ms: 0.874459
+  type: 'test'
+  ...
+# Subtest: the new section follows Overview scope/selection because it only renders the supplied contract
+ok 139 - the new section follows Overview scope/selection because it only renders the supplied contract
+  ---
+  duration_ms: 4.654625
+  type: 'test'
+  ...
+# Subtest: the new section sits after the opening page and before the executive summary
+ok 140 - the new section sits after the opening page and before the executive summary
+  ---
+  duration_ms: 0.851333
+  type: 'test'
+  ...
+# Subtest: a full Overview PDF with the new section renders and paginates
+ok 141 - a full Overview PDF with the new section renders and paginates
+  ---
+  duration_ms: 4255.948083
+  type: 'test'
+  ...
+# Subtest: a large portfolio adds a continuation page inside the Overview PDF
+ok 142 - a large portfolio adds a continuation page inside the Overview PDF
+  ---
+  duration_ms: 4142.403875
+  type: 'test'
+  ...
+# Subtest: the PDF stylesheet adds only scoped delivery rules to the shared theme
+ok 143 - the PDF stylesheet adds only scoped delivery rules to the shared theme
+  ---
+  duration_ms: 0.988375
+  type: 'test'
+  ...
+# Subtest: scope line states the actual scope and selected-project count (all selected: no partial notice)
+ok 144 - scope line states the actual scope and selected-project count (all selected: no partial notice)
+  ---
+  duration_ms: 0.799416
+  type: 'test'
+  ...
+# Subtest: partial selection shows "Selected projects: n of m" and the notice, never names of unselected projects
+ok 145 - partial selection shows "Selected projects: n of m" and the notice, never names of unselected projects
+  ---
+  duration_ms: 0.476375
+  type: 'test'
+  ...
+# Subtest: every Overview scope has a truthful label
+ok 146 - every Overview scope has a truthful label
+  ---
+  duration_ms: 1.770917
+  type: 'test'
+  ...
+# Subtest: without a validated project selection the counts are omitted instead of invented
+ok 147 - without a validated project selection the counts are omitted instead of invented
+  ---
+  duration_ms: 0.31275
+  type: 'test'
+  ...
+# Subtest: invalid counts are ignored and an unknown scope shows the scope actually used
+ok 148 - invalid counts are ignored and an unknown scope shows the scope actually used
+  ---
+  duration_ms: 0.519209
+  type: 'test'
+  ...
+# Subtest: the scope explanation footnote tells users why Dashboard and PDF KPIs can differ, and the renderer does not recompute metrics
+ok 149 - the scope explanation footnote tells users why Dashboard and PDF KPIs can differ, and the renderer does not recompute metrics
+  ---
+  duration_ms: 0.272167
+  type: 'test'
+  ...
+# Subtest: the scope line does not push a normal six-project report onto a second page
+ok 150 - the scope line does not push a normal six-project report onto a second page
+  ---
+  duration_ms: 4126.827666
+  type: 'test'
+  ...
+# Subtest: real canonical 6/12-week contracts determine both chart slots and project trend heading
+ok 151 - real canonical 6/12-week contracts determine both chart slots and project trend heading
+  ---
+  duration_ms: 2.561708
+  type: 'test'
+  ...
+# Subtest: renders summary metrics, trend chart and project table from the contract
+ok 152 - renders summary metrics, trend chart and project table from the contract
+  ---
+  duration_ms: 0.441125
+  type: 'test'
+  ...
+# Subtest: zero is shown only when genuinely zero; missing is N/A
+ok 153 - zero is shown only when genuinely zero; missing is N/A
+  ---
+  duration_ms: 0.354417
+  type: 'test'
+  ...
+# Subtest: negative progress and chart gaps are visible
+ok 154 - negative progress and chart gaps are visible
+  ---
+  duration_ms: 0.201209
+  type: 'test'
+  ...
+# Subtest: only the last 6 weeks are displayed by default
+ok 155 - only the last 6 weeks are displayed by default
+  ---
+  duration_ms: 0.155042
+  type: 'test'
+  ...
+# Subtest: displays up to 12 weeks when windowWeeks is 12
+ok 156 - displays up to 12 weeks when windowWeeks is 12
+  ---
+  duration_ms: 0.2455
+  type: 'test'
+  ...
+# Subtest: empty portfolio and unsupported contract render safe messages
+ok 157 - empty portfolio and unsupported contract render safe messages
+  ---
+  duration_ms: 0.150958
+  type: 'test'
+  ...
+# Subtest: synthetic provenance is disclosed; non-synthetic is not labelled
+ok 158 - synthetic provenance is disclosed; non-synthetic is not labelled
+  ---
+  duration_ms: 0.156833
+  type: 'test'
+  ...
+# Subtest: untrusted text is escaped
+ok 159 - untrusted text is escaped
+  ---
+  duration_ms: 0.256334
+  type: 'test'
+  ...
+# Subtest: web and PDF render the same formatted figures from one contract
+ok 160 - web and PDF render the same formatted figures from one contract
+  ---
+  duration_ms: 2.232
+  type: 'test'
+  ...
+# Subtest: HTML document is well formed with balanced structure
+ok 161 - HTML document is well formed with balanced structure
+  ---
+  duration_ms: 0.497459
+  type: 'test'
+  ...
+# Subtest: PDF: typical 6-project portfolio fits on a single landscape page
+ok 162 - PDF: typical 6-project portfolio fits on a single landscape page
+  ---
+  duration_ms: 2147.810625
+  type: 'test'
+  ...
+# Subtest: PDF: 7-project portfolio stays within two pages
+ok 163 - PDF: 7-project portfolio stays within two pages
+  ---
+  duration_ms: 4148.525
+  type: 'test'
+  ...
+# Subtest: PDF: 14-project portfolio continues onto extra pages without clipping rows
+ok 164 - PDF: 14-project portfolio continues onto extra pages without clipping rows
+  ---
+  duration_ms: 2081.558292
+  type: 'test'
+  ...
+# Subtest: PDF: long project and manager names do not add runaway pages
+ok 165 - PDF: long project and manager names do not add runaway pages
+  ---
+  duration_ms: 2064.68175
+  type: 'test'
+  ...
+# Subtest: PDF: empty and missing-data portfolios render one page
+ok 166 - PDF: empty and missing-data portfolios render one page
+  ---
+  duration_ms: 4148.320917
+  type: 'test'
+  ...
+# Subtest: existing Overview report output and shared components are unaffected
+ok 167 - existing Overview report output and shared components are unaffected
+  ---
+  duration_ms: 18.387416
+  type: 'test'
+  ...
+# Subtest: historical-only projects are not listed as current projects
+ok 168 - historical-only projects are not listed as current projects
+  ---
+  duration_ms: 0.142667
+  type: 'test'
+  ...
+# Subtest: missing isInAnchorScope fails closed instead of listing every project
+ok 169 - missing isInAnchorScope fails closed instead of listing every project
+  ---
+  duration_ms: 0.104
+  type: 'test'
+  ...
+# Subtest: an unavailable contract renders an explicit unavailable page, not numbers
+ok 170 - an unavailable contract renders an explicit unavailable page, not numbers
+  ---
+  duration_ms: 0.047291
+  type: 'test'
+  ...
+# Subtest: repeated warnings become one plain-language footnote with a count
+ok 171 - repeated warnings become one plain-language footnote with a count
+  ---
+  duration_ms: 0.133333
+  type: 'test'
+  ...
+# Subtest: week labels and warning messages are identical to the web view
+ok 172 - week labels and warning messages are identical to the web view
+  ---
+  duration_ms: 0.683584
+  type: 'test'
+  ...
+# Subtest: chart axis uses W37 2026 style labels
+ok 173 - chart axis uses W37 2026 style labels
+  ---
+  duration_ms: 0.274959
+  type: 'test'
+  ...
+# Subtest: project health shows labelled counts with a shape and text per status
+ok 174 - project health shows labelled counts with a shape and text per status
+  ---
+  duration_ms: 0.26525
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: UAT deploy command carries every required Cloud Run setting
+ok 175 - buildGcloudArgs: UAT deploy command carries every required Cloud Run setting
+  ---
+  duration_ms: 1.477542
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: Production deploy command uses Production identity, not UAT's
+ok 176 - buildGcloudArgs: Production deploy command uses Production identity, not UAT's
+  ---
+  duration_ms: 0.104208
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: UAT deploy command never names Production's project, service, or service account
+ok 177 - buildGcloudArgs: UAT deploy command never names Production's project, service, or service account
+  ---
+  duration_ms: 0.03525
+  type: 'test'
+  ...
+# Subtest: buildEnvVarsYaml: contains all three required startup variables for the given target
+ok 178 - buildEnvVarsYaml: contains all three required startup variables for the given target
+  ---
+  duration_ms: 0.103417
+  type: 'test'
+  ...
+# Subtest: buildEnvVarsYaml: UAT and Production env files never share a project id or origin set
+ok 179 - buildEnvVarsYaml: UAT and Production env files never share a project id or origin set
+  ---
+  duration_ms: 0.0935
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a target name the registry does not define
+ok 180 - assertTargetIsDeployable: rejects a target name the registry does not define
+  ---
+  duration_ms: 0.113584
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a target missing a required registry field
+ok 181 - assertTargetIsDeployable: rejects a target missing a required registry field
+  ---
+  duration_ms: 0.072208
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a runtime service account belonging to a different Firebase project
+ok 182 - assertTargetIsDeployable: rejects a runtime service account belonging to a different Firebase project
+  ---
+  duration_ms: 0.034833
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: Production deploy command pins its own intended build identity
+ok 183 - buildGcloudArgs: Production deploy command pins its own intended build identity
+  ---
+  duration_ms: 0.172542
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a missing or empty buildServiceAccount fails closed
+ok 184 - assertTargetIsDeployable: a missing or empty buildServiceAccount fails closed
+  ---
+  duration_ms: 0.226292
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a build service account from a different project fails closed
+ok 185 - assertTargetIsDeployable: a build service account from a different project fails closed
+  ---
+  duration_ms: 0.075834
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a build service account equal to the runtime service account fails closed
+ok 186 - assertTargetIsDeployable: a build service account equal to the runtime service account fails closed
+  ---
+  duration_ms: 0.063666
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: malformed same-project buildServiceAccount values fail closed
+ok 187 - assertTargetIsDeployable: malformed same-project buildServiceAccount values fail closed
+  ---
+  duration_ms: 0.1485
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: account ids at the 6 and 30 character bounds are accepted
+ok 188 - assertTargetIsDeployable: account ids at the 6 and 30 character bounds are accepted
+  ---
+  duration_ms: 0.055792
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: malformed same-project runtimeServiceAccount values fail closed too
+ok 189 - assertTargetIsDeployable: malformed same-project runtimeServiceAccount values fail closed too
+  ---
+  duration_ms: 0.063209
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects non-canonical allowed origins
+ok 190 - assertTargetIsDeployable: rejects non-canonical allowed origins
+  ---
+  duration_ms: 0.030125
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy --dry-run: never spawns gcloud, never inspects git state, and never resolves the upload manifest
+ok 191 - runPdfDeploy --dry-run: never spawns gcloud, never inspects git state, and never resolves the upload manifest
+  ---
+  duration_ms: 6.797333
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: Production without --confirm-production fails before touching git or gcloud
+ok 192 - runPdfDeploy: Production without --confirm-production fails before touching git or gcloud
+  ---
+  duration_ms: 0.143625
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: Production dry-run does not require --confirm-production
+ok 193 - runPdfDeploy: Production dry-run does not require --confirm-production
+  ---
+  duration_ms: 1.388625
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a dirty working tree refuses to deploy before invoking gcloud
+ok 194 - runPdfDeploy: a dirty working tree refuses to deploy before invoking gcloud
+  ---
+  duration_ms: 0.110583
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a working tree reported dirty only by an untracked file still refuses to deploy
+ok 195 - runPdfDeploy: a working tree reported dirty only by an untracked file still refuses to deploy
+  ---
+  duration_ms: 0.03775
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a clean UAT deploy invokes gcloud exactly once with UAT-only arguments
+ok 196 - runPdfDeploy: a clean UAT deploy invokes gcloud exactly once with UAT-only arguments
+  ---
+  duration_ms: 1.154666
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a non-zero gcloud exit code fails the deploy
+ok 197 - runPdfDeploy: a non-zero gcloud exit code fails the deploy
+  ---
+  duration_ms: 1.180708
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: an upload candidate outside the git-tracked set refuses to deploy before invoking gcloud
+ok 198 - runPdfDeploy: an upload candidate outside the git-tracked set refuses to deploy before invoking gcloud
+  ---
+  duration_ms: 0.093833
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: the temporary env-vars file is removed after the run, dry-run or not
+ok 199 - runPdfDeploy: the temporary env-vars file is removed after the run, dry-run or not
+  ---
+  duration_ms: 1.092083
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a freshly committed repository with nothing else is clean
+ok 200 - defaultGitState (real git): a freshly committed repository with nothing else is clean
+  ---
+  duration_ms: 58.1865
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a modified tracked file is reported dirty
+ok 201 - defaultGitState (real git): a modified tracked file is reported dirty
+  ---
+  duration_ms: 55.608917
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a staged-but-uncommitted new file is reported dirty
+ok 202 - defaultGitState (real git): a staged-but-uncommitted new file is reported dirty
+  ---
+  duration_ms: 63.65975
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a deleted tracked file is reported dirty
+ok 203 - defaultGitState (real git): a deleted tracked file is reported dirty
+  ---
+  duration_ms: 51.185375
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a renamed tracked file is reported dirty
+ok 204 - defaultGitState (real git): a renamed tracked file is reported dirty
+  ---
+  duration_ms: 61.192
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): an actual untracked file is reported dirty -- the regression this fix closes
+ok 205 - defaultGitState (real git): an actual untracked file is reported dirty -- the regression this fix closes
+  ---
+  duration_ms: 52.292209
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a git-ignored file does not trip the clean-tree guard
+ok 206 - defaultGitState (real git): a git-ignored file does not trip the clean-tree guard
+  ---
+  duration_ms: 74.070958
+  type: 'test'
+  ...
+# Subtest: normalizeUploadPath: normalizes Windows separators and a leading "./"
+ok 207 - normalizeUploadPath: normalizes Windows separators and a leading "./"
+  ---
+  duration_ms: 0.101125
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: rejects entirely blank output as a parsing anomaly, not zero files
+ok 208 - parseUploadManifestOutput: rejects entirely blank output as a parsing anomaly, not zero files
+  ---
+  duration_ms: 0.122625
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: filters blank lines and handles CRLF line endings
+ok 209 - parseUploadManifestOutput: filters blank lines and handles CRLF line endings
+  ---
+  duration_ms: 0.028333
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: rejects non-string input
+ok 210 - parseUploadManifestOutput: rejects non-string input
+  ---
+  duration_ms: 0.0255
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: A -- every upload candidate tracked returns no violations
+ok 211 - findUntrackedUploadCandidates: A -- every upload candidate tracked returns no violations
+  ---
+  duration_ms: 0.023584
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: B -- one ordinary untracked upload candidate is reported
+ok 212 - findUntrackedUploadCandidates: B -- one ordinary untracked upload candidate is reported
+  ---
+  duration_ms: 0.089125
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: C -- a git-ignored file gcloud still uploads is reported (ignored status is irrelevant)
+ok 213 - findUntrackedUploadCandidates: C -- a git-ignored file gcloud still uploads is reported (ignored status is irrelevant)
+  ---
+  duration_ms: 0.02
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: D -- a .DS_Store-style ignored local artifact selected for upload is reported
+ok 214 - findUntrackedUploadCandidates: D -- a .DS_Store-style ignored local artifact selected for upload is reported
+  ---
+  duration_ms: 0.017917
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: E -- duplicate upload-manifest entries are handled deterministically
+ok 215 - findUntrackedUploadCandidates: E -- duplicate upload-manifest entries are handled deterministically
+  ---
+  duration_ms: 0.045834
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: H -- Windows-style path separators normalize to match a POSIX tracked path
+ok 216 - findUntrackedUploadCandidates: H -- Windows-style path separators normalize to match a POSIX tracked path
+  ---
+  duration_ms: 0.017334
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: I -- a legitimate strict subset (e.g. .gcloudignore excluding test/, README) passes
+ok 217 - findUntrackedUploadCandidates: I -- a legitimate strict subset (e.g. .gcloudignore excluding test/, README) passes
+  ---
+  duration_ms: 0.017333
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: F -- an upload-list command failure fails closed
+ok 218 - assertUploadWithinGitTrackedFiles: F -- an upload-list command failure fails closed
+  ---
+  duration_ms: 0.058541
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: G -- a git tracked-list command failure fails closed
+ok 219 - assertUploadWithinGitTrackedFiles: G -- a git tracked-list command failure fails closed
+  ---
+  duration_ms: 0.041708
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: resolves without throwing when the upload set is fully tracked
+ok 220 - assertUploadWithinGitTrackedFiles: resolves without throwing when the upload set is fully tracked
+  ---
+  duration_ms: 0.054375
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: rejects with the offending path named when an upload candidate is untracked
+ok 221 - assertUploadWithinGitTrackedFiles: rejects with the offending path named when an upload candidate is untracked
+  ---
+  duration_ms: 0.031916
+  type: 'test'
+  ...
+# Subtest: CRITICAL: a git-ignored file gcloud would still upload is rejected before any real deploy invocation
+ok 222 - CRITICAL: a git-ignored file gcloud would still upload is rejected before any real deploy invocation
+  ---
+  duration_ms: 114.77625
+  type: 'test'
+  ...
+# gcloud is available in this environment; real `gcloud meta list-files-for-upload` was NOT additionally run by this suite (no cloud mutation is ever performed by these tests).
+# Subtest: real gcloud availability for this environment (informational, not a correctness assertion)
+ok 223 - real gcloud availability for this environment (informational, not a correctness assertion)
+  ---
+  duration_ms: 349.835041
+  type: 'test'
+  ...
+# Subtest: resolveGcloudExecutable: Windows resolves the .cmd shim through a shell
+ok 224 - resolveGcloudExecutable: Windows resolves the .cmd shim through a shell
+  ---
+  duration_ms: 0.07925
+  type: 'test'
+  ...
+# Subtest: resolveGcloudExecutable: Linux and macOS resolve the native executable directly, no shell
+ok 225 - resolveGcloudExecutable: Linux and macOS resolve the native executable directly, no shell
+  ---
+  duration_ms: 0.0235
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 1 -- Unix upload enumeration uses the native executable, no shell
+ok 226 - defaultUploadCandidates: 1 -- Unix upload enumeration uses the native executable, no shell
+  ---
+  duration_ms: 0.06775
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 2 -- Windows upload enumeration uses the .cmd-compatible (shell) execution strategy
+ok 227 - defaultUploadCandidates: 2 -- Windows upload enumeration uses the .cmd-compatible (shell) execution strategy
+  ---
+  duration_ms: 0.044708
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 3 -- arguments remain a distinct array, never concatenated into a shell command string
+ok 228 - defaultUploadCandidates: 3 -- arguments remain a distinct array, never concatenated into a shell command string
+  ---
+  duration_ms: 0.0415
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 4 -- stdout is captured and parsed into the upload candidate list
+ok 229 - defaultUploadCandidates: 4 -- stdout is captured and parsed into the upload candidate list
+  ---
+  duration_ms: 0.026292
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 5a -- a non-zero-exit-style execFile rejection fails closed (propagates, does not resolve)
+ok 230 - defaultUploadCandidates: 5a -- a non-zero-exit-style execFile rejection fails closed (propagates, does not resolve)
+  ---
+  duration_ms: 0.053084
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 5b -- a spawn failure (e.g. ENOENT, gcloud not installed) fails closed through assertUploadWithinGitTrackedFiles
+ok 231 - defaultUploadCandidates: 5b -- a spawn failure (e.g. ENOENT, gcloud not installed) fails closed through assertUploadWithinGitTrackedFiles
+  ---
+  duration_ms: 0.058334
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: on Windows, still resolves upload candidates end to end through the shell-compatible path
+ok 232 - defaultUploadCandidates: on Windows, still resolves upload candidates end to end through the shell-compatible path
+  ---
+  duration_ms: 0.045708
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: with no options, defaults to this process's real platform and the real execFile (production wiring, not exercised against a real gcloud here)
+ok 233 - defaultUploadCandidates: with no options, defaults to this process's real platform and the real execFile (production wiring, not exercised against a real gcloud here)
+  ---
+  duration_ms: 0.019375
+  type: 'test'
+  ...
+# Subtest: assertPlatformSupportsRealDeploy: rejects win32 with an actionable message
+ok 234 - assertPlatformSupportsRealDeploy: rejects win32 with an actionable message
+  ---
+  duration_ms: 0.027125
+  type: 'test'
+  ...
+# Subtest: assertPlatformSupportsRealDeploy: does not throw for linux or darwin
+ok 235 - assertPlatformSupportsRealDeploy: does not throw for linux or darwin
+  ---
+  duration_ms: 0.024541
+  type: 'test'
+  ...
+# Subtest: 1. runPdfDeploy: a real Windows UAT deploy fails closed before git or upload-manifest enumeration
+ok 236 - 1. runPdfDeploy: a real Windows UAT deploy fails closed before git or upload-manifest enumeration
+  ---
+  duration_ms: 0.0665
+  type: 'test'
+  ...
+# Subtest: 2. runPdfDeploy: a real Windows Production deploy fails closed before the Production confirmation check and before gcloud
+ok 237 - 2. runPdfDeploy: a real Windows Production deploy fails closed before the Production confirmation check and before gcloud
+  ---
+  duration_ms: 0.0415
+  type: 'test'
+  ...
+# Subtest: 3. runPdfDeploy: a Windows dry-run remains safe -- succeeds, never touches git, gcloud, or the upload manifest
+ok 238 - 3. runPdfDeploy: a Windows dry-run remains safe -- succeeds, never touches git, gcloud, or the upload manifest
+  ---
+  duration_ms: 1.894042
+  type: 'test'
+  ...
+# Subtest: 3b. runPdfDeploy: a Windows Production dry-run also remains safe and does not require --confirm-production
+ok 239 - 3b. runPdfDeploy: a Windows Production dry-run also remains safe and does not require --confirm-production
+  ---
+  duration_ms: 0.901333
+  type: 'test'
+  ...
+# Subtest: 4. runPdfDeploy: the Unix/macOS/Linux real deploy path is unchanged (proceeds past the platform check)
+ok 240 - 4. runPdfDeploy: the Unix/macOS/Linux real deploy path is unchanged (proceeds past the platform check)
+  ---
+  duration_ms: 1.667958
+  type: 'test'
+  ...
+# Subtest: 5. runPdfDeploy: the upload-boundary guard remains intact on a supported platform (linux)
+ok 241 - 5. runPdfDeploy: the upload-boundary guard remains intact on a supported platform (linux)
+  ---
+  duration_ms: 0.090333
+  type: 'test'
+  ...
+# Subtest: 6. runPdfDeploy: the Production confirmation gate remains intact on a supported platform (linux)
+ok 242 - 6. runPdfDeploy: the Production confirmation gate remains intact on a supported platform (linux)
+  ---
+  duration_ms: 0.04975
+  type: 'test'
+  ...
+# Subtest: 7. no source comment or test in this module claims shell:true safely escapes or quotes arguments
+ok 243 - 7. no source comment or test in this module claims shell:true safely escapes or quotes arguments
+  ---
+  duration_ms: 0.461375
+  type: 'test'
+  ...
+# Subtest: PDF renderer image installs the Chromium shared-library dependencies
+ok 244 - PDF renderer image installs the Chromium shared-library dependencies
+  ---
+  duration_ms: 0.533334
+  type: 'test'
+  ...
+# Subtest: PDF renderer image pins the Node 24.21.0 runtime, not Node 20
+ok 245 - PDF renderer image pins the Node 24.21.0 runtime, not Node 20
+  ---
+  duration_ms: 0.085667
+  type: 'test'
+  ...
+# Subtest: PDF renderer image installs dependencies reproducibly from the committed lockfile
+ok 246 - PDF renderer image installs dependencies reproducibly from the committed lockfile
+  ---
+  duration_ms: 0.057834
+  type: 'test'
+  ...
+# Subtest: Cloud Run source deploy excludes local dependencies and development artifacts
+ok 247 - Cloud Run source deploy excludes local dependencies and development artifacts
+  ---
+  duration_ms: 0.254958
+  type: 'test'
+  ...
+# Subtest: deploy.ps1 is a thin wrapper that delegates to the authoritative Node deploy script
+ok 248 - deploy.ps1 is a thin wrapper that delegates to the authoritative Node deploy script
+  ---
+  duration_ms: 0.106833
+  type: 'test'
+  ...
+# Subtest: accepts the same canonical summaries as the browser contract
+ok 249 - accepts the same canonical summaries as the browser contract
+  ---
+  duration_ms: 0.916167
+  type: 'test'
+  ...
+# Subtest: accepts a canonical movement for a project removed since the comparison week
+ok 250 - accepts a canonical movement for a project removed since the comparison week
+  ---
+  duration_ms: 0.101209
+  type: 'test'
+  ...
+# Subtest: accepts browser-repaired packed Copilot text as canonical PDF input
+ok 251 - accepts browser-repaired packed Copilot text as canonical PDF input
+  ---
+  duration_ms: 0.927583
+  type: 'test'
+  ...
+# Subtest: still rejects malformed canonical movement structure
+ok 252 - still rejects malformed canonical movement structure
+  ---
+  duration_ms: 0.06775
+  type: 'test'
+  ...
+# Subtest: rejects missing-next-step for PDF export
+ok 253 - rejects missing-next-step for PDF export
+  ---
+  duration_ms: 0.052167
+  type: 'test'
+  ...
+# Subtest: rejects unknown-project for PDF export
+ok 254 - rejects unknown-project for PDF export
+  ---
+  duration_ms: 0.08
+  type: 'test'
+  ...
+# Subtest: rejects markdown-heading for PDF export
+ok 255 - rejects markdown-heading for PDF export
+  ---
+  duration_ms: 0.036042
+  type: 'test'
+  ...
+# Subtest: rejects unlabelled-prose for PDF export
+ok 256 - rejects unlabelled-prose for PDF export
+  ---
+  duration_ms: 0.03625
+  type: 'test'
+  ...
+# Subtest: rejects missing-management-body for PDF export
+ok 257 - rejects missing-management-body for PDF export
+  ---
+  duration_ms: 0.159167
+  type: 'test'
+  ...
+# Subtest: rejects too-many-asks for PDF export
+ok 258 - rejects too-many-asks for PDF export
+  ---
+  duration_ms: 0.218042
+  type: 'test'
+  ...
+# Subtest: parses structured movement and management ask fields
+ok 259 - parses structured movement and management ask fields
+  ---
+  duration_ms: 0.855333
+  type: 'test'
+  ...
+# Subtest: maps legacy project bullets without requiring historical rewrites
+ok 260 - maps legacy project bullets without requiring historical rewrites
+  ---
+  duration_ms: 0.146666
+  type: 'test'
+  ...
+# Subtest: maps unbulleted legacy summaries with an inline weekly movement heading
+ok 261 - maps unbulleted legacy summaries with an inline weekly movement heading
+  ---
+  duration_ms: 0.09225
+  type: 'test'
+  ...
+# Subtest: caps display content and reports additional details
+ok 262 - caps display content and reports additional details
+  ---
+  duration_ms: 0.112542
+  type: 'test'
+  ...
+# Subtest: keeps malformed narrative as a safe fallback
+ok 263 - keeps malformed narrative as a safe fallback
+  ---
+  duration_ms: 0.034542
+  type: 'test'
+  ...
+# Subtest: uses the local Firebase project ID without application credentials for emulator requests
+ok 264 - uses the local Firebase project ID without application credentials for emulator requests
+  ---
+  duration_ms: 0.877333
+  type: 'test'
+  ...
+# Subtest: keeps application credentials for the deployed PDF service
+ok 265 - keeps application credentials for the deployed PDF service
+  ---
+  duration_ms: 0.049083
+  type: 'test'
+  ...
+# Subtest: resolves the report anchor date from the week label and date range
+ok 266 - resolves the report anchor date from the week label and date range
+  ---
+  duration_ms: 1.302917
+  type: 'test'
+  ...
+# Subtest: falls back to today when the week carries no parseable date
+ok 267 - falls back to today when the week carries no parseable date
+  ---
+  duration_ms: 0.122333
+  type: 'test'
+  ...
+# Subtest: sanitizes a raw dashboardSettings document into defaultMonths + overrides
+ok 268 - sanitizes a raw dashboardSettings document into defaultMonths + overrides
+  ---
+  duration_ms: 0.529625
+  type: 'test'
+  ...
+# Subtest: falls back to the 6-month default when the settings document is missing or malformed
+ok 269 - falls back to the 6-month default when the settings document is missing or malformed
+  ---
+  duration_ms: 0.049
+  type: 'test'
+  ...
+# Subtest: sanitizes an already-clean draft (defaultMonths/overrides), unlike resolveGanttWindowSettings which expects raw doc field names
+ok 270 - sanitizes an already-clean draft (defaultMonths/overrides), unlike resolveGanttWindowSettings which expects raw doc field names
+  ---
+  duration_ms: 0.145209
+  type: 'test'
+  ...
+# Subtest: resolves a project-specific override ahead of the portfolio default
+ok 271 - resolves a project-specific override ahead of the portfolio default
+  ---
+  duration_ms: 0.047791
+  type: 'test'
+  ...
+# Subtest: returns null (no window configured) when no settings object is passed at all
+ok 272 - returns null (no window configured) when no settings object is passed at all
+  ---
+  duration_ms: 0.029042
+  type: 'test'
+  ...
+# Subtest: keeps workstreams inside the forward window and drops ones safely past it
+ok 273 - keeps workstreams inside the forward window and drops ones safely past it
+  ---
+  duration_ms: 0.159958
+  type: 'test'
+  ...
+# Subtest: keeps a one-month backward buffer of recently active work
+ok 274 - keeps a one-month backward buffer of recently active work
+  ---
+  duration_ms: 0.184459
+  type: 'test'
+  ...
+# Subtest: never filters out at-risk or delayed workstreams regardless of date
+ok 275 - never filters out at-risk or delayed workstreams regardless of date
+  ---
+  duration_ms: 0.234333
+  type: 'test'
+  ...
+# Subtest: never hides an unscheduled workstream that has no parseable dates
+ok 276 - never hides an unscheduled workstream that has no parseable dates
+  ---
+  duration_ms: 0.077667
+  type: 'test'
+  ...
+# Subtest: clamps into a shorter target month instead of overflowing when the anchor falls on the 29th-31st
+ok 277 - clamps into a shorter target month instead of overflowing when the anchor falls on the 29th-31st
+  ---
+  duration_ms: 0.043167
+  type: 'test'
+  ...
+# Subtest: clamps the backward buffer the same way when the anchor falls on the 31st
+ok 278 - clamps the backward buffer the same way when the anchor falls on the 31st
+  ---
+  duration_ms: 0.036208
+  type: 'test'
+  ...
+# Subtest: physical PDF name cells expose the full long project label without clipping
+ok 279 - physical PDF name cells expose the full long project label without clipping
+  ---
+  duration_ms: 606.445584
+  type: 'test'
+  ...
+# Subtest: splits generic list units in order with continuation context
+ok 280 - splits generic list units in order with continuation context
+  ---
+  duration_ms: 2142.932875
+  type: 'test'
+  ...
+# Subtest: splits one oversized generic unit at word and character boundaries
+ok 281 - splits one oversized generic unit at word and character boundaries
+  ---
+  duration_ms: 4316.185875
+  type: 'test'
+  ...
+# Subtest: fills remaining page space before creating a continuation page
+ok 282 - fills remaining page space before creating a continuation page
+  ---
+  duration_ms: 2145.631375
+  type: 'test'
+  ...
+# Subtest: keeps an exact-boundary block and moves only a just-over-boundary block
+ok 283 - keeps an exact-boundary block and moves only a just-over-boundary block
+  ---
+  duration_ms: 4268.78775
+  type: 'test'
+  ...
+# Subtest: keeps every generated page in source order and marks continuations
+ok 284 - keeps every generated page in source order and marks continuations
+  ---
+  duration_ms: 2142.255166
+  type: 'test'
+  ...
+# Subtest: splits an oversized card between labelled fields without losing text
+ok 285 - splits an oversized card between labelled fields without losing text
+  ---
+  duration_ms: 2185.07025
+  type: 'test'
+  ...
+# Subtest: splits one oversized field at a word boundary
+ok 286 - splits one oversized field at a word boundary
+  ---
+  duration_ms: 2191.230459
+  type: 'test'
+  ...
+# Subtest: packs the dense Week 28 legacy summary without empty or prematurely split pages
+ok 287 - packs the dense Week 28 legacy summary without empty or prematurely split pages
+  ---
+  duration_ms: 2129.796916
+  type: 'test'
+  ...
+# Subtest: splits an unbroken token without clipping or entering an infinite loop
+ok 288 - splits an unbroken token without clipping or entering an infinite loop
+  ---
+  duration_ms: 2219.119125
+  type: 'test'
+  ...
+# Subtest: parses a minimal preview request with no draft settings
+ok 289 - parses a minimal preview request with no draft settings
+  ---
+  duration_ms: 0.881
+  type: 'test'
+  ...
+# Subtest: carries through draft Gantt window settings unvalidated (sanitized later downstream)
+ok 290 - carries through draft Gantt window settings unvalidated (sanitized later downstream)
+  ---
+  duration_ms: 0.047833
+  type: 'test'
+  ...
+# Subtest: requires weekId and projectCode
+ok 291 - requires weekId and projectCode
+  ---
+  duration_ms: 0.133167
+  type: 'test'
+  ...
+# Subtest: rejects a non-object body and unexpected fields
+ok 292 - rejects a non-object body and unexpected fields
+  ---
+  duration_ms: 0.046208
+  type: 'test'
+  ...
+# Subtest: one-page PDF preserves both long risks and their complete mitigation actions
+ok 293 - one-page PDF preserves both long risks and their complete mitigation actions
+  ---
+  duration_ms: 1540.183375
+  type: 'test'
+  ...
+# Subtest: an overflowing 23-item action list keeps its full ordered text on marked continuation pages
+ok 294 - an overflowing 23-item action list keeps its full ordered text on marked continuation pages
+  ---
+  duration_ms: 1555.188292
+  type: 'test'
+  ...
+# Subtest: each portfolio project keeps its continuation pages before the next project
+ok 295 - each portfolio project keeps its continuation pages before the next project
+  ---
+  duration_ms: 1482.473958
+  type: 'test'
+  ...
+# Subtest: a long unbroken action token wraps without horizontal clipping or lost characters
+ok 296 - a long unbroken action token wraps without horizontal clipping or lost characters
+  ---
+  duration_ms: 457.435625
+  type: 'test'
+  ...
+# Subtest: an oversized risk preserves separate labelled risk and mitigation fields across pages
+ok 297 - an oversized risk preserves separate labelled risk and mitigation fields across pages
+  ---
+  duration_ms: 474.523291
+  type: 'test'
+  ...
+# Subtest: emits Executive Summary as one ordered measurable flow
+ok 298 - emits Executive Summary as one ordered measurable flow
+  ---
+  duration_ms: 8.21825
+  type: 'test'
+  ...
+# Subtest: renders compact Executive Summary as one measurable source page
+ok 299 - renders compact Executive Summary as one measurable source page
+  ---
+  duration_ms: 0.669292
+  type: 'test'
+  ...
+# Subtest: keeps verbose projects and management decisions in the measurable flow
+ok 300 - keeps verbose projects and management decisions in the measurable flow
+  ---
+  duration_ms: 0.484625
+  type: 'test'
+  ...
+# Subtest: puts a legacy unbulleted weekly summary into one measurable flow
+ok 301 - puts a legacy unbulleted weekly summary into one measurable flow
+  ---
+  duration_ms: 0.29575
+  type: 'test'
+  ...
+# Subtest: renders all ten selected Overview sections in dashboard reading order
+ok 302 - renders all ten selected Overview sections in dashboard reading order
+  ---
+  duration_ms: 5.130625
+  type: 'test'
+  ...
+# Subtest: renders permitted Executive milestones and Quarterly Roadmap as compact measured flows
+ok 303 - renders permitted Executive milestones and Quarterly Roadmap as compact measured flows
+  ---
+  duration_ms: 0.272875
+  type: 'test'
+  ...
+# Subtest: keeps overview signals together while giving Executive Summary dedicated pages
+ok 304 - keeps overview signals together while giving Executive Summary dedicated pages
+  ---
+  duration_ms: 0.889166
+  type: 'test'
+  ...
+# Subtest: labels project portfolio mitigation actions and uses its matching empty state
+ok 305 - labels project portfolio mitigation actions and uses its matching empty state
+  ---
+  duration_ms: 0.332208
+  type: 'test'
+  ...
+# Subtest: uses one measured source flow per project portfolio
+ok 306 - uses one measured source flow per project portfolio
+  ---
+  duration_ms: 0.956875
+  type: 'test'
+  ...
+# Subtest: projectPortfolioLayout "one-page" renders one compact quadrant summary per project
+ok 307 - projectPortfolioLayout "one-page" renders one compact quadrant summary per project
+  ---
+  duration_ms: 2.823458
+  type: 'test'
+  ...
+# Subtest: places project portfolio update records with their matching sections
+ok 308 - places project portfolio update records with their matching sections
+  ---
+  duration_ms: 0.675875
+  type: 'test'
+  ...
+# Subtest: renders complete project highlights, risk actions, and Gantt workstreams
+ok 309 - renders complete project highlights, risk actions, and Gantt workstreams
+  ---
+  duration_ms: 0.683
+  type: 'test'
+  ...
+# Subtest: renders project free text without list semantics and preserves source markers
+ok 310 - renders project free text without list semantics and preserves source markers
+  ---
+  duration_ms: 0.358834
+  type: 'test'
+  ...
+# Subtest: renders marker-only raw weekly actions even when normalized actions are empty
+ok 311 - renders marker-only raw weekly actions even when normalized actions are empty
+  ---
+  duration_ms: 0.351792
+  type: 'test'
+  ...
+# Subtest: omits Overview sections with no reportable data
+ok 312 - omits Overview sections with no reportable data
+  ---
+  duration_ms: 0.085125
+  type: 'test'
+  ...
+# Subtest: omits Executive milestones when no timeline is saved
+ok 313 - omits Executive milestones when no timeline is saved
+  ---
+  duration_ms: 0.1315
+  type: 'test'
+  ...
+# Subtest: omits Executive milestones for a partial project selection
+ok 314 - omits Executive milestones for a partial project selection
+  ---
+  duration_ms: 0.541125
+  type: 'test'
+  ...
+# Subtest: filters project-specific Executive Summary entries for a partial selection
+ok 315 - filters project-specific Executive Summary entries for a partial selection
+  ---
+  duration_ms: 0.280917
+  type: 'test'
+  ...
+# Subtest: filters Executive Summary entries for a complete selection within a narrowed scope
+ok 316 - filters Executive Summary entries for a complete selection within a narrowed scope
+  ---
+  duration_ms: 0.222792
+  type: 'test'
+  ...
+# Subtest: renders weekly key actions independently and omits risks when none are stored
+ok 317 - renders weekly key actions independently and omits risks when none are stored
+  ---
+  duration_ms: 0.2075
+  type: 'test'
+  ...
+# Subtest: escapes Overview project content and contains no interactive controls
+ok 318 - escapes Overview project content and contains no interactive controls
+  ---
+  duration_ms: 0.727584
+  type: 'test'
+  ...
+# Subtest: emits Executive Summary as one ordered measurable flow
+ok 319 - emits Executive Summary as one ordered measurable flow
+  ---
+  duration_ms: 7.756542
+  type: 'test'
+  ...
+# Subtest: renders compact Executive Summary as one measurable source page
+ok 320 - renders compact Executive Summary as one measurable source page
+  ---
+  duration_ms: 0.6885
+  type: 'test'
+  ...
+# Subtest: keeps verbose projects and management decisions in the measurable flow
+ok 321 - keeps verbose projects and management decisions in the measurable flow
+  ---
+  duration_ms: 0.478125
+  type: 'test'
+  ...
+# Subtest: puts a legacy unbulleted weekly summary into one measurable flow
+ok 322 - puts a legacy unbulleted weekly summary into one measurable flow
+  ---
+  duration_ms: 0.269708
+  type: 'test'
+  ...
+# Subtest: renders all ten selected Overview sections in dashboard reading order
+ok 323 - renders all ten selected Overview sections in dashboard reading order
+  ---
+  duration_ms: 5.150625
+  type: 'test'
+  ...
+# Subtest: renders permitted Executive milestones and Quarterly Roadmap as compact measured flows
+ok 324 - renders permitted Executive milestones and Quarterly Roadmap as compact measured flows
+  ---
+  duration_ms: 0.264958
+  type: 'test'
+  ...
+# Subtest: keeps overview signals together while giving Executive Summary dedicated pages
+ok 325 - keeps overview signals together while giving Executive Summary dedicated pages
+  ---
+  duration_ms: 0.884709
+  type: 'test'
+  ...
+# Subtest: labels project portfolio mitigation actions and uses its matching empty state
+ok 326 - labels project portfolio mitigation actions and uses its matching empty state
+  ---
+  duration_ms: 0.336875
+  type: 'test'
+  ...
+# Subtest: uses one measured source flow per project portfolio
+ok 327 - uses one measured source flow per project portfolio
+  ---
+  duration_ms: 0.998292
+  type: 'test'
+  ...
+# Subtest: places project portfolio update records with their matching sections
+ok 328 - places project portfolio update records with their matching sections
+  ---
+  duration_ms: 2.293416
+  type: 'test'
+  ...
+# Subtest: renders complete project highlights, risk actions, and Gantt workstreams
+ok 329 - renders complete project highlights, risk actions, and Gantt workstreams
+  ---
+  duration_ms: 0.884041
+  type: 'test'
+  ...
+# Subtest: omits Overview sections with no reportable data
+ok 330 - omits Overview sections with no reportable data
+  ---
+  duration_ms: 0.090541
+  type: 'test'
+  ...
+# Subtest: omits Executive milestones when no timeline is saved
+ok 331 - omits Executive milestones when no timeline is saved
+  ---
+  duration_ms: 0.144875
+  type: 'test'
+  ...
+# Subtest: omits Executive milestones for a partial project selection
+ok 332 - omits Executive milestones for a partial project selection
+  ---
+  duration_ms: 0.521667
+  type: 'test'
+  ...
+# Subtest: filters project-specific Executive Summary entries for a partial selection
+ok 333 - filters project-specific Executive Summary entries for a partial selection
+  ---
+  duration_ms: 0.262875
+  type: 'test'
+  ...
+# Subtest: filters Executive Summary entries for a complete selection within a narrowed scope
+ok 334 - filters Executive Summary entries for a complete selection within a narrowed scope
+  ---
+  duration_ms: 0.212333
+  type: 'test'
+  ...
+# Subtest: renders weekly key actions independently and omits risks when none are stored
+ok 335 - renders weekly key actions independently and omits risks when none are stored
+  ---
+  duration_ms: 0.242834
+  type: 'test'
+  ...
+# Subtest: escapes Overview project content and contains no interactive controls
+ok 336 - escapes Overview project content and contains no interactive controls
+  ---
+  duration_ms: 0.699583
+  type: 'test'
+  ...
+# Subtest: printed Overview risk section uses mitigation terminology without the legacy kicker
+ok 337 - printed Overview risk section uses mitigation terminology without the legacy kicker
+  ---
+  duration_ms: 4278.952709
+  type: 'test'
+  ...
+# Subtest: a nine-project budget overview fits one landscape page without a trailing page
+ok 338 - a nine-project budget overview fits one landscape page without a trailing page
+  ---
+  duration_ms: 2066.376
+  type: 'test'
+  ...
+# Subtest: Executive milestones and Quarterly Roadmap each fit their compact landscape page
+ok 339 - Executive milestones and Quarterly Roadmap each fit their compact landscape page
+  ---
+  duration_ms: 2079.698958
+  type: 'test'
+  ...
+# Subtest: compact Executive Summary renders exactly two landscape pages
+ok 340 - compact Executive Summary renders exactly two landscape pages
+  ---
+  duration_ms: 2054.766291
+  type: 'test'
+  ...
+# Subtest: repaired packed-summary content survives Executive Summary HTML and PDF rendering
+ok 341 - repaired packed-summary content survives Executive Summary HTML and PDF rendering
+  ---
+  duration_ms: 4173.903833
+  type: 'test'
+  ...
+# Subtest: verbose Executive Summary creates measured continuation pages without pre-splitting HTML
+ok 342 - verbose Executive Summary creates measured continuation pages without pre-splitting HTML
+  ---
+  duration_ms: 2059.713
+  type: 'test'
+  ...
+# Subtest: aligns every verbose Executive Summary wrapper to its own printable page
+ok 343 - aligns every verbose Executive Summary wrapper to its own printable page
+  ---
+  duration_ms: 2145.911708
+  type: 'test'
+  ...
+# Subtest: splits high-text Executive Summary cards before any wrapper exceeds A4 height
+ok 344 - splits high-text Executive Summary cards before any wrapper exceeds A4 height
+  ---
+  duration_ms: 4244.729959
+  type: 'test'
+  ...
+# Subtest: dense project portfolio keeps project context and footer clearance on continuations
+ok 345 - dense project portfolio keeps project context and footer clearance on continuations
+  ---
+  duration_ms: 2144.841625
+  type: 'test'
+  ...
+# Subtest: paginates a long project identity one raw highlight line at a time
+ok 346 - paginates a long project identity one raw highlight line at a time
+  ---
+  duration_ms: 4209.942333
+  type: 'test'
+  ...
+# Subtest: keeps consecutive Project Portfolio Gantt rows visually joined
+ok 347 - keeps consecutive Project Portfolio Gantt rows visually joined
+  ---
+  duration_ms: 2122.591166
+  type: 'test'
+  ...
+# Subtest: dense management attention and risk actions use titled measured pages
+ok 348 - dense management attention and risk actions use titled measured pages
+  ---
+  duration_ms: 2152.424833
+  type: 'test'
+  ...
+# Subtest: long resource tables repeat headers and keep every row inside measured pages
+ok 349 - long resource tables repeat headers and keep every row inside measured pages
+  ---
+  duration_ms: 2173.640166
+  type: 'test'
+  ...
+# Subtest: long milestone and Gantt sections retain rows, axes, titles, and footer clearance
+ok 350 - long milestone and Gantt sections retain rows, axes, titles, and footer clearance
+  ---
+  duration_ms: 2169.471459
+  type: 'test'
+  ...
+# Subtest: full Overview and Project PDFs preserve explicit page parity and period metadata
+ok 351 - full Overview and Project PDFs preserve explicit page parity and period metadata
+  ---
+  duration_ms: 8406.167791
+  type: 'test'
+  ...
+# Subtest: a heavy one-page project summary (8 summary lanes, 5 highlights, 5 actions) renders on exactly one physical page without clipping
+ok 352 - a heavy one-page project summary (8 summary lanes, 5 highlights, 5 actions) renders on exactly one physical page without clipping
+  ---
+  duration_ms: 2056.80025
+  type: 'test'
+  ...
+# Subtest: a heavy one-page project summary does not clip its Gantt, highlights or action quadrants
+ok 353 - a heavy one-page project summary does not clip its Gantt, highlights or action quadrants
+  ---
+  duration_ms: 2143.955041
+  type: 'test'
+  ...
+# Subtest: projectPortfolioLayout "one-page" renders one physical page per project in the weekly Overview PDF
+ok 354 - projectPortfolioLayout "one-page" renders one physical page per project in the weekly Overview PDF
+  ---
+  duration_ms: 2067.2745
+  type: 'test'
+  ...
+# Subtest: a nine-project budget overview fits one landscape page without a trailing page
+ok 355 - a nine-project budget overview fits one landscape page without a trailing page
+  ---
+  duration_ms: 2145.669667
+  type: 'test'
+  ...
+# Subtest: Executive milestones and Quarterly Roadmap each fit their compact landscape page
+ok 356 - Executive milestones and Quarterly Roadmap each fit their compact landscape page
+  ---
+  duration_ms: 2076.470791
+  type: 'test'
+  ...
+# Subtest: compact Executive Summary renders exactly two landscape pages
+ok 357 - compact Executive Summary renders exactly two landscape pages
+  ---
+  duration_ms: 2066.772083
+  type: 'test'
+  ...
+# Subtest: repaired packed-summary content survives Executive Summary HTML and PDF rendering
+ok 358 - repaired packed-summary content survives Executive Summary HTML and PDF rendering
+  ---
+  duration_ms: 3637.799042
+  type: 'test'
+  ...
+# Subtest: verbose Executive Summary creates measured continuation pages without pre-splitting HTML
+ok 359 - verbose Executive Summary creates measured continuation pages without pre-splitting HTML
+  ---
+  duration_ms: 2069.890958
+  type: 'test'
+  ...
+# Subtest: aligns every verbose Executive Summary wrapper to its own printable page
+ok 360 - aligns every verbose Executive Summary wrapper to its own printable page
+  ---
+  duration_ms: 2141.944417
+  type: 'test'
+  ...
+# Subtest: splits high-text Executive Summary cards before any wrapper exceeds A4 height
+ok 361 - splits high-text Executive Summary cards before any wrapper exceeds A4 height
+  ---
+  duration_ms: 4214.099
+  type: 'test'
+  ...
+# Subtest: dense project portfolio keeps project context and footer clearance on continuations
+ok 362 - dense project portfolio keeps project context and footer clearance on continuations
+  ---
+  duration_ms: 2118.1295
+  type: 'test'
+  ...
+# Subtest: keeps consecutive Project Portfolio Gantt rows visually joined
+ok 363 - keeps consecutive Project Portfolio Gantt rows visually joined
+  ---
+  duration_ms: 2131.557958
+  type: 'test'
+  ...
+# Subtest: dense management attention and risk actions use titled measured pages
+ok 364 - dense management attention and risk actions use titled measured pages
+  ---
+  duration_ms: 2172.422625
+  type: 'test'
+  ...
+# Subtest: Project Update continuations preserve every list item and safe page spacing
+ok 365 - Project Update continuations preserve every list item and safe page spacing
+  ---
+  duration_ms: 2168.649334
+  type: 'test'
+  ...
+# Subtest: long resource tables repeat headers and keep every row inside measured pages
+ok 366 - long resource tables repeat headers and keep every row inside measured pages
+  ---
+  duration_ms: 2187.04
+  type: 'test'
+  ...
+# Subtest: long milestone and Gantt sections retain rows, axes, titles, and footer clearance
+ok 367 - long milestone and Gantt sections retain rows, axes, titles, and footer clearance
+  ---
+  duration_ms: 2162.7775
+  type: 'test'
+  ...
+# Subtest: full Overview and Project PDFs preserve explicit page parity and period metadata
+ok 368 - full Overview and Project PDFs preserve explicit page parity and period metadata
+  ---
+  duration_ms: 8340.441334
+  type: 'test'
+  ...
+# Subtest: reuses a connected browser and closes each request page
+ok 369 - reuses a connected browser and closes each request page
+  ---
+  duration_ms: 0.532292
+  type: 'test'
+  ...
+# Subtest: closes the request page when PDF generation fails
+ok 370 - closes the request page when PDF generation fails
+  ---
+  duration_ms: 0.221042
+  type: 'test'
+  ...
+# Subtest: relaunches once when a cached browser disconnects before page creation
+ok 371 - relaunches once when a cached browser disconnects before page creation
+  ---
+  duration_ms: 0.49175
+  type: 'test'
+  ...
+# Subtest: exposes explicit browser cleanup for local rendering tools
+ok 372 - exposes explicit browser cleanup for local rendering tools
+  ---
+  duration_ms: 0.087042
+  type: 'test'
+  ...
+# Subtest: sends an in-memory PDF as an attachment download
+ok 373 - sends an in-memory PDF as an attachment download
+  ---
+  duration_ms: 0.496166
+  type: 'test'
+  ...
+# Subtest: sends Puppeteer Uint8Array PDF output as an attachment download
+ok 374 - sends Puppeteer Uint8Array PDF output as an attachment download
+  ---
+  duration_ms: 0.50275
+  type: 'test'
+  ...
+# Subtest: rejects non-buffer output and unsafe filenames
+ok 375 - rejects non-buffer output and unsafe filenames
+  ---
+  duration_ms: 0.166667
+  type: 'test'
+  ...
+# Subtest: rejects PDF output above 8 MiB before setting download headers
+ok 376 - rejects PDF output above 8 MiB before setting download headers
+  ---
+  duration_ms: 1.006
+  type: 'test'
+  ...
+# Subtest: the target registry declares the capability explicitly, opposite for each environment (not inferred)
+ok 377 - the target registry declares the capability explicitly, opposite for each environment (not inferred)
+  ---
+  duration_ms: 0.468209
+  type: 'test'
+  ...
+# Subtest: resolveRuntimeTarget carries the capability flag from the registry into the resolved Production/UAT target
+ok 378 - resolveRuntimeTarget carries the capability flag from the registry into the resolved Production/UAT target
+  ---
+  duration_ms: 0.215042
+  type: 'test'
+  ...
+# Subtest: a Production-resolved target rejects project-brief and project-update at the request-validation layer
+ok 379 - a Production-resolved target rejects project-brief and project-update at the request-validation layer
+  ---
+  duration_ms: 0.263667
+  type: 'test'
+  ...
+# Subtest: a UAT-resolved target accepts project-brief and project-update at the request-validation layer
+ok 380 - a UAT-resolved target accepts project-brief and project-update at the request-validation layer
+  ---
+  duration_ms: 0.47925
+  type: 'test'
+  ...
+# Subtest: the capability switch is a registry-driven feature flag, never a hostname/repository-name/fallback inference
+ok 381 - the capability switch is a registry-driven feature flag, never a hostname/repository-name/fallback inference
+  ---
+  duration_ms: 2.342917
+  type: 'test'
+  ...
+# Subtest: server.js always threads the resolved target.features into createReportHandler (never a bare {} or omitted)
+ok 382 - server.js always threads the resolved target.features into createReportHandler (never a bare {} or omitted)
+  ---
+  duration_ms: 0.78775
+  type: 'test'
+  ...
+# Subtest: createReportHandler defaults to permissive only for direct unit-test calls; it never masks Production behavior when features are explicit
+ok 383 - createReportHandler defaults to permissive only for direct unit-test calls; it never masks Production behavior when features are explicit
+  ---
+  duration_ms: 0.460208
+  type: 'test'
+  ...
+# Subtest: risk PDF keeps the Project Manager heading readable beside long risk text
+ok 384 - risk PDF keeps the Project Manager heading readable beside long risk text
+  ---
+  duration_ms: 1551.233084
+  type: 'test'
+  ...
+# Subtest: renders exactly one one-pager section with the project name, status and progress
+ok 385 - renders exactly one one-pager section with the project name, status and progress
+  ---
+  duration_ms: 9.95125
+  type: 'test'
+  ...
+# Subtest: renders highlights, action items and the primary risk / mitigation actions
+ok 386 - renders highlights, action items and the primary risk / mitigation actions
+  ---
+  duration_ms: 0.561125
+  type: 'test'
+  ...
+# Subtest: uses the mitigation action empty state in the Single Project PDF
+ok 387 - uses the mitigation action empty state in the Single Project PDF
+  ---
+  duration_ms: 0.472417
+  type: 'test'
+  ...
+# Subtest: preserves a leading "-" or "N." in highlight/action text instead of stripping it as a bullet marker
+ok 388 - preserves a leading "-" or "N." in highlight/action text instead of stripping it as a bullet marker
+  ---
+  duration_ms: 0.487458
+  type: 'test'
+  ...
+# Subtest: lists every risk and its required action with raw (unstripped) text
+ok 389 - lists every risk and its required action with raw (unstripped) text
+  ---
+  duration_ms: 0.618916
+  type: 'test'
+  ...
+# Subtest: lists every risk and its required action, not just the primary one
+ok 390 - lists every risk and its required action, not just the primary one
+  ---
+  duration_ms: 0.344083
+  type: 'test'
+  ...
+# Subtest: shows an empty-state message for highlights and actions instead of a blank quadrant
+ok 391 - shows an empty-state message for highlights and actions instead of a blank quadrant
+  ---
+  duration_ms: 0.338208
+  type: 'test'
+  ...
+# Subtest: renders one Gantt row per summary lane, not per raw workstream
+ok 392 - renders one Gantt row per summary lane, not per raw workstream
+  ---
+  duration_ms: 0.372
+  type: 'test'
+  ...
+# Subtest: the schedule axis shows 6 evenly-spaced date ticks instead of just the start and end
+ok 393 - the schedule axis shows 6 evenly-spaced date ticks instead of just the start and end
+  ---
+  duration_ms: 1.046666
+  type: 'test'
+  ...
+# Subtest: surfaces a low-confidence note when most workstreams could not be auto-grouped
+ok 394 - surfaces a low-confidence note when most workstreams could not be auto-grouped
+  ---
+  duration_ms: 0.766333
+  type: 'test'
+  ...
+# Subtest: does not surface a low-confidence note when grouping is confident
+ok 395 - does not surface a low-confidence note when grouping is confident
+  ---
+  duration_ms: 0.336125
+  type: 'test'
+  ...
+# Subtest: surfaces a display-window note when the admin-configured Gantt window hides tasks
+ok 396 - surfaces a display-window note when the admin-configured Gantt window hides tasks
+  ---
+  duration_ms: 0.316542
+  type: 'test'
+  ...
+# Subtest: does not surface a display-window note when nothing is hidden by the window
+ok 397 - does not surface a display-window note when nothing is hidden by the window
+  ---
+  duration_ms: 0.266042
+  type: 'test'
+  ...
+# Subtest: escapes project content to avoid HTML injection from stored fields
+ok 398 - escapes project content to avoid HTML injection from stored fields
+  ---
+  duration_ms: 0.27875
+  type: 'test'
+  ...
+# Subtest: highlights and action items shrink to a dense style past 4 items, not before
+ok 399 - highlights and action items shrink to a dense style past 4 items, not before
+  ---
+  duration_ms: 0.591917
+  type: 'test'
+  ...
+# Subtest: the risk quadrant uses dense spacing from 2 risks while preserving every pair
+ok 400 - the risk quadrant uses dense spacing from 2 risks while preserving every pair
+  ---
+  duration_ms: 0.86825
+  type: 'test'
+  ...
+# Subtest: the schedule summary shrinks to a dense style only when more than 8 lanes survive grouping
+ok 401 - the schedule summary shrinks to a dense style only when more than 8 lanes survive grouping
+  ---
+  duration_ms: 1.395125
+  type: 'test'
+  ...
+# Subtest: always renders the one-page quadrant summary as the first page, before any selected detail pages
+ok 402 - always renders the one-page quadrant summary as the first page, before any selected detail pages
+  ---
+  duration_ms: 11.832291
+  type: 'test'
+  ...
+# Subtest: renders every selected detail section with dashboard visual structures
+ok 403 - renders every selected detail section with dashboard visual structures
+  ---
+  duration_ms: 0.872041
+  type: 'test'
+  ...
+# Subtest: omits detail pages that were not selected, and still exports a complete PDF with zero selected sections
+ok 404 - omits detail pages that were not selected, and still exports a complete PDF with zero selected sections
+  ---
+  duration_ms: 0.740958
+  type: 'test'
+  ...
+# Subtest: uses vertical milestones for long milestone collections and omits empty sections
+ok 405 - uses vertical milestones for long milestone collections and omits empty sections
+  ---
+  duration_ms: 0.162834
+  type: 'test'
+  ...
+# Subtest: uses a compact timeline only for three or fewer short milestones
+ok 406 - uses a compact timeline only for three or fewer short milestones
+  ---
+  duration_ms: 0.140042
+  type: 'test'
+  ...
+# Subtest: keeps long milestone items in vertical rows
+ok 407 - keeps long milestone items in vertical rows
+  ---
+  duration_ms: 0.380208
+  type: 'test'
+  ...
+# Subtest: marks every variable project section for measured continuation pages
+ok 408 - marks every variable project section for measured continuation pages
+  ---
+  duration_ms: 1.161042
+  type: 'test'
+  ...
+# Subtest: renders every selected project section with dashboard visual structures
+ok 409 - renders every selected project section with dashboard visual structures
+  ---
+  duration_ms: 10.590875
+  type: 'test'
+  ...
+# Subtest: uses vertical milestones for long milestone collections and omits empty sections
+ok 410 - uses vertical milestones for long milestone collections and omits empty sections
+  ---
+  duration_ms: 0.194709
+  type: 'test'
+  ...
+# Subtest: uses a compact timeline only for three or fewer short milestones
+ok 411 - uses a compact timeline only for three or fewer short milestones
+  ---
+  duration_ms: 0.249166
+  type: 'test'
+  ...
+# Subtest: escapes project content and omits pages that were not selected
+ok 412 - escapes project content and omits pages that were not selected
+  ---
+  duration_ms: 0.264334
+  type: 'test'
+  ...
+# Subtest: keeps weekly key actions while omitting an empty risk block
+ok 413 - keeps weekly key actions while omitting an empty risk block
+  ---
+  duration_ms: 0.485208
+  type: 'test'
+  ...
+# Subtest: keeps long milestone items in vertical rows
+ok 414 - keeps long milestone items in vertical rows
+  ---
+  duration_ms: 2.357708
+  type: 'test'
+  ...
+# Subtest: marks every variable project section for measured continuation pages
+ok 415 - marks every variable project section for measured continuation pages
+  ---
+  duration_ms: 0.837291
+  type: 'test'
+  ...
+# Subtest: builds a shared Gantt range for scheduled and unscheduled rows
+ok 416 - builds a shared Gantt range for scheduled and unscheduled rows
+  ---
+  duration_ms: 1.213375
+  type: 'test'
+  ...
+# Subtest: escapes long Gantt names and marks complete rows as split units
+ok 417 - escapes long Gantt names and marks complete rows as split units
+  ---
+  duration_ms: 0.074166
+  type: 'test'
+  ...
+# Subtest: rejects both Executive role vocabularies on an unreleased reporting week
+ok 418 - rejects both Executive role vocabularies on an unreleased reporting week
+  ---
+  duration_ms: 0.552041
+  type: 'test'
+  ...
+# Subtest: accepts a released week and normalizes known dashboard roles
+ok 419 - accepts a released week and normalizes known dashboard roles
+  ---
+  duration_ms: 0.447875
+  type: 'test'
+  ...
+# Subtest: accepts the combined production and UAT role vocabulary
+ok 420 - accepts the combined production and UAT role vocabulary
+  ---
+  duration_ms: 0.096209
+  type: 'test'
+  ...
+# Subtest: limits Executive milestone views to the authenticated role
+ok 421 - limits Executive milestone views to the authenticated role
+  ---
+  duration_ms: 0.0625
+  type: 'test'
+  ...
+# Subtest: rejects both Executive role vocabularies on an unreleased reporting week
+ok 422 - rejects both Executive role vocabularies on an unreleased reporting week
+  ---
+  duration_ms: 0.539459
+  type: 'test'
+  ...
+# Subtest: accepts a released week and normalizes known dashboard roles
+ok 423 - accepts a released week and normalizes known dashboard roles
+  ---
+  duration_ms: 0.451709
+  type: 'test'
+  ...
+# Subtest: accepts the combined production and UAT role vocabulary
+ok 424 - accepts the combined production and UAT role vocabulary
+  ---
+  duration_ms: 0.0955
+  type: 'test'
+  ...
+# Subtest: limits Executive milestone views to the authenticated role
+ok 425 - limits Executive milestone views to the authenticated role
+  ---
+  duration_ms: 0.061208
+  type: 'test'
+  ...
+# Subtest: renders CRLF and array text as escaped raw line units without list tags
+ok 426 - renders CRLF and array text as escaped raw line units without list tags
+  ---
+  duration_ms: 0.684167
+  type: 'test'
+  ...
+# Subtest: loads report content from Firestore adapters rather than request input
+ok 427 - loads report content from Firestore adapters rather than request input
+  ---
+  duration_ms: 1.264334
+  type: 'test'
+  ...
+# Subtest: rejects a missing project before rendering
+ok 428 - rejects a missing project before rendering
+  ---
+  duration_ms: 0.217
+  type: 'test'
+  ...
+# Subtest: loads no more than six trend weeks only for selected Overview trends
+ok 429 - loads no more than six trend weeks only for selected Overview trends
+  ---
+  duration_ms: 0.153
+  type: 'test'
+  ...
+# Subtest: limits trend history to released weeks for both Executive role vocabularies
+ok 430 - limits trend history to released weeks for both Executive role vocabularies
+  ---
+  duration_ms: 0.163083
+  type: 'test'
+  ...
+# Subtest: does not read trend history when Weekly trends is not selected
+ok 431 - does not read trend history when Weekly trends is not selected
+  ---
+  duration_ms: 0.0615
+  type: 'test'
+  ...
+# Subtest: uses ganttWorkstreams when deciding whether a Gantt section is reportable
+ok 432 - uses ganttWorkstreams when deciding whether a Gantt section is reportable
+  ---
+  duration_ms: 0.0535
+  type: 'test'
+  ...
+# Subtest: propagates the authorized Executive milestone audience view
+ok 433 - propagates the authorized Executive milestone audience view
+  ---
+  duration_ms: 0.110708
+  type: 'test'
+  ...
+# Subtest: rejects an unknown stored role instead of widening Executive milestone access
+ok 434 - rejects an unknown stored role instead of widening Executive milestone access
+  ---
+  duration_ms: 0.144959
+  type: 'test'
+  ...
+# Subtest: filters current and trend weeks to selected Overview project codes
+ok 435 - filters current and trend weeks to selected Overview project codes
+  ---
+  duration_ms: 0.269083
+  type: 'test'
+  ...
+# Subtest: derives partial selection from trusted matching projects instead of requested code count
+ok 436 - derives partial selection from trusted matching projects instead of requested code count
+  ---
+  duration_ms: 0.234916
+  type: 'test'
+  ...
+# Subtest: treats all reportable projects in the requested scope as a complete selection
+ok 437 - treats all reportable projects in the requested scope as a complete selection
+  ---
+  duration_ms: 0.095666
+  type: 'test'
+  ...
+# Subtest: treats all active cross-scope projects as the complete selectable Overview population
+ok 438 - treats all active cross-scope projects as the complete selectable Overview population
+  ---
+  duration_ms: 0.090542
+  type: 'test'
+  ...
+# Subtest: rejects non-active project codes from current and trend Overview render data
+ok 439 - rejects non-active project codes from current and trend Overview render data
+  ---
+  duration_ms: 0.084375
+  type: 'test'
+  ...
+# Subtest: rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+ok 440 - rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+  ---
+  duration_ms: 0.3405
+  type: 'test'
+  ...
+# Subtest: allows a canonical removed-project movement in Executive Summary PDF data
+ok 441 - allows a canonical removed-project movement in Executive Summary PDF data
+  ---
+  duration_ms: 0.465833
+  type: 'test'
+  ...
+# Subtest: loads an authorized Overview when the browser has stored repaired canonical text
+ok 442 - loads an authorized Overview when the browser has stored repaired canonical text
+  ---
+  duration_ms: 0.947
+  type: 'test'
+  ...
+# Subtest: rejects packed source when it bypasses browser repair before PDF data loading
+ok 443 - rejects packed source when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.064584
+  type: 'test'
+  ...
+# Subtest: rejects missing packed field when it bypasses browser repair before PDF data loading
+ok 444 - rejects missing packed field when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.037416
+  type: 'test'
+  ...
+# Subtest: rejects malformed Executive Summary structure with a PDF data error
+ok 445 - rejects malformed Executive Summary structure with a PDF data error
+  ---
+  duration_ms: 0.056917
+  type: 'test'
+  ...
+# Subtest: resolves a default Gantt window when the dashboard settings adapter is unavailable
+ok 446 - resolves a default Gantt window when the dashboard settings adapter is unavailable
+  ---
+  duration_ms: 0.036041
+  type: 'test'
+  ...
+# Subtest: reads the admin-configured Gantt window settings for both project and overview reports
+ok 447 - reads the admin-configured Gantt window settings for both project and overview reports
+  ---
+  duration_ms: 0.060291
+  type: 'test'
+  ...
+# Subtest: does not validate Weekly Summary when Executive Summary is not selected
+ok 448 - does not validate Weekly Summary when Executive Summary is not selected
+  ---
+  duration_ms: 0.039625
+  type: 'test'
+  ...
+# Subtest: loads report content from Firestore adapters rather than request input
+ok 449 - loads report content from Firestore adapters rather than request input
+  ---
+  duration_ms: 1.209167
+  type: 'test'
+  ...
+# Subtest: rejects a missing project before rendering
+ok 450 - rejects a missing project before rendering
+  ---
+  duration_ms: 0.213583
+  type: 'test'
+  ...
+# Subtest: loads no more than six trend weeks only for selected Overview trends
+ok 451 - loads no more than six trend weeks only for selected Overview trends
+  ---
+  duration_ms: 0.150334
+  type: 'test'
+  ...
+# Subtest: limits trend history to released weeks for both Executive role vocabularies
+ok 452 - limits trend history to released weeks for both Executive role vocabularies
+  ---
+  duration_ms: 0.167083
+  type: 'test'
+  ...
+# Subtest: does not read trend history when Weekly trends is not selected
+ok 453 - does not read trend history when Weekly trends is not selected
+  ---
+  duration_ms: 0.057958
+  type: 'test'
+  ...
+# Subtest: uses ganttWorkstreams when deciding whether a Gantt section is reportable
+ok 454 - uses ganttWorkstreams when deciding whether a Gantt section is reportable
+  ---
+  duration_ms: 0.053042
+  type: 'test'
+  ...
+# Subtest: propagates the authorized Executive milestone audience view
+ok 455 - propagates the authorized Executive milestone audience view
+  ---
+  duration_ms: 0.110791
+  type: 'test'
+  ...
+# Subtest: rejects an unknown stored role instead of widening Executive milestone access
+ok 456 - rejects an unknown stored role instead of widening Executive milestone access
+  ---
+  duration_ms: 0.156209
+  type: 'test'
+  ...
+# Subtest: does not read update-history collections for a historical week PDF
+ok 457 - does not read update-history collections for a historical week PDF
+  ---
+  duration_ms: 0.220375
+  type: 'test'
+  ...
+# Subtest: uses the Executive milestone snapshot captured at release for a released overview PDF
+ok 458 - uses the Executive milestone snapshot captured at release for a released overview PDF
+  ---
+  duration_ms: 0.245
+  type: 'test'
+  ...
+# Subtest: uses the current live Executive timeline for a draft overview PDF
+ok 459 - uses the current live Executive timeline for a draft overview PDF
+  ---
+  duration_ms: 0.109375
+  type: 'test'
+  ...
+# Subtest: filters current and trend weeks to selected Overview project codes
+ok 460 - filters current and trend weeks to selected Overview project codes
+  ---
+  duration_ms: 0.099791
+  type: 'test'
+  ...
+# Subtest: derives partial selection from trusted matching projects instead of requested code count
+ok 461 - derives partial selection from trusted matching projects instead of requested code count
+  ---
+  duration_ms: 0.057083
+  type: 'test'
+  ...
+# Subtest: treats all reportable projects in the requested scope as a complete selection
+ok 462 - treats all reportable projects in the requested scope as a complete selection
+  ---
+  duration_ms: 0.057583
+  type: 'test'
+  ...
+# Subtest: treats all active cross-scope projects as the complete selectable Overview population
+ok 463 - treats all active cross-scope projects as the complete selectable Overview population
+  ---
+  duration_ms: 0.056042
+  type: 'test'
+  ...
+# Subtest: rejects non-active project codes from current and trend Overview render data
+ok 464 - rejects non-active project codes from current and trend Overview render data
+  ---
+  duration_ms: 0.103625
+  type: 'test'
+  ...
+# Subtest: rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+ok 465 - rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+  ---
+  duration_ms: 0.352375
+  type: 'test'
+  ...
+# Subtest: allows a canonical removed-project movement in Executive Summary PDF data
+ok 466 - allows a canonical removed-project movement in Executive Summary PDF data
+  ---
+  duration_ms: 0.186834
+  type: 'test'
+  ...
+# Subtest: loads an authorized Overview when the browser has stored repaired canonical text
+ok 467 - loads an authorized Overview when the browser has stored repaired canonical text
+  ---
+  duration_ms: 1.143125
+  type: 'test'
+  ...
+# Subtest: rejects packed source when it bypasses browser repair before PDF data loading
+ok 468 - rejects packed source when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.083041
+  type: 'test'
+  ...
+# Subtest: rejects missing packed field when it bypasses browser repair before PDF data loading
+ok 469 - rejects missing packed field when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.076375
+  type: 'test'
+  ...
+# Subtest: rejects malformed Executive Summary structure with a PDF data error
+ok 470 - rejects malformed Executive Summary structure with a PDF data error
+  ---
+  duration_ms: 0.069958
+  type: 'test'
+  ...
+# Subtest: does not validate Weekly Summary when Executive Summary is not selected
+ok 471 - does not validate Weekly Summary when Executive Summary is not selected
+  ---
+  duration_ms: 0.0465
+  type: 'test'
+  ...
+# Subtest: report shell uses dashboard print tokens without remote assets
+ok 472 - report shell uses dashboard print tokens without remote assets
+  ---
+  duration_ms: 0.657083
+  type: 'test'
+  ...
+# Subtest: shared components escape labels and clamp visual percentages
+ok 473 - shared components escape labels and clamp visual percentages
+  ---
+  duration_ms: 0.222209
+  type: 'test'
+  ...
+# Subtest: report pages render an escaped optional context beneath the title
+ok 474 - report pages render an escaped optional context beneath the title
+  ---
+  duration_ms: 0.053958
+  type: 'test'
+  ...
+# Subtest: formats a reporting week and date range together
+ok 475 - formats a reporting week and date range together
+  ---
+  duration_ms: 0.6675
+  type: 'test'
+  ...
+# Subtest: uses the formatted period in both report models
+ok 476 - uses the formatted period in both report models
+  ---
+  duration_ms: 0.7495
+  type: 'test'
+  ...
+# Subtest: normalizes project values used by every selected project section
+ok 477 - normalizes project values used by every selected project section
+  ---
+  duration_ms: 1.553333
+  type: 'test'
+  ...
+# Subtest: computes PDF summary lanes from workstreams, milestones and PM overrides
+ok 478 - computes PDF summary lanes from workstreams, milestones and PM overrides
+  ---
+  duration_ms: 4.492
+  type: 'test'
+  ...
+# Subtest: a manually assigned summaryGroupId and pdfSummaryLanes override survive normalization
+ok 479 - a manually assigned summaryGroupId and pdfSummaryLanes override survive normalization
+  ---
+  duration_ms: 0.218084
+  type: 'test'
+  ...
+# Subtest: a pdfSummaryLanes entry with no manual progress falls back to the calculated average instead of 0%
+ok 480 - a pdfSummaryLanes entry with no manual progress falls back to the calculated average instead of 0%
+  ---
+  duration_ms: 0.086083
+  type: 'test'
+  ...
+# Subtest: does not window-filter Gantt data when no ganttWindowSettings is provided
+ok 481 - does not window-filter Gantt data when no ganttWindowSettings is provided
+  ---
+  duration_ms: 0.127083
+  type: 'test'
+  ...
+# Subtest: bounds the schedule summary to the configured window and counts what it hid
+ok 482 - bounds the schedule summary to the configured window and counts what it hid
+  ---
+  duration_ms: 0.202875
+  type: 'test'
+  ...
+# Subtest: applies a project-code override ahead of the portfolio default window in both report models
+ok 483 - applies a project-code override ahead of the portfolio default window in both report models
+  ---
+  duration_ms: 0.547958
+  type: 'test'
+  ...
+# Subtest: resource and budget helpers preserve unknown actuals and zero-valued budgets
+ok 484 - resource and budget helpers preserve unknown actuals and zero-valued budgets
+  ---
+  duration_ms: 0.306166
+  type: 'test'
+  ...
+# Subtest: keeps normalized analytics arrays while preserving raw report text
+ok 485 - keeps normalized analytics arrays while preserving raw report text
+  ---
+  duration_ms: 0.202125
+  type: 'test'
+  ...
+# Subtest: preserves CRLF and array text lines while normalized whitespace stays empty
+ok 486 - preserves CRLF and array text lines while normalized whitespace stays empty
+  ---
+  duration_ms: 0.066458
+  type: 'test'
+  ...
+# Subtest: keeps weekly actions out of risk action pairs without an explicit risk
+ok 487 - keeps weekly actions out of risk action pairs without an explicit risk
+  ---
+  duration_ms: 0.049875
+  type: 'test'
+  ...
+# Subtest: builds scoped Overview metrics, risk rows, resources, budget and trend points
+ok 488 - builds scoped Overview metrics, risk rows, resources, budget and trend points
+  ---
+  duration_ms: 0.282084
+  type: 'test'
+  ...
+# Subtest: filters Executive milestones for each authorized audience view
+ok 489 - filters Executive milestones for each authorized audience view
+  ---
+  duration_ms: 1.32425
+  type: 'test'
+  ...
+# Subtest: normalizes Executive milestone outcomes to display text only
+ok 490 - normalizes Executive milestone outcomes to display text only
+  ---
+  duration_ms: 0.212125
+  type: 'test'
+  ...
+# Subtest: formats a reporting week and date range together
+ok 491 - formats a reporting week and date range together
+  ---
+  duration_ms: 0.579625
+  type: 'test'
+  ...
+# Subtest: uses the formatted period in both report models
+ok 492 - uses the formatted period in both report models
+  ---
+  duration_ms: 0.67275
+  type: 'test'
+  ...
+# Subtest: normalizes project values used by every selected project section
+ok 493 - normalizes project values used by every selected project section
+  ---
+  duration_ms: 1.346333
+  type: 'test'
+  ...
+# Subtest: resource and budget helpers preserve unknown actuals and zero-valued budgets
+ok 494 - resource and budget helpers preserve unknown actuals and zero-valued budgets
+  ---
+  duration_ms: 0.128084
+  type: 'test'
+  ...
+# Subtest: removes stored list markers before building PDF list items
+ok 495 - removes stored list markers before building PDF list items
+  ---
+  duration_ms: 0.153083
+  type: 'test'
+  ...
+# Subtest: keeps weekly actions out of risk action pairs without an explicit risk
+ok 496 - keeps weekly actions out of risk action pairs without an explicit risk
+  ---
+  duration_ms: 0.09
+  type: 'test'
+  ...
+# Subtest: builds scoped Overview metrics, risk rows, resources, budget and trend points
+ok 497 - builds scoped Overview metrics, risk rows, resources, budget and trend points
+  ---
+  duration_ms: 0.373542
+  type: 'test'
+  ...
+# Subtest: filters Executive milestones for each authorized audience view
+ok 498 - filters Executive milestones for each authorized audience view
+  ---
+  duration_ms: 5.689792
+  type: 'test'
+  ...
+# Subtest: preserves legacy Executive milestone row labels and audience filtering
+ok 499 - preserves legacy Executive milestone row labels and audience filtering
+  ---
+  duration_ms: 0.370375
+  type: 'test'
+  ...
+# Subtest: normalizes Executive milestone outcomes to display text only
+ok 500 - normalizes Executive milestone outcomes to display text only
+  ---
+  duration_ms: 0.362125
+  type: 'test'
+  ...
+# Subtest: accepts an allow-listed project report request without report content
+ok 501 - accepts an allow-listed project report request without report content
+  ---
+  duration_ms: 0.978375
+  type: 'test'
+  ...
+# Subtest: accepts an empty sections array for a project report, since the one-page summary always renders
+ok 502 - accepts an empty sections array for a project report, since the one-page summary always renders
+  ---
+  duration_ms: 0.086375
+  type: 'test'
+  ...
+# Subtest: still requires at least one section for an overview report
+ok 503 - still requires at least one section for an overview report
+  ---
+  duration_ms: 0.123458
+  type: 'test'
+  ...
+# Subtest: rejects unknown report modes and sections
+ok 504 - rejects unknown report modes and sections
+  ---
+  duration_ms: 0.048792
+  type: 'test'
+  ...
+# Subtest: rejects report content supplied by the browser
+ok 505 - rejects report content supplied by the browser
+  ---
+  duration_ms: 0.075667
+  type: 'test'
+  ...
+# Subtest: requires a project code for project reports and a nonempty section list
+ok 506 - requires a project code for project reports and a nonempty section list
+  ---
+  duration_ms: 0.043417
+  type: 'test'
+  ...
+# Subtest: accepts an Executive milestone audience view only with that section
+ok 507 - accepts an Executive milestone audience view only with that section
+  ---
+  duration_ms: 0.085083
+  type: 'test'
+  ...
+# Subtest: accepts unique selected project codes for an Overview report
+ok 508 - accepts unique selected project codes for an Overview report
+  ---
+  duration_ms: 0.033875
+  type: 'test'
+  ...
+# Subtest: accepts every Overview scope emitted by the dashboard
+ok 509 - accepts every Overview scope emitted by the dashboard
+  ---
+  duration_ms: 0.243416
+  type: 'test'
+  ...
+# Subtest: rejects invalid Overview project selections
+ok 510 - rejects invalid Overview project selections
+  ---
+  duration_ms: 0.276542
+  type: 'test'
+  ...
+# Subtest: requires project selections for every Overview request
+ok 511 - requires project selections for every Overview request
+  ---
+  duration_ms: 0.076833
+  type: 'test'
+  ...
+# Subtest: accepts valid windowWeeks (6 or 12) for overview reports
+ok 512 - accepts valid windowWeeks (6 or 12) for overview reports
+  ---
+  duration_ms: 0.050875
+  type: 'test'
+  ...
+# Subtest: accepts an allow-listed project report request without report content
+ok 513 - accepts an allow-listed project report request without report content
+  ---
+  duration_ms: 0.981625
+  type: 'test'
+  ...
+# Subtest: rejects unknown report modes and sections
+ok 514 - rejects unknown report modes and sections
+  ---
+  duration_ms: 0.175916
+  type: 'test'
+  ...
+# Subtest: rejects report content supplied by the browser
+ok 515 - rejects report content supplied by the browser
+  ---
+  duration_ms: 0.041666
+  type: 'test'
+  ...
+# Subtest: requires a project code for project reports and a nonempty section list
+ok 516 - requires a project code for project reports and a nonempty section list
+  ---
+  duration_ms: 0.046625
+  type: 'test'
+  ...
+# Subtest: accepts an Executive milestone audience view only with that section
+ok 517 - accepts an Executive milestone audience view only with that section
+  ---
+  duration_ms: 0.111125
+  type: 'test'
+  ...
+# Subtest: accepts unique selected project codes for an Overview report
+ok 518 - accepts unique selected project codes for an Overview report
+  ---
+  duration_ms: 0.038459
+  type: 'test'
+  ...
+# Subtest: accepts every Overview scope emitted by the dashboard
+ok 519 - accepts every Overview scope emitted by the dashboard
+  ---
+  duration_ms: 0.138416
+  type: 'test'
+  ...
+# Subtest: rejects invalid Overview project selections
+ok 520 - rejects invalid Overview project selections
+  ---
+  duration_ms: 0.102333
+  type: 'test'
+  ...
+# Subtest: requires project selections for every Overview request
+ok 521 - requires project selections for every Overview request
+  ---
+  duration_ms: 0.169875
+  type: 'test'
+  ...
+# Subtest: risk table empty: ordered rows and one continuation header per page
+ok 522 - risk table empty: ordered rows and one continuation header per page
+  ---
+  duration_ms: 2139.260917
+  type: 'test'
+  ...
+# Subtest: risk table short: ordered rows and one continuation header per page
+ok 523 - risk table short: ordered rows and one continuation header per page
+  ---
+  duration_ms: 2125.848958
+  type: 'test'
+  ...
+# Subtest: risk table dense: ordered rows and one continuation header per page
+ok 524 - risk table dense: ordered rows and one continuation header per page
+  ---
+  duration_ms: 2139.87675
+  type: 'test'
+  ...
+# Subtest: risk table multiple pages: ordered rows and one continuation header per page
+ok 525 - risk table multiple pages: ordered rows and one continuation header per page
+  ---
+  duration_ms: 2156.0875
+  type: 'test'
+  ...
+# Subtest: risk table long wrapping: ordered rows and one continuation header per page
+ok 526 - risk table long wrapping: ordered rows and one continuation header per page
+  ---
+  duration_ms: 2137.009458
+  type: 'test'
+  ...
+# Subtest: discovers only test modules in deterministic order
+ok 527 - discovers only test modules in deterministic order
+  ---
+  duration_ms: 12.508834
+  type: 'test'
+  ...
+# Subtest: builds a single-concurrency Node test command
+ok 528 - builds a single-concurrency Node test command
+  ---
+  duration_ms: 0.149083
+  type: 'test'
+  ...
+# Subtest: propagates real Node test success and failure exit codes
+ok 529 - propagates real Node test success and failure exit codes
+  ---
+  duration_ms: 240.184
+  type: 'test'
+  ...
+# Subtest: SIGINT removes the complete Node test process tree before releasing the lock
+ok 530 - SIGINT removes the complete Node test process tree before releasing the lock
+  ---
+  duration_ms: 177.491125
+  type: 'test'
+  ...
+# Subtest: SIGTERM removes the complete Node test process tree before releasing the lock
+ok 531 - SIGTERM removes the complete Node test process tree before releasing the lock
+  ---
+  duration_ms: 176.4195
+  type: 'test'
+  ...
+# Subtest: a repeated SIGINT escalates the child tree without bypassing lock cleanup
+ok 532 - a repeated SIGINT escalates the child tree without bypassing lock cleanup
+  ---
+  duration_ms: 282.044959
+  type: 'test'
+  ...
+# Subtest: UAT target (shipped registry): pm exports the new section for the latest draft week W39 and for released W38
+ok 533 - UAT target (shipped registry): pm exports the new section for the latest draft week W39 and for released W38
+  ---
+  duration_ms: 4194.145666
+  type: 'test'
+  ...
+# Subtest: UAT target: existing sections are unaffected when requested together with the new section
+ok 534 - UAT target: existing sections are unaffected when requested together with the new section
+  ---
+  duration_ms: 2061.282042
+  type: 'test'
+  ...
+# Subtest: UAT target F-1 through the HTTP handler: a released-only role gets 403 for a draft week and a PDF for a released week
+ok 535 - UAT target F-1 through the HTTP handler: a released-only role gets 403 for a draft week and a PDF for a released week
+  ---
+  duration_ms: 10349.51525
+  type: 'test'
+  ...
+# Subtest: Production target (shipped registry) accepts the section for released weeks
+ok 536 - Production target (shipped registry) accepts the section for released weeks
+  ---
+  duration_ms: 2079.623083
+  type: 'test'
+  ...
+# Subtest: UAT history read is bounded to the documented limits for this dataset
+ok 537 - UAT history read is bounded to the documented limits for this dataset
+  ---
+  duration_ms: 0.649709
+  type: 'test'
+  ...
+# Subtest: returns no lanes for an empty workstream list
+ok 538 - returns no lanes for an empty workstream list
+  ---
+  duration_ms: 1.019542
+  type: 'test'
+  ...
+# Subtest: groups by linked milestone first when available
+ok 539 - groups by linked milestone first when available
+  ---
+  duration_ms: 5.21275
+  type: 'test'
+  ...
+# Subtest: falls back to a keyword stem when there is no milestone link
+ok 540 - falls back to a keyword stem when there is no milestone link
+  ---
+  duration_ms: 0.367709
+  type: 'test'
+  ...
+# Subtest: a PM-assigned summaryGroupId overrides milestone and keyword grouping
+ok 541 - a PM-assigned summaryGroupId overrides milestone and keyword grouping
+  ---
+  duration_ms: 0.177708
+  type: 'test'
+  ...
+# Subtest: merges the most time-adjacent lanes down to 8 when there are more than 8 groups
+ok 542 - merges the most time-adjacent lanes down to 8 when there are more than 8 groups
+  ---
+  duration_ms: 0.402292
+  type: 'test'
+  ...
+# Subtest: never merges away a lane that contains an at-risk or delayed workstream
+ok 543 - never merges away a lane that contains an at-risk or delayed workstream
+  ---
+  duration_ms: 0.134375
+  type: 'test'
+  ...
+# Subtest: flags low confidence when most workstreams have no milestone or shared name stem
+ok 544 - flags low confidence when most workstreams have no milestone or shared name stem
+  ---
+  duration_ms: 0.129666
+  type: 'test'
+  ...
+# Subtest: does not flag low confidence when most workstreams are grouped by milestone
+ok 545 - does not flag low confidence when most workstreams are grouped by milestone
+  ---
+  duration_ms: 0.04825
+  type: 'test'
+  ...
+# Subtest: splits a single milestone-linked lane back into individual workstreams when it is the only lane and there is enough detail to show
+ok 546 - splits a single milestone-linked lane back into individual workstreams when it is the only lane and there is enough detail to show
+  ---
+  duration_ms: 0.310791
+  type: 'test'
+  ...
+# Subtest: splits only enough lanes to reach the 4-lane minimum, leaving the rest grouped
+ok 547 - splits only enough lanes to reach the 4-lane minimum, leaving the rest grouped
+  ---
+  duration_ms: 0.252167
+  type: 'test'
+  ...
+# Subtest: never splits a PM-assigned manual grouping even when it is the only lane
+ok 548 - never splits a PM-assigned manual grouping even when it is the only lane
+  ---
+  duration_ms: 0.106292
+  type: 'test'
+  ...
+# Subtest: does not split when there are too few raw workstreams to ever reach the 4-lane minimum
+ok 549 - does not split when there are too few raw workstreams to ever reach the 4-lane minimum
+  ---
+  duration_ms: 0.040875
+  type: 'test'
+  ...
+# Subtest: defaults lane progress to a duration-weighted average when no manual override exists
+ok 550 - defaults lane progress to a duration-weighted average when no manual override exists
+  ---
+  duration_ms: 0.043375
+  type: 'test'
+  ...
+# Subtest: lanes are sorted by their earliest start date
+ok 551 - lanes are sorted by their earliest start date
+  ---
+  duration_ms: 0.045
+  type: 'test'
+  ...
+1..551
+# tests 551
+# suites 0
+# pass 551
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 245374.823667

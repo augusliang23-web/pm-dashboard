@@ -1,3 +1,4 @@
+const {dashboardIdentityError}=require('./dashboard-identity');
 // Admin-only per-user permission overrides (userPermissions/{email}) with an atomic audit trail
 // (userPermissionAudit/{autoId}). The caller is authorized by the server-read raw role in users/{email}
 // -- never by permission-override resolution -- and every change is checked against the capability registry.
@@ -124,6 +125,8 @@ async function adminActor(transaction, request) {
   if (!snapshot.exists || normalizePermissionRole(snapshot.data()?.role) !== 'admin') {
     throw permissionError('permission-denied', 'admin-role-required', 'Only administrators can change user permissions.');
   }
+  const identityReason=dashboardIdentityError({uid,email,claims:request.auth.token},snapshot.data());
+  if(identityReason)throw permissionError('permission-denied',identityReason,'Dashboard identity is not approved.');
   return { uid, email };
 }
 

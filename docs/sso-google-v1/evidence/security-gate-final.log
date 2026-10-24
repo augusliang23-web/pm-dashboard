@@ -1,0 +1,63 @@
+i  emulators: Starting emulators: firestore
+i  emulators: Detected demo project ID "demo-pm-dashboard-v22t", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --test --test-concurrency=1 scripts/verification/sso-security-gate.mjs
+TAP version 13
+# [2026-10-24T07:46:32.115Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x8a53a1e5 error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L220, false for 'update' @ L220
+# Subtest: firestore.rules enforces UID/provider binding before dashboard data
+ok 1 - firestore.rules enforces UID/provider binding before dashboard data
+  ---
+  duration_ms: 1116.676416
+  type: 'test'
+  ...
+# [2026-10-24T07:46:32.592Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x8a53a1f7 error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L231, false for 'update' @ L231
+# Subtest: firestore.uat.rules enforces UID/provider binding before dashboard data
+ok 2 - firestore.uat.rules enforces UID/provider binding before dashboard data
+  ---
+  duration_ms: 476.487084
+  type: 'test'
+  ...
+# [2026-10-24T07:46:32.900Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x8a53a209 error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L226, false for 'update' @ L226
+# Subtest: firestore.shared-backend.rules enforces UID/provider binding before dashboard data
+ok 3 - firestore.shared-backend.rules enforces UID/provider binding before dashboard data
+  ---
+  duration_ms: 308.820875
+  type: 'test'
+  ...
+# Subtest: all 24 authenticated callable entrypoints deny mismatched UID before business access
+ok 4 - all 24 authenticated callable entrypoints deny mismatched UID before business access
+  ---
+  duration_ms: 355.739167
+  type: 'test'
+  ...
+# Subtest: PM email role cannot be inherited by another UID at the actual draft callable
+ok 5 - PM email role cannot be inherited by another UID at the actual draft callable
+  ---
+  duration_ms: 8.911292
+  type: 'test'
+  ...
+# Subtest: PDF denies wrong UID/unapproved Google before reading any reporting week
+ok 6 - PDF denies wrong UID/unapproved Google before reading any reporting week
+  ---
+  duration_ms: 0.331542
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5284.603375
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

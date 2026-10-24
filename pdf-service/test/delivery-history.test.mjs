@@ -7,7 +7,7 @@ import {week,project} from '../../shared/fixtures/delivery-trends.mjs';
 const request={mode:'overview',weekId:'2026-W41',overviewScope:'system',sections:['portfolio-delivery-performance']};
 const provenance={source:'synthetic',asOf:'2026-10-14T00:00:00Z'};
 const ws=[week(40),week(41,[project({progress:30})])];
-const adapters=(role='pm',history=ws)=>({verifyIdToken:async()=>({email:'user@example.test'}),getUserByEmail:async()=>({role}),getWeekById:async()=>ws[1],getDeliveryHistory:async()=>({weeks:history,complete:true}),getDeliveryTrendsProvenance:()=>provenance});
+const adapters=(role='pm',history=ws)=>({verifyIdToken:async()=>({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email:'user@example.test'}),getUserByEmail:async()=>({authUid:'pdf-fixture',role}),getWeekById:async()=>ws[1],getDeliveryHistory:async()=>({weeks:history,complete:true}),getDeliveryTrendsProvenance:()=>provenance});
 test('PDF report/model expose canonical contract identical to browser authorized calculation',async()=>{
  const report=await loadAuthorizedReport({request,idToken:'synthetic-token',adapters:adapters()});
  assert.equal(report.deliveryTrends.summary.weeklyProgressGainPp,10);

@@ -1,0 +1,5 @@
+
+> verify:sync-boundary
+> node scripts/verify-production-sync-boundary.mjs
+
+Production sync boundary verified: fixed read-only Production to UAT direction.
