@@ -16,6 +16,11 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   await page.evaluate(id=>{window.openManagedProjectDraft(id);},draftId);await page.waitForSelector('#projEditOverlay.editor-loading.open');
   assert.equal(await page.$eval('#pe_name',e=>e.value),'');await close();release();await new Promise(r=>setTimeout(r,300));assert.equal(await visible(),false);page.sprintRequestHook=null;
  });
+ await check('logout cancels a delayed opening and relogin does not reveal its result',async()=>{
+  let release;const gate=new Promise(r=>release=r);page.sprintRequestHook=async req=>{if(req.url().endsWith('/getDashboardProjectDraft'))await gate;return false;};
+  await page.evaluate(id=>{window.openManagedProjectDraft(id);},draftId);await page.waitForSelector('#projEditOverlay.editor-loading.open');await page.evaluate(()=>window.handleLogout());await page.waitForSelector('#email',{visible:true});release();await new Promise(r=>setTimeout(r,350));assert.equal(await visible(),false);assert.equal(await page.$eval('#pe_name',e=>e.value),'');page.sprintRequestHook=null;
+  await fill('#email',emails[role]);await fill('#password',process.env.SPRINT_TEST_PASSWORD);await page.waitForFunction(()=>getComputedStyle(document.querySelector('#globalLoader')).display==='none');await page.click('#loginOverlay button');await page.waitForFunction(()=>document.querySelector('#syncDot')?.classList.contains('ok')&&document.querySelector('#bannerTitle')?.textContent.includes('W43'));
+ });
  await check('revision conflict keeps input, actionable error and retry controls',async()=>{
   await open();await fill('#pe_highlight','retain revision conflict');await draftRef.update({revision:(await draftRef.get()).data().revision+1});
   await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain revision conflict');assert.match(await page.$eval('#projectMutationError',e=>e.textContent),/revision|conflict/i);assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
@@ -37,9 +42,14 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
   const start=Date.now();release();await page.waitForFunction(()=>!document.querySelector('#projEditOverlay').classList.contains('open'));assert.ok(Date.now()-start<1400,'closing must not wait for the delayed list');assert.equal(calls,1);page.sprintRequestHook=null;
   await page.evaluate(()=>window.closeModal('myDraftsOverlay',{force:true}));await wait(async()=>(await db.collection('weeks').doc('W43').get()).data().projects.some(p=>p.code==='DRAFT'&&p.progress===61));
  });
- if(role==='pm')await check('permission denied does not discard submitted form or claim success',async()=>{
-  await open();await fill('#pe_highlight','retain denied form');const original=(await draftRef.get()).data();await draftRef.update({editorEmails:[emails.other]});
-  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain denied form');assert.equal(await page.$eval('#saveToast',e=>e.classList.contains('show')),false);await close();await draftRef.update({editorEmails:original.editorEmails});
+ if(role==='admin')await check('assignment validation retains inputs and controls without weakening access-loss handling',async()=>{
+  await open();await fill('#pe_highlight','retain rejected assignment');
+  await page.$eval('#pe_deputy',(e,email)=>{e.add(new Option('Forbidden Admin deputy',email));e.value=email;},emails.admin);
+  await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain rejected assignment');assert.ok(await page.$$eval('#myDraftsContent tbody tr',rows=>rows.length>0),'recoverable assignment keeps the draft table');assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
+ });
+ if(role==='pm')await check('real draft access revocation clears private inputs and closes the editor',async()=>{
+  await open();await fill('#pe_highlight','protected revoked form');const original=(await draftRef.get()).data();await draftRef.update({editorEmails:[emails.other]});
+  await page.click('#pe_btn_publish');await page.waitForFunction(()=>!document.querySelector('#projEditOverlay').classList.contains('open'));assert.equal(await page.$eval('#pe_highlight',e=>e.value),'');await draftRef.update({editorEmails:original.editorEmails});
  });
  await check('week changes while publish pending do not close a different editor',async()=>{
   await open();let release;const gate=new Promise(r=>release=r);page.sprintRequestHook=async req=>{if(req.url().endsWith('/publishDashboardProjectDraft'))await gate;return false;};
@@ -62,7 +72,17 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
  });
  await page.evaluate(()=>window.openMyDrafts());await page.waitForFunction(()=>document.querySelectorAll('#myDraftsContent .draft-list-row').length>0);
  await page.waitForFunction(()=>!document.querySelector('#myDraftsContent button')?.disabled);
- await page.$eval('[data-draft-focus="refresh"]',e=>e.focus());await page.keyboard.press('Enter');await page.waitForFunction(()=>!document.querySelector('#myDraftsContent button')?.disabled);assert.ok(await page.$eval('#myDraftsContent',e=>e.contains(document.activeElement)));
+ await check('Refresh returns keyboard focus to Refresh after success and network failure',async()=>{
+  for(const failure of [false,true]){
+   let release;const gate=new Promise(r=>release=r);
+   page.sprintRequestHook=async req=>{if(!req.url().endsWith('/listDashboardProjectDrafts'))return false;await gate;if(failure){await req.abort('failed');return true;}return false;};
+   await page.$eval('[data-draft-focus="refresh"]',e=>e.focus());await page.keyboard.press('Enter');
+   await page.waitForFunction(()=>document.querySelector('#myDraftsContent').getAttribute('aria-busy')==='true');release();
+   await page.waitForFunction(()=>!document.querySelector('[data-draft-focus="refresh"]').disabled);
+   assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('data-draft-focus')),'refresh');page.sprintRequestHook=null;
+  }
+ });
+ await page.$eval('[data-draft-focus="refresh"]',e=>e.click());await page.waitForFunction(()=>!document.querySelector('[data-draft-focus="refresh"]').disabled);
  assert.equal(await page.$$eval('#myDraftsContent table tbody tr',r=>r.length),2);assert.equal(await page.$$eval('#myDraftsContent #newProjectDraftBtn',r=>r.length),1);
  results.push({role,name:'semantic table, keyboard refresh focus, mobile horizontal actions',status:'PASS'});
  await page.screenshot({path:resolve(out,`${role}-drafts-desktop.png`),fullPage:true});

@@ -1,0 +1,11 @@
+{
+  "backendSourceSha": "ed3f81445732f488c163890c1d8f1da8cb15b166",
+  "frontend": "PR75 current integration candidate",
+  "files": {
+    "functions/project-drafts-core.js": "0e55a7bef4eeb98dde218efeff6cc812b2660f184f78df18375058609610f71d",
+    "index.html": "dce6db70bb4e03fd3ecad98c2aa927a0f4ef3009bf307abcccccff0aeeef05a4",
+    "js/project-drafts-controller.mjs": "239b196e762ba50a05e196324f9b3225408f287164938bb5754bc3648a158aca",
+    "js/project-drafts-ui.mjs": "f129bbe7230cac85e0dc42e4600bb953c59ac2466cfecb9546fd8dd32bb2d4f0"
+  },
+  "published": false
+}

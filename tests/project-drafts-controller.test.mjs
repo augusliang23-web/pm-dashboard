@@ -15,3 +15,10 @@ test('a list refresh cannot invalidate an authoritative pending publish response
  assert.equal(state.drafts[0].revision,2,'late stale list must not replace confirmed publication');
  assert.equal(state.busy,false);
 });
+for(const [code,reason] of [['functions/permission-denied','role-forbidden'],['functions/permission-denied','draft-forbidden'],['permission-denied','ownership-forbidden'],['functions/unauthenticated',undefined]])test(`${code}/${reason}: access loss invalidates older list and selection lanes`,async()=>{
+ let listResolve,getResolve,state;
+ const c=createProjectDraftsController({api:{list:()=>new Promise(r=>listResolve=r),get:()=>new Promise(r=>getResolve=r),save:async()=>{throw Object.assign(Error('access lost'),{code,details:{reason}});}},onState:s=>state=s});
+ c.setIdentity({uid:'a'});const list=c.refresh(),selection=c.open('private');await assert.rejects(c.save({}));
+ listResolve({drafts:[{draftId:'private',project:{name:'Secret'}}],nextCursor:'private-cursor'});getResolve({draft:{draftId:'private',project:{name:'Secret'}}});await Promise.all([list,selection]);
+ assert.deepEqual(state.drafts,[]);assert.equal(state.selected,null);assert.equal(state.nextCursor,null);assert.equal(state.busy,false);
+});

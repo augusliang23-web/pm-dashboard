@@ -42,3 +42,25 @@ test('a week round trip permanently cancels a pending opening',()=>{
  assert.match(body,/invalidateProjectEditorSession\(\)/,`${name} must cancel before a delayed response can match the week again`);
  }
 });
+function adminOpeningHarness(assigned='') {
+ class Option { constructor(text,value){this.text=text;this.value=value;this.disabled=false;} }
+ const select=()=>({options:[],replaceChildren(...items){this.options=items;},add(item){this.options.push(item);},value:''});
+ const owner=select(),deputy=select(),overlay={classList:{remove(){}},setAttribute(){}};
+ const opening={email:'admin@example.test'};
+ const context=vm.createContext({Option,projectDraftDirectory:{authGeneration:1,options:[{email:'pm@example.test',name:'PM'}]},authSessionGeneration:1,currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],draftEditorRecord:undefined,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',draftOpening:false,
+  startDraftEditorOpening:()=>opening,isDraftEditorOpeningCurrent:()=>true,performance:{mark(){},measure(){}},window:{openProjEdit(){}},captureEditorBaseline(){},getUserDisplayName:email=>email==='admin@example.test'?'Current Admin':'',
+  document:{getElementById:id=>id==='pe_owner'?owner:id==='pe_deputy'?deputy:overlay}});
+ vm.runInContext(extract('beginDraftEditor'),context);
+ return {owner,deputy,open:()=>context.beginDraftEditor({draftId:'a',revision:1,project:{code:'A',owner:'Existing Admin'},assignment:{ownerEmail:assigned,deputyEmail:''}})};
+}
+test('cached directory opening preserves Admin-self Primary PM eligibility, never Deputy',async()=>{
+ const h=adminOpeningHarness();await h.open();
+ assert.equal(h.owner.options.filter(o=>o.value==='admin@example.test').length,1);
+ assert.equal(h.deputy.options.some(o=>o.value==='admin@example.test'),false);
+ assert.equal(h.owner.options.some(o=>o.value==='other.admin@example.test'),false);
+});
+test('second Admin progress editing preserves an existing Admin owner as a disabled option',async()=>{
+ const h=adminOpeningHarness('other.admin@example.test');await h.open();
+ assert.equal(h.owner.value,'other.admin@example.test');
+ assert.equal(h.owner.options.find(o=>o.value==='other.admin@example.test').disabled,true);
+});

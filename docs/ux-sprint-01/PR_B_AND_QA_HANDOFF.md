@@ -1,6 +1,8 @@
 # Sprint 01 — PR B 與 Antigravity QA handoff
 
-## 範圍與目前判定
+> 2026-10-24 更新：此頁以下保留原始候選的歷史證據；最新 PR75 整合、P2 修正及 QA 邊界請見 [PR75_INTEGRATION.md](PR75_INTEGRATION.md)。舊 SHA／雜湊 HOLD／未覆蓋項目不代表最新結果。
+
+## 原始範圍與歷史判定
 
 UX-03：semantic table、SGT、維持後端順序與三種既有狀態、單一 New Draft / Refresh、可水平捲動手機表格、載入/空/錯誤、鍵盤焦點保留。
 UX-04：卡片大型 Manage Project 改為 labelled ⋯ dialog 入口；既有 visibility / archive / delete callable、權限與 delete confirmation 不變。生命週期視窗標題、關閉、說明與響應式間距改善。

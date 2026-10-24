@@ -36,8 +36,11 @@ export function mountProjectDraftsUi({root,controller,onEdit,onOpen,onNew}) {
   const doc=root.ownerDocument;
   const node=(tag,text)=>{const n=doc.createElement(tag);if(text)n.textContent=text;return n;};
   const run=operation=>Promise.resolve().then(operation).catch(()=>{});
+  let deferredFocusKey=null;
   function render(state){
     const focused=doc.activeElement,focusKey=root.contains?.(focused)?focused?.getAttribute('data-draft-focus'):null;
+    if(deferredFocusKey && focused && focused!==doc.body && !root.contains(focused)) deferredFocusKey=null;
+    const restoreKey=deferredFocusKey||focusKey;
     root.replaceChildren(); root.setAttribute('aria-busy',String(Boolean(state.busy)));
     const toolbar=node('div');toolbar.className='draft-workspace-toolbar';
     if(onNew){const add=node('button','New Draft');add.id='newProjectDraftBtn';add.type='button';add.className='btn btn-primary';add.setAttribute('data-draft-focus','new');add.disabled=state.busy;add.onclick=()=>run(onNew);toolbar.append(add);}
@@ -65,7 +68,11 @@ export function mountProjectDraftsUi({root,controller,onEdit,onOpen,onNew}) {
       table.append(body);scroll.append(table);root.append(scroll);
     }
     if(state.nextCursor){const more=node('button','Load more');more.type='button';more.className='btn btn-ghost';more.disabled=state.busy;more.setAttribute('data-draft-focus','more');more.onclick=()=>run(()=>controller.refresh({cursor:state.nextCursor}));root.append(more);}
-    if(focusKey){const replacement=[...(root.querySelectorAll?.('[data-draft-focus]')||[])].find(n=>n.getAttribute('data-draft-focus')===focusKey);if(replacement&&!replacement.disabled)replacement.focus();else root.querySelector?.('.draft-table-scroll')?.focus();}
+    if(restoreKey){
+      const replacement=[...(root.querySelectorAll?.('[data-draft-focus]')||[])].find(n=>n.getAttribute('data-draft-focus')===restoreKey);
+      if(replacement&&!replacement.disabled){deferredFocusKey=null;replacement.focus();}
+      else{deferredFocusKey=state.busy&&replacement?restoreKey:null;root.querySelector?.('.draft-table-scroll')?.focus();}
+    }
   }
   return {render,dispose:()=>root.replaceChildren()};
 }
