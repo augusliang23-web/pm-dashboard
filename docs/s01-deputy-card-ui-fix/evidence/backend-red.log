@@ -1,0 +1,92 @@
+TAP version 13
+# Subtest: Admin can select self Deputy and normalized active PM owner
+not ok 1 - Admin can select self Deputy and normalized active PM owner
+  ---
+  duration_ms: 0.947792
+  type: 'test'
+  location: '/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:5:1'
+  failureType: 'testCodeFailure'
+  error: 'Assignment must select an existing PM account.'
+  code: 'permission-denied'
+  stack: |-
+    fail (/private/tmp/pm-s01-deputy-card-ui-fix/functions/project-drafts-core.js:8:66)
+    resolveAssignment (/private/tmp/pm-s01-deputy-card-ui-fix/functions/project-drafts-core.js:51:44)
+    buildDraftRecord (/private/tmp/pm-s01-deputy-card-ui-fix/functions/project-drafts-core.js:60:20)
+    build (/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:4:49)
+    TestContext.<anonymous> (/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:5:81)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: other Admin rejected as Deputy
+ok 2 - other Admin rejected as Deputy
+  ---
+  duration_ms: 0.191333
+  type: 'test'
+  ...
+# Subtest: disabled PM rejected as Deputy
+not ok 3 - disabled PM rejected as Deputy
+  ---
+  duration_ms: 0.388791
+  type: 'test'
+  location: '/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:6:327'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:6:371)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inactive PM rejected as Deputy
+not ok 4 - inactive PM rejected as Deputy
+  ---
+  duration_ms: 0.138334
+  type: 'test'
+  location: '/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:6:327'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/pm-s01-deputy-card-ui-fix/functions/test/deputy-self-assignment.test.cjs:6:371)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: disabled self rejected as Deputy
+ok 5 - disabled self rejected as Deputy
+  ---
+  duration_ms: 0.0405
+  type: 'test'
+  ...
+# Subtest: unknown rejected as Deputy
+ok 6 - unknown rejected as Deputy
+  ---
+  duration_ms: 0.031875
+  type: 'test'
+  ...
+# Subtest: PM cannot submit Deputy assignment and Unassigned stays valid
+ok 7 - PM cannot submit Deputy assignment and Unassigned stays valid
+  ---
+  duration_ms: 0.141583
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 4
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 224.325042

@@ -44,7 +44,7 @@ export async function runSprintFlows({page,role,db,invoke,emails,draftId,out,res
  });
  if(role==='admin')await check('assignment validation retains inputs and controls without weakening access-loss handling',async()=>{
   await open();await fill('#pe_highlight','retain rejected assignment');
-  await page.$eval('#pe_deputy',(e,email)=>{e.add(new Option('Forbidden Admin deputy',email));e.value=email;},emails.admin);
+  await page.$eval('#pe_deputy',(e,email)=>{e.add(new Option('Forbidden other Admin deputy',email));e.value=email;},'sprint.other-admin@example.test');
   await page.click('#pe_btn_publish');await page.waitForSelector('#projectMutationError.show');assert.equal(await visible(),true);assert.equal(await page.$eval('#pe_highlight',e=>e.value),'retain rejected assignment');assert.ok(await page.$$eval('#myDraftsContent tbody tr',rows=>rows.length>0),'recoverable assignment keeps the draft table');assert.equal(await page.$eval('#pe_btn_publish',e=>e.disabled),false);await close();
  });
  if(role==='pm')await check('real draft access revocation clears private inputs and closes the editor',async()=>{

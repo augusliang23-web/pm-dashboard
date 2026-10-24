@@ -1,10 +1,11 @@
+import {normalizeDeputyCardForPr79} from './helpers/deputy-card-source-baseline.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { dashboardSource, environmentFor, functionInventory, rawDashboardSource, normalizeProjectManagerLabelsForBaseline } from './helpers/dashboard-source.mjs';
+import { renderProfile, dashboardSource, environmentFor, functionInventory, rawDashboardSource, normalizeProjectManagerLabelsForBaseline } from './helpers/dashboard-source.mjs';
 import { renderEnvConfig } from '../scripts/env-config.mjs';
 
 const baselines = JSON.parse(readFileSync(new URL('./fixtures/dashboard-baselines.json', import.meta.url), 'utf8'));
@@ -102,7 +103,7 @@ const PDF_SECTION_PRODUCTION_EXCEPTIONS = new Set([
 ]);
 
 test('the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions', () => {
-  const productionSource = dashboardSource('production');
+  const productionSource = renderProfile(normalizeDeputyCardForPr79(rawDashboardSource()),'production',environmentFor('production'));
   const overviewRiskHeading = '<div class="exec-eyebrow">Risk &amp; Mitigation Actions</div>';
   assert.equal((productionSource.match(/<div class="exec-eyebrow">Risk &amp; Mitigation Actions<\/div>/g) || []).length, 1);
   // Normalize only the approved Overview copy change before checking the function's existing behavior hash.

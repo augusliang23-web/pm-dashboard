@@ -1,3 +1,5 @@
+import '../js/project-assignment-eligibility.js';
+const {projectAssignmentOptions}=globalThis.PMProjectAssignment;
 // Reviewer Findings Remediation (Control Plane, on top of fcca7b6): companion to
 // tests/auth-login-execution.uat.test.mjs. HIGH #1's fix only removed a stray, never-declared reference from the
 // UAT branch of the dispatched onAuthStateChanged handler; the Production branch (which legitimately declares and
@@ -48,6 +50,7 @@ function makeContext(overrides = {}) {
     return elements.get(id);
   };
   const context = vm.createContext({
+    projectAssignmentOptions,
     projectWriteCapabilities: {draftsEnabled:false,archiveRecoveryEnabled:false},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},
     window: {},

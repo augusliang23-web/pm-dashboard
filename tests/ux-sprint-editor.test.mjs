@@ -1,3 +1,5 @@
+import '../js/project-assignment-eligibility.js';
+const {projectAssignmentOptions}=globalThis.PMProjectAssignment;
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -47,16 +49,16 @@ function adminOpeningHarness(assigned='') {
  const select=()=>({options:[],replaceChildren(...items){this.options=items;},add(item){this.options.push(item);},value:''});
  const owner=select(),deputy=select(),overlay={classList:{remove(){}},setAttribute(){}};
  const opening={email:'admin@example.test'};
- const context=vm.createContext({Option,projectDraftDirectory:{authGeneration:1,options:[{email:'pm@example.test',name:'PM'}]},authSessionGeneration:1,currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],draftEditorRecord:undefined,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',draftOpening:false,
+ const context=vm.createContext({Option,projectDraftDirectory:{authGeneration:1,options:projectAssignmentOptions([{id:'pm@example.test',role:'pm',displayName:'PM'},{id:'admin@example.test',role:'admin',displayName:'Current Admin'}],{role:'admin',email:'admin@example.test'})},authSessionGeneration:1,currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],draftEditorRecord:undefined,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',draftOpening:false,
   startDraftEditorOpening:()=>opening,isDraftEditorOpeningCurrent:()=>true,performance:{mark(){},measure(){}},window:{openProjEdit(){}},captureEditorBaseline(){},getUserDisplayName:email=>email==='admin@example.test'?'Current Admin':'',
   document:{getElementById:id=>id==='pe_owner'?owner:id==='pe_deputy'?deputy:overlay}});
  vm.runInContext(extract('beginDraftEditor'),context);
  return {owner,deputy,open:()=>context.beginDraftEditor({draftId:'a',revision:1,project:{code:'A',owner:'Existing Admin'},assignment:{ownerEmail:assigned,deputyEmail:''}})};
 }
-test('cached directory opening preserves Admin-self Primary PM eligibility, never Deputy',async()=>{
+test('cached directory opening preserves active Admin-self eligibility in both selectors',async()=>{
  const h=adminOpeningHarness();await h.open();
  assert.equal(h.owner.options.filter(o=>o.value==='admin@example.test').length,1);
- assert.equal(h.deputy.options.some(o=>o.value==='admin@example.test'),false);
+ assert.equal(h.deputy.options.filter(o=>o.value==='admin@example.test').length,1);
  assert.equal(h.owner.options.some(o=>o.value==='other.admin@example.test'),false);
 });
 test('second Admin progress editing preserves an existing Admin owner as a disabled option',async()=>{
