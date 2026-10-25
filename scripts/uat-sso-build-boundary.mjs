@@ -8,7 +8,7 @@ export function renderSsoTarget(source,target){
  if(JSON.stringify(seen)!==JSON.stringify(expected)||out.includes('@uat-admin-sso'))throw Error('Missing, duplicate or malformed UAT SSO feature block');
  return out;
 }
-const forbidden=/GoogleAuthProvider|signInWithPopup|linkWithPopup|google-auth-flow|googleLoginBtn|googleSubject|dashboard-identity|handleGoogleLogin|linkGoogleAccount|accountSecurityOverlay|PMDashboardIdentity/;
+const forbidden=/GoogleAuthProvider|signInWithPopup|linkWithPopup|google-auth-flow|googleLoginBtn|googleSubject|dashboard-identity|handleGoogleLogin|linkGoogleAccount|accountSecurityOverlay|PMDashboardIdentity|google-sso-gate|googleSso|googleLinkingEnabled|googleSignInEnabled|resolveGoogleSsoGates/;
 export function assertNoProductionSso(files){for(const[name,text]of files){if(forbidden.test(name)||forbidden.test(text))throw Error('Production artifact contains UAT SSO: '+name);}}
 export function assertSsoReleaseTarget(root,target,{dryRun=false}={}){
  if(existsSync(join(root,'config/uat-only-source.json'))&&['prod','production'].includes(target)&&!dryRun)throw Error('UAT-only SSO source cannot be released to Production. Use the clean Production release line.');

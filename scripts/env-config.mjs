@@ -4,6 +4,12 @@ export function renderEnvConfig(env) {
   const config = Object.entries(env.firebaseConfig)
     .map(([key, value]) => `    ${key}: ${JSON.stringify(value)}`)
     .join(',\n');
+  // UAT-only, build-controlled Google SSO rollout gates (both default false). Production never receives this key.
+  const googleSso = env.googleSso === undefined ? '' : `,
+  googleSso: Object.freeze({
+    googleLinkingEnabled: ${env.googleSso.googleLinkingEnabled === true},
+    googleSignInEnabled: ${env.googleSso.googleSignInEnabled === true}
+  })`;
   return `// Environment configuration read by index.html before anything else runs.
 // Generated from env/${env.environment}.json by scripts/env-config.mjs; do not edit by hand.
 // The committed default is the PRODUCTION profile, so a plain checkout (GitHub Pages, local serving) can only
@@ -19,7 +25,7 @@ window.PM_DASHBOARD_ENV = Object.freeze({
   pdfServiceUrl: ${JSON.stringify(env.pdfServiceUrl ?? null)},
   firebaseConfig: Object.freeze({
 ${config}
-  })
+  })${googleSso}
 });
 `;
 }
