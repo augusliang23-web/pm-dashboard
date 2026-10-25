@@ -1,3 +1,5 @@
+import './dashboard-identity.js';
+const {dashboardIdentityError}=globalThis.PMDashboardIdentity;
 import {
   authorizeExecutiveAudienceView,
   authorizeReportAccess,
@@ -160,6 +162,8 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const email = String(decodedToken?.email || '').trim().toLowerCase();
   if (!email) throw new ReportAccessError('The authentication token does not include an email address.', 401);
   const user = await adapters.getUserByEmail(email);
+  const identityReason=dashboardIdentityError({uid:decodedToken?.uid,email,claims:decodedToken},user);
+  if(identityReason)throw new ReportAccessError('Dashboard identity is not approved: '+identityReason,403);
   const week = await adapters.getWeekById(request.weekId);
   if (!week) throw new ReportDataError('The selected reporting week no longer exists.');
   const access = authorizeReportAccess({ email, role: user?.role }, week, request);

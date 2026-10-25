@@ -1,3 +1,4 @@
+const {dashboardIdentityError}=require('./dashboard-identity');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
@@ -541,6 +542,8 @@ async function authenticatedActor(transaction, request) {
   if (!snapshot.exists) {
     throw securityError('permission-denied', 'role-forbidden', 'Dashboard identity is missing.');
   }
+  const identityReason=dashboardIdentityError({uid,email,claims:request.auth.token},snapshot.data());
+  if(identityReason)throw securityError('permission-denied',identityReason,'Dashboard identity is not approved. Ask the Owner to verify the UID binding.');
   const permissionSnapshot = await transaction.get(database().collection('userPermissions').doc(email));
   return buildAuthenticatedActor({ uid, email }, snapshot.data(), permissionSnapshot.exists ? permissionSnapshot.data() : null);
 }

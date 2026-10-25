@@ -8,10 +8,10 @@ const {state,db}=createStore(),firestorePath=createRequire(new URL('../functions
 const real=require(firestorePath);require.cache[firestorePath]={id:firestorePath,filename:firestorePath,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../functions/project-drafts');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const email='owner@example.com',call=(name,data)=>api[name].run({auth:{uid:'owner',token:{email}},data});
-function setup(projects=[]){state.docs.clear();state.docs.set('users/'+email,{role:'pm',displayName:'Owner'});state.docs.set('userPermissions/'+email,{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,projects});}
+const email='owner@example.com',call=(name,data)=>api[name].run({auth:{uid:'owner',token:{email,firebase:{sign_in_provider:'password'}}},data});
+function setup(projects=[]){state.docs.clear();state.docs.set('users/'+email,{authUid:'owner',role:'pm',displayName:'Owner'});state.docs.set('userPermissions/'+email,{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,projects});}
 const official=()=>state.docs.get('weeks/W1');
-const report=extra=>loadAuthorizedReport({request:{mode:'overview',weekId:'W1',sections:['weekly-trend'],overviewScope:'all',...extra},idToken:email,adapters:{verifyIdToken:async()=>({email}),getUserByEmail:async()=>({role:'pm'}),getWeekById:async()=>structuredClone(official()),getTrendWeeks:async()=>[structuredClone(official())]}});
+const report=extra=>loadAuthorizedReport({request:{mode:'overview',weekId:'W1',sections:['weekly-trend'],overviewScope:'all',...extra},idToken:email,adapters:{verifyIdToken:async()=>({uid:'synthetic-uid',email,firebase:{sign_in_provider:'password'}}),getUserByEmail:async()=>({authUid:'synthetic-uid',role:'pm'}),getWeekById:async()=>structuredClone(official()),getTrendWeeks:async()=>[structuredClone(official())]}});
 test('actual Save handler leaves Overview, PDF, trend, Copilot and carryover unchanged',async()=>{
   setup([{code:'A',name:'Alpha',owner:'Owner',projectLevel:'system',progress:20,status:'green'},{code:'B',name:'Beta',owner:'Owner',projectLevel:'system',progress:60,status:'yellow'}]);
   const before=structuredClone(official());

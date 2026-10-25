@@ -1,3 +1,4 @@
+import{assertSsoReleaseTarget}from'../../scripts/uat-sso-build-boundary.mjs';
 import { spawn, execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -294,6 +295,7 @@ export async function runPdfDeploy(argv, options = {}) {
     // depend on gcloud's own tooling being present.
     assertPlatformSupportsRealDeploy(platform);
     if (name === 'production' && !confirmProduction) throw new Error('Deploying the production PDF service requires --confirm-production.');
+    assertSsoReleaseTarget(resolve(cwd,'..'),name,{dryRun});
     const git = await getGitState(cwd);
     if (git.dirty) throw new Error('Refusing to deploy: the working tree is not completely clean (modified, staged, deleted, renamed, or untracked files present).');
     await assertUploadWithinGitTrackedFiles(cwd, { getTrackedFiles, getUploadCandidates });

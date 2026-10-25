@@ -12,8 +12,8 @@ function response() {
 }
 
 const adapters = {
-  verifyIdToken: async () => ({ email: 'pm@example.com' }),
-  getUserByEmail: async () => ({ role: 'pm' }),
+  verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'pm@example.com' }),
+  getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'pm' }),
   getWeekById: async () => ({ weekLabel: 'W28', projects: [{ code: 'PMS-001', name: 'PMS' }] })
 };
 

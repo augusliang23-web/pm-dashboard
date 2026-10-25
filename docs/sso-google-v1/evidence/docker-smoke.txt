@@ -1,0 +1,1 @@
+Local image pm-s02-sso-pdf:local built successfully. Local container: OPTIONS without Origin=403; unknown route=404. No cloud connection or image registry push. Owned test container removed.

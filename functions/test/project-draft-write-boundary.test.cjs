@@ -3,9 +3,9 @@ const {createStore}=require('./helpers/draft-store.cjs');const {state,db}=create
 const api=require('../project-dashboard-writes');
 const actor={uid:'owner',email:'owner@example.com',role:'pm',displayName:'Owner',permissionOverrides:{'project.manage':true}};
 const managed={code:'ALPHA',owner:'Owner',progress:40,publication:{draftId:'draft-a'}};
-const call=(fn,data)=>api[fn].run({auth:{uid:actor.uid,token:{email:actor.email}},data});
+const call=(fn,data)=>api[fn].run({auth:{uid:actor.uid,token:{email:actor.email,firebase:{sign_in_provider:'password'}}},data});
 const request=(p,isNew=false)=>({weekId:'W1',originalCode:p.code,projectCode:p.code,isNew,project:{code:p.code,progress:99},expectedRevision:api.projectRevisionFingerprint(p)});
-function setup(){state.docs.clear();state.docs.set('users/'+actor.email,{role:'pm',displayName:'Owner'});state.docs.set('userPermissions/'+actor.email,{overrides:actor.permissionOverrides});state.docs.set('weeks/W1',{projects:[structuredClone(managed)],isReleased:false});process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;}
+function setup(){state.docs.clear();state.docs.set('users/'+actor.email,{authUid:actor.uid,role:'pm',displayName:'Owner'});state.docs.set('userPermissions/'+actor.email,{overrides:actor.permissionOverrides});state.docs.set('weeks/W1',{projects:[structuredClone(managed)],isReleased:false});process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;}
 const boundary=e=>e.details?.reason==='draft-publish-required';
 test('UAT old Save and attention handlers reject managed projects without partial writes',async()=>{setup();await assert.rejects(call('saveDashboardProject',request(managed)),boundary);await assert.rejects(call('setDashboardProjectAttention',{weekId:'W1',projectCode:'ALPHA',attention:'action'}),boundary);assert.equal(state.docs.get('weeks/W1').projects[0].progress,40);});
 test('old new-project payload cannot bypass Draft creation in UAT',async()=>{setup();await assert.rejects(call('saveDashboardProject',request({code:'BETA'},true)),boundary);});

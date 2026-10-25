@@ -19,34 +19,34 @@ function setupEnvironment({ isUat = true } = {}) {
   state.failAudit = false;
 
   // Users
-  state.docs.set('users/admin@example.com', { role: 'admin', displayName: 'Admin User' });
+  state.docs.set('users/admin@example.com', {authUid:'admin@example.com', role: 'admin', displayName: 'Admin User' });
   state.docs.set('userPermissions/admin@example.com', { overrides: {} });
 
-  state.docs.set('users/admin-no-pm@example.com', { role: 'admin', displayName: 'Admin Restricted' });
+  state.docs.set('users/admin-no-pm@example.com', {authUid:'admin-no-pm@example.com', role: 'admin', displayName: 'Admin Restricted' });
   state.docs.set('userPermissions/admin-no-pm@example.com', { overrides: { 'project.manage': false } });
 
-  state.docs.set('users/pm@example.com', { role: 'pm', displayName: 'PM User' });
+  state.docs.set('users/pm@example.com', {authUid:'pm@example.com', role: 'pm', displayName: 'PM User' });
   state.docs.set('userPermissions/pm@example.com', { overrides: { 'project.manage': true } });
 
-  state.docs.set('users/pm-no-override@example.com', { role: 'pm', displayName: 'PM No Override' });
+  state.docs.set('users/pm-no-override@example.com', {authUid:'pm-no-override@example.com', role: 'pm', displayName: 'PM No Override' });
   state.docs.set('userPermissions/pm-no-override@example.com', { overrides: {} });
 
-  state.docs.set('users/pm-restore-granted@example.com', { role: 'pm', displayName: 'PM Restore Granted' });
+  state.docs.set('users/pm-restore-granted@example.com', {authUid:'pm-restore-granted@example.com', role: 'pm', displayName: 'PM Restore Granted' });
   state.docs.set('userPermissions/pm-restore-granted@example.com', { overrides: { 'project.archive.restore': true } });
 
-  state.docs.set('users/pm-restore-revoked@example.com', { role: 'pm', displayName: 'PM Restore Revoked' });
+  state.docs.set('users/pm-restore-revoked@example.com', {authUid:'pm-restore-revoked@example.com', role: 'pm', displayName: 'PM Restore Revoked' });
   state.docs.set('userPermissions/pm-restore-revoked@example.com', { overrides: { 'project.archive.restore': false } });
 
-  state.docs.set('users/pm-manage-only@example.com', { role: 'pm', displayName: 'PM Manage Only' });
+  state.docs.set('users/pm-manage-only@example.com', {authUid:'pm-manage-only@example.com', role: 'pm', displayName: 'PM Manage Only' });
   state.docs.set('userPermissions/pm-manage-only@example.com', { overrides: { 'project.manage': true, 'project.archive.restore': false } });
 
-  state.docs.set('users/pm-restore-only@example.com', { role: 'pm', displayName: 'PM Restore Only' });
+  state.docs.set('users/pm-restore-only@example.com', {authUid:'pm-restore-only@example.com', role: 'pm', displayName: 'PM Restore Only' });
   state.docs.set('userPermissions/pm-restore-only@example.com', { overrides: { 'project.manage': false, 'project.archive.restore': true } });
 
-  state.docs.set('users/vip@example.com', { role: 'vip', displayName: 'VIP User' });
+  state.docs.set('users/vip@example.com', {authUid:'vip@example.com', role: 'vip', displayName: 'VIP User' });
   state.docs.set('userPermissions/vip@example.com', { overrides: {} });
 
-  state.docs.set('users/exec@example.com', { role: 'executive', displayName: 'Executive User' });
+  state.docs.set('users/exec@example.com', {authUid:'exec@example.com', role: 'executive', displayName: 'Executive User' });
   state.docs.set('userPermissions/exec@example.com', { overrides: {} });
 
   // Weeks
@@ -82,7 +82,7 @@ function setupEnvironment({ isUat = true } = {}) {
   }
 }
 
-const callAs = (email, fn, data) => api[fn].run({ auth: { uid: email, token: { email } }, data });
+const callAs = (email, fn, data) => api[fn].run({ auth: { uid: email, token: { email,firebase:{sign_in_provider:'password'} } }, data });
 
 test('Admin successful restoration into latest valid unreleased target week', async () => {
   setupEnvironment({ isUat: true });

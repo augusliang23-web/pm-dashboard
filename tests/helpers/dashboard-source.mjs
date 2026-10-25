@@ -1,3 +1,4 @@
+import{renderSsoTarget}from'../../scripts/uat-sso-build-boundary.mjs';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -38,7 +39,7 @@ function legacyEnvConstants(env, uat) {
 export function renderProfile(html, profile, env) {
   if (!PROFILES.includes(profile)) throw new Error(`Unknown dashboard profile "${profile}"`);
   const uat = profile === 'uat';
-  let out = html;
+  let out = html.includes('@uat-admin-sso')?renderSsoTarget(html,profile==='uat'?'uat':'prod'):html;
   out = out.replace(GROUP, (_, kind, name, prod, uatText) => restoreName(kind, name, uat ? uatText : prod, uat ? '__uat' : '__prod'));
   out = out.replace(STATEMENT, (_, uatText, prod) => (uat ? uatText : prod));
   out = out.replace(LET, (_, name, uatInit, prodInit) => `let ${name} = ${uat ? uatInit : prodInit};`);

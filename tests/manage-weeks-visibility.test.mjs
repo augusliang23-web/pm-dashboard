@@ -300,7 +300,10 @@ test('both rendered profiles declare the permission state, helpers and registry 
     ]) {
       assert.match(source, declaration, `${profile} must declare ${declaration}`);
     }
-    assert.equal(source.split('resetCurrentUserPermissions();').length - 1, 1, `${profile}: one auth handler resets permissions`);
+    const primaryAuth=source.slice(source.indexOf('onAuthStateChanged(auth, async user =>'),source.indexOf('function getUserDisplayName('));
+    assert.equal(primaryAuth.split('resetCurrentUserPermissions();').length - 1, 1, `${profile}: one auth handler resets permissions`);
+    if(profile==='uat')assert.match(source,/async function revokeDashboardIdentity[\s\S]*?resetCurrentUserPermissions\(\);draftController.reset\(\)/);
+    else assert.doesNotMatch(source,/revokeDashboardIdentity|GoogleAuthProvider/);
     assert.equal(source.split('currentPermissionOverrides = permissionOverrides;').length - 1, 1, `${profile}: one auth handler applies overrides`);
   }
 });

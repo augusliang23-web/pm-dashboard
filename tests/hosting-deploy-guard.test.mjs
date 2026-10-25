@@ -88,7 +88,7 @@ test('a real UAT run starts the Firebase CLI exactly once with the fixed argumen
 
 test('a Production run is refused without --confirm-production, even with a clean tree', async () => {
   const { calls, options } = harness();
-  await assert.rejects(runDeploy(['--env', 'prod'], options), /--confirm-production/);
+  await assert.rejects(runDeploy(['--env', 'prod'], options), /UAT-only SSO source/);
   assert.deepEqual(calls.run, []);
 });
 
@@ -98,11 +98,10 @@ test('a Production dry run does not require --confirm-production', async () => {
   assert.deepEqual(calls.run, []);
 });
 
-test('a real Production run with --confirm-production starts the Firebase CLI with the Production project', async () => {
+test('mixed UAT SSO source cannot deploy Production even with confirmation', async () => {
   const { calls, options } = harness();
-  assert.equal(await runDeploy(['--env', 'prod', '--confirm-production'], options), 0);
-  assert.equal(calls.run.length, 1);
-  assert.deepEqual(calls.run[0].slice(1), ['deploy', '--only', 'hosting', '--project', HOSTING_TARGETS.prod, '--message', 'prod abc1234']);
+  await assert.rejects(runDeploy(['--env', 'prod', '--confirm-production'], options), /UAT-only SSO source/);
+  assert.deepEqual(calls.run, []);
 });
 
 test('the deploy wrapper refuses anything outside a fixed Hosting-only deploy of a named target', async () => {

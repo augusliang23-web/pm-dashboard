@@ -65,12 +65,12 @@ function reset(permissions = {}) {
   store = new Map();
   autoId = 0;
   failNextCreateFor = '';
-  for (const [email, user] of Object.entries(USERS)) store.set(`users/${email}`, user);
+  for (const [email, user] of Object.entries(USERS)) store.set(`users/${email}`, {...user,authUid:email.split('@')[0]+'-uid'});
   for (const [email, data] of Object.entries(permissions)) store.set(`userPermissions/${email}`, data);
 }
 
-const call = (data, { email = 'admin@example.test', uid = 'admin-uid', token = {} } = {}) => setUserPermissionOverrides.run({
-  auth: email ? { uid, token: { email, ...token } } : undefined,
+const call = (data, { email = 'admin@example.test', uid = email.split('@')[0]+'-uid', token = {} } = {}) => setUserPermissionOverrides.run({
+  auth: email ? { uid, token: { email,firebase:{sign_in_provider:'password'}, ...token } } : undefined,
   data,
 });
 const change = (targetEmail, changes, expectedRevision = 0) => ({ targetEmail, expectedRevision, changes });

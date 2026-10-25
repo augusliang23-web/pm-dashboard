@@ -3,8 +3,8 @@ const {createStore}=require('./helpers/draft-store.cjs');const {state,db}=create
 const path=require.resolve('firebase-admin/firestore');const real=require(path);require.cache[path]={id:path,filename:path,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../project-drafts');const {projectRevisionFingerprint}=require('../project-dashboard-writes');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email}}});
-async function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/owner@example.com',{role:'pm',displayName:'Owner'});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',projects:[],version:1,isReleased:false});const {draft}=await call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Alpha',code:'ALPHA',progress:40}});return draft;}
+const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email,firebase:{sign_in_provider:'password'}}}});
+async function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/owner@example.com',{authUid:'owner@example.com',role:'pm',displayName:'Owner'});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',projects:[],version:1,isReleased:false});const {draft}=await call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Alpha',code:'ALPHA',progress:40}});return draft;}
 const publish=(d,extra={})=>call('publishDashboardProjectDraft',{draftId:d.draftId,expectedRevision:d.revision,weekId:'W1',expectedPublishedRevision:null,...extra});
 const reason=wanted=>e=>e.details?.reason===wanted;
 test('Publish alone writes official content, then draft edits remain isolated until republished',async()=>{let draft=await setup();const first=await publish(draft);assert.equal(first.project.progress,40);assert.equal('editorEmails' in first.project,false);const oldWeek=structuredClone(state.docs.get('weeks/W1'));state.docs.set('weeks/HISTORY',{...oldWeek,weekLabel:'W52 2025',isReleased:true});({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,project:{progress:65}}));assert.equal(state.docs.get('weeks/W1').projects[0].progress,40);const second=await publish(draft,{expectedPublishedRevision:first.projectRevision});assert.equal(second.project.progress,65);assert.equal(state.docs.get('weeks/HISTORY').projects[0].progress,40);assert.equal(state.docs.has('projectDrafts/'+draft.draftId),true);});
@@ -50,7 +50,7 @@ test('an archived publication cannot be resurrected into an empty later week by 
  ({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,project:{progress:75}}));
  assert.deepEqual(state.docs.get('weeks/W1'),history);
  for(const actor of ['owner@example.com','admin@example.com']){
-  state.docs.set('users/admin@example.com',{role:'admin',displayName:'Admin'});
+  state.docs.set('users/admin@example.com',{authUid:'admin@example.com',role:'admin',displayName:'Admin'});
   await assert.rejects(call('publishDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:draft.revision,project:{progress:85},weekId:'W2',expectedPublishedRevision:null},actor),reason('conflict'));
  }
  assert.deepEqual(state.docs.get('weeks/W1'),history);assert.deepEqual(state.docs.get('weeks/W2').projects,[]);

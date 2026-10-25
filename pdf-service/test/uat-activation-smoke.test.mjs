@@ -21,7 +21,7 @@ for (let w = 17; w <= 39; w += 1) {
 }
 const fakeDb = { collection: () => ({ f: null, lim: 50, after: null, where(f, o, v) { this.f = [f, v]; return this; }, orderBy() { return this; }, limit(n) { this.lim = n; return this; }, startAfter(c) { this.after = c; return this; },
   async get() { let ids = [...docs.keys()].sort(); if (this.f) ids = ids.filter(id => docs.get(id)[this.f[0]] === this.f[1]); if (this.after) ids = ids.filter(id => id > this.after); ids = ids.slice(0, this.lim); return { docs: ids.map(id => ({ id, data: () => JSON.parse(JSON.stringify(docs.get(id))) })) }; } }) };
-const adapters = role => ({ verifyIdToken: async () => ({ email: 'qa@example.test' }), getUserByEmail: async () => ({ role }), getWeekById: async id => JSON.parse(JSON.stringify(docs.get(id))),
+const adapters = role => ({ verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'qa@example.test' }), getUserByEmail: async () => ({authUid:'pdf-fixture',role }), getWeekById: async id => JSON.parse(JSON.stringify(docs.get(id))),
   getDeliveryHistory: createBoundedDeliveryHistoryReader({ db: fakeDb }), getDeliveryTrendsProvenance: () => ({ source: 'uat', asOf: '2026-10-15T00:00:00.000Z' }) });
 const registry = loadTargetRegistry();
 const targetFeatures = name => resolveRuntimeTarget({ PDF_ENVIRONMENT: name, FIREBASE_PROJECT_ID: registry.targets[name].firebaseProjectId, ALLOWED_ORIGIN: registry.targets[name].allowedOrigins.join(','), K_SERVICE: registry.targets[name].serviceName }, registry).features;

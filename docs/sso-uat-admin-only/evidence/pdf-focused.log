@@ -1,0 +1,851 @@
+TAP version 13
+# Subtest: draft-reader roles are exactly the dashboard contract (admin, pm) and the backend helper mirrors the browser helper
+ok 1 - draft-reader roles are exactly the dashboard contract (admin, pm) and the backend helper mirrors the browser helper
+  ---
+  duration_ms: 2.37125
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: admin receives draft-week history only if it is a draft reader
+ok 2 - B/D/E/G/H/I/J released anchor: admin receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 13.030167
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: pm receives draft-week history only if it is a draft reader
+ok 3 - B/D/E/G/H/I/J released anchor: pm receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 1.045833
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: sales receives draft-week history only if it is a draft reader
+ok 4 - B/D/E/G/H/I/J released anchor: sales receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.877
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: engineering receives draft-week history only if it is a draft reader
+ok 5 - B/D/E/G/H/I/J released anchor: engineering receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 1.037709
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: business receives draft-week history only if it is a draft reader
+ok 6 - B/D/E/G/H/I/J released anchor: business receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.645375
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: product receives draft-week history only if it is a draft reader
+ok 7 - B/D/E/G/H/I/J released anchor: product receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.697792
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: bd receives draft-week history only if it is a draft reader
+ok 8 - B/D/E/G/H/I/J released anchor: bd receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.677583
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: vip receives draft-week history only if it is a draft reader
+ok 9 - B/D/E/G/H/I/J released anchor: vip receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 0.727042
+  type: 'test'
+  ...
+# Subtest: B/D/E/G/H/I/J released anchor: executive receives draft-week history only if it is a draft reader
+ok 10 - B/D/E/G/H/I/J released anchor: executive receives draft-week history only if it is a draft reader
+  ---
+  duration_ms: 2.021167
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: admin requesting only Delivery Performance for a draft weekId
+ok 11 - C/F draft anchor: admin requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 1.195833
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: pm requesting only Delivery Performance for a draft weekId
+ok 12 - C/F draft anchor: pm requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.489167
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: sales requesting only Delivery Performance for a draft weekId
+ok 13 - C/F draft anchor: sales requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.527166
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: engineering requesting only Delivery Performance for a draft weekId
+ok 14 - C/F draft anchor: engineering requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.413458
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: business requesting only Delivery Performance for a draft weekId
+ok 15 - C/F draft anchor: business requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.403334
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: product requesting only Delivery Performance for a draft weekId
+ok 16 - C/F draft anchor: product requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.404125
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: bd requesting only Delivery Performance for a draft weekId
+ok 17 - C/F draft anchor: bd requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.418667
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: vip requesting only Delivery Performance for a draft weekId
+ok 18 - C/F draft anchor: vip requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.415583
+  type: 'test'
+  ...
+# Subtest: C/F draft anchor: executive requesting only Delivery Performance for a draft weekId
+ok 19 - C/F draft anchor: executive requesting only Delivery Performance for a draft weekId
+  ---
+  duration_ms: 0.404708
+  type: 'test'
+  ...
+# Subtest: draft anchor + other sections: roles without draft access get a fail-closed section and unchanged existing behavior
+ok 20 - draft anchor + other sections: roles without draft access get a fail-closed section and unchanged existing behavior
+  ---
+  duration_ms: 1.970167
+  type: 'test'
+  ...
+# Subtest: existing sections are not affected: requests without Delivery Performance never read history or change behavior
+ok 21 - existing sections are not affected: requests without Delivery Performance never read history or change behavior
+  ---
+  duration_ms: 2.746334
+  type: 'test'
+  ...
+# Subtest: client-supplied role or capability claims are never trusted
+ok 22 - client-supplied role or capability claims are never trusted
+  ---
+  duration_ms: 0.681458
+  type: 'test'
+  ...
+# Subtest: a delegated week.manage override is not trusted by the PDF backend (documented fail-closed mismatch)
+ok 23 - a delegated week.manage override is not trusted by the PDF backend (documented fail-closed mismatch)
+  ---
+  duration_ms: 0.908083
+  type: 'test'
+  ...
+# Subtest: an unknown or missing role is rejected before any history is requested
+ok 24 - an unknown or missing role is rejected before any history is requested
+  ---
+  duration_ms: 1.17975
+  type: 'test'
+  ...
+# Subtest: released-only roles read ONLY released documents (the published filter is applied at the query)
+ok 25 - released-only roles read ONLY released documents (the published filter is applied at the query)
+  ---
+  duration_ms: 0.519083
+  type: 'test'
+  ...
+# Subtest: draft readers use include-drafts, and a draft week never appears for released-only roles in the rendered PDF HTML
+ok 26 - draft readers use include-drafts, and a draft week never appears for released-only roles in the rendered PDF HTML
+  ---
+  duration_ms: 1.426958
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: UAT deploy command carries every required Cloud Run setting
+ok 27 - buildGcloudArgs: UAT deploy command carries every required Cloud Run setting
+  ---
+  duration_ms: 2.843167
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: Production deploy command uses Production identity, not UAT's
+ok 28 - buildGcloudArgs: Production deploy command uses Production identity, not UAT's
+  ---
+  duration_ms: 0.1355
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: UAT deploy command never names Production's project, service, or service account
+ok 29 - buildGcloudArgs: UAT deploy command never names Production's project, service, or service account
+  ---
+  duration_ms: 0.039
+  type: 'test'
+  ...
+# Subtest: buildEnvVarsYaml: contains all three required startup variables for the given target
+ok 30 - buildEnvVarsYaml: contains all three required startup variables for the given target
+  ---
+  duration_ms: 0.101333
+  type: 'test'
+  ...
+# Subtest: buildEnvVarsYaml: UAT and Production env files never share a project id or origin set
+ok 31 - buildEnvVarsYaml: UAT and Production env files never share a project id or origin set
+  ---
+  duration_ms: 0.137292
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a target name the registry does not define
+ok 32 - assertTargetIsDeployable: rejects a target name the registry does not define
+  ---
+  duration_ms: 0.264208
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a target missing a required registry field
+ok 33 - assertTargetIsDeployable: rejects a target missing a required registry field
+  ---
+  duration_ms: 0.249208
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects a runtime service account belonging to a different Firebase project
+ok 34 - assertTargetIsDeployable: rejects a runtime service account belonging to a different Firebase project
+  ---
+  duration_ms: 0.120834
+  type: 'test'
+  ...
+# Subtest: buildGcloudArgs: Production deploy command pins its own intended build identity
+ok 35 - buildGcloudArgs: Production deploy command pins its own intended build identity
+  ---
+  duration_ms: 0.401583
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a missing or empty buildServiceAccount fails closed
+ok 36 - assertTargetIsDeployable: a missing or empty buildServiceAccount fails closed
+  ---
+  duration_ms: 0.478292
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a build service account from a different project fails closed
+ok 37 - assertTargetIsDeployable: a build service account from a different project fails closed
+  ---
+  duration_ms: 0.164958
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: a build service account equal to the runtime service account fails closed
+ok 38 - assertTargetIsDeployable: a build service account equal to the runtime service account fails closed
+  ---
+  duration_ms: 0.147375
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: malformed same-project buildServiceAccount values fail closed
+ok 39 - assertTargetIsDeployable: malformed same-project buildServiceAccount values fail closed
+  ---
+  duration_ms: 0.320875
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: account ids at the 6 and 30 character bounds are accepted
+ok 40 - assertTargetIsDeployable: account ids at the 6 and 30 character bounds are accepted
+  ---
+  duration_ms: 0.124417
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: malformed same-project runtimeServiceAccount values fail closed too
+ok 41 - assertTargetIsDeployable: malformed same-project runtimeServiceAccount values fail closed too
+  ---
+  duration_ms: 0.130833
+  type: 'test'
+  ...
+# Subtest: assertTargetIsDeployable: rejects non-canonical allowed origins
+ok 42 - assertTargetIsDeployable: rejects non-canonical allowed origins
+  ---
+  duration_ms: 0.084375
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy --dry-run: never spawns gcloud, never inspects git state, and never resolves the upload manifest
+ok 43 - runPdfDeploy --dry-run: never spawns gcloud, never inspects git state, and never resolves the upload manifest
+  ---
+  duration_ms: 7.861208
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: Production without --confirm-production fails before touching git or gcloud
+ok 44 - runPdfDeploy: Production without --confirm-production fails before touching git or gcloud
+  ---
+  duration_ms: 0.167125
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: Production dry-run does not require --confirm-production
+ok 45 - runPdfDeploy: Production dry-run does not require --confirm-production
+  ---
+  duration_ms: 1.572916
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a dirty working tree refuses to deploy before invoking gcloud
+ok 46 - runPdfDeploy: a dirty working tree refuses to deploy before invoking gcloud
+  ---
+  duration_ms: 0.130666
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a working tree reported dirty only by an untracked file still refuses to deploy
+ok 47 - runPdfDeploy: a working tree reported dirty only by an untracked file still refuses to deploy
+  ---
+  duration_ms: 0.095708
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a clean UAT deploy invokes gcloud exactly once with UAT-only arguments
+ok 48 - runPdfDeploy: a clean UAT deploy invokes gcloud exactly once with UAT-only arguments
+  ---
+  duration_ms: 1.164417
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: a non-zero gcloud exit code fails the deploy
+ok 49 - runPdfDeploy: a non-zero gcloud exit code fails the deploy
+  ---
+  duration_ms: 1.571917
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: an upload candidate outside the git-tracked set refuses to deploy before invoking gcloud
+ok 50 - runPdfDeploy: an upload candidate outside the git-tracked set refuses to deploy before invoking gcloud
+  ---
+  duration_ms: 0.094875
+  type: 'test'
+  ...
+# Subtest: runPdfDeploy: the temporary env-vars file is removed after the run, dry-run or not
+ok 51 - runPdfDeploy: the temporary env-vars file is removed after the run, dry-run or not
+  ---
+  duration_ms: 1.704792
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a freshly committed repository with nothing else is clean
+ok 52 - defaultGitState (real git): a freshly committed repository with nothing else is clean
+  ---
+  duration_ms: 58.641542
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a modified tracked file is reported dirty
+ok 53 - defaultGitState (real git): a modified tracked file is reported dirty
+  ---
+  duration_ms: 49.867542
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a staged-but-uncommitted new file is reported dirty
+ok 54 - defaultGitState (real git): a staged-but-uncommitted new file is reported dirty
+  ---
+  duration_ms: 55.699291
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a deleted tracked file is reported dirty
+ok 55 - defaultGitState (real git): a deleted tracked file is reported dirty
+  ---
+  duration_ms: 49.337083
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a renamed tracked file is reported dirty
+ok 56 - defaultGitState (real git): a renamed tracked file is reported dirty
+  ---
+  duration_ms: 53.599083
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): an actual untracked file is reported dirty -- the regression this fix closes
+ok 57 - defaultGitState (real git): an actual untracked file is reported dirty -- the regression this fix closes
+  ---
+  duration_ms: 54.392958
+  type: 'test'
+  ...
+# Subtest: defaultGitState (real git): a git-ignored file does not trip the clean-tree guard
+ok 58 - defaultGitState (real git): a git-ignored file does not trip the clean-tree guard
+  ---
+  duration_ms: 76.7785
+  type: 'test'
+  ...
+# Subtest: normalizeUploadPath: normalizes Windows separators and a leading "./"
+ok 59 - normalizeUploadPath: normalizes Windows separators and a leading "./"
+  ---
+  duration_ms: 0.0945
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: rejects entirely blank output as a parsing anomaly, not zero files
+ok 60 - parseUploadManifestOutput: rejects entirely blank output as a parsing anomaly, not zero files
+  ---
+  duration_ms: 0.127333
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: filters blank lines and handles CRLF line endings
+ok 61 - parseUploadManifestOutput: filters blank lines and handles CRLF line endings
+  ---
+  duration_ms: 0.037417
+  type: 'test'
+  ...
+# Subtest: parseUploadManifestOutput: rejects non-string input
+ok 62 - parseUploadManifestOutput: rejects non-string input
+  ---
+  duration_ms: 0.026083
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: A -- every upload candidate tracked returns no violations
+ok 63 - findUntrackedUploadCandidates: A -- every upload candidate tracked returns no violations
+  ---
+  duration_ms: 0.0255
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: B -- one ordinary untracked upload candidate is reported
+ok 64 - findUntrackedUploadCandidates: B -- one ordinary untracked upload candidate is reported
+  ---
+  duration_ms: 0.0675
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: C -- a git-ignored file gcloud still uploads is reported (ignored status is irrelevant)
+ok 65 - findUntrackedUploadCandidates: C -- a git-ignored file gcloud still uploads is reported (ignored status is irrelevant)
+  ---
+  duration_ms: 0.022041
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: D -- a .DS_Store-style ignored local artifact selected for upload is reported
+ok 66 - findUntrackedUploadCandidates: D -- a .DS_Store-style ignored local artifact selected for upload is reported
+  ---
+  duration_ms: 0.018625
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: E -- duplicate upload-manifest entries are handled deterministically
+ok 67 - findUntrackedUploadCandidates: E -- duplicate upload-manifest entries are handled deterministically
+  ---
+  duration_ms: 0.062667
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: H -- Windows-style path separators normalize to match a POSIX tracked path
+ok 68 - findUntrackedUploadCandidates: H -- Windows-style path separators normalize to match a POSIX tracked path
+  ---
+  duration_ms: 0.017166
+  type: 'test'
+  ...
+# Subtest: findUntrackedUploadCandidates: I -- a legitimate strict subset (e.g. .gcloudignore excluding test/, README) passes
+ok 69 - findUntrackedUploadCandidates: I -- a legitimate strict subset (e.g. .gcloudignore excluding test/, README) passes
+  ---
+  duration_ms: 0.01675
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: F -- an upload-list command failure fails closed
+ok 70 - assertUploadWithinGitTrackedFiles: F -- an upload-list command failure fails closed
+  ---
+  duration_ms: 0.058166
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: G -- a git tracked-list command failure fails closed
+ok 71 - assertUploadWithinGitTrackedFiles: G -- a git tracked-list command failure fails closed
+  ---
+  duration_ms: 0.042042
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: resolves without throwing when the upload set is fully tracked
+ok 72 - assertUploadWithinGitTrackedFiles: resolves without throwing when the upload set is fully tracked
+  ---
+  duration_ms: 0.058791
+  type: 'test'
+  ...
+# Subtest: assertUploadWithinGitTrackedFiles: rejects with the offending path named when an upload candidate is untracked
+ok 73 - assertUploadWithinGitTrackedFiles: rejects with the offending path named when an upload candidate is untracked
+  ---
+  duration_ms: 0.037541
+  type: 'test'
+  ...
+# Subtest: CRITICAL: a git-ignored file gcloud would still upload is rejected before any real deploy invocation
+ok 74 - CRITICAL: a git-ignored file gcloud would still upload is rejected before any real deploy invocation
+  ---
+  duration_ms: 112.135084
+  type: 'test'
+  ...
+# gcloud is available in this environment; real `gcloud meta list-files-for-upload` was NOT additionally run by this suite (no cloud mutation is ever performed by these tests).
+# Subtest: real gcloud availability for this environment (informational, not a correctness assertion)
+ok 75 - real gcloud availability for this environment (informational, not a correctness assertion)
+  ---
+  duration_ms: 363.66075
+  type: 'test'
+  ...
+# Subtest: resolveGcloudExecutable: Windows resolves the .cmd shim through a shell
+ok 76 - resolveGcloudExecutable: Windows resolves the .cmd shim through a shell
+  ---
+  duration_ms: 0.081
+  type: 'test'
+  ...
+# Subtest: resolveGcloudExecutable: Linux and macOS resolve the native executable directly, no shell
+ok 77 - resolveGcloudExecutable: Linux and macOS resolve the native executable directly, no shell
+  ---
+  duration_ms: 0.024375
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 1 -- Unix upload enumeration uses the native executable, no shell
+ok 78 - defaultUploadCandidates: 1 -- Unix upload enumeration uses the native executable, no shell
+  ---
+  duration_ms: 0.066584
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 2 -- Windows upload enumeration uses the .cmd-compatible (shell) execution strategy
+ok 79 - defaultUploadCandidates: 2 -- Windows upload enumeration uses the .cmd-compatible (shell) execution strategy
+  ---
+  duration_ms: 0.045
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 3 -- arguments remain a distinct array, never concatenated into a shell command string
+ok 80 - defaultUploadCandidates: 3 -- arguments remain a distinct array, never concatenated into a shell command string
+  ---
+  duration_ms: 0.038792
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 4 -- stdout is captured and parsed into the upload candidate list
+ok 81 - defaultUploadCandidates: 4 -- stdout is captured and parsed into the upload candidate list
+  ---
+  duration_ms: 0.02575
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 5a -- a non-zero-exit-style execFile rejection fails closed (propagates, does not resolve)
+ok 82 - defaultUploadCandidates: 5a -- a non-zero-exit-style execFile rejection fails closed (propagates, does not resolve)
+  ---
+  duration_ms: 0.047833
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: 5b -- a spawn failure (e.g. ENOENT, gcloud not installed) fails closed through assertUploadWithinGitTrackedFiles
+ok 83 - defaultUploadCandidates: 5b -- a spawn failure (e.g. ENOENT, gcloud not installed) fails closed through assertUploadWithinGitTrackedFiles
+  ---
+  duration_ms: 0.06875
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: on Windows, still resolves upload candidates end to end through the shell-compatible path
+ok 84 - defaultUploadCandidates: on Windows, still resolves upload candidates end to end through the shell-compatible path
+  ---
+  duration_ms: 0.047542
+  type: 'test'
+  ...
+# Subtest: defaultUploadCandidates: with no options, defaults to this process's real platform and the real execFile (production wiring, not exercised against a real gcloud here)
+ok 85 - defaultUploadCandidates: with no options, defaults to this process's real platform and the real execFile (production wiring, not exercised against a real gcloud here)
+  ---
+  duration_ms: 0.019959
+  type: 'test'
+  ...
+# Subtest: assertPlatformSupportsRealDeploy: rejects win32 with an actionable message
+ok 86 - assertPlatformSupportsRealDeploy: rejects win32 with an actionable message
+  ---
+  duration_ms: 0.027375
+  type: 'test'
+  ...
+# Subtest: assertPlatformSupportsRealDeploy: does not throw for linux or darwin
+ok 87 - assertPlatformSupportsRealDeploy: does not throw for linux or darwin
+  ---
+  duration_ms: 0.023541
+  type: 'test'
+  ...
+# Subtest: 1. runPdfDeploy: a real Windows UAT deploy fails closed before git or upload-manifest enumeration
+ok 88 - 1. runPdfDeploy: a real Windows UAT deploy fails closed before git or upload-manifest enumeration
+  ---
+  duration_ms: 0.067291
+  type: 'test'
+  ...
+# Subtest: 2. runPdfDeploy: a real Windows Production deploy fails closed before the Production confirmation check and before gcloud
+ok 89 - 2. runPdfDeploy: a real Windows Production deploy fails closed before the Production confirmation check and before gcloud
+  ---
+  duration_ms: 0.040375
+  type: 'test'
+  ...
+# Subtest: 3. runPdfDeploy: a Windows dry-run remains safe -- succeeds, never touches git, gcloud, or the upload manifest
+ok 90 - 3. runPdfDeploy: a Windows dry-run remains safe -- succeeds, never touches git, gcloud, or the upload manifest
+  ---
+  duration_ms: 1.845333
+  type: 'test'
+  ...
+# Subtest: 3b. runPdfDeploy: a Windows Production dry-run also remains safe and does not require --confirm-production
+ok 91 - 3b. runPdfDeploy: a Windows Production dry-run also remains safe and does not require --confirm-production
+  ---
+  duration_ms: 0.789333
+  type: 'test'
+  ...
+# Subtest: 4. runPdfDeploy: the Unix/macOS/Linux real deploy path is unchanged (proceeds past the platform check)
+ok 92 - 4. runPdfDeploy: the Unix/macOS/Linux real deploy path is unchanged (proceeds past the platform check)
+  ---
+  duration_ms: 1.727584
+  type: 'test'
+  ...
+# Subtest: 5. runPdfDeploy: the upload-boundary guard remains intact on a supported platform (linux)
+ok 93 - 5. runPdfDeploy: the upload-boundary guard remains intact on a supported platform (linux)
+  ---
+  duration_ms: 0.122625
+  type: 'test'
+  ...
+# Subtest: 6. runPdfDeploy: the Production confirmation gate remains intact on a supported platform (linux)
+ok 94 - 6. runPdfDeploy: the Production confirmation gate remains intact on a supported platform (linux)
+  ---
+  duration_ms: 0.053167
+  type: 'test'
+  ...
+# Subtest: 7. no source comment or test in this module claims shell:true safely escapes or quotes arguments
+ok 95 - 7. no source comment or test in this module claims shell:true safely escapes or quotes arguments
+  ---
+  duration_ms: 0.475916
+  type: 'test'
+  ...
+# Subtest: loads report content from Firestore adapters rather than request input
+ok 96 - loads report content from Firestore adapters rather than request input
+  ---
+  duration_ms: 1.46975
+  type: 'test'
+  ...
+# Subtest: rejects a missing project before rendering
+ok 97 - rejects a missing project before rendering
+  ---
+  duration_ms: 0.226834
+  type: 'test'
+  ...
+# Subtest: loads no more than six trend weeks only for selected Overview trends
+ok 98 - loads no more than six trend weeks only for selected Overview trends
+  ---
+  duration_ms: 0.154375
+  type: 'test'
+  ...
+# Subtest: limits trend history to released weeks for both Executive role vocabularies
+ok 99 - limits trend history to released weeks for both Executive role vocabularies
+  ---
+  duration_ms: 0.169875
+  type: 'test'
+  ...
+# Subtest: does not read trend history when Weekly trends is not selected
+ok 100 - does not read trend history when Weekly trends is not selected
+  ---
+  duration_ms: 0.11475
+  type: 'test'
+  ...
+# Subtest: uses ganttWorkstreams when deciding whether a Gantt section is reportable
+ok 101 - uses ganttWorkstreams when deciding whether a Gantt section is reportable
+  ---
+  duration_ms: 0.076875
+  type: 'test'
+  ...
+# Subtest: propagates the authorized Executive milestone audience view
+ok 102 - propagates the authorized Executive milestone audience view
+  ---
+  duration_ms: 0.128792
+  type: 'test'
+  ...
+# Subtest: rejects an unknown stored role instead of widening Executive milestone access
+ok 103 - rejects an unknown stored role instead of widening Executive milestone access
+  ---
+  duration_ms: 0.34625
+  type: 'test'
+  ...
+# Subtest: filters current and trend weeks to selected Overview project codes
+ok 104 - filters current and trend weeks to selected Overview project codes
+  ---
+  duration_ms: 0.3375
+  type: 'test'
+  ...
+# Subtest: derives partial selection from trusted matching projects instead of requested code count
+ok 105 - derives partial selection from trusted matching projects instead of requested code count
+  ---
+  duration_ms: 0.254708
+  type: 'test'
+  ...
+# Subtest: treats all reportable projects in the requested scope as a complete selection
+ok 106 - treats all reportable projects in the requested scope as a complete selection
+  ---
+  duration_ms: 0.10725
+  type: 'test'
+  ...
+# Subtest: treats all active cross-scope projects as the complete selectable Overview population
+ok 107 - treats all active cross-scope projects as the complete selectable Overview population
+  ---
+  duration_ms: 0.127125
+  type: 'test'
+  ...
+# Subtest: rejects non-active project codes from current and trend Overview render data
+ok 108 - rejects non-active project codes from current and trend Overview render data
+  ---
+  duration_ms: 0.13325
+  type: 'test'
+  ...
+# Subtest: rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+ok 109 - rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+  ---
+  duration_ms: 0.493875
+  type: 'test'
+  ...
+# Subtest: allows a canonical removed-project movement in Executive Summary PDF data
+ok 110 - allows a canonical removed-project movement in Executive Summary PDF data
+  ---
+  duration_ms: 0.187041
+  type: 'test'
+  ...
+# Subtest: loads an authorized Overview when the browser has stored repaired canonical text
+ok 111 - loads an authorized Overview when the browser has stored repaired canonical text
+  ---
+  duration_ms: 1.086417
+  type: 'test'
+  ...
+# Subtest: rejects packed source when it bypasses browser repair before PDF data loading
+ok 112 - rejects packed source when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.07525
+  type: 'test'
+  ...
+# Subtest: rejects missing packed field when it bypasses browser repair before PDF data loading
+ok 113 - rejects missing packed field when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.043042
+  type: 'test'
+  ...
+# Subtest: rejects malformed Executive Summary structure with a PDF data error
+ok 114 - rejects malformed Executive Summary structure with a PDF data error
+  ---
+  duration_ms: 0.064291
+  type: 'test'
+  ...
+# Subtest: resolves a default Gantt window when the dashboard settings adapter is unavailable
+ok 115 - resolves a default Gantt window when the dashboard settings adapter is unavailable
+  ---
+  duration_ms: 0.039625
+  type: 'test'
+  ...
+# Subtest: reads the admin-configured Gantt window settings for both project and overview reports
+ok 116 - reads the admin-configured Gantt window settings for both project and overview reports
+  ---
+  duration_ms: 0.064
+  type: 'test'
+  ...
+# Subtest: does not validate Weekly Summary when Executive Summary is not selected
+ok 117 - does not validate Weekly Summary when Executive Summary is not selected
+  ---
+  duration_ms: 0.0425
+  type: 'test'
+  ...
+# Subtest: loads report content from Firestore adapters rather than request input
+ok 118 - loads report content from Firestore adapters rather than request input
+  ---
+  duration_ms: 1.390417
+  type: 'test'
+  ...
+# Subtest: rejects a missing project before rendering
+ok 119 - rejects a missing project before rendering
+  ---
+  duration_ms: 0.257125
+  type: 'test'
+  ...
+# Subtest: loads no more than six trend weeks only for selected Overview trends
+ok 120 - loads no more than six trend weeks only for selected Overview trends
+  ---
+  duration_ms: 0.16925
+  type: 'test'
+  ...
+# Subtest: limits trend history to released weeks for both Executive role vocabularies
+ok 121 - limits trend history to released weeks for both Executive role vocabularies
+  ---
+  duration_ms: 0.180083
+  type: 'test'
+  ...
+# Subtest: does not read trend history when Weekly trends is not selected
+ok 122 - does not read trend history when Weekly trends is not selected
+  ---
+  duration_ms: 0.063917
+  type: 'test'
+  ...
+# Subtest: uses ganttWorkstreams when deciding whether a Gantt section is reportable
+ok 123 - uses ganttWorkstreams when deciding whether a Gantt section is reportable
+  ---
+  duration_ms: 0.0565
+  type: 'test'
+  ...
+# Subtest: propagates the authorized Executive milestone audience view
+ok 124 - propagates the authorized Executive milestone audience view
+  ---
+  duration_ms: 0.116834
+  type: 'test'
+  ...
+# Subtest: rejects an unknown stored role instead of widening Executive milestone access
+ok 125 - rejects an unknown stored role instead of widening Executive milestone access
+  ---
+  duration_ms: 0.148792
+  type: 'test'
+  ...
+# Subtest: does not read update-history collections for a historical week PDF
+ok 126 - does not read update-history collections for a historical week PDF
+  ---
+  duration_ms: 0.225167
+  type: 'test'
+  ...
+# Subtest: uses the Executive milestone snapshot captured at release for a released overview PDF
+ok 127 - uses the Executive milestone snapshot captured at release for a released overview PDF
+  ---
+  duration_ms: 0.250291
+  type: 'test'
+  ...
+# Subtest: uses the current live Executive timeline for a draft overview PDF
+ok 128 - uses the current live Executive timeline for a draft overview PDF
+  ---
+  duration_ms: 0.105
+  type: 'test'
+  ...
+# Subtest: filters current and trend weeks to selected Overview project codes
+ok 129 - filters current and trend weeks to selected Overview project codes
+  ---
+  duration_ms: 0.103875
+  type: 'test'
+  ...
+# Subtest: derives partial selection from trusted matching projects instead of requested code count
+ok 130 - derives partial selection from trusted matching projects instead of requested code count
+  ---
+  duration_ms: 0.056125
+  type: 'test'
+  ...
+# Subtest: treats all reportable projects in the requested scope as a complete selection
+ok 131 - treats all reportable projects in the requested scope as a complete selection
+  ---
+  duration_ms: 0.062833
+  type: 'test'
+  ...
+# Subtest: treats all active cross-scope projects as the complete selectable Overview population
+ok 132 - treats all active cross-scope projects as the complete selectable Overview population
+  ---
+  duration_ms: 0.053583
+  type: 'test'
+  ...
+# Subtest: rejects non-active project codes from current and trend Overview render data
+ok 133 - rejects non-active project codes from current and trend Overview render data
+  ---
+  duration_ms: 0.666417
+  type: 'test'
+  ...
+# Subtest: rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+ok 134 - rejects an invalid stored Weekly Summary before Executive Summary PDF rendering
+  ---
+  duration_ms: 0.401458
+  type: 'test'
+  ...
+# Subtest: allows a canonical removed-project movement in Executive Summary PDF data
+ok 135 - allows a canonical removed-project movement in Executive Summary PDF data
+  ---
+  duration_ms: 0.176125
+  type: 'test'
+  ...
+# Subtest: loads an authorized Overview when the browser has stored repaired canonical text
+ok 136 - loads an authorized Overview when the browser has stored repaired canonical text
+  ---
+  duration_ms: 1.43875
+  type: 'test'
+  ...
+# Subtest: rejects packed source when it bypasses browser repair before PDF data loading
+ok 137 - rejects packed source when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.076667
+  type: 'test'
+  ...
+# Subtest: rejects missing packed field when it bypasses browser repair before PDF data loading
+ok 138 - rejects missing packed field when it bypasses browser repair before PDF data loading
+  ---
+  duration_ms: 0.071625
+  type: 'test'
+  ...
+# Subtest: rejects malformed Executive Summary structure with a PDF data error
+ok 139 - rejects malformed Executive Summary structure with a PDF data error
+  ---
+  duration_ms: 0.064292
+  type: 'test'
+  ...
+# Subtest: does not validate Weekly Summary when Executive Summary is not selected
+ok 140 - does not validate Weekly Summary when Executive Summary is not selected
+  ---
+  duration_ms: 0.044708
+  type: 'test'
+  ...
+1..140
+# tests 140
+# suites 0
+# pass 140
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 980.395792

@@ -1,3 +1,4 @@
+const {dashboardIdentityError}=require('./dashboard-identity');
 const { onCall } = require('firebase-functions/v2/https');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { buildAuthenticatedActor, canRestoreArchivedProject, assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
@@ -18,6 +19,8 @@ async function readActor(tx,db,request,{capabilitiesOnly=false}={}){
   if(!capabilitiesOnly && !capabilities.draftsEnabled)fail('draft-environment','Project drafts are not enabled in this environment.','failed-precondition');
   const user=await tx.get(db.collection('users').doc(email));
   if(!user.exists)fail('role-forbidden','Draft permission is required.');
+  const identityReason=dashboardIdentityError({uid,email,claims:request.auth.token},user.data());
+  if(identityReason)fail(identityReason,'Dashboard identity is not approved. Ask the Owner to verify the UID binding.');
   const permission=await tx.get(db.collection('userPermissions').doc(email));
   const actor=buildAuthenticatedActor({uid,email},user.data(),permission.exists?permission.data():null);
   if(capabilitiesOnly) return {actor,capabilities};

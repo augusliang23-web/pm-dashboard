@@ -1,0 +1,55 @@
+i  emulators: Starting emulators: firestore
+i  emulators: Detected demo project ID "demo-pm-dashboard-v22t", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --test --test-concurrency=1 scripts/verification/sso-security-gate.mjs
+TAP version 13
+# [2026-10-24T23:53:16.275Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x759d7e5a error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L232, false for 'update' @ L232
+# Subtest: firestore.uat.rules enforces UID/provider binding before dashboard data
+ok 1 - firestore.uat.rules enforces UID/provider binding before dashboard data
+  ---
+  duration_ms: 1078.943708
+  type: 'test'
+  ...
+# [2026-10-24T23:53:16.664Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x759d7e71 error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L227, false for 'update' @ L227
+# Subtest: firestore.shared-backend.rules enforces UID/provider binding before dashboard data
+ok 2 - firestore.shared-backend.rules enforces UID/provider binding before dashboard data
+  ---
+  duration_ms: 388.580625
+  type: 'test'
+  ...
+# Subtest: all 24 authenticated callable entrypoints deny mismatched UID before business access
+ok 3 - all 24 authenticated callable entrypoints deny mismatched UID before business access
+  ---
+  duration_ms: 389.976625
+  type: 'test'
+  ...
+# Subtest: PM email role cannot be inherited by another UID at the actual draft callable
+ok 4 - PM email role cannot be inherited by another UID at the actual draft callable
+  ---
+  duration_ms: 7.292917
+  type: 'test'
+  ...
+# Subtest: PDF denies wrong UID/unapproved Google before reading any reporting week
+ok 5 - PDF denies wrong UID/unapproved Google before reading any reporting week
+  ---
+  duration_ms: 0.383959
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4732.335417
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

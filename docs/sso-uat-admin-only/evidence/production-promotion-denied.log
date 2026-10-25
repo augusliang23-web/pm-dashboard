@@ -1,0 +1,12 @@
+file:///private/tmp/pm-s02-uat-admin-only/scripts/verify-sso-release-boundary.mjs:4
+ if(base==='main'||(environment.GITHUB_EVENT_NAME==='push'&&ref==='refs/heads/main'))throw Error('UAT SSO source must not be promoted into Production main; use the clean Production release line.');
+                                                                                           ^
+
+Error: UAT SSO source must not be promoted into Production main; use the clean Production release line.
+    at verifySsoPromotion (file:///private/tmp/pm-s02-uat-admin-only/scripts/verify-sso-release-boundary.mjs:4:92)
+    at file:///private/tmp/pm-s02-uat-admin-only/scripts/verify-sso-release-boundary.mjs:8:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.3

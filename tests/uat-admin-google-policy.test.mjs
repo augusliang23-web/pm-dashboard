@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{createRequire}from'node:module';const require=createRequire(import.meta.url);const {dashboardIdentityError}=require('../functions/dashboard-identity.js');
+const identity={uid:'approved',email:'approved@example.test',claims:{email:'approved@example.test',email_verified:true,firebase:{sign_in_provider:'google.com',identities:{'google.com':['subject']}}}};
+for(const role of ['pm','vip','executive','engineering','business','sales','bd','product'])test(role+' Google denied even with matching UID and approved subject',()=>assert.equal(dashboardIdentityError(identity,{authUid:'approved',googleSubject:'subject',role}),'identity-google-admin-only'));
+for(const role of ['admin','pm','vip'])test(role+' bound password remains allowed',()=>assert.equal(dashboardIdentityError({...identity,claims:{...identity.claims,firebase:{sign_in_provider:'password'}}},{authUid:'approved',role}),''));
+test('Admin Google still requires trusted binding and subject',()=>{assert.equal(dashboardIdentityError(identity,{authUid:'approved',googleSubject:'subject',role:' Admin '}),'');assert.notEqual(dashboardIdentityError(identity,{authUid:'other',googleSubject:'subject',role:'admin'}),'');});
+
+test('forged token Admin claim cannot upgrade PM Google role',()=>assert.equal(dashboardIdentityError({...identity,claims:{...identity.claims,role:'admin'}},{authUid:'approved',googleSubject:'subject',role:'pm'}),'identity-google-admin-only'));

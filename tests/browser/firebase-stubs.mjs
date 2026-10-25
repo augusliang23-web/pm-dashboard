@@ -24,7 +24,7 @@ export const limit = count => ({ kind: 'limit', count });
 export const increment = n => ({ __increment: n });
 export const serverTimestamp = () => ({ __serverTimestamp: true });
 const clone = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
-const docSnap = (path, data) => ({ id: path.split('/').at(-1), ref: { path }, exists: () => data !== undefined, data: () => clone(data) });
+const docSnap = (path, data) => ({ id: path.split('/').at(-1), ref: { path }, exists: () => data !== undefined, data: () => clone(data),metadata:{fromCache:false,hasPendingWrites:false} });
 const collectionDocs = (path, constraints = []) => {
   const all = fake().collections[path] || {};
   let entries = Object.entries(all).map(([id, data]) => ({ id, data }));
@@ -40,6 +40,7 @@ const snapshotOf = target => {
   return { docs, size: docs.length, empty: docs.length === 0, forEach: fn => docs.forEach(fn), docChanges: () => [], metadata: { fromCache: fake().fromCache === true, hasPendingWrites: false } };
 };
 export const getDoc = async ref => { fake().reads.push(ref.path); return snapshotOf(ref); };
+export const getDocFromServer = getDoc;
 export const getDocs = async target => { fake().reads.push((target.ref || target).path); return snapshotOf(target); };
 export const onSnapshot = (target, ...rest) => {
   // onSnapshot(target, [options], next, [error]) -- the dashboard asks for metadata changes on the weeks query.
@@ -58,11 +59,18 @@ export const runTransaction = async (db, fn) => fn({ get: async ref => snapshotO
 const authModule = `
 const fake = () => window.__FAKE;
 const listeners = [];
+const decorate=user=>{if(user&&!user.getIdTokenResult)user.getIdTokenResult=async()=>({claims:{email:user.email,firebase:{sign_in_provider:'password'}}});return user;};
 const auth = { get currentUser() { return fake().user; } };
 export const getAuth = () => auth;
+export const beforeAuthStateChanged = () => () => {};
+export const onIdTokenChanged = (a,cb) => {setTimeout(()=>cb(decorate(fake().user)),0);return()=>{};};
+export class GoogleAuthProvider {setCustomParameters() {}}
+export const signInWithPopup = async()=>{throw Error('OAuth is not implemented by presentation stubs; use the Auth emulator suite.');};
+export const linkWithPopup = signInWithPopup;
+export const unlink = async()=>{};
 export const connectAuthEmulator = () => {};
-export const onAuthStateChanged = (a, cb) => { listeners.push(cb); setTimeout(() => cb(fake().user), 0); return () => {}; };
-window.__fakeAuthChange = user => { fake().user = user; listeners.forEach(cb => cb(user)); };
+export const onAuthStateChanged = (a, cb) => { listeners.push(cb); setTimeout(() => cb(decorate(fake().user)), 0); return () => {}; };
+window.__fakeAuthChange = user => { fake().user = decorate(user); listeners.forEach(cb => cb(fake().user)); };
 export const signOut = async () => { window.__fakeAuthChange(null); };
 export const signInWithEmailAndPassword = async () => ({ user: fake().user });
 export const sendPasswordResetEmail = async () => {};
@@ -93,7 +101,7 @@ export function buildFake({ email = 'qa-user@example.test', role = 'admin', week
   const weekDocs = Object.fromEntries(weeks.map(week => [week.__id, (({ __id, ...rest }) => rest)(week)]));
   return {
     user: { uid: 'synthetic-uid', email, displayName: 'QA User' },
-    documents: { [`users/${email}`]: { role, displayName: 'QA User', email }, ...extraDocuments },
+    documents: { [`users/${email}`]: { authUid:'synthetic-uid',role, displayName: 'QA User', email }, ...extraDocuments },
     collections: { weeks: weekDocs, users: { [email]: { role, displayName: 'QA User' } }, ...extraCollections },
     callables: [], callableResults: {}, writes: [], reads: [], listeners: []
   };

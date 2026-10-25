@@ -9,7 +9,7 @@ import { DELIVERY_PERFORMANCE_PDF_BACKEND_VERIFIED, buildOverviewPdfRequest, isD
 
 const SECTION = 'portfolio-delivery-performance';
 const res = () => ({ headers: new Map(), statusCode: 0, body: undefined, setHeader(k, v) { this.headers.set(k, v); }, end(body) { this.body = body; } });
-const adapters = { verifyIdToken: async () => ({ email: 'pm@example.test' }), getUserByEmail: async () => ({ role: 'pm' }),
+const adapters = { verifyIdToken: async () => ({uid:'pdf-fixture',firebase:{sign_in_provider:'password'},email: 'pm@example.test' }), getUserByEmail: async () => ({authUid:'pdf-fixture',role: 'pm' }),
   getWeekById: async () => ({ weekLabel: 'W41 2026', isReleased: true, version: 1, projects: [{ projectId: 'a', code: 'A', name: 'Alpha', progress: 10 }] }) };
 const body = { mode: 'overview', weekId: 'W41-2026', sections: [SECTION], overviewScope: 'all', projectCodes: ['A'] };
 const call = async features => { let rendered = false; const handler = createReportHandler({ adapters, features, renderPdf: async () => { rendered = true; return Buffer.from('%PDF'); } }); const r = res(); await handler({ headers: { authorization: 'Bearer t' }, body }, r); return { r, rendered }; };

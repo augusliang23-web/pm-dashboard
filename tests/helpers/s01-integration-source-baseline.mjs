@@ -1,4 +1,4 @@
-import {normalizeDeputyCardForPr79} from './deputy-card-source-baseline.mjs';
+import {normalizeSsoForBaseline} from './sso-source-baseline.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const changes=JSON.parse(readFileSync(new URL('../fixtures/s01-integration-source-delta.json',import.meta.url),'utf8'));
@@ -12,4 +12,4 @@ export function normalizePr79IntegrationForHotfixBaseline(source){
  return source;
 }
 
-export function normalizeIntegrationForHotfixBaseline(source){return normalizePr79IntegrationForHotfixBaseline(normalizeDeputyCardForPr79(source));}
+export function normalizeIntegrationForHotfixBaseline(source){return normalizePr79IntegrationForHotfixBaseline(normalizeSsoForBaseline(source));}

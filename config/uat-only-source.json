@@ -1,0 +1,6 @@
+{
+  "feature": "uat-admin-google-sso",
+  "productionPromotionAllowed": false,
+  "productionPasswordBaseline": "cf21ca4fe0ad5d2cca4adaa639c7ba3380f0d7b5",
+  "allowedCloudProject": "pm-dashboard-uat-20260820-a7f3"
+}

@@ -4,9 +4,9 @@ const firestorePath=require.resolve('firebase-admin/firestore'),real=require(fir
 require.cache[firestorePath]={id:firestorePath,filename:firestorePath,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../project-drafts'),{projectRevisionFingerprint}=require('../project-dashboard-writes');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const email='owner@example.com';const call=(name,data,who=email)=>api[name].run({auth:{uid:who,token:{email:who}},data});
+const email='owner@example.com';const call=(name,data,who=email)=>api[name].run({auth:{uid:who,token:{email:who,firebase:{sign_in_provider:'password'}}},data});
 const reason=key=>error=>error.details?.reason===key;
-function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/'+email,{role:'pm',displayName:'Owner'});state.docs.set('users/admin@example.com',{role:'admin',displayName:'Admin'});state.docs.set('users/other@example.com',{role:'pm',displayName:'Other'});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,version:1,projects:[{name:'Existing',code:'OLD',owner:'Owner',deputy:'',visibility:'active',projectLevel:'system',progress:40,futureMetadata:{keep:true}}]});}
+function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/'+email,{authUid:email,role:'pm',displayName:'Owner'});state.docs.set('users/admin@example.com',{authUid:'admin@example.com',role:'admin',displayName:'Admin'});state.docs.set('users/other@example.com',{authUid:'other@example.com',role:'pm',displayName:'Other'});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,version:1,projects:[{name:'Existing',code:'OLD',owner:'Owner',deputy:'',visibility:'active',projectLevel:'system',progress:40,futureMetadata:{keep:true}}]});}
 const source={weekId:'W1',projectCode:'OLD'};
 const open=()=>call('getDashboardProjectDraft',{source});
 const save=(draft,project)=>call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:draft.revision,source:draft.source,project});
@@ -20,7 +20,7 @@ test('opening and saving an owned legacy project needs no create grant and never
 test('source authority rejects other PM, released source, ambiguous name and forged origin',async()=>{
  setup();await assert.rejects(call('getDashboardProjectDraft',{source},'other@example.com'),reason('ownership-forbidden'));
  let {draft}=await open();await assert.rejects(save({...draft,source:{...draft.source,projectCode:'MISSING'}},{progress:75}));
- state.docs.set('users/duplicate@example.com',{role:'pm',displayName:'Owner'});await assert.rejects(open(),reason('ambiguous-assignment'));
+ state.docs.set('users/duplicate@example.com',{authUid:'duplicate@example.com',role:'pm',displayName:'Owner'});await assert.rejects(open(),reason('ambiguous-assignment'));
  state.docs.delete('users/duplicate@example.com');state.docs.get('weeks/W1').isReleased=true;await assert.rejects(open(),reason('released-week'));
 });
 test('initial source save rejects stale official revision and subsequent access rechecks source ownership',async()=>{

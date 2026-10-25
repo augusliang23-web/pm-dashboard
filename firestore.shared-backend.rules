@@ -7,8 +7,27 @@ service cloud.firestore {
 
     function hasDashboardAccess() {
       return isSignedIn()
-        && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
+        && request.auth.token.email is string
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email.trim().lower()))
+        && hasApprovedIdentity(get(/databases/$(database)/documents/users/$(request.auth.token.email.trim().lower())).data);
+    }
+
+    function hasApprovedIdentity(user) {
+      let provider = request.auth.token.get('firebase', {}).get('sign_in_provider', '');
+      let subjects = request.auth.token.get('firebase', {}).get('identities', {}).get('google.com', []);
+      return user.get('authUid', '') is string
+        && user.get('authUid', '').size() > 0
+        && user.get('authUid', '') == request.auth.uid
+        && user.get('active', true) != false
+        && normalizeDashboardRole(user.get('role', '')) != ''
+        && (provider == 'password'
+          || (provider == 'google.com'
+            && normalizeDashboardRole(user.get('role', '')) == 'admin'
+            && request.auth.token.get('email_verified', false) == true
+            && user.get('googleSubject', '') is string
+            && user.get('googleSubject', '').size() > 0
+            && subjects is list && subjects.size() == 1
+            && subjects[0] == user.get('googleSubject', '')));
     }
 
     // Match the browser/Functions role contract; non-string and unknown values fail closed.
@@ -21,7 +40,7 @@ service cloud.firestore {
 
     function dashboardRole() {
       return hasDashboardAccess()
-        ? normalizeDashboardRole(get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.get('role', ''))
+        ? normalizeDashboardRole(get(/databases/$(database)/documents/users/$(request.auth.token.email.trim().lower())).data.get('role', ''))
         : '';
     }
 
@@ -40,8 +59,8 @@ service cloud.firestore {
     // Effective week.manage (mirrors js/permission-registry.mjs): Admin by role, or a delegable role with a
     // server-stored boolean true override in userPermissions/{email}. Anything else fails closed.
     function weekManageOverride() {
-      return exists(/databases/$(database)/documents/userPermissions/$(request.auth.token.email))
-        ? get(/databases/$(database)/documents/userPermissions/$(request.auth.token.email)).data.get('overrides', {})
+      return exists(/databases/$(database)/documents/userPermissions/$(request.auth.token.email.trim().lower()))
+        ? get(/databases/$(database)/documents/userPermissions/$(request.auth.token.email.trim().lower())).data.get('overrides', {})
         : {};
     }
 

@@ -1,3 +1,4 @@
+import{assertSsoReleaseTarget}from'./uat-sso-build-boundary.mjs';
 import { execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -63,6 +64,7 @@ export async function runDeploy(argv, options = {}) {
   } = options;
 
   const { envName, dryRun, confirmProduction } = parseArguments(argv);
+  assertSsoReleaseTarget(rootDir,envName,{dryRun});
   const env = await loadHostingEnv(rootDir, envName);
   const git = await getGitState(rootDir);
 
