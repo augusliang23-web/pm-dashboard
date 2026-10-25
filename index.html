@@ -3199,6 +3199,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 // @uat-admin-sso begin sso-4
 import "./js/dashboard-identity.js";
 import { createGoogleAuthFlow } from "./js/google-auth-flow.mjs";
+import { resolveGoogleSsoGates, GOOGLE_SSO_DISABLED_MESSAGES } from "./js/google-sso-gate.mjs";
 const {dashboardIdentityError}=globalThis.PMDashboardIdentity;
 /* @uat-admin-sso production sso-4
 @uat-admin-sso end sso-4 */
@@ -5569,13 +5570,23 @@ function stopDashboardIdentitySubscription(){
   document.getElementById('approvedIdentity').textContent='';document.getElementById('linkGooglePassword').value='';
   document.getElementById('accountSecurityOverlay').classList.remove('open');
 }
+// Build-controlled rollout gates (env-config.js -> googleSso). Missing/malformed/invalid => both false. UI rollout only:
+// Rules, Functions and PDF still enforce UID, role and Google-subject binding.
+const googleGates=resolveGoogleSsoGates(IS_UAT_PROFILE?PM_ENV.googleSso:undefined);
+const googleSignInOpen=()=>IS_UAT_PROFILE&&googleGates.googleSignInEnabled===true;
+const googleLinkingOpen=()=>IS_UAT_PROFILE&&googleGates.googleLinkingEnabled===true;
+// Only errors this app raised (userSafe) or known Firebase codes are mapped; raw Firebase codes/messages are never shown.
 function ssoErrorMessage(error){
-  if(error?.code==='auth/popup-closed-by-user')return 'Google sign-in was cancelled. You can try again or use your password.';
-  if(['auth/account-exists-with-different-credential','auth/credential-already-in-use','auth/provider-already-linked'].includes(error?.code))return 'This account is already associated with another sign-in method. Use your existing password and ask the Owner to review the link.';
-  if(error?.code==='auth/popup-blocked')return 'Allow the Google sign-in popup, then try again.';
-  return error?.message||'Sign-in failed. Try again or use your password.';
+  const code=typeof error?.code==='string'?error.code:'';
+  if(error?.userSafe===true)return error.message;
+  if(code==='auth/popup-closed-by-user')return 'Google sign-in was cancelled. You can try again or use your password.';
+  if(['auth/account-exists-with-different-credential','auth/credential-already-in-use','auth/provider-already-linked'].includes(code))return 'This account is already associated with another sign-in method. Use your existing password and ask the Owner to review the link.';
+  if(code==='auth/popup-blocked')return 'Allow the Google sign-in popup, then try again.';
+  if(['auth/operation-not-allowed','auth/admin-restricted-operation','auth/unauthorized-domain'].includes(code))return GOOGLE_SSO_DISABLED_MESSAGES.signIn;
+  if(['auth/wrong-password','auth/invalid-credential','auth/invalid-login-credentials'].includes(code))return 'The password you entered is not correct.';
+  return 'Sign-in failed. Try again or use your password.';
 }
-const googleAuthFlow=createGoogleAuthFlow({auth,api:{GoogleAuthProvider,EmailAuthProvider,beforeAuthStateChanged,reauthenticateWithCredential,signInWithEmailAndPassword,signInWithPopup,linkWithPopup,unlink,signOut},
+const googleAuthFlow=createGoogleAuthFlow({auth,gates:{signIn:googleSignInOpen,link:googleLinkingOpen},api:{GoogleAuthProvider,EmailAuthProvider,beforeAuthStateChanged,reauthenticateWithCredential,signInWithEmailAndPassword,signInWithPopup,linkWithPopup,unlink,signOut},
   getSession:()=>({uid:currentUser?.uid,email:getEmailKey(currentUser),generation:authSessionGeneration,record:approvedDashboardIdentity}),
   onState:state=>{
     for(const id of ['googleLoginBtn','passwordLoginBtn','linkGoogleBtn'])document.getElementById(id).disabled=state.busy;
@@ -5585,18 +5596,19 @@ const googleAuthFlow=createGoogleAuthFlow({auth,api:{GoogleAuthProvider,EmailAut
     document.getElementById('authProgress').textContent=state.busy&&state.operation!=='link'?'Signing in…':'';
     if(state.operation==='link')document.getElementById('accountSecurityStatus').textContent=state.error||state.message;
   }});
-document.getElementById('googleLoginBtn').hidden=!IS_UAT_PROFILE;
+document.getElementById('googleLoginBtn').hidden=!googleSignInOpen();
 document.getElementById('accountSecurityBtn').hidden=true;
-window.handleGoogleLogin=async()=>{if(!IS_UAT_PROFILE)return;try{await googleAuthFlow.google();}catch(error){showAuthError(ssoErrorMessage(error));}finally{hideLoader();}};
+window.handleGoogleLogin=async()=>{if(!IS_UAT_PROFILE)return;if(!googleSignInOpen()){showAuthError(GOOGLE_SSO_DISABLED_MESSAGES.signIn);return;}try{await googleAuthFlow.google();}catch(error){showAuthError(ssoErrorMessage(error));}finally{hideLoader();}};
 window.cancelPendingAuth=()=>{googleAuthFlow.cancel();hideLoader();};
 window.openAccountSecurity=()=>{
-  if(!IS_UAT_PROFILE||currentRole!=='admin'||!approvedDashboardIdentity||!currentUser)return;
+  if(!googleLinkingOpen()||currentRole!=='admin'||!approvedDashboardIdentity||!currentUser)return;
   document.getElementById('approvedIdentity').textContent=`${currentUser.email} · ${currentRole.toUpperCase()} · Approved account`;
   document.getElementById('linkGooglePassword').value='';document.getElementById('accountSecurityStatus').textContent='';
   openAccessibleModal(document.getElementById('accountSecurityOverlay'));
 };
 window.linkGoogleAccount=async()=>{
   if(!IS_UAT_PROFILE||currentRole!=='admin')return;
+  if(!googleLinkingOpen()){document.getElementById('accountSecurityStatus').textContent=GOOGLE_SSO_DISABLED_MESSAGES.linking;return;}
   const input=document.getElementById('linkGooglePassword'),password=input.value;input.value='';
   try{await googleAuthFlow.link(password);}catch(error){document.getElementById('accountSecurityStatus').textContent=ssoErrorMessage(error);if(error.recoveryRequired)showAuthError(ssoErrorMessage(error));}
 };
@@ -5613,7 +5625,7 @@ async function verifyAndWatchDashboardIdentity(user,userDoc,generation,isCurrent
   const reason=dashboardIdentityError({uid:user.uid,email:getEmailKey(user),claims},record);
   if(reason)throw Error('This sign-in identity is not approved for Dashboard access. Ask the Owner to verify its UID and Google binding.');
   approvedDashboardIdentity=record;
-  document.getElementById('accountSecurityBtn').hidden=normalizeDashboardRole(record.role)!=='admin';
+  document.getElementById('accountSecurityBtn').hidden=!googleLinkingOpen()||normalizeDashboardRole(record.role)!=='admin';
   const capturedRole=normalizeDashboardRole(record.role);
   dashboardIdentityUnsub=onSnapshot(doc(db,'users',getEmailKey(user)),{includeMetadataChanges:true},async snapshot=>{
     if(snapshot.metadata.fromCache||!isCurrent())return;

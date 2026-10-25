@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { resolveGoogleSsoGates } from '../js/google-sso-gate.mjs';
 
 // The only environments this repository may publish to Firebase Hosting, fixed in code. Adding one is a
 // deliberate source change, never an env-file edit. Keys match env/<name>.json filenames and .firebaserc aliases.
@@ -77,6 +78,16 @@ export async function loadHostingEnv(rootDir, name) {
       `env/${name}.json or pdf-service/src/targets/registry.json so they name the same PDF service -- never the ` +
       'other environment\'s.'
     );
+  }
+  // Google SSO rollout gates exist only for the UAT profile and are build-controlled. Production must not carry them;
+  // UAT may omit them (the browser then resolves state A: both OFF); if declared they must be booleans in a valid
+  // rollout state (A/B/C). Anything malformed fails the build instead of being guessed.
+  if (name === 'prod') {
+    if (Object.hasOwn(env, 'googleSso')) throw new Error('env/prod.json must not define "googleSso": Production stays password-only.');
+  } else {
+    if (env.googleSso !== undefined && (env.googleSso === null || !resolveGoogleSsoGates(env.googleSso).valid)) {
+      throw new Error(`env/${name}.json "googleSso" must be {"googleLinkingEnabled": boolean, "googleSignInEnabled": boolean}; googleSignInEnabled requires googleLinkingEnabled.`);
+    }
   }
   // pdfReleaseReady is derived, not stored: an artifact built from this environment can serve the dashboard
   // either way, but a missing PDF endpoint must stay visible, never silently substituted for another environment's.

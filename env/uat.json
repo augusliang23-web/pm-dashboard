@@ -14,5 +14,9 @@
     "messagingSenderId": "317352278230",
     "appId": "1:317352278230:web:8cc08b9672db5481f4b177"
   },
-  "pdfServiceUrl": "https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app"
+  "pdfServiceUrl": "https://pm-dashboard-uat-pdf-b266ahac7q-as.a.run.app",
+  "googleSso": {
+    "googleLinkingEnabled": false,
+    "googleSignInEnabled": false
+  }
 }
