@@ -1,3 +1,5 @@
+import{existsSync}from'node:fs';
+import {renderSsoTarget,assertNoProductionSso} from './uat-sso-build-boundary.mjs';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +33,8 @@ export async function buildHosting({ rootDir, outDir, env, log = () => {} }) {
   if (containsRoot(outDir, rootDir)) {
     throw new Error('Refusing to rebuild an output directory that contains the repository root.');
   }
-  const files = await collectHostingAssets(rootDir);
+  const transform=(file,text)=>file==='index.html'&&existsSync(join(rootDir,'config/uat-only-source.json'))?renderSsoTarget(text,env.environment):text;
+  const files = await collectHostingAssets(rootDir,'index.html',{transform});
   if (!files.includes('env-config.js')) {
     throw new Error('index.html must load env-config.js so the hosting build can inject the target environment.');
   }
@@ -39,12 +42,14 @@ export async function buildHosting({ rootDir, outDir, env, log = () => {} }) {
   await rm(outDir, { recursive: true, force: true });
   for (const file of files) {
     await mkdir(dirname(join(outDir, file)), { recursive: true });
-    await copyFile(join(rootDir, file), join(outDir, file));
+    if(file==='index.html')await writeFile(join(outDir,file),transform(file,await readFile(join(rootDir,file),'utf8')));
+    else await copyFile(join(rootDir, file), join(outDir, file));
   }
   // Overwrite the copied (Production-default) env-config.js with this target's rendering. This is the only
   // environment-specific write the build performs.
   await writeFile(join(outDir, 'env-config.js'), renderEnvConfig(env));
   await assertNoCrossEnvironmentLeak(outDir, files, env);
+  if(env.environment==='prod')assertNoProductionSso(await Promise.all(files.map(async file=>[file,await readFile(join(outDir,file),'utf8')])));
 
   if (!env.pdfReleaseReady) {
     log(`NOT READY FOR RELEASE: ${env.environment} has no PDF Cloud Run service configured (env/${env.environment}.json pdfServiceUrl is null). ` +

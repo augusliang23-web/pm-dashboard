@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing';
-import {doc,getDoc,setDoc} from 'firebase/firestore';
+import {doc,getDoc,setDoc,getDocs,collection} from 'firebase/firestore';
 import {loadAuthorizedReport} from '../../pdf-service/src/report-data.js';
 const projectId='demo-pm-dashboard-v22t';
 assert.equal(process.env.GCLOUD_PROJECT,projectId);
@@ -15,10 +15,11 @@ const passwordClaims={email,firebase:{sign_in_provider:'password'}};
 const googleClaims={email,email_verified:true,firebase:{sign_in_provider:'google.com',identities:{'google.com':['approved-sub']}}};
 const record={role:'admin',displayName:'SSO Admin',authUid:uid,googleSubject:'approved-sub'};
 const results=[];
-for(const rulesFile of ['firestore.rules','firestore.uat.rules','firestore.shared-backend.rules'])test(rulesFile+' enforces UID/provider binding before dashboard data',async()=>{
+for(const rulesFile of ['firestore.uat.rules','firestore.shared-backend.rules'])test(rulesFile+' enforces UID/provider binding before dashboard data',async()=>{
  const env=await initializeTestEnvironment({projectId,firestore:{host:'127.0.0.1',port:8081,rules:readFileSync(rulesFile,'utf8')}});
  try{
   await env.clearFirestore();await env.withSecurityRulesDisabled(async c=>{const db=c.firestore();await setDoc(doc(db,'users',email),record);await setDoc(doc(db,'weeks','W43'),{isReleased:false,projects:[]});await setDoc(doc(db,'userPermissions',email),{overrides:{}});});
+  await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(),'users')));
   for(const claims of [passwordClaims,googleClaims])await assertSucceeds(getDoc(doc(env.authenticatedContext(uid,claims).firestore(),'weeks','W43')));
   for(const [wrongUid,claims]of [['other-uid',passwordClaims],['other-uid',googleClaims],[uid,{...googleClaims,email_verified:false}],[uid,{...googleClaims,firebase:{sign_in_provider:'google.com',identities:{'google.com':['other-sub']}}}],[uid,{email,firebase:{sign_in_provider:'custom'}}]]){
    const db=env.authenticatedContext(wrongUid,claims).firestore();
@@ -28,6 +29,10 @@ for(const rulesFile of ['firestore.rules','firestore.uat.rules','firestore.share
    await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'users',email),{...record,...patch}));
    await assertFails(getDoc(doc(env.authenticatedContext(uid,googleClaims).firestore(),'weeks','W43')));
   }
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'users',email),record));
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'users',email),{...record,role:'pm'}));
+  await assertFails(getDoc(doc(env.authenticatedContext(uid,googleClaims).firestore(),'weeks','W43')));
+  await assertSucceeds(getDoc(doc(env.authenticatedContext(uid,passwordClaims).firestore(),'weeks','W43')));
   await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'users',email),record));
   await assertFails(setDoc(doc(env.authenticatedContext(uid,passwordClaims).firestore(),'users',email),{...record,authUid:'attacker'}));
   results.push({name:rulesFile,status:'PASS'});
@@ -46,6 +51,9 @@ test('all 24 authenticated callable entrypoints deny mismatched UID before busin
   const data=name==='getDashboardProjectDraft'?{capabilities:true}:name==='publishDashboardProjectDraft'?{weekId:'W43',draftId:'test',expectedRevision:1,expectedPublishedRevision:null}:name==='restoreUatWeeksSnapshot'?{snapshotId:'synthetic'}:{};
   const extra={withdrawExecutiveMilestoneChangeRequest:{requestId:'synthetic'},decideExecutiveMilestoneChangeRequest:{requestId:'synthetic',decision:'approve'},saveExecutiveMilestoneTimelineConfig:{expectedVersion:1,reason:'synthetic'},initializeExecutiveMilestoneLiveTimeline:{sourceWeekId:'W43'},setExecutiveRagOverride:{scope:'section',targetId:'synthetic',reason:'synthetic',rag:null}}[name]||{};
   await assert.rejects(()=>handler.run({auth:{uid:'unapproved-uid',token:googleClaims},data:{...data,...extra}}),e=>{assert.equal(e.code,'permission-denied',name+': '+e.message);assert.equal(e.details?.reason,'identity-binding-mismatch',name);return true;});
+  await db.collection('users').doc(email).set({...record,role:'pm'});
+  await assert.rejects(()=>handler.run({auth:{uid,token:googleClaims},data:{...data,...extra}}),e=>e.code==='permission-denied');
+  await db.collection('users').doc(email).set(record);
   results.push({name,status:'PASS'});
  }
  // No business write path was entered.
@@ -63,6 +71,8 @@ test('PDF denies wrong UID/unapproved Google before reading any reporting week',
  await assert.rejects(()=>loadAuthorizedReport({request:{mode:'overview',weekId:'W43',sections:[]},idToken:'synthetic-not-a-token',adapters}),/identity-binding-mismatch/);assert.equal(reads,0);
  adapters.verifyIdToken=async()=>({uid,...googleClaims});adapters.getUserByEmail=async()=>({...record,googleSubject:'other'});
  await assert.rejects(()=>loadAuthorizedReport({request:{mode:'overview',weekId:'W43',sections:[]},idToken:'synthetic-not-a-token',adapters}),/identity-google-unapproved/);assert.equal(reads,0);
+ adapters.getUserByEmail=async()=>({...record,role:'pm'});
+ await assert.rejects(()=>loadAuthorizedReport({request:{mode:'overview',weekId:'W43',sections:[]},idToken:'synthetic-not-a-token',adapters}),/identity-google-admin-only/);assert.equal(reads,0);
  results.push({name:'pdf binding before data read',status:'PASS'});
 });
 process.on('beforeExit',()=>{mkdirSync('tmp/sso-google-v1',{recursive:true});writeFileSync('tmp/sso-google-v1/security-gate.json',JSON.stringify({results,evidence:'Rules real emulator; callables actual .run handlers with synthetic auth context; PDF real loader with synthetic verified-token adapter'},null,2));});

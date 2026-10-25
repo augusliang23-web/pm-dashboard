@@ -73,7 +73,7 @@ await check('backend A-G create/save/publish/reopen/republish and PM contracts',
  await assert.rejects(invoke('getDashboardProjectDraft',{draftId:draft.draftId},'other'));
 });
 for(const [name,role,assignment,extra] of [
- ['other Admin','admin',{ownerEmail:'another.admin@example.test'},{}],['PM assigning Admin','pm',{ownerEmail:emails.admin},{}],['VIP','vip',{ownerEmail:emails.admin},{}],['forged role','pm',{ownerEmail:emails.admin},{role:'admin'}],['missing target','admin',{ownerEmail:'missing@example.test'},{}],['invalid role','admin',{ownerEmail:'invalid@example.test'},{}],['deputy Admin','admin',{ownerEmail:emails.pm,deputyEmail:emails.admin},{}],['anonymous',null,{ownerEmail:emails.admin},{}]
+ ['other Admin','admin',{ownerEmail:'another.admin@example.test'},{}],['PM assigning Admin','pm',{ownerEmail:emails.admin},{}],['VIP','vip',{ownerEmail:emails.admin},{}],['forged role','pm',{ownerEmail:emails.admin},{role:'admin'}],['missing target','admin',{ownerEmail:'missing@example.test'},{}],['invalid role','admin',{ownerEmail:'invalid@example.test'},{}],['other deputy Admin','admin',{ownerEmail:emails.pm,deputyEmail:'another.admin@example.test'},{}],['anonymous',null,{ownerEmail:emails.admin},{}]
 ])await check(`backend rejects ${name} on save AND publish without writes`,async()=>{
  const before=(await db.collection('projectDrafts').get()).size,week=(await db.collection('weeks').doc('W43').get()).data();
  const input={expectedRevision:0,project:{...project,code:'DENY'},assignment,...extra};
@@ -94,7 +94,7 @@ try{
  const code='SELF-'+profile.toUpperCase(),wait=async fn=>{for(let i=0;i<100;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Timed out: '+code);};
  await page.goto(`http://127.0.0.1:4198/${profile}/?emulator=1&firestorePort=8188&authPort=9198&functionsPort=5108`,{waitUntil:'domcontentloaded'});await login();
  await page.click('#addProjectBtn');await page.waitForSelector('#projEditOverlay.open');await page.waitForFunction(()=>document.querySelector('#projEditOverlay.open')?.getAttribute('aria-busy')!=='true');
- const options=await page.$$eval('#pe_owner option',o=>o.map(e=>({value:e.value,text:e.textContent})));assert.equal(options.filter(o=>o.value===emails.admin).length,1);assert.ok(options.find(o=>o.value===emails.admin).text.includes('Sprint admin'));assert.ok(!options.some(o=>o.value==='another.admin@example.test'));assert.equal(await page.$$eval('#pe_deputy option',o=>o.some(e=>e.value==='sprint.admin@example.test')),false);
+ const options=await page.$$eval('#pe_owner option',o=>o.map(e=>({value:e.value,text:e.textContent})));assert.equal(options.filter(o=>o.value===emails.admin).length,1);assert.ok(options.find(o=>o.value===emails.admin).text.includes('Sprint admin'));assert.ok(!options.some(o=>o.value==='another.admin@example.test'));assert.equal(await page.$$eval('#pe_deputy option',o=>o.some(e=>e.value==='sprint.admin@example.test')),true);
  await fill('#pe_name',code);await fill('#pe_code',code);await page.select('#pe_owner',emails.admin);await page.click('#pe_btn_save');
  let draft;await wait(async()=>{const docs=await db.collection('projectDrafts').get();draft=docs.docs.map(d=>d.data()).find(d=>d.project.code===code);return draft;});assert.equal(draft.assignment.ownerEmail,emails.admin);
  await page.waitForFunction(()=>!document.querySelector('#pe_btn_publish').disabled);await page.click('#pe_btn_publish');await wait(async()=>(await db.collection('weeks').doc('W43').get()).data().projects.some(p=>p.code===code));

@@ -1,3 +1,5 @@
+> Superseded product policy (2026-10-25): Google is UAT-only and Admin-only. PM/all other roles use password; Production must not receive SSO. This document is historical; follow ../sso-uat-admin-only/REPORT.md and RELEASE_ISOLATION.md.
+
 # Antigravity 獨立 QA 交接
 
 範圍：審查此本機提交與 PR79 的差異，驗證 UID/provider 防護、Admin 原 UID／角色、PM 隔離、取消及撤權清除，並重測 S01 草稿／發佈。不得操作雲端或真實帳號。Gate與後續雲端授權回報 ChatGPT Control Plane。

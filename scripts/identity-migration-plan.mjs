@@ -17,6 +17,7 @@ export function planIdentityMigration({authUsers,dashboardUsers,approvedMappings
   if(stored.data.authUid&&stored.data.authUid!==mapping.uid)throw Error('Existing UID binding cannot be reassigned automatically.');
   const patch={authUid:mapping.uid};
   if(mapping.googleSubject){
+   if(emailKey(stored.data.role)!=='admin')throw Error('Only Admin may receive Google subject approval.');
    const provider=auth.providerData?.find(p=>p.providerId==='google.com');
    if(auth.emailVerified!==true||provider?.uid!==mapping.googleSubject||emailKey(provider.email)!==email)throw Error('Approved Google provider does not match trusted Auth metadata.');
    if(stored.data.googleSubject&&stored.data.googleSubject!==mapping.googleSubject)throw Error('Existing Google binding cannot be reassigned automatically.');

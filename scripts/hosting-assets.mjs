@@ -34,7 +34,7 @@ function isScannable(file) {
   return /\.(?:html|m?js)$/.test(file);
 }
 
-export async function collectHostingAssets(rootDir, entry = 'index.html') {
+export async function collectHostingAssets(rootDir, entry = 'index.html', {transform = (_file,text) => text} = {}) {
   const assets = new Set();
   const queue = [entry];
   while (queue.length) {
@@ -43,7 +43,7 @@ export async function collectHostingAssets(rootDir, entry = 'index.html') {
     assets.add(file);
     if (!isScannable(file)) continue;
 
-    const text = await readFile(join(rootDir, file), 'utf8');
+    const text = transform(file, await readFile(join(rootDir, file), 'utf8'));
     for (const pattern of UNSUPPORTED_PATTERNS) {
       if (pattern.test(text)) {
         throw new Error(`Unsupported asset reference in ${file}: ${pattern}. Use a static import or a script/link tag so the hosting build can follow it.`);

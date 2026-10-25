@@ -1,0 +1,6 @@
+{
+  "source": "cf21ca4fe0ad5d2cca4adaa639c7ba3380f0d7b5",
+  "htmlSha256": "ea2c9f487b83ec064575c80123ed64ee2bd039cb120f79f8bbc21eb2d1cdf30f",
+  "firestoreRulesSha256": "cd60f5d6e6008121dae6d04642f8793d8158000f0adcfa781bd78060c11888d0",
+  "verification": "Recorded from exact Git objects; CI compares fixed hashes without historical checkout."
+}

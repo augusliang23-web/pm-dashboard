@@ -1,0 +1,7 @@
+# UAT-only Admin Google product contract
+
+Owner final decision: UAT Admin may use approved Google identity or password; UAT PM/other roles password only. Production password login and rules baseline retained, Google client functionality absent from build artifacts. No user directory before auth. Existing UID/verified provider/Owner subject checks remain authoritative in UAT Rules/Functions/PDF.
+
+Local architecture: isolated branch integrating fixed PR80+PR81 parents. Strict, enumerated build-time feature blocks retain the exact PR81 Production HTML as fallback, omit UAT modules from the Production reference closure, and scan all final artifacts for forbidden SSO APIs/handlers. Raw runtime hiding is insufficient. UAT Google entry labeled Admin; authenticated linking UI/function requires trusted Admin. Production Rules restored to PR81; this mixed UAT source must not be promoted to main or deployed as Production Functions/PDF. CI/release source guard and documented clean PR81 release line prevent accidental promotion. Future Production releases use the non-SSO release line.
+
+No deployment/Auth/provider/IAM/billing/live data writes or remote branch modifications. Synthetic emulators permitted. Validate role/provider matrix, target builds and negative guard mutations, authoritative UAT data boundaries, password-only Production browser, PR81/S01 journeys. Exact historical source hashes remain fixed through auditable combined deltas. Local commit only, independent UAT acceptance remains separate.

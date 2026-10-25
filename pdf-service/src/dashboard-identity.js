@@ -16,6 +16,7 @@
     const provider=claims?.firebase?.sign_in_provider;
     if(provider==='password')return '';
     if(provider!=='google.com')return 'identity-provider-forbidden';
+    if(emailKey(user.role)!=='admin')return 'identity-google-admin-only';
     if(claims.email_verified!==true)return 'identity-google-unverified';
     const subjects=claims.firebase.identities?.['google.com'];
     if(typeof user.googleSubject!=='string'||!user.googleSubject||!Array.isArray(subjects)||subjects.length!==1||subjects[0]!==user.googleSubject)return 'identity-google-unapproved';

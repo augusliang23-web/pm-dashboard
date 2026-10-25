@@ -16,3 +16,5 @@ for(const [label,mutate]of [
  ['unverified Google email',i=>i.authUsers[0].emailVerified=false],
 ])test(label+' fails closed',()=>{const i=structuredClone(input);mutate(i);assert.throws(()=>planIdentityMigration(i));});
 test('password-only migration does not automatically approve linked Google',()=>{const i=structuredClone(input);delete i.approvedMappings[0].googleSubject;assert.deepEqual(planIdentityMigration(i)[0].patch,{authUid:'admin-old-uid'});});
+test('PM Google subject approval is rejected by the Admin-only migration plan',()=>{const i=structuredClone(input);i.dashboardUsers[0].data.role='pm';assert.throws(()=>planIdentityMigration(i),/Admin/);});
+test('PM password binding remains additive without approving Google',()=>{const i=structuredClone(input);i.dashboardUsers[0].data.role='pm';delete i.approvedMappings[0].googleSubject;assert.deepEqual(planIdentityMigration(i)[0].patch,{authUid:'admin-old-uid'});});

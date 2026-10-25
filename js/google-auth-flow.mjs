@@ -20,6 +20,7 @@ export function createGoogleAuthFlow({auth,api,getSession,onState=()=>{}}){
   password:(email,password)=>run('password',()=>api.signInWithEmailAndPassword(auth,email,password)),
   link:password=>run('link',async attempt=>{
    const stamp=getSession(),user=auth.currentUser;
+   if(stamp.record?.role?.trim().toLowerCase()!=='admin')throw Error('Google linking is restricted to an approved Admin.');
    if(!stamp.uid||stamp.record?.authUid!==stamp.uid||!password)throw Error('Sign in to your approved account and enter your current password first.');
    const current=()=>!attempt.cancelled&&same(stamp);
    await api.reauthenticateWithCredential(user,api.EmailAuthProvider.credential(stamp.email,password));

@@ -22,6 +22,7 @@ service cloud.firestore {
         && normalizeDashboardRole(user.get('role', '')) != ''
         && (provider == 'password'
           || (provider == 'google.com'
+            && normalizeDashboardRole(user.get('role', '')) == 'admin'
             && request.auth.token.get('email_verified', false) == true
             && user.get('googleSubject', '') is string
             && user.get('googleSubject', '').size() > 0

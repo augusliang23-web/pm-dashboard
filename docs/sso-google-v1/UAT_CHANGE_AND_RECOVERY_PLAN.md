@@ -1,3 +1,5 @@
+> Superseded product policy (2026-10-25): Google is UAT-only and Admin-only. PM/all other roles use password; Production must not receive SSO. This document is historical; follow ../sso-uat-admin-only/REPORT.md and RELEASE_ISOLATION.md.
+
 # UAT SSO changes and recovery — prepare only
 
 No command in this document was executed against UAT/Production. Owner separately approved the local UID design and local PDF authorization scope; neither is cloud authorization. UAT is `pm-dashboard-uat-20260820-a7f3`; Production is excluded.

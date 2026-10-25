@@ -1,0 +1,1396 @@
+TAP version 13
+# Subtest: verified Admin may select normalized self only as primary PM
+ok 1 - verified Admin may select normalized self only as primary PM
+  ---
+  duration_ms: 2.336625
+  type: 'test'
+  ...
+# Subtest: other Admin remains rejected
+ok 2 - other Admin remains rejected
+  ---
+  duration_ms: 0.154625
+  type: 'test'
+  ...
+# Subtest: other Admin deputy remains rejected
+ok 3 - other Admin deputy remains rejected
+  ---
+  duration_ms: 0.042583
+  type: 'test'
+  ...
+# Subtest: missing document remains rejected
+ok 4 - missing document remains rejected
+  ---
+  duration_ms: 0.039042
+  type: 'test'
+  ...
+# Subtest: invalid role remains rejected
+ok 5 - invalid role remains rejected
+  ---
+  duration_ms: 0.090709
+  type: 'test'
+  ...
+# Subtest: PM cannot assign Admin remains rejected
+ok 6 - PM cannot assign Admin remains rejected
+  ---
+  duration_ms: 0.03125
+  type: 'test'
+  ...
+# Subtest: VIP cannot assign remains rejected
+ok 7 - VIP cannot assign remains rejected
+  ---
+  duration_ms: 0.066625
+  type: 'test'
+  ...
+# Subtest: no auth remains rejected
+ok 8 - no auth remains rejected
+  ---
+  duration_ms: 0.027167
+  type: 'test'
+  ...
+# Subtest: normal PM targets and automatic PM self remain unchanged
+ok 9 - normal PM targets and automatic PM self remain unchanged
+  ---
+  duration_ms: 0.332291
+  type: 'test'
+  ...
+# Subtest: Admin can select self Deputy and normalized active PM owner
+ok 10 - Admin can select self Deputy and normalized active PM owner
+  ---
+  duration_ms: 1.321458
+  type: 'test'
+  ...
+# Subtest: other Admin rejected as Deputy
+ok 11 - other Admin rejected as Deputy
+  ---
+  duration_ms: 0.170667
+  type: 'test'
+  ...
+# Subtest: disabled PM rejected as Deputy
+ok 12 - disabled PM rejected as Deputy
+  ---
+  duration_ms: 0.080208
+  type: 'test'
+  ...
+# Subtest: inactive PM rejected as Deputy
+ok 13 - inactive PM rejected as Deputy
+  ---
+  duration_ms: 0.04125
+  type: 'test'
+  ...
+# Subtest: disabled self rejected as Deputy
+ok 14 - disabled self rejected as Deputy
+  ---
+  duration_ms: 0.072417
+  type: 'test'
+  ...
+# Subtest: unknown rejected as Deputy
+ok 15 - unknown rejected as Deputy
+  ---
+  duration_ms: 0.031
+  type: 'test'
+  ...
+# Subtest: PM cannot submit Deputy assignment and Unassigned stays valid
+ok 16 - PM cannot submit Deputy assignment and Unassigned stays valid
+  ---
+  duration_ms: 0.142458
+  type: 'test'
+  ...
+# Subtest: draft runtime is UAT-only and rejects conflicting or absent identities
+ok 17 - draft runtime is UAT-only and rejects conflicting or absent identities
+  ---
+  duration_ms: 1.452708
+  type: 'test'
+  ...
+# Subtest: Publish alone writes official content, then draft edits remain isolated until republished
+ok 18 - Publish alone writes official content, then draft edits remain isolated until republished
+  ---
+  duration_ms: 8.120792
+  type: 'test'
+  ...
+# Subtest: timeout retry is idempotent but cannot mask restored or deleted target
+ok 19 - timeout retry is idempotent but cannot mask restored or deleted target
+  ---
+  duration_ms: 3.2445
+  type: 'test'
+  ...
+# Subtest: same code legacy project, released target, stale draft and lost grant reject without writes
+ok 20 - same code legacy project, released target, stale draft and lost grant reject without writes
+  ---
+  duration_ms: 0.603875
+  type: 'test'
+  ...
+# Subtest: audit write failure rolls back official snapshot and publication marker
+ok 21 - audit write failure rolls back official snapshot and publication marker
+  ---
+  duration_ms: 0.833541
+  type: 'test'
+  ...
+# Subtest: new week carryover matches stable identity and never updates an earlier week
+ok 22 - new week carryover matches stable identity and never updates an earlier week
+  ---
+  duration_ms: 0.327125
+  type: 'test'
+  ...
+# Subtest: republish rejects ambiguous identities, stale target and externally changed ownership
+ok 23 - republish rejects ambiguous identities, stale target and externally changed ownership
+  ---
+  duration_ms: 0.601125
+  type: 'test'
+  ...
+# Subtest: later publication prevents rewriting an earlier unreleased reporting week
+ok 24 - later publication prevents rewriting an earlier unreleased reporting week
+  ---
+  duration_ms: 2.708833
+  type: 'test'
+  ...
+# Subtest: a refreshed current fingerprint cannot take over a restored target
+ok 25 - a refreshed current fingerprint cannot take over a restored target
+  ---
+  duration_ms: 0.374792
+  type: 'test'
+  ...
+# Subtest: persistent publication markers remain bounded across large weekly publications
+ok 26 - persistent publication markers remain bounded across large weekly publications
+  ---
+  duration_ms: 39.418791
+  type: 'test'
+  ...
+# Subtest: an archived publication cannot be resurrected into an empty later week by either save action
+ok 27 - an archived publication cannot be resurrected into an empty later week by either save action
+  ---
+  duration_ms: 1.589125
+  type: 'test'
+  ...
+# Subtest: UAT old Save and attention handlers reject managed projects without partial writes
+ok 28 - UAT old Save and attention handlers reject managed projects without partial writes
+  ---
+  duration_ms: 1.656209
+  type: 'test'
+  ...
+# Subtest: old new-project payload cannot bypass Draft creation in UAT
+ok 29 - old new-project payload cannot bypass Draft creation in UAT
+  ---
+  duration_ms: 0.181666
+  type: 'test'
+  ...
+# Subtest: Production create and editing remain compatible
+ok 30 - Production create and editing remain compatible
+  ---
+  duration_ms: 0.369584
+  type: 'test'
+  ...
+# Subtest: Admin lifecycle updates cannot rename a managed project through projectCode
+ok 31 - Admin lifecycle updates cannot rename a managed project through projectCode
+  ---
+  duration_ms: 0.155
+  type: 'test'
+  ...
+# Subtest: all UAT legacy content and attention writes must use the same draft publication boundary
+ok 32 - all UAT legacy content and attention writes must use the same draft publication boundary
+  ---
+  duration_ms: 0.143125
+  type: 'test'
+  ...
+# Subtest: archived project management retains its original authorization outside Draft Publish
+ok 33 - archived project management retains its original authorization outside Draft Publish
+  ---
+  duration_ms: 0.645041
+  type: 'test'
+  ...
+# Subtest: real save/get handlers keep drafts out of weeks and reject forged/stale requests
+ok 34 - real save/get handlers keep drafts out of weeks and reject forged/stale requests
+  ---
+  duration_ms: 1.924916
+  type: 'test'
+  ...
+# Subtest: list is scoped, bounded and paginated without exposing other PM drafts
+ok 35 - list is scoped, bounded and paginated without exposing other PM drafts
+  ---
+  duration_ms: 7.299917
+  type: 'test'
+  ...
+# Subtest: assignment and role revocation apply to the next request
+ok 36 - assignment and role revocation apply to the next request
+  ---
+  duration_ms: 0.443375
+  type: 'test'
+  ...
+# Subtest: an Admin or PM can create a new draft without project.manage, and it stays incomplete until Publish
+ok 37 - an Admin or PM can create a new draft without project.manage, and it stays incomplete until Publish
+  ---
+  duration_ms: 2.872542
+  type: 'test'
+  ...
+# Subtest: stored email ACL, not display-name or forged role, controls draft access
+ok 38 - stored email ACL, not display-name or forged role, controls draft access
+  ---
+  duration_ms: 0.7645
+  type: 'test'
+  ...
+# Subtest: revision, metadata, assignment and published code cannot be forged
+ok 39 - revision, metadata, assignment and published code cannot be forged
+  ---
+  duration_ms: 0.584083
+  type: 'test'
+  ...
+# Subtest: draft fields are bounded and progress values must be real percentages
+ok 40 - draft fields are bounded and progress values must be real percentages
+  ---
+  duration_ms: 0.269792
+  type: 'test'
+  ...
+# Subtest: Admin assignment resolves directory users and PM cannot borrow a same-name user
+ok 41 - Admin assignment resolves directory users and PM cannot borrow a same-name user
+  ---
+  duration_ms: 0.273416
+  type: 'test'
+  ...
+# Subtest: existing editor discipline resources are maps, not an array
+ok 42 - existing editor discipline resources are maps, not an array
+  ---
+  duration_ms: 0.08925
+  type: 'test'
+  ...
+# Subtest: opening and saving an owned legacy project needs no create grant and never changes official data
+ok 43 - opening and saving an owned legacy project needs no create grant and never changes official data
+  ---
+  duration_ms: 5.569666
+  type: 'test'
+  ...
+# Subtest: source authority rejects other PM, released source, ambiguous name and forged origin
+ok 44 - source authority rejects other PM, released source, ambiguous name and forged origin
+  ---
+  duration_ms: 0.742125
+  type: 'test'
+  ...
+# Subtest: initial source save rejects stale official revision and subsequent access rechecks source ownership
+ok 45 - initial source save rejects stale official revision and subsequent access rechecks source ownership
+  ---
+  duration_ms: 0.547333
+  type: 'test'
+  ...
+# Subtest: source saves preserve unknown official metadata while publishing exactly one existing project
+ok 46 - source saves preserve unknown official metadata while publishing exactly one existing project
+  ---
+  duration_ms: 1.04975
+  type: 'test'
+  ...
+# Subtest: save-and-publish uses the current submitted form, with one atomic legacy conversion
+ok 47 - save-and-publish uses the current submitted form, with one atomic legacy conversion
+  ---
+  duration_ms: 1.878
+  type: 'test'
+  ...
+# Subtest: atomic publish audit failure saves neither current form nor official values
+ok 48 - atomic publish audit failure saves neither current form nor official values
+  ---
+  duration_ms: 0.81325
+  type: 'test'
+  ...
+# Subtest: a stable new draft identifier makes first save-and-publish retry safe
+ok 49 - a stable new draft identifier makes first save-and-publish retry safe
+  ---
+  duration_ms: 1.007666
+  type: 'test'
+  ...
+# Subtest: atomic action cannot publish a new project without create grant or leak a collided draft ID
+ok 50 - atomic action cannot publish a new project without create grant or leak a collided draft ID
+  ---
+  duration_ms: 0.362417
+  type: 'test'
+  ...
+# Subtest: non-Admin cannot import hidden or archived official data through the source endpoint
+ok 51 - non-Admin cannot import hidden or archived official data through the source endpoint
+  ---
+  duration_ms: 0.736416
+  type: 'test'
+  ...
+# Subtest: archived official projects stay in existing management rather than becoming new source drafts
+ok 52 - archived official projects stay in existing management rather than becoming new source drafts
+  ---
+  duration_ms: 0.323125
+  type: 'test'
+  ...
+# Subtest: list does not return source-backed working contents after official ownership is revoked
+ok 53 - list does not return source-backed working contents after official ownership is revoked
+  ---
+  duration_ms: 2.095791
+  type: 'test'
+  ...
+# Subtest: new caller-created drafts cannot preclaim the server source namespace
+ok 54 - new caller-created drafts cannot preclaim the server source namespace
+  ---
+  duration_ms: 0.62825
+  type: 'test'
+  ...
+# Subtest: source lookup never returns an unrelated or incorrectly bound stored draft, even for Admin
+ok 55 - source lookup never returns an unrelated or incorrectly bound stored draft, even for Admin
+  ---
+  duration_ms: 0.442666
+  type: 'test'
+  ...
+# Subtest: only approved Admin-self delta restores byte-exact main source
+ok 56 - only approved Admin-self delta restores byte-exact main source
+  ---
+  duration_ms: 4.741792
+  type: 'test'
+  ...
+# Subtest: guard rejects other Admin
+ok 57 - guard rejects other Admin
+  ---
+  duration_ms: 0.998875
+  type: 'test'
+  ...
+# Subtest: guard rejects deputy widening
+ok 58 - guard rejects deputy widening
+  ---
+  duration_ms: 0.851708
+  type: 'test'
+  ...
+# Subtest: guard rejects role widening
+ok 59 - guard rejects role widening
+  ---
+  duration_ms: 3.1605
+  type: 'test'
+  ...
+# Subtest: unrelated changes survive normalization and fail historical equivalence
+ok 60 - unrelated changes survive normalization and fail historical equivalence
+  ---
+  duration_ms: 4.233417
+  type: 'test'
+  ...
+# Subtest: Production: a valid login completes, stays signed in, and loads the PM directory via fetchDynamicPMList
+ok 61 - Production: a valid login completes, stays signed in, and loads the PM directory via fetchDynamicPMList
+  ---
+  duration_ms: 3.170208
+  type: 'test'
+  ...
+# Subtest: Production: an unavailable PM directory still surfaces the refresh-to-retry toast but does not block login
+ok 62 - Production: an unavailable PM directory still surfaces the refresh-to-retry toast but does not block login
+  ---
+  duration_ms: 1.341167
+  type: 'test'
+  ...
+# Subtest: Production: a user with no assigned dashboard role is rejected and signed out with the expected message
+ok 63 - Production: a user with no assigned dashboard role is rejected and signed out with the expected message
+  ---
+  duration_ms: 0.392708
+  type: 'test'
+  ...
+# Subtest: Production: an unauthorized/unreadable account is rejected and signed out without initializing the dashboard
+ok 64 - Production: an unauthorized/unreadable account is rejected and signed out without initializing the dashboard
+  ---
+  duration_ms: 0.360875
+  type: 'test'
+  ...
+# Subtest: Production: sign-out resets shared Gantt Template and Gantt Window state without throwing
+ok 65 - Production: sign-out resets shared Gantt Template and Gantt Window state without throwing
+  ---
+  duration_ms: 0.3295
+  type: 'test'
+  ...
+# Subtest: Production: permissions reset on every auth transition and the user's overrides load before setupUI
+ok 66 - Production: permissions reset on every auth transition and the user's overrides load before setupUI
+  ---
+  duration_ms: 0.332458
+  type: 'test'
+  ...
+# Subtest: UAT: a valid login completes, stays signed in, and initializes the PM directory via the live subscription
+ok 67 - UAT: a valid login completes, stays signed in, and initializes the PM directory via the live subscription
+  ---
+  duration_ms: 1.271583
+  type: 'test'
+  ...
+# Subtest: UAT: an initial PM-directory subscription failure is still caught, surfaced, and signs the user out
+ok 68 - UAT: an initial PM-directory subscription failure is still caught, surfaced, and signs the user out
+  ---
+  duration_ms: 0.448792
+  type: 'test'
+  ...
+# Subtest: UAT: a user with no assigned dashboard role is rejected and signed out with the expected message
+ok 69 - UAT: a user with no assigned dashboard role is rejected and signed out with the expected message
+  ---
+  duration_ms: 0.817292
+  type: 'test'
+  ...
+# Subtest: UAT: an unauthorized/unreadable account is rejected and signed out without initializing the dashboard
+ok 70 - UAT: an unauthorized/unreadable account is rejected and signed out without initializing the dashboard
+  ---
+  duration_ms: 0.330459
+  type: 'test'
+  ...
+# Subtest: UAT: sign-out resets shared Gantt Template and Gantt Window state without throwing
+ok 71 - UAT: sign-out resets shared Gantt Template and Gantt Window state without throwing
+  ---
+  duration_ms: 0.35875
+  type: 'test'
+  ...
+# Subtest: UAT: permissions reset on every auth transition and the user's overrides load before setupUI
+ok 72 - UAT: permissions reset on every auth transition and the user's overrides load before setupUI
+  ---
+  duration_ms: 0.806958
+  type: 'test'
+  ...
+# Subtest: a delayed user A initialization cannot commit after user B becomes current
+ok 73 - a delayed user A initialization cannot commit after user B becomes current
+  ---
+  duration_ms: 1.00675
+  type: 'test'
+  ...
+# Subtest: dashboard gates every awaited auth initialization stage with generation and identity
+ok 74 - dashboard gates every awaited auth initialization stage with generation and identity
+  ---
+  duration_ms: 1.516375
+  type: 'test'
+  ...
+# Subtest: template listener setup and callbacks share the current auth generation guard
+ok 75 - template listener setup and callbacks share the current auth generation guard
+  ---
+  duration_ms: 0.246958
+  type: 'test'
+  ...
+# Subtest: an initialized user is quiesced before a replacement user waits for access
+ok 76 - an initialized user is quiesced before a replacement user waits for access
+  ---
+  duration_ms: 0.218417
+  type: 'test'
+  ...
+# Subtest: replacement auth owns the only new weeks and presence callbacks
+ok 77 - replacement auth owns the only new weeks and presence callbacks
+  ---
+  duration_ms: 0.287791
+  type: 'test'
+  ...
+# Subtest: a pending auth transition cancels an older delayed loader hide
+ok 78 - a pending auth transition cancels an older delayed loader hide
+  ---
+  duration_ms: 0.168208
+  type: 'test'
+  ...
+# Subtest: startup watchdog prevents the secure-system loader from hanging forever
+ok 79 - startup watchdog prevents the secure-system loader from hanging forever
+  ---
+  duration_ms: 0.07775
+  type: 'test'
+  ...
+# Subtest: an older session cannot render after its FX refresh resolves
+ok 80 - an older session cannot render after its FX refresh resolves
+  ---
+  duration_ms: 0.093666
+  type: 'test'
+  ...
+# Subtest: a delayed user A initialization cannot commit after user B becomes current
+ok 81 - a delayed user A initialization cannot commit after user B becomes current
+  ---
+  duration_ms: 1.050583
+  type: 'test'
+  ...
+# Subtest: dashboard gates every awaited auth initialization stage with generation and identity
+ok 82 - dashboard gates every awaited auth initialization stage with generation and identity
+  ---
+  duration_ms: 0.684708
+  type: 'test'
+  ...
+# Subtest: template listener setup and callbacks share the current auth generation guard
+ok 83 - template listener setup and callbacks share the current auth generation guard
+  ---
+  duration_ms: 1.545375
+  type: 'test'
+  ...
+# Subtest: an initialized user is quiesced before a replacement user waits for access
+ok 84 - an initialized user is quiesced before a replacement user waits for access
+  ---
+  duration_ms: 0.273708
+  type: 'test'
+  ...
+# Subtest: replacement auth owns the only new weeks and presence callbacks
+ok 85 - replacement auth owns the only new weeks and presence callbacks
+  ---
+  duration_ms: 0.505417
+  type: 'test'
+  ...
+# Subtest: a pending auth transition cancels an older delayed loader hide
+ok 86 - a pending auth transition cancels an older delayed loader hide
+  ---
+  duration_ms: 0.261
+  type: 'test'
+  ...
+# Subtest: startup watchdog prevents the secure-system loader from hanging forever
+ok 87 - startup watchdog prevents the secure-system loader from hanging forever
+  ---
+  duration_ms: 0.21625
+  type: 'test'
+  ...
+# Subtest: an older session cannot render after its FX refresh resolves
+ok 88 - an older session cannot render after its FX refresh resolves
+  ---
+  duration_ms: 0.20225
+  type: 'test'
+  ...
+# Subtest: the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions
+ok 89 - the Production profile runs every Production e1f0e5c function byte-for-byte, except the named deliberate exceptions
+  ---
+  duration_ms: 43.57175
+  type: 'test'
+  ...
+# Subtest: the deliberate PDF-section Production exceptions never check or submit project-brief/project-update
+ok 90 - the deliberate PDF-section Production exceptions never check or submit project-brief/project-update
+  ---
+  duration_ms: 6.789583
+  type: 'test'
+  ...
+# Subtest: the UAT profile still exposes every UAT a04c0c1 function name
+ok 91 - the UAT profile still exposes every UAT a04c0c1 function name
+  ---
+  duration_ms: 10.521042
+  type: 'test'
+  ...
+# Subtest: both profile views are valid modules with no unresolved variant or marker text
+ok 92 - both profile views are valid modules with no unresolved variant or marker text
+  ---
+  duration_ms: 169.722917
+  type: 'test'
+  ...
+# Subtest: the committed env-config.js is exactly the Production rendering of env/prod.json
+ok 93 - the committed env-config.js is exactly the Production rendering of env/prod.json
+  ---
+  duration_ms: 0.568583
+  type: 'test'
+  ...
+# Subtest: index.html fails closed when the environment configuration is missing or unknown
+ok 94 - index.html fails closed when the environment configuration is missing or unknown
+  ---
+  duration_ms: 1.504833
+  type: 'test'
+  ...
+# Subtest: the environments name different Firebase projects and neither leaks into the other view
+ok 95 - the environments name different Firebase projects and neither leaks into the other view
+  ---
+  duration_ms: 15.732292
+  type: 'test'
+  ...
+# Subtest: UAT-only capabilities are unreachable from the Production profile
+ok 96 - UAT-only capabilities are unreachable from the Production profile
+  ---
+  duration_ms: 7.375416
+  type: 'test'
+  ...
+# Subtest: Production profile renders Delivery Performance & Trends panel on Overview with 6/12-week selection
+ok 97 - Production profile renders Delivery Performance & Trends panel on Overview with 6/12-week selection
+  ---
+  duration_ms: 6.564542
+  type: 'test'
+  ...
+# Subtest: Production confirmOverviewProjectPrint exports PDF with windowWeeks
+ok 98 - Production confirmOverviewProjectPrint exports PDF with windowWeeks
+  ---
+  duration_ms: 10.01375
+  type: 'test'
+  ...
+# Subtest: exact UI fix delta restores approved PR79 HTML
+ok 99 - exact UI fix delta restores approved PR79 HTML
+  ---
+  duration_ms: 10.38575
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 0 rejects mutation/omission/duplication
+ok 100 - UI fix hunk 0 rejects mutation/omission/duplication
+  ---
+  duration_ms: 5.373916
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 1 rejects mutation/omission/duplication
+ok 101 - UI fix hunk 1 rejects mutation/omission/duplication
+  ---
+  duration_ms: 4.056542
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 2 rejects mutation/omission/duplication
+ok 102 - UI fix hunk 2 rejects mutation/omission/duplication
+  ---
+  duration_ms: 6.37825
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 3 rejects mutation/omission/duplication
+ok 103 - UI fix hunk 3 rejects mutation/omission/duplication
+  ---
+  duration_ms: 5.164917
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 4 rejects mutation/omission/duplication
+ok 104 - UI fix hunk 4 rejects mutation/omission/duplication
+  ---
+  duration_ms: 4.883167
+  type: 'test'
+  ...
+# Subtest: UI fix hunk 5 rejects mutation/omission/duplication
+ok 105 - UI fix hunk 5 rejects mutation/omission/duplication
+  ---
+  duration_ms: 4.846
+  type: 'test'
+  ...
+# Subtest: unrelated auth drift remains detectable
+ok 106 - unrelated auth drift remains detectable
+  ---
+  duration_ms: 4.054542
+  type: 'test'
+  ...
+# Subtest: exact table/lifecycle reversal reproduces verified PR74 bytes
+ok 107 - exact table/lifecycle reversal reproduces verified PR74 bytes
+  ---
+  duration_ms: 8.712208
+  type: 'test'
+  ...
+# Subtest: workspace delta 0 rejects modification, omission and duplicate
+ok 108 - workspace delta 0 rejects modification, omission and duplicate
+  ---
+  duration_ms: 2.558916
+  type: 'test'
+  ...
+# Subtest: workspace delta 1 rejects modification, omission and duplicate
+ok 109 - workspace delta 1 rejects modification, omission and duplicate
+  ---
+  duration_ms: 3.2495
+  type: 'test'
+  ...
+# Subtest: workspace delta 2 rejects modification, omission and duplicate
+ok 110 - workspace delta 2 rejects modification, omission and duplicate
+  ---
+  duration_ms: 4.687959
+  type: 'test'
+  ...
+# Subtest: workspace delta 3 rejects modification, omission and duplicate
+ok 111 - workspace delta 3 rejects modification, omission and duplicate
+  ---
+  duration_ms: 5.556583
+  type: 'test'
+  ...
+# Subtest: workspace delta 4 rejects modification, omission and duplicate
+ok 112 - workspace delta 4 rejects modification, omission and duplicate
+  ---
+  duration_ms: 3.360584
+  type: 'test'
+  ...
+# Subtest: unrelated authorization drift is never masked
+ok 113 - unrelated authorization drift is never masked
+  ---
+  duration_ms: 4.45475
+  type: 'test'
+  ...
+# Subtest: Refresh restores its own keyboard focus after success without stealing external focus
+ok 114 - Refresh restores its own keyboard focus after success without stealing external focus
+  ---
+  duration_ms: 2.115125
+  type: 'test'
+  ...
+# Subtest: Refresh restores its own keyboard focus after failure without stealing external focus
+ok 115 - Refresh restores its own keyboard focus after failure without stealing external focus
+  ---
+  duration_ms: 1.414042
+  type: 'test'
+  ...
+# Subtest: Refresh restores its own keyboard focus after empty without stealing external focus
+ok 116 - Refresh restores its own keyboard focus after empty without stealing external focus
+  ---
+  duration_ms: 0.79425
+  type: 'test'
+  ...
+# Subtest: Refresh restores its own keyboard focus after outside without stealing external focus
+ok 117 - Refresh restores its own keyboard focus after outside without stealing external focus
+  ---
+  duration_ms: 1.834125
+  type: 'test'
+  ...
+# Subtest: shared browser and backend eligibility copies are identical
+ok 118 - shared browser and backend eligibility copies are identical
+  ---
+  duration_ms: 0.536542
+  type: 'test'
+  ...
+# Subtest: both selectors use normalized active PM plus Admin self, once each
+ok 119 - both selectors use normalized active PM plus Admin self, once each
+  ---
+  duration_ms: 0.546292
+  type: 'test'
+  ...
+# Subtest: conflicting canonical identities fail closed
+ok 120 - conflicting canonical identities fail closed
+  ---
+  duration_ms: 0.075542
+  type: 'test'
+  ...
+# Subtest: PM cannot alter assignment and unknown/missing/disabled users are excluded
+ok 121 - PM cannot alter assignment and unknown/missing/disabled users are excluded
+  ---
+  duration_ms: 0.046708
+  type: 'test'
+  ...
+# Subtest: permission-denied assignment rejection retains private selection and editor
+ok 122 - permission-denied assignment rejection retains private selection and editor
+  ---
+  duration_ms: 2.937542
+  type: 'test'
+  ...
+# Subtest: functions/permission-denied assignment rejection retains private selection and editor
+ok 123 - functions/permission-denied assignment rejection retains private selection and editor
+  ---
+  duration_ms: 0.7205
+  type: 'test'
+  ...
+# Subtest: unauthenticated still clears protected controller and editor state
+ok 124 - unauthenticated still clears protected controller and editor state
+  ---
+  duration_ms: 0.8045
+  type: 'test'
+  ...
+# Subtest: unauthenticated misleading reason still clears protected controller and editor state
+ok 125 - unauthenticated misleading reason still clears protected controller and editor state
+  ---
+  duration_ms: 0.333625
+  type: 'test'
+  ...
+# Subtest: raw unauthenticated still clears protected controller and editor state
+ok 126 - raw unauthenticated still clears protected controller and editor state
+  ---
+  duration_ms: 0.55675
+  type: 'test'
+  ...
+# Subtest: role revoked still clears protected controller and editor state
+ok 127 - role revoked still clears protected controller and editor state
+  ---
+  duration_ms: 0.519792
+  type: 'test'
+  ...
+# Subtest: draft revoked still clears protected controller and editor state
+ok 128 - draft revoked still clears protected controller and editor state
+  ---
+  duration_ms: 1.228375
+  type: 'test'
+  ...
+# Subtest: ownership revoked still clears protected controller and editor state
+ok 129 - ownership revoked still clears protected controller and editor state
+  ---
+  duration_ms: 1.014542
+  type: 'test'
+  ...
+# Subtest: missing details still clears protected controller and editor state
+ok 130 - missing details still clears protected controller and editor state
+  ---
+  duration_ms: 0.973583
+  type: 'test'
+  ...
+# Subtest: empty details still clears protected controller and editor state
+ok 131 - empty details still clears protected controller and editor state
+  ---
+  duration_ms: 0.806916
+  type: 'test'
+  ...
+# Subtest: malformed reason still clears protected controller and editor state
+ok 132 - malformed reason still clears protected controller and editor state
+  ---
+  duration_ms: 0.540708
+  type: 'test'
+  ...
+# Subtest: unknown denial still clears protected controller and editor state
+ok 133 - unknown denial still clears protected controller and editor state
+  ---
+  duration_ms: 0.511209
+  type: 'test'
+  ...
+# Subtest: retry without structured details cannot reuse an earlier recoverable reason
+ok 134 - retry without structured details cannot reuse an earlier recoverable reason
+  ---
+  duration_ms: 0.278792
+  type: 'test'
+  ...
+# Subtest: Save & Publish targets the latest applicable week and never a released or historical week
+ok 135 - Save & Publish targets the latest applicable week and never a released or historical week
+  ---
+  duration_ms: 1.081542
+  type: 'test'
+  ...
+# Subtest: a new unpublished draft shows as one card on its author's dashboard only, on the publishing week only
+ok 136 - a new unpublished draft shows as one card on its author's dashboard only, on the publishing week only
+  ---
+  duration_ms: 0.169708
+  type: 'test'
+  ...
+# Subtest: an existing project shows Draft only to the author while changes are unpublished, and not after publishing
+ok 137 - an existing project shows Draft only to the author while changes are unpublished, and not after publishing
+  ---
+  duration_ms: 0.12225
+  type: 'test'
+  ...
+# Subtest: Draft UI has My Drafts entry, no target selector, local decorations and PM owner prefill
+ok 138 - Draft UI has My Drafts entry, no target selector, local decorations and PM owner prefill
+  ---
+  duration_ms: 20.104166
+  type: 'test'
+  ...
+# Subtest: typing while Save Draft is pending remains dirty after the submitted revision is saved
+ok 139 - typing while Save Draft is pending remains dirty after the submitted revision is saved
+  ---
+  duration_ms: 1.384709
+  type: 'test'
+  ...
+# Subtest: pending opening cannot hydrate after auth changes
+ok 140 - pending opening cannot hydrate after auth changes
+  ---
+  duration_ms: 0.467083
+  type: 'test'
+  ...
+# Subtest: pending opening cannot hydrate after role changes
+ok 141 - pending opening cannot hydrate after role changes
+  ---
+  duration_ms: 0.322709
+  type: 'test'
+  ...
+# Subtest: pending opening cannot hydrate after generation changes
+ok 142 - pending opening cannot hydrate after generation changes
+  ---
+  duration_ms: 0.359042
+  type: 'test'
+  ...
+# Subtest: pending opening cannot hydrate after week changes
+ok 143 - pending opening cannot hydrate after week changes
+  ---
+  duration_ms: 0.310708
+  type: 'test'
+  ...
+# Subtest: pending opening cannot hydrate after closed changes
+ok 144 - pending opening cannot hydrate after closed changes
+  ---
+  duration_ms: 0.313875
+  type: 'test'
+  ...
+# Subtest: zero persisted week documents stay an empty official portfolio without demo fallback
+ok 145 - zero persisted week documents stay an empty official portfolio without demo fallback
+  ---
+  duration_ms: 2.083667
+  type: 'test'
+  ...
+# Subtest: actual Save handler leaves Overview, PDF, trend, Copilot and carryover unchanged
+ok 146 - actual Save handler leaves Overview, PDF, trend, Copilot and carryover unchanged
+  ---
+  duration_ms: 3.002292
+  type: 'test'
+  ...
+# Subtest: only explicit Publish changes official PDF values; later draft Save leaves the last snapshot intact
+ok 147 - only explicit Publish changes official PDF values; later draft Save leaves the last snapshot intact
+  ---
+  duration_ms: 1.799375
+  type: 'test'
+  ...
+# Subtest: drafts never fill an empty official portfolio or PDF
+ok 148 - drafts never fill an empty official portfolio or PDF
+  ---
+  duration_ms: 0.14725
+  type: 'test'
+  ...
+# Subtest: existing project working75 is excluded until current85 is saved and published, then Overview and PDF agree
+ok 149 - existing project working75 is excluded until current85 is saved and published, then Overview and PDF agree
+  ---
+  duration_ms: 1.044542
+  type: 'test'
+  ...
+# Subtest: Publish preserves target revision and propagates rejection without a save fallback
+ok 150 - Publish preserves target revision and propagates rejection without a save fallback
+  ---
+  duration_ms: 2.253292
+  type: 'test'
+  ...
+# Subtest: old account responses cannot repopulate draft state
+ok 151 - old account responses cannot repopulate draft state
+  ---
+  duration_ms: 1.849125
+  type: 'test'
+  ...
+# Subtest: saved draft and publish failure remain separate from official data
+ok 152 - saved draft and publish failure remain separate from official data
+  ---
+  duration_ms: 0.40975
+  type: 'test'
+  ...
+# Subtest: reset invalidates pending save success and clears protected contents
+ok 153 - reset invalidates pending save success and clears protected contents
+  ---
+  duration_ms: 0.081416
+  type: 'test'
+  ...
+# Subtest: permission denial clears protected draft state instead of retaining stale access
+ok 154 - permission denial clears protected draft state instead of retaining stale access
+  ---
+  duration_ms: 0.104292
+  type: 'test'
+  ...
+# Subtest: a list refresh cannot invalidate an authoritative pending publish response
+ok 155 - a list refresh cannot invalidate an authoritative pending publish response
+  ---
+  duration_ms: 0.143417
+  type: 'test'
+  ...
+# Subtest: functions/permission-denied/role-forbidden: access loss invalidates older list and selection lanes
+ok 156 - functions/permission-denied/role-forbidden: access loss invalidates older list and selection lanes
+  ---
+  duration_ms: 0.159709
+  type: 'test'
+  ...
+# Subtest: functions/permission-denied/draft-forbidden: access loss invalidates older list and selection lanes
+ok 157 - functions/permission-denied/draft-forbidden: access loss invalidates older list and selection lanes
+  ---
+  duration_ms: 0.064583
+  type: 'test'
+  ...
+# Subtest: permission-denied/ownership-forbidden: access loss invalidates older list and selection lanes
+ok 158 - permission-denied/ownership-forbidden: access loss invalidates older list and selection lanes
+  ---
+  duration_ms: 0.089792
+  type: 'test'
+  ...
+# Subtest: functions/unauthenticated/undefined: access loss invalidates older list and selection lanes
+ok 159 - functions/unauthenticated/undefined: access loss invalidates older list and selection lanes
+  ---
+  duration_ms: 0.222458
+  type: 'test'
+  ...
+# Subtest: draft states distinguish never-published, published and unpublished edits
+ok 160 - draft states distinguish never-published, published and unpublished edits
+  ---
+  duration_ms: 0.458291
+  type: 'test'
+  ...
+# Subtest: no open week leaves no publish target while stored draft remains editable
+ok 161 - no open week leaves no publish target while stored draft remains editable
+  ---
+  duration_ms: 0.506583
+  type: 'test'
+  ...
+# Subtest: Publish compares the server fingerprint rather than normalized display fields
+ok 162 - Publish compares the server fingerprint rather than normalized display fields
+  ---
+  duration_ms: 0.114125
+  type: 'test'
+  ...
+# Subtest: Publish targets exclude reporting weeks before the latest publication
+ok 163 - Publish targets exclude reporting weeks before the latest publication
+  ---
+  duration_ms: 0.122625
+  type: 'test'
+  ...
+# Subtest: My Drafts resumes editing instead of exposing a separate publication step
+ok 164 - My Drafts resumes editing instead of exposing a separate publication step
+  ---
+  duration_ms: 3.917417
+  type: 'test'
+  ...
+# Subtest: integration exact reversal reproduces approved ed3f814 hotfix HTML
+ok 165 - integration exact reversal reproduces approved ed3f814 hotfix HTML
+  ---
+  duration_ms: 14.808542
+  type: 'test'
+  ...
+# Subtest: integration hunk 0 rejects modification, omission and duplication
+ok 166 - integration hunk 0 rejects modification, omission and duplication
+  ---
+  duration_ms: 2.627917
+  type: 'test'
+  ...
+# Subtest: integration hunk 1 rejects modification, omission and duplication
+ok 167 - integration hunk 1 rejects modification, omission and duplication
+  ---
+  duration_ms: 1.22025
+  type: 'test'
+  ...
+# Subtest: integration hunk 2 rejects modification, omission and duplication
+ok 168 - integration hunk 2 rejects modification, omission and duplication
+  ---
+  duration_ms: 2.981041
+  type: 'test'
+  ...
+# Subtest: integration hunk 3 rejects modification, omission and duplication
+ok 169 - integration hunk 3 rejects modification, omission and duplication
+  ---
+  duration_ms: 6.500375
+  type: 'test'
+  ...
+# Subtest: integration hunk 4 rejects modification, omission and duplication
+ok 170 - integration hunk 4 rejects modification, omission and duplication
+  ---
+  duration_ms: 7.017209
+  type: 'test'
+  ...
+# Subtest: integration hunk 5 rejects modification, omission and duplication
+ok 171 - integration hunk 5 rejects modification, omission and duplication
+  ---
+  duration_ms: 7.09675
+  type: 'test'
+  ...
+# Subtest: integration hunk 6 rejects modification, omission and duplication
+ok 172 - integration hunk 6 rejects modification, omission and duplication
+  ---
+  duration_ms: 7.244042
+  type: 'test'
+  ...
+# Subtest: integration hunk 7 rejects modification, omission and duplication
+ok 173 - integration hunk 7 rejects modification, omission and duplication
+  ---
+  duration_ms: 8.509291
+  type: 'test'
+  ...
+# Subtest: integration hunk 8 rejects modification, omission and duplication
+ok 174 - integration hunk 8 rejects modification, omission and duplication
+  ---
+  duration_ms: 10.170042
+  type: 'test'
+  ...
+# Subtest: integration hunk 9 rejects modification, omission and duplication
+ok 175 - integration hunk 9 rejects modification, omission and duplication
+  ---
+  duration_ms: 9.177
+  type: 'test'
+  ...
+# Subtest: integration hunk 10 rejects modification, omission and duplication
+ok 176 - integration hunk 10 rejects modification, omission and duplication
+  ---
+  duration_ms: 13.360625
+  type: 'test'
+  ...
+# Subtest: integration hunk 11 rejects modification, omission and duplication
+ok 177 - integration hunk 11 rejects modification, omission and duplication
+  ---
+  duration_ms: 8.127833
+  type: 'test'
+  ...
+# Subtest: integration hunk 12 rejects modification, omission and duplication
+ok 178 - integration hunk 12 rejects modification, omission and duplication
+  ---
+  duration_ms: 9.245709
+  type: 'test'
+  ...
+# Subtest: integration hunk 13 rejects modification, omission and duplication
+ok 179 - integration hunk 13 rejects modification, omission and duplication
+  ---
+  duration_ms: 10.184166
+  type: 'test'
+  ...
+# Subtest: integration hunk 14 rejects modification, omission and duplication
+ok 180 - integration hunk 14 rejects modification, omission and duplication
+  ---
+  duration_ms: 11.260083
+  type: 'test'
+  ...
+# Subtest: integration hunk 15 rejects modification, omission and duplication
+ok 181 - integration hunk 15 rejects modification, omission and duplication
+  ---
+  duration_ms: 9.582
+  type: 'test'
+  ...
+# Subtest: integration hunk 16 rejects modification, omission and duplication
+ok 182 - integration hunk 16 rejects modification, omission and duplication
+  ---
+  duration_ms: 9.73425
+  type: 'test'
+  ...
+# Subtest: integration hunk 17 rejects modification, omission and duplication
+ok 183 - integration hunk 17 rejects modification, omission and duplication
+  ---
+  duration_ms: 12.094
+  type: 'test'
+  ...
+# Subtest: integration hunk 18 rejects modification, omission and duplication
+ok 184 - integration hunk 18 rejects modification, omission and duplication
+  ---
+  duration_ms: 11.060333
+  type: 'test'
+  ...
+# Subtest: integration hunk 19 rejects modification, omission and duplication
+ok 185 - integration hunk 19 rejects modification, omission and duplication
+  ---
+  duration_ms: 12.047209
+  type: 'test'
+  ...
+# Subtest: integration hunk 20 rejects modification, omission and duplication
+ok 186 - integration hunk 20 rejects modification, omission and duplication
+  ---
+  duration_ms: 12.615917
+  type: 'test'
+  ...
+# Subtest: integration hunk 21 rejects modification, omission and duplication
+ok 187 - integration hunk 21 rejects modification, omission and duplication
+  ---
+  duration_ms: 12.551792
+  type: 'test'
+  ...
+# Subtest: integration hunk 22 rejects modification, omission and duplication
+ok 188 - integration hunk 22 rejects modification, omission and duplication
+  ---
+  duration_ms: 13.000709
+  type: 'test'
+  ...
+# Subtest: integration hunk 23 rejects modification, omission and duplication
+ok 189 - integration hunk 23 rejects modification, omission and duplication
+  ---
+  duration_ms: 14.863541
+  type: 'test'
+  ...
+# Subtest: unrelated authorization drift cannot match hotfix provenance
+ok 190 - unrelated authorization drift cannot match hotfix provenance
+  ---
+  duration_ms: 5.661916
+  type: 'test'
+  ...
+# Subtest: bounded Sprint source reversal reproduces original main bytes without new expected hashes
+ok 191 - bounded Sprint source reversal reproduces original main bytes without new expected hashes
+  ---
+  duration_ms: 13.286875
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 0 fails closed
+ok 192 - modified, missing or duplicated Sprint hunk 0 fails closed
+  ---
+  duration_ms: 1.375834
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 1 fails closed
+ok 193 - modified, missing or duplicated Sprint hunk 1 fails closed
+  ---
+  duration_ms: 2.378416
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 2 fails closed
+ok 194 - modified, missing or duplicated Sprint hunk 2 fails closed
+  ---
+  duration_ms: 2.200167
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 3 fails closed
+ok 195 - modified, missing or duplicated Sprint hunk 3 fails closed
+  ---
+  duration_ms: 3.013625
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 4 fails closed
+ok 196 - modified, missing or duplicated Sprint hunk 4 fails closed
+  ---
+  duration_ms: 4.269458
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 5 fails closed
+ok 197 - modified, missing or duplicated Sprint hunk 5 fails closed
+  ---
+  duration_ms: 7.648583
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 6 fails closed
+ok 198 - modified, missing or duplicated Sprint hunk 6 fails closed
+  ---
+  duration_ms: 6.244167
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 7 fails closed
+ok 199 - modified, missing or duplicated Sprint hunk 7 fails closed
+  ---
+  duration_ms: 7.182792
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 8 fails closed
+ok 200 - modified, missing or duplicated Sprint hunk 8 fails closed
+  ---
+  duration_ms: 7.399875
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 9 fails closed
+ok 201 - modified, missing or duplicated Sprint hunk 9 fails closed
+  ---
+  duration_ms: 7.904042
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 10 fails closed
+ok 202 - modified, missing or duplicated Sprint hunk 10 fails closed
+  ---
+  duration_ms: 9.089
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 11 fails closed
+ok 203 - modified, missing or duplicated Sprint hunk 11 fails closed
+  ---
+  duration_ms: 7.782083
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 12 fails closed
+ok 204 - modified, missing or duplicated Sprint hunk 12 fails closed
+  ---
+  duration_ms: 11.243833
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 13 fails closed
+ok 205 - modified, missing or duplicated Sprint hunk 13 fails closed
+  ---
+  duration_ms: 9.272792
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 14 fails closed
+ok 206 - modified, missing or duplicated Sprint hunk 14 fails closed
+  ---
+  duration_ms: 10.760792
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 15 fails closed
+ok 207 - modified, missing or duplicated Sprint hunk 15 fails closed
+  ---
+  duration_ms: 10.258
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 16 fails closed
+ok 208 - modified, missing or duplicated Sprint hunk 16 fails closed
+  ---
+  duration_ms: 9.912959
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 17 fails closed
+ok 209 - modified, missing or duplicated Sprint hunk 17 fails closed
+  ---
+  duration_ms: 10.722166
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 18 fails closed
+ok 210 - modified, missing or duplicated Sprint hunk 18 fails closed
+  ---
+  duration_ms: 11.144833
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 19 fails closed
+ok 211 - modified, missing or duplicated Sprint hunk 19 fails closed
+  ---
+  duration_ms: 12.578
+  type: 'test'
+  ...
+# Subtest: modified, missing or duplicated Sprint hunk 20 fails closed
+ok 212 - modified, missing or duplicated Sprint hunk 20 fails closed
+  ---
+  duration_ms: 13.522541
+  type: 'test'
+  ...
+# Subtest: unrelated permission drift survives normalization and cannot match the frozen baseline
+ok 213 - unrelated permission drift survives normalization and cannot match the frozen baseline
+  ---
+  duration_ms: 5.489625
+  type: 'test'
+  ...
+# Subtest: Owner and Deputy offer TBD without granting project ownership
+ok 214 - Owner and Deputy offer TBD without granting project ownership
+  ---
+  duration_ms: 3.205166
+  type: 'test'
+  ...
+# Subtest: Publish immediately labels busy, waits for confirmation, then closes and notifies
+ok 215 - Publish immediately labels busy, waits for confirmation, then closes and notifies
+  ---
+  duration_ms: 2.82125
+  type: 'test'
+  ...
+# Subtest: Revision conflict: preserve values, no close/success, restore retry
+ok 216 - Revision conflict: preserve values, no close/success, restore retry
+  ---
+  duration_ms: 0.483542
+  type: 'test'
+  ...
+# Subtest: Permission denied: preserve values, no close/success, restore retry
+ok 217 - Permission denied: preserve values, no close/success, restore retry
+  ---
+  duration_ms: 0.323292
+  type: 'test'
+  ...
+# Subtest: Network unavailable: preserve values, no close/success, restore retry
+ok 218 - Network unavailable: preserve values, no close/success, restore retry
+  ---
+  duration_ms: 0.377917
+  type: 'test'
+  ...
+# Subtest: Publish validation failed: preserve values, no close/success, restore retry
+ok 219 - Publish validation failed: preserve values, no close/success, restore retry
+  ---
+  duration_ms: 0.346167
+  type: 'test'
+  ...
+# Subtest: late publish success cannot close or notify another editor session
+ok 220 - late publish success cannot close or notify another editor session
+  ---
+  duration_ms: 0.376708
+  type: 'test'
+  ...
+# Subtest: Save Draft retains the editor and submitted baseline
+ok 221 - Save Draft retains the editor and submitted baseline
+  ---
+  duration_ms: 0.373917
+  type: 'test'
+  ...
+# Subtest: every managed opening shows a shell before awaiting private draft data
+ok 222 - every managed opening shows a shell before awaiting private draft data
+  ---
+  duration_ms: 0.392708
+  type: 'test'
+  ...
+# Subtest: a week round trip permanently cancels a pending opening
+ok 223 - a week round trip permanently cancels a pending opening
+  ---
+  duration_ms: 0.397542
+  type: 'test'
+  ...
+# Subtest: cached directory opening preserves active Admin-self eligibility in both selectors
+ok 224 - cached directory opening preserves active Admin-self eligibility in both selectors
+  ---
+  duration_ms: 0.748541
+  type: 'test'
+  ...
+# Subtest: second Admin progress editing preserves an existing Admin owner as a disabled option
+ok 225 - second Admin progress editing preserves an existing Admin owner as a disabled option
+  ---
+  duration_ms: 0.559167
+  type: 'test'
+  ...
+# Subtest: semantic table preserves server order, real states, draft progress and SGT timestamp
+ok 226 - semantic table preserves server order, real states, draft progress and SGT timestamp
+  ---
+  duration_ms: 12.569833
+  type: 'test'
+  ...
+# Subtest: row edit delegates directly to improved opening flow; no duplicate get
+ok 227 - row edit delegates directly to improved opening flow; no duplicate get
+  ---
+  duration_ms: 3.323708
+  type: 'test'
+  ...
+# Subtest: accessible state {"drafts":[],"busy":true}
+ok 228 - accessible state {"drafts":[],"busy":true}
+  ---
+  duration_ms: 0.19625
+  type: 'test'
+  ...
+# Subtest: accessible state {"drafts":[],"busy":false}
+ok 229 - accessible state {"drafts":[],"busy":false}
+  ---
+  duration_ms: 0.07
+  type: 'test'
+  ...
+# Subtest: accessible state {"drafts":[],"busy":false,"error":"Permission denied"}
+ok 230 - accessible state {"drafts":[],"busy":false,"error":"Permission denied"}
+  ---
+  duration_ms: 0.087458
+  type: 'test'
+  ...
+# Subtest: cards use a labelled lower prominence dialog entry and preserve lifecycle controls
+ok 231 - cards use a labelled lower prominence dialog entry and preserve lifecycle controls
+  ---
+  duration_ms: 9.639709
+  type: 'test'
+  ...
+1..231
+# tests 231
+# suites 0
+# pass 231
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 771.142708

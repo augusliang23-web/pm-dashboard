@@ -1,3 +1,5 @@
+> Superseded product policy (2026-10-25): Google is UAT-only and Admin-only. PM/all other roles use password; Production must not receive SSO. This document is historical; follow ../sso-uat-admin-only/REPORT.md and RELEASE_ISOLATION.md.
+
 # SSO Google V1 本機實作交付
 
 A. VERIFIED_BASE_SHA：PR79 `30b19c7d82118d19595006192e16401a7c9d1d49`；交付前遠端仍 OPEN/Draft，main `b3b7a51d5db680cfc87acdf24d06d73a9de2aaac`。隔離工作樹、單一執行者，未更動既有分支。

@@ -1,3 +1,5 @@
+> Superseded product policy (2026-10-25): Google is UAT-only and Admin-only. PM/all other roles use password; Production must not receive SSO. This document is historical; follow ../sso-uat-admin-only/REPORT.md and RELEASE_ISOLATION.md.
+
 # SSO V1 local implementation plan
 
 Approved security design: SECURITY_DESIGN.md (Owner approval received in this chat). Single implementer, no parallel agents. Product contract and cloud boundaries remain unchanged.

@@ -33,22 +33,22 @@ function rootInitialPresencePayload() {
 }
 
 function auth(uid, email) {
-  return environment.authenticatedContext(uid, { email,firebase:{sign_in_provider:'password'} }).firestore();
+  return environment.authenticatedContext(uid, { email }).firestore();
 }
 
 async function seed() {
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await Promise.all([
-      setDoc(doc(db, 'users/admin@example.com'), { authUid:'admin-uid', role: 'admin', displayName: 'Admin' }),
-      setDoc(doc(db, 'users/owner@example.com'), { authUid:'owner-uid', role: 'pm', displayName: 'Owner' }),
-      setDoc(doc(db, 'users/other@example.com'), { authUid:'other-uid', role: 'pm', displayName: 'Other' }),
-      setDoc(doc(db, 'users/vip@example.com'), { authUid:'vip-uid', role: 'vip', displayName: 'VIP' }),
-      setDoc(doc(db, 'users/engineering@example.com'), { authUid:'engineering-uid', role: 'engineering', displayName: 'Engineering' }),
-      setDoc(doc(db, 'users/business@example.com'), { authUid:'business-uid', role: 'business', displayName: 'Business' }),
-      setDoc(doc(db, 'users/product@example.com'), { authUid:'product-uid', role: 'product', displayName: 'Product' }),
-      setDoc(doc(db, 'users/sales@example.com'), { authUid:'sales-uid', role: 'sales', displayName: 'Sales' }),
-      setDoc(doc(db, 'users/format-pm@example.com'), { authUid:'format-pm-uid', role: 'PM', displayName: 'Format PM' }),
+      setDoc(doc(db, 'users/admin@example.com'), { role: 'admin', displayName: 'Admin' }),
+      setDoc(doc(db, 'users/owner@example.com'), { role: 'pm', displayName: 'Owner' }),
+      setDoc(doc(db, 'users/other@example.com'), { role: 'pm', displayName: 'Other' }),
+      setDoc(doc(db, 'users/vip@example.com'), { role: 'vip', displayName: 'VIP' }),
+      setDoc(doc(db, 'users/engineering@example.com'), { role: 'engineering', displayName: 'Engineering' }),
+      setDoc(doc(db, 'users/business@example.com'), { role: 'business', displayName: 'Business' }),
+      setDoc(doc(db, 'users/product@example.com'), { role: 'product', displayName: 'Product' }),
+      setDoc(doc(db, 'users/sales@example.com'), { role: 'sales', displayName: 'Sales' }),
+      setDoc(doc(db, 'users/format-pm@example.com'), { role: 'PM', displayName: 'Format PM' }),
       setDoc(doc(db, 'weeks/draft-week'), {
         weekLabel: 'W33 2026', isReleased: false,
         projects: [{ code: 'ALPHA', owner: 'Owner' }],
@@ -399,9 +399,9 @@ test('Production permission rules normalize the stored role exactly like the bro
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await Promise.all([
-      ...cases.map(([account, role]) => setDoc(doc(db, `users/${account}@example.com`), { authUid:`${account}-uid`,role, displayName: account })),
+      ...cases.map(([account, role]) => setDoc(doc(db, `users/${account}@example.com`), { role, displayName: account })),
       ...cases.map(([account]) => setDoc(doc(db, `userPermissions/${account}@example.com`), { overrides: {}, revision: 0 })),
-      setDoc(doc(db, 'users/role-missing@example.com'), { authUid:'role-missing-uid', displayName: 'No role' }),
+      setDoc(doc(db, 'users/role-missing@example.com'), { displayName: 'No role' }),
       setDoc(doc(db, 'userPermissions/owner@example.com'), { schemaVersion: 1, overrides: { 'week.manage': true }, revision: 1 }),
       setDoc(doc(db, 'userPermissionAudit/matrix-audit'), {
         targetEmail: 'owner@example.com', actorEmail: 'admin@example.com', actorUid: 'admin-uid',
@@ -422,8 +422,7 @@ test('Production permission rules normalize the stored role exactly like the bro
     await expect(getDocs(query(collection(client, 'userPermissionAudit'), where('targetEmail', '==', 'owner@example.com'))), `${label}: audit query`);
     await expect(getDoc(doc(client, 'presenceDailyRollups/2026-10-03')), `${label}: Admin presence rollups follow isAdmin()`);
     // Ordinary dashboard users always read their own permission document.
-    const ownPermissionRead=typeof role==='string'&&['admin','pm','vip','executive','engineering','business','sales','bd','product'].includes(role.trim().toLowerCase())?assertSucceeds:assertFails;
-    await ownPermissionRead(getDoc(doc(client, `userPermissions/${account}@example.com`)), `${label}: own permissions require a recognized bound role`);
+    await assertSucceeds(getDoc(doc(client, `userPermissions/${account}@example.com`)), `${label}: own permissions`);
     for (const write of [
       setDoc(doc(client, 'userPermissions/owner@example.com'), { overrides: { 'week.manage': false } }),
       setDoc(doc(client, `userPermissions/${account}@example.com`), { overrides: { 'week.manage': true } }),
@@ -438,7 +437,7 @@ test('Production permission rules normalize the stored role exactly like the bro
 
 test('Production presenceSessions still bind the exact stored role, not the normalized one', async () => {
   await environment.withSecurityRulesDisabled(async context => {
-    await setDoc(doc(context.firestore(), 'users/upper-admin@example.com'), { authUid:'upper-admin-uid',role: 'ADMIN', displayName: 'Upper Admin' });
+    await setDoc(doc(context.firestore(), 'users/upper-admin@example.com'), { role: 'ADMIN', displayName: 'Upper Admin' });
   });
   const client = auth('upper-admin-uid', 'upper-admin@example.com');
   const now = Date.now();
@@ -459,7 +458,7 @@ test('drafts and publication audit cannot be accessed directly by any client rol
     await setDoc(doc(context.firestore(), 'projectDraftPublicationAudit/private'), { draftId: 'private' });
   });
   for (const email of ['admin@example.com', 'owner@example.com', 'other@example.com', 'vip@example.com']) {
-    const client = environment.authenticatedContext(email, { email,firebase:{sign_in_provider:'password'} }).firestore();
+    const client = environment.authenticatedContext(email, { email }).firestore();
     for (const collectionName of ['projectDrafts', 'projectDraftPublicationAudit']) {
       await assertFails(getDoc(doc(client, collectionName, 'private')));
       await assertFails(getDocs(collection(client, collectionName)));

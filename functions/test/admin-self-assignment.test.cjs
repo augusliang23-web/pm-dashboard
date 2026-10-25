@@ -5,7 +5,7 @@ function build(actor=admin,assignment={ownerEmail:admin.email},users={[admin.ema
 test('verified Admin may select normalized self only as primary PM',()=>{const d=build(admin,{ownerEmail:' ADMIN@EXAMPLE.TEST '});assert.equal(d.assignment.ownerEmail,admin.email);assert.equal(d.project.owner,'Synthetic Admin');assert.deepEqual(d.editorEmails,[admin.email]);});
 for(const [name,actor,assignment,users] of [
  ['other Admin',admin,{ownerEmail:'other@example.test'},{'other@example.test':{role:'admin'}}],
- ['Admin deputy',admin,{deputyEmail:admin.email},{[admin.email]:{role:'admin'}}],
+ ['other Admin deputy',admin,{deputyEmail:'other@example.test'},{'other@example.test':{role:'admin'}}],
  ['missing document',admin,{ownerEmail:admin.email},{}],
  ['invalid role',admin,{ownerEmail:admin.email},{[admin.email]:{role:'vip'}}],
  ['PM cannot assign Admin',{...admin,role:'pm'},{ownerEmail:admin.email},{[admin.email]:{role:'admin'}}],

@@ -1,0 +1,238 @@
+{
+  "sourceHead": "30b19c7d82118d19595006192e16401a7c9d1d49",
+  "mode": "baseline",
+  "results": [
+    {
+      "name": "card geometry and hit targets at 1440px",
+      "status": "FAIL",
+      "detail": [
+        {
+          "code": "SOURCE0",
+          "status": "ON TRACK",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE1",
+          "status": "AT RISK",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE2",
+          "status": "CRITICAL",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "card geometry and hit targets at 1024px",
+      "status": "FAIL",
+      "detail": [
+        {
+          "code": "SOURCE0",
+          "status": "ON TRACK",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE1",
+          "status": "AT RISK",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE2",
+          "status": "CRITICAL",
+          "buttons": 2,
+          "overlap": true,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "card geometry and hit targets at 768px",
+      "status": "PASS",
+      "detail": [
+        {
+          "code": "SOURCE0",
+          "status": "ON TRACK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE1",
+          "status": "AT RISK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE2",
+          "status": "CRITICAL",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "card geometry and hit targets at 390px",
+      "status": "PASS",
+      "detail": [
+        {
+          "code": "SOURCE0",
+          "status": "ON TRACK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE1",
+          "status": "AT RISK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE2",
+          "status": "CRITICAL",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "card geometry and hit targets at 320px",
+      "status": "PASS",
+      "detail": [
+        {
+          "code": "SOURCE0",
+          "status": "ON TRACK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE1",
+          "status": "AT RISK",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        },
+        {
+          "code": "SOURCE2",
+          "status": "CRITICAL",
+          "buttons": 2,
+          "overlap": false,
+          "clickable": true,
+          "inside": true,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "More opens existing lifecycle actions",
+      "status": "PASS"
+    },
+    {
+      "name": "S01 editor has immediate ready shell",
+      "status": "PASS"
+    },
+    {
+      "name": "Admin self appears once as Deputy",
+      "status": "FAIL",
+      "detail": [
+        {
+          "value": "",
+          "text": "Unassigned",
+          "disabled": false,
+          "selected": false
+        },
+        {
+          "value": "disabled.pm@example.test",
+          "text": "Disabled PM (disabled.pm@example.test)",
+          "disabled": false,
+          "selected": false
+        },
+        {
+          "value": "inactive.pm@example.test",
+          "text": "Inactive PM (inactive.pm@example.test)",
+          "disabled": false,
+          "selected": false
+        },
+        {
+          "value": "sprint.other@example.test",
+          "text": "Sprint other (sprint.other@example.test)",
+          "disabled": false,
+          "selected": true
+        },
+        {
+          "value": "sprint.pm@example.test",
+          "text": "Sprint PM (sprint.pm@example.test)",
+          "disabled": false,
+          "selected": false
+        }
+      ]
+    },
+    {
+      "name": "PM and Unassigned remain available",
+      "status": "PASS"
+    },
+    {
+      "name": "unauthorized and disabled targets absent",
+      "status": "FAIL"
+    },
+    {
+      "name": "existing Deputy loads before save",
+      "status": "PASS"
+    },
+    {
+      "name": "opening does not rewrite saved Deputy",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": [],
+  "failures": [
+    "card geometry and hit targets at 1440px",
+    "card geometry and hit targets at 1024px",
+    "Admin self appears once as Deputy",
+    "unauthorized and disabled targets absent"
+  ]
+}
