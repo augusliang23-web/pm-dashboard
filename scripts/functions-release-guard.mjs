@@ -1,27 +1,36 @@
 // Fail-closed guard for repository-managed Cloud Functions releases.
 //
-// Why this exists: S02 R2 was authorised for 24 callable Functions, but an unscoped
-// a Firebase CLI deploy with a bare `--only functions` scope updated all 25 managed Functions, including the scheduled
-// aggregatePresenceSessions (and moved 13 Functions from Node 20 to 22). The deployment manifest already says
-// "never an unscoped deployment", but nothing enforced it.
+// Why this exists: S02 R2 was authorised for 24 callable Functions, but a Firebase CLI deploy with a bare
+// `--only functions` scope updated all 25 managed Functions, including the scheduled aggregatePresenceSessions (and
+// moved 13 Functions from Node 20 to 22). The deployment manifest already says "never an unscoped deployment", but
+// nothing enforced it.
 //
-// Model: config/deployment-manifest.json says which Functions an environment is ELIGIBLE to deploy (allowlist).
-// It is NOT authorisation. A release contract (config/release-contracts/*.json, committed and reviewed) names the
-// exact Functions this ONE release may update. This module refuses unless the contract, the manifest, the Firebase
-// project, the source SHA and the generated command all agree, and it only ever generates
-//   deploy --only functions:a,functions:b,... --project <id> --message <text>   (arguments to the Firebase CLI)
+// Model (v2):
+//  * config/deployment-manifest.json says which Functions an environment is ELIGIBLE to deploy. It is not authorisation.
+//  * The SOURCE is a frozen commit. The AUTHORISATION is a separate, Owner-signed approval artifact stored OUTSIDE the
+//    repository (scripts/release-approval.mjs). The approval names that commit and its tree, the environment, the
+//    Firebase project, the exact Functions, the count, the exclusions and a validity window. A commit never has to
+//    contain its own SHA: the approval is created after the source commit exists.
+//  * The approval is verified against a pinned, root-owned trust anchor. No anchor or no valid signature => FAIL CLOSED.
+//  * What is released is rebuilt from the approved commit's tree into an isolated package
+//    (scripts/functions-source-package.mjs); the working tree, untracked files and symlinks never enter it.
+//  * The only command produced is
+//      deploy --only functions:a,functions:b,... --project <id> --message <text>   (arguments to the Firebase CLI)
 //
-// LIMITATION (by design, cannot be fixed in a wrapper): nothing here can stop someone from running the Firebase CLI
-// directly. This is a guard for repository-managed releases and a reviewable approval record, not a sandbox.
-// Nothing in this module starts the Firebase CLI unless the wrapper is run with --execute; tests inject a mock runner.
-import { execFile, spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { join, resolve, relative, sep } from 'node:path';
-import { promisify } from 'node:util';
+// LIMITATION (by design, cannot be fixed in a wrapper): nothing here can stop an operator with unrestricted cloud
+// credentials from running the Firebase CLI directly, and this is not organisation-wide authorisation. It protects
+// repository-managed releases and makes the approval independently verifiable.
+// Nothing here starts the Firebase CLI unless the wrapper is run with --execute; tests inject a mock runner.
+import { spawn } from 'node:child_process';
+import { lstat, readFile, realpath } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ENVIRONMENTS, functionsAllowlistFor, functionsPreservedFor, loadDeploymentManifest } from './deployment-manifest.mjs';
-
-const execFileAsync = promisify(execFile);
+import { ENVIRONMENTS, functionsAllowlistFor, functionsPreservedFor } from './deployment-manifest.mjs';
+import { ApprovalError, DEFAULT_TRUST_ANCHOR_PATH, assertOutside, loadTrustAnchor, verifyApproval } from './release-approval.mjs';
+import {
+  PackageIntegrityError, assertPackageFirebaseConfig, disposePackage, exportSourcePackage, listSourceEntries, makeGit,
+  readFromCommit, resolveSourceCommit, verifyExportedPackage
+} from './functions-source-package.mjs';
 
 export class ReleaseGuardError extends Error {
   constructor(message) {
@@ -30,32 +39,47 @@ export class ReleaseGuardError extends Error {
   }
 }
 
-export const CONTRACT_DIRECTORY = join('config', 'release-contracts');
+export const CONTRACT_VERSION = 2;
+export const MAX_APPROVAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 export const CONTRACT_KEYS = Object.freeze([
-  'contractVersion', 'releaseId', 'environment', 'firebaseProjectId', 'sourceSha', 'functions',
-  'expectedFunctionCount', 'exclusions', 'scheduledFunctionsApproved', 'authorizationRef'
+  'contractVersion', 'releaseId', 'environment', 'firebaseProjectId', 'sourceSha', 'sourceTree', 'functions',
+  'expectedFunctionCount', 'exclusions', 'scheduledFunctionsApproved', 'notBefore', 'expiresAt'
 ]);
 const FUNCTION_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const RELEASE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
+const ISO_UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 
 function neverDeployNames(environment) {
   return Object.values(environment.functionsNeverDeploy || {}).flat();
 }
 
-// Exported Function names and which of them are scheduled, read statically from the Functions entry point.
-export async function readFunctionSource(rootDir) {
-  const source = await readFile(join(rootDir, 'functions', 'index.js'), 'utf8');
+// Exported Function names and which of them are scheduled, read statically from the Functions entry point text.
+export function readFunctionSourceText(source) {
   const exported = [...source.matchAll(/^exports\.([A-Za-z0-9_]+)\s*=/gm)].map(match => match[1]);
   const scheduled = [...source.matchAll(/^exports\.([A-Za-z0-9_]+)\s*=\s*onSchedule\(/gm)].map(match => match[1]);
   return { exported: new Set(exported), scheduled: new Set(scheduled) };
 }
 
+export async function readFunctionSource(rootDir) {
+  return readFunctionSourceText(await readFile(join(rootDir, 'functions', 'index.js'), 'utf8'));
+}
+
+// The manifest is read from the approved commit, never from the working tree.
+export function parseDeploymentManifestText(text) {
+  let manifest;
+  try { manifest = JSON.parse(text); } catch { throw new ReleaseGuardError('config/deployment-manifest.json in the approved commit is not valid JSON.'); }
+  if (manifest?.version !== 1) throw new ReleaseGuardError(`Unsupported deployment manifest version ${manifest?.version}.`);
+  for (const name of ENVIRONMENTS) if (!manifest.environments?.[name]) throw new ReleaseGuardError(`The deployment manifest is missing environment "${name}".`);
+  return manifest;
+}
+
 const isPlainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isStringList = value => Array.isArray(value) && value.every(item => typeof item === 'string');
 
-// Pure validation. Returns the contract when every rule holds; otherwise throws one error listing every problem.
-export function assertReleaseContract({ manifest, contract, environment, project, git, source }) {
+// Pure validation of the (signature-verified) approval payload. Returns it when every rule holds; otherwise throws
+// one error listing every problem.
+export function assertReleaseContract({ manifest, contract, environment, project, git, source, now = new Date() }) {
   const problems = [];
   const problem = text => problems.push(text);
   if (!ENVIRONMENTS.includes(environment)) problem(`environment "${environment}" is missing or unknown (expected one of ${ENVIRONMENTS.join(', ')})`);
@@ -68,9 +92,8 @@ export function assertReleaseContract({ manifest, contract, environment, project
   for (const key of keys) if (!CONTRACT_KEYS.includes(key)) problem(`contract has unknown key "${key}"`);
   if (problems.length) throw new ReleaseGuardError(`Release contract rejected: ${problems.join('; ')}.`);
 
-  if (contract.contractVersion !== 1) problem('contractVersion must be 1');
+  if (contract.contractVersion !== CONTRACT_VERSION) problem(`contractVersion must be ${CONTRACT_VERSION}`);
   if (typeof contract.releaseId !== 'string' || !RELEASE_ID.test(contract.releaseId)) problem('releaseId must be 3-64 characters of [A-Za-z0-9._-]');
-  if (typeof contract.authorizationRef !== 'string' || !contract.authorizationRef.trim()) problem('authorizationRef (a reference to the Owner authorisation for THIS release) is required; the manifest allowlist is eligibility, not authorisation');
 
   const manifestEnvironment = manifest.environments?.[environment];
   if (!manifestEnvironment) problem(`the manifest has no environment "${environment}"`);
@@ -82,8 +105,21 @@ export function assertReleaseContract({ manifest, contract, environment, project
   if (contract.firebaseProjectId !== project) problem(`contract project "${contract.firebaseProjectId}" differs from --project "${project}"`);
 
   if (typeof contract.sourceSha !== 'string' || !FULL_SHA.test(contract.sourceSha)) problem('sourceSha must be a full 40-character lowercase SHA');
-  else if (git?.sha !== contract.sourceSha) problem(`contract sourceSha ${contract.sourceSha} is not the checked-out HEAD ${git?.sha || 'unknown'}`);
+  else if (git?.sha !== contract.sourceSha) problem(`approved sourceSha ${contract.sourceSha} is not the checked-out HEAD ${git?.sha || 'unknown'}`);
+  if (typeof contract.sourceTree !== 'string' || !FULL_SHA.test(contract.sourceTree)) problem('sourceTree must be a full 40-character lowercase tree id');
+  else if (git?.tree !== contract.sourceTree) problem(`approved sourceTree ${contract.sourceTree} differs from the tree of the source commit (${git?.tree || 'unknown'})`);
   if (git?.dirty !== false) problem('the working tree has uncommitted tracked changes (or its state is unknown)');
+
+  if (typeof contract.notBefore !== 'string' || !ISO_UTC.test(contract.notBefore) || typeof contract.expiresAt !== 'string' || !ISO_UTC.test(contract.expiresAt)) {
+    problem('notBefore and expiresAt must be UTC timestamps like 2026-10-27T01:00:00Z');
+  } else {
+    const start = Date.parse(contract.notBefore);
+    const end = Date.parse(contract.expiresAt);
+    if (!(end > start)) problem('expiresAt must be after notBefore');
+    else if (end - start > MAX_APPROVAL_WINDOW_MS) problem('the approval window may not exceed 14 days');
+    if (now.getTime() < start) problem(`the approval is not valid until ${contract.notBefore}`);
+    if (now.getTime() >= end) problem(`the approval expired at ${contract.expiresAt}`);
+  }
 
   const names = contract.functions;
   const exclusions = contract.exclusions;
@@ -171,13 +207,13 @@ export function assertScopedFunctionsDeployArgs(args, contract) {
     if (selected.length !== expected.length || expected.some(name => !selected.includes(name))) problems.push('--only does not match the contract Function list exactly');
     if (project !== contract.firebaseProjectId) problems.push(`--project "${project}" differs from the contract project "${contract.firebaseProjectId}"`);
   }
-  if (problems.length) throw new ReleaseGuardError(`Unsafe Firebase CLI command rejected:${problems.join('; ')}.`);
+  if (problems.length) throw new ReleaseGuardError(`Unsafe Firebase CLI command rejected: ${problems.join('; ')}.`);
   return { only: selected, project, message };
 }
 
 export function parseGuardArguments(argv) {
   const args = [...argv];
-  const parsed = { environment: '', project: '', contract: '', execute: false, confirmProduction: false };
+  const parsed = { environment: '', project: '', approval: '', trustAnchor: '', execute: false, confirmProduction: false };
   const value = flag => {
     const next = args.shift();
     if (!next || next.startsWith('-')) throw new ReleaseGuardError(`${flag} requires a value.`);
@@ -187,76 +223,106 @@ export function parseGuardArguments(argv) {
     const flag = args.shift();
     if (flag === '--env') parsed.environment = value(flag);
     else if (flag === '--project') parsed.project = value(flag);
-    else if (flag === '--contract') parsed.contract = value(flag);
+    else if (flag === '--approval') parsed.approval = value(flag);
+    else if (flag === '--trust-anchor') parsed.trustAnchor = value(flag);
     else if (flag === '--execute') parsed.execute = true;
     else if (flag === '--confirm-production') parsed.confirmProduction = true;
-    else throw new ReleaseGuardError(`Unsupported argument "${flag}". Usage: node scripts/deploy-functions.mjs --env <${ENVIRONMENTS.join('|')}> --project <firebase-project-id> --contract <config/release-contracts/file.json> [--execute] [--confirm-production]. The wrapper never accepts --only, --force or any raw Firebase flag.`);
+    else throw new ReleaseGuardError(`Unsupported argument "${flag}". Usage: node scripts/deploy-functions.mjs --env <${ENVIRONMENTS.join('|')}> --project <firebase-project-id> --approval <Owner-signed approval file outside the repository> [--trust-anchor <root-owned file>] [--execute] [--confirm-production]. The wrapper never accepts --only, --force, --contract or any raw Firebase flag.`);
   }
   if (!parsed.environment) throw new ReleaseGuardError('--env is required.');
   if (!parsed.project) throw new ReleaseGuardError('--project is required (the Firebase project is never inferred).');
-  if (!parsed.contract) throw new ReleaseGuardError('--contract is required: a Functions release needs a reviewed release contract.');
+  if (!parsed.approval) throw new ReleaseGuardError('--approval is required: a Functions release needs an Owner-signed approval stored outside the repository.');
   return parsed;
 }
 
-async function defaultGetGitState(rootDir, contractPath) {
-  const options = { cwd: rootDir };
-  const status = await execFileAsync('git', ['status', '--porcelain', '--untracked-files=no'], options);
-  const head = await execFileAsync('git', ['rev-parse', 'HEAD'], options);
-  const tracked = await execFileAsync('git', ['ls-files', '--error-unmatch', '--', contractPath], options).then(() => true, () => false);
-  return { dirty: status.stdout.trim() !== '', sha: head.stdout.trim(), contractTracked: tracked };
-}
+const defaultIo = { lstat, realpath, readFile: path => readFile(path, 'utf8') };
 
-async function defaultRun(command, args, { cwd }) {
-  const packageDir = join(cwd, 'node_modules', `${command}-tools`);
-  const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8').catch(() => {
-    throw new ReleaseGuardError(`${command}-tools is not installed here. Run npm ci first.`);
-  }));
-  const child = spawn(process.execPath, [join(packageDir, manifest.bin[command]), ...args], { cwd, stdio: 'inherit' });
+// Runs one tool. Firebase is started from the isolated package (cwd) using the tool installed in the repository
+// (toolRoot); npm is only used to install the package's own dependencies without lifecycle scripts.
+async function defaultRun(command, args, { cwd, toolRoot }) {
+  let executable; let executableArgs;
+  if (command === 'firebase') {
+    const packageDir = join(toolRoot, 'node_modules', 'firebase-tools');
+    const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8').catch(() => {
+      throw new ReleaseGuardError('firebase-tools is not installed here. Run npm ci first.');
+    }));
+    executable = process.execPath; executableArgs = [join(packageDir, manifest.bin.firebase), ...args];
+  } else if (command === 'npm') {
+    executable = 'npm'; executableArgs = args;
+  } else {
+    throw new ReleaseGuardError(`Refusing to run "${command}".`);
+  }
+  const child = spawn(executable, executableArgs, { cwd, stdio: 'inherit' });
   return new Promise((resolveExit, reject) => {
     child.on('error', reject);
     child.on('close', code => resolveExit(code ?? 1));
   });
 }
 
+const textOf = buffer => buffer.toString('utf8').trim();
+
 // Entry point used by scripts/deploy-functions.mjs. Dry-run is the default: the Firebase CLI starts only with
-// --execute, and only after every check above has passed.
+// --execute, and only after every check below has passed. The dry-run performs the same verification and builds
+// (then removes) the isolated package, so what it reports is what --execute would use.
 export async function runFunctionsDeploy(argv, options = {}) {
   const {
     rootDir = resolve(fileURLToPath(new URL('..', import.meta.url))),
-    run = defaultRun, log = console.log, getGitState = defaultGetGitState
+    run = defaultRun, log = console.log, io = defaultIo, now = () => new Date(), createGit = makeGit, makeTempDir
   } = options;
   const parsed = parseGuardArguments(argv);
+  const realRoot = await io.realpath(rootDir);
 
-  const contractFile = resolve(rootDir, parsed.contract);
-  const relativePath = relative(resolve(rootDir, CONTRACT_DIRECTORY), contractFile);
-  if (!relativePath || relativePath.startsWith('..') || relativePath.includes(`..${sep}`) || !contractFile.endsWith('.json')) {
-    throw new ReleaseGuardError(`The release contract must be a committed .json file under ${CONTRACT_DIRECTORY}/.`);
-  }
-  let contract;
-  try {
-    contract = JSON.parse(await readFile(contractFile, 'utf8'));
-  } catch (error) {
-    throw new ReleaseGuardError(`Could not read the release contract ${parsed.contract}: ${error.message}`);
-  }
+  // 1. The Owner approval: an external file, never inside the repository.
+  const approvalFile = resolve(parsed.approval);
+  let realApproval;
+  try { realApproval = await io.realpath(approvalFile); } catch { throw new ReleaseGuardError(`The release approval ${parsed.approval} does not exist.`); }
+  try { assertOutside(realApproval, [realRoot], 'The release approval'); } catch (error) { throw new ReleaseGuardError(error.message); }
+  let artifact;
+  try { artifact = JSON.parse(await io.readFile(approvalFile)); } catch (error) { throw new ReleaseGuardError(`The release approval is not readable JSON: ${error.message}`); }
 
-  const manifest = await loadDeploymentManifest(rootDir);
-  const git = await getGitState(rootDir, relative(rootDir, contractFile));
-  if (git.contractTracked !== true) throw new ReleaseGuardError('The release contract is not a tracked (committed) file; a release approval must be reviewable in git.');
-  const source = await readFunctionSource(rootDir);
-  assertReleaseContract({ manifest, contract, environment: parsed.environment, project: parsed.project, git, source });
+  // 2. Independently verifiable: pinned, root-owned trust anchor + signature over the exact payload.
+  const trustedKeys = await loadTrustAnchor({ path: parsed.trustAnchor ? resolve(parsed.trustAnchor) : DEFAULT_TRUST_ANCHOR_PATH, forbiddenRoots: [realRoot], io });
+  const payload = verifyApproval({ artifact, trustedKeys });
+
+  // 3. The approved source commit must exist; everything below is read from IT, not from the working tree.
+  const git = createGit(realRoot);
+  const source = await resolveSourceCommit(git, payload.sourceSha);
+  const manifest = parseDeploymentManifestText(await readFromCommit(git, source.sha, 'config/deployment-manifest.json'));
+  const functionSource = readFunctionSourceText(await readFromCommit(git, source.sha, 'functions/index.js'));
+  assertPackageFirebaseConfig(await readFromCommit(git, source.sha, 'firebase.json'));
+  const head = textOf(await git(['rev-parse', 'HEAD']));
+  const dirty = textOf(await git(['status', '--porcelain', '--untracked-files=no'])) !== '';
+  assertReleaseContract({
+    manifest, contract: payload, environment: parsed.environment, project: parsed.project,
+    git: { sha: head, tree: source.tree, dirty }, source: functionSource, now: now()
+  });
 
   if (parsed.environment === 'prod' && parsed.execute && !parsed.confirmProduction) {
     throw new ReleaseGuardError('Deploying Production Functions requires --confirm-production.');
   }
-  const args = buildScopedFirebaseArgs(contract);
-  assertScopedFunctionsDeployArgs(args, contract);
-  log(`Release ${contract.releaseId} (${parsed.environment}, ${contract.firebaseProjectId}): ${contract.functions.length} Functions, ${contract.exclusions.length} explicitly excluded.`);
-  log(`> ${['firebase', ...args].join(' ')}`);
-  if (!parsed.execute) {
-    log('Dry run: the Firebase CLI was not started. Re-run with --execute to deploy.');
+  const args = buildScopedFirebaseArgs(payload);
+  assertScopedFunctionsDeployArgs(args, payload);
+
+  // 4. Immutable package from the approved tree (no working-tree files, no links), verified against that tree.
+  const entries = await listSourceEntries(git, source.sha);
+  const packageRoot = await exportSourcePackage({ git, entries, makeTempDir });
+  try {
+    await verifyExportedPackage({ git, root: packageRoot, entries, extraForbiddenFiles: [basename(realApproval)] });
+    log(`Release ${payload.releaseId} (${parsed.environment}, ${payload.firebaseProjectId}): ${payload.functions.length} Functions, ${payload.exclusions.length} explicitly excluded.`);
+    log(`Approved source commit ${source.sha} (tree ${source.tree}) verified; isolated package of ${entries.length} tracked files built from it. Approval signed by ${artifact.keyId}.`);
+    log(`> ${['firebase', ...args].join(' ')}`);
+    if (!parsed.execute) {
+      log('Dry run: the Firebase CLI was not started and the isolated package was removed. Re-run with --execute to deploy.');
+      return 0;
+    }
+    const installed = await run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: join(packageRoot, 'functions'), toolRoot: realRoot });
+    if (installed !== 0) throw new ReleaseGuardError(`Installing the isolated package dependencies failed with code ${installed}; nothing was deployed.`);
+    const code = await run('firebase', args, { cwd: packageRoot, toolRoot: realRoot });
+    if (code !== 0) throw new ReleaseGuardError(`The Firebase CLI exited with code ${code}; nothing was verified as deployed.`);
     return 0;
+  } finally {
+    await disposePackage(packageRoot);
   }
-  const code = await run('firebase', args, { cwd: rootDir });
-  if (code !== 0) throw new ReleaseGuardError(`The Firebase CLI exited with code ${code}; nothing was verified as deployed.`);
-  return 0;
 }
+
+export { ApprovalError, PackageIntegrityError };
