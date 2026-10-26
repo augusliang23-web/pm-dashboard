@@ -1,0 +1,146 @@
+{
+  "results": [
+    {
+      "role": "admin",
+      "name": "week round trip cancels pending opening permanently",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "cancel pending opening cannot reopen or show stale private content",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "logout cancels a delayed opening and relogin does not reveal its result",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "revision conflict keeps input, actionable error and retry controls",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "network failure preserves values and a retry publishes once",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "publish validation failure keeps editor and real error",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "duplicate click blocked; slow list refresh does not delay successful close",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "assignment validation retains inputs and controls without weakening access-loss handling",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "week changes while publish pending do not close a different editor",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "Save Draft persists through logout/login and does not publish",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "Overview, Delivery Trends and PDF selection entry survive",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "lifecycle entry permissions and keyboard dialog",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "Refresh returns keyboard focus to Refresh after success and network failure",
+      "status": "PASS"
+    },
+    {
+      "role": "admin",
+      "name": "semantic table, keyboard refresh focus, mobile horizontal actions",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "week round trip cancels pending opening permanently",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "cancel pending opening cannot reopen or show stale private content",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "logout cancels a delayed opening and relogin does not reveal its result",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "revision conflict keeps input, actionable error and retry controls",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "network failure preserves values and a retry publishes once",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "publish validation failure keeps editor and real error",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "duplicate click blocked; slow list refresh does not delay successful close",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "real draft access revocation clears private inputs and closes the editor",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "week changes while publish pending do not close a different editor",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "Save Draft persists through logout/login and does not publish",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "Overview, Delivery Trends and PDF selection entry survive",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "lifecycle entry permissions and keyboard dialog",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "Refresh returns keyboard focus to Refresh after success and network failure",
+      "status": "PASS"
+    },
+    {
+      "role": "pm",
+      "name": "semantic table, keyboard refresh focus, mobile horizontal actions",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": [],
+  "testedSource": "source-manifest.json"
+}

@@ -1,0 +1,2926 @@
+{
+  "mode": "baseline",
+  "commit": "b3b7a51d5db680cfc87acdf24d06d73a9de2aaac",
+  "conditions": {
+    "browser": "HeadlessChrome/148.0.7778.97",
+    "viewport": "1440x1100",
+    "cpuThrottle": 1,
+    "fixture": "synthetic emulator W30-W43; 2 drafts; 4 users",
+    "samplesPerCell": 20,
+    "extraCallableDelay": "outbound request interception; not cloud latency"
+  },
+  "measurements": [
+    {
+      "role": "admin",
+      "entry": "source-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 62.59999990463257,
+          "shellMs": 62.59999990463257,
+          "readyMs": 62.59999990463257,
+          "jsTaskMs": 26.071000000000012,
+          "backendRequestMs": 33.63741700000037,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 45.10000014305115,
+          "shellMs": 45.10000014305115,
+          "readyMs": 45.10000014305115,
+          "jsTaskMs": 14.66099999999998,
+          "backendRequestMs": 24.39483300000029,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 47.700000047683716,
+          "shellMs": 47.700000047683716,
+          "readyMs": 47.700000047683716,
+          "jsTaskMs": 24.59800000000001,
+          "backendRequestMs": 25.602958999999828,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 49.299999952316284,
+          "shellMs": 49.299999952316284,
+          "readyMs": 49.299999952316284,
+          "jsTaskMs": 15.69799999999999,
+          "backendRequestMs": 24.221750000000156,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 49,
+          "shellMs": 49,
+          "readyMs": 49,
+          "jsTaskMs": 13.672000000000018,
+          "backendRequestMs": 26.176790999999866,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 12.44400000000001,
+          "backendRequestMs": 22.800333000000137,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 12.115000000000043,
+          "backendRequestMs": 21.964375000000018,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 47.39999985694885,
+          "shellMs": 47.39999985694885,
+          "readyMs": 47.39999985694885,
+          "jsTaskMs": 12.838000000000015,
+          "backendRequestMs": 23.54012499999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.40000009536743,
+          "shellMs": 31.40000009536743,
+          "readyMs": 31.40000009536743,
+          "jsTaskMs": 11.985999999999997,
+          "backendRequestMs": 21.924375000000055,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 11.901999999999969,
+          "backendRequestMs": 20.429999999999836,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.59999990463257,
+          "shellMs": 31.59999990463257,
+          "readyMs": 31.59999990463257,
+          "jsTaskMs": 11.889000000000038,
+          "backendRequestMs": 21.210915999999997,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.59999990463257,
+          "shellMs": 32.59999990463257,
+          "readyMs": 32.59999990463257,
+          "jsTaskMs": 11.84500000000005,
+          "backendRequestMs": 21.9812909999996,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 12.21300000000003,
+          "backendRequestMs": 22.41145800000004,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32,
+          "shellMs": 32,
+          "readyMs": 32,
+          "jsTaskMs": 11.679999999999968,
+          "backendRequestMs": 21.29012499999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.89999985694885,
+          "shellMs": 32.89999985694885,
+          "readyMs": 32.89999985694885,
+          "jsTaskMs": 17.79900000000001,
+          "backendRequestMs": 21.90008399999988,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.89999985694885,
+          "shellMs": 32.89999985694885,
+          "readyMs": 32.89999985694885,
+          "jsTaskMs": 11.523000000000005,
+          "backendRequestMs": 20.428665999999794,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 11.78499999999999,
+          "backendRequestMs": 21.08283399999982,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 11.564999999999992,
+          "backendRequestMs": 23.058500000000095,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 49,
+          "shellMs": 49,
+          "readyMs": 49,
+          "jsTaskMs": 12.944000000000011,
+          "backendRequestMs": 25.816041999999925,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 11.942999999999982,
+          "backendRequestMs": 23.137499999999818,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 32.5,
+        "shellMs": 32.5,
+        "readyMs": 32.5,
+        "jsTaskMs": 12.115000000000043,
+        "backendRequestMs": 22.41145800000004,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 49.299999952316284,
+        "shellMs": 49.299999952316284,
+        "readyMs": 49.299999952316284,
+        "jsTaskMs": 24.59800000000001,
+        "backendRequestMs": 26.176790999999866
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "published-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 29.40000009536743,
+          "shellMs": 29.40000009536743,
+          "readyMs": 29.40000009536743,
+          "jsTaskMs": 11.355000000000004,
+          "backendRequestMs": 14.71591699999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32,
+          "shellMs": 32,
+          "readyMs": 32,
+          "jsTaskMs": 11.68099999999994,
+          "backendRequestMs": 21.36541699999998,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.90000009536743,
+          "shellMs": 31.90000009536743,
+          "readyMs": 31.90000009536743,
+          "jsTaskMs": 10.990000000000055,
+          "backendRequestMs": 20.678542000000107,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 10.947999999999958,
+          "backendRequestMs": 21.109667000000172,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 11.597999999999997,
+          "backendRequestMs": 22.5269159999998,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 11.491999999999948,
+          "backendRequestMs": 21.606542000000445,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.5,
+          "shellMs": 31.5,
+          "readyMs": 31.5,
+          "jsTaskMs": 10.882000000000058,
+          "backendRequestMs": 21.26208399999996,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.800000190734863,
+          "shellMs": 31.800000190734863,
+          "readyMs": 31.800000190734863,
+          "jsTaskMs": 11.400999999999994,
+          "backendRequestMs": 21.895542000000205,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 11.64900000000002,
+          "backendRequestMs": 21.013958000000457,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.899999856948853,
+          "shellMs": 31.899999856948853,
+          "readyMs": 31.899999856948853,
+          "jsTaskMs": 11.244000000000032,
+          "backendRequestMs": 20.720666000000165,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.10000014305115,
+          "shellMs": 32.10000014305115,
+          "readyMs": 32.10000014305115,
+          "jsTaskMs": 11.884000000000006,
+          "backendRequestMs": 20.588416999999936,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.30000019073486,
+          "shellMs": 32.30000019073486,
+          "readyMs": 32.30000019073486,
+          "jsTaskMs": 11.15200000000005,
+          "backendRequestMs": 22.69641700000011,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.399999856948853,
+          "shellMs": 31.399999856948853,
+          "readyMs": 31.399999856948853,
+          "jsTaskMs": 12.15899999999992,
+          "backendRequestMs": 22.40062500000022,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.09999990463257,
+          "shellMs": 32.09999990463257,
+          "readyMs": 32.09999990463257,
+          "jsTaskMs": 11.634999999999952,
+          "backendRequestMs": 22.359958999999435,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.699999809265137,
+          "shellMs": 31.699999809265137,
+          "readyMs": 31.699999809265137,
+          "jsTaskMs": 11.28600000000002,
+          "backendRequestMs": 21.578207999999904,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 11.469000000000062,
+          "backendRequestMs": 21.193583000000217,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.10000014305115,
+          "shellMs": 32.10000014305115,
+          "readyMs": 32.10000014305115,
+          "jsTaskMs": 11.082000000000036,
+          "backendRequestMs": 21.95037499999944,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 11.516000000000082,
+          "backendRequestMs": 21.491084000000228,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.700000047683716,
+          "shellMs": 32.700000047683716,
+          "readyMs": 32.700000047683716,
+          "jsTaskMs": 12.586000000000098,
+          "backendRequestMs": 23.01537499999995,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32,
+          "shellMs": 32,
+          "readyMs": 32,
+          "jsTaskMs": 11.60899999999998,
+          "backendRequestMs": 23.85716599999978,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 32.09999990463257,
+        "shellMs": 32.09999990463257,
+        "readyMs": 32.09999990463257,
+        "jsTaskMs": 11.469000000000062,
+        "backendRequestMs": 21.491084000000228,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 32.40000009536743,
+        "shellMs": 32.40000009536743,
+        "readyMs": 32.40000009536743,
+        "jsTaskMs": 12.15899999999992,
+        "backendRequestMs": 23.01537499999995
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "my-drafts",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 43.09999990463257,
+          "shellMs": 43.09999990463257,
+          "readyMs": 43.09999990463257,
+          "jsTaskMs": 14.761999999999942,
+          "backendRequestMs": 21.60662499999944,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 30,
+          "shellMs": 30,
+          "readyMs": 30,
+          "jsTaskMs": 23.387999999999963,
+          "backendRequestMs": 16.422332999999526,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.700000047683716,
+          "shellMs": 35.700000047683716,
+          "readyMs": 35.700000047683716,
+          "jsTaskMs": 13.860000000000095,
+          "backendRequestMs": 17.378708000000188,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 37.799999952316284,
+          "shellMs": 37.799999952316284,
+          "readyMs": 37.799999952316284,
+          "jsTaskMs": 14.490000000000002,
+          "backendRequestMs": 19.88391700000011,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 36.60000014305115,
+          "shellMs": 36.60000014305115,
+          "readyMs": 36.60000014305115,
+          "jsTaskMs": 14.143000000000017,
+          "backendRequestMs": 18.166416999999456,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 36.89999985694885,
+          "shellMs": 36.89999985694885,
+          "readyMs": 36.89999985694885,
+          "jsTaskMs": 14.84300000000005,
+          "backendRequestMs": 18.41520799999944,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 38.09999990463257,
+          "shellMs": 38.09999990463257,
+          "readyMs": 38.09999990463257,
+          "jsTaskMs": 15.30700000000007,
+          "backendRequestMs": 19.089791000000332,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.799999952316284,
+          "shellMs": 32.799999952316284,
+          "readyMs": 32.799999952316284,
+          "jsTaskMs": 16.726999999999936,
+          "backendRequestMs": 16.103041999999732,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 36.299999952316284,
+          "shellMs": 36.299999952316284,
+          "readyMs": 36.299999952316284,
+          "jsTaskMs": 14.444000000000013,
+          "backendRequestMs": 18.81529099999989,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.799999952316284,
+          "shellMs": 35.799999952316284,
+          "readyMs": 35.799999952316284,
+          "jsTaskMs": 15.22100000000004,
+          "backendRequestMs": 17.68345799999952,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.39999985694885,
+          "shellMs": 35.39999985694885,
+          "readyMs": 35.39999985694885,
+          "jsTaskMs": 14.62299999999994,
+          "backendRequestMs": 17.65941699999985,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 37.09999990463257,
+          "shellMs": 37.09999990463257,
+          "readyMs": 37.09999990463257,
+          "jsTaskMs": 13.884000000000007,
+          "backendRequestMs": 19.026417000000038,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 37.799999952316284,
+          "shellMs": 37.799999952316284,
+          "readyMs": 37.799999952316284,
+          "jsTaskMs": 14.218999999999982,
+          "backendRequestMs": 18.602082999999766,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.40000009536743,
+          "shellMs": 35.40000009536743,
+          "readyMs": 35.40000009536743,
+          "jsTaskMs": 14.25299999999985,
+          "backendRequestMs": 17.797999999999774,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.799999952316284,
+          "shellMs": 35.799999952316284,
+          "readyMs": 35.799999952316284,
+          "jsTaskMs": 14.164000000000065,
+          "backendRequestMs": 17.683666999999332,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.799999952316284,
+          "shellMs": 35.799999952316284,
+          "readyMs": 35.799999952316284,
+          "jsTaskMs": 14.432999999999918,
+          "backendRequestMs": 17.411333999999442,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 37.90000009536743,
+          "shellMs": 37.90000009536743,
+          "readyMs": 37.90000009536743,
+          "jsTaskMs": 15.161000000000202,
+          "backendRequestMs": 19.461624999999913,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 36.200000047683716,
+          "shellMs": 36.200000047683716,
+          "readyMs": 36.200000047683716,
+          "jsTaskMs": 15.349999999999975,
+          "backendRequestMs": 19.56041599999935,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 36.299999952316284,
+          "shellMs": 36.299999952316284,
+          "readyMs": 36.299999952316284,
+          "jsTaskMs": 14.291999999999971,
+          "backendRequestMs": 18.977874999999585,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 38.200000047683716,
+          "shellMs": 38.200000047683716,
+          "readyMs": 38.200000047683716,
+          "jsTaskMs": 15.044000000000057,
+          "backendRequestMs": 19.34479100000044,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 36.299999952316284,
+        "shellMs": 36.299999952316284,
+        "readyMs": 36.299999952316284,
+        "jsTaskMs": 14.490000000000002,
+        "backendRequestMs": 18.41520799999944,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 38.200000047683716,
+        "shellMs": 38.200000047683716,
+        "readyMs": 38.200000047683716,
+        "jsTaskMs": 16.726999999999936,
+        "backendRequestMs": 19.88391700000011
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "draft-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 35.5,
+          "shellMs": 35.5,
+          "readyMs": 35.5,
+          "jsTaskMs": 11.68900000000006,
+          "backendRequestMs": 13.092332999999599,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 26.100000143051147,
+          "shellMs": 26.100000143051147,
+          "readyMs": 26.100000143051147,
+          "jsTaskMs": 13.815999999999828,
+          "backendRequestMs": 14.286166999999296,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 19.299999952316284,
+          "shellMs": 19.299999952316284,
+          "readyMs": 19.299999952316284,
+          "jsTaskMs": 10.917000000000066,
+          "backendRequestMs": 11.354040999999597,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 23.200000047683716,
+          "shellMs": 23.200000047683716,
+          "readyMs": 23.200000047683716,
+          "jsTaskMs": 10.87299999999991,
+          "backendRequestMs": 13.942291999999725,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 23.90000009536743,
+          "shellMs": 23.90000009536743,
+          "readyMs": 23.90000009536743,
+          "jsTaskMs": 10.832000000000175,
+          "backendRequestMs": 12.482208000000355,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 22.90000009536743,
+          "shellMs": 22.90000009536743,
+          "readyMs": 22.90000009536743,
+          "jsTaskMs": 11.379000000000028,
+          "backendRequestMs": 14.530499999999847,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 22.200000047683716,
+          "shellMs": 22.200000047683716,
+          "readyMs": 22.200000047683716,
+          "jsTaskMs": 11.044999999999972,
+          "backendRequestMs": 14.06395799999973,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 25.300000190734863,
+          "shellMs": 25.300000190734863,
+          "readyMs": 25.300000190734863,
+          "jsTaskMs": 10.199999999999987,
+          "backendRequestMs": 12.868333000000348,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 24.09999990463257,
+          "shellMs": 24.09999990463257,
+          "readyMs": 24.09999990463257,
+          "jsTaskMs": 10.170000000000012,
+          "backendRequestMs": 12.803374999999505,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 24.700000047683716,
+          "shellMs": 24.700000047683716,
+          "readyMs": 24.700000047683716,
+          "jsTaskMs": 10.707000000000022,
+          "backendRequestMs": 14.364082999999482,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 20.299999952316284,
+          "shellMs": 20.299999952316284,
+          "readyMs": 20.299999952316284,
+          "jsTaskMs": 10.769999999999946,
+          "backendRequestMs": 12.37091700000019,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 20.700000047683716,
+          "shellMs": 20.700000047683716,
+          "readyMs": 20.700000047683716,
+          "jsTaskMs": 10.532999999999904,
+          "backendRequestMs": 12.76404199999979,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 24.600000143051147,
+          "shellMs": 24.600000143051147,
+          "readyMs": 24.600000143051147,
+          "jsTaskMs": 10.540999999999912,
+          "backendRequestMs": 12.268417000000227,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 23.700000047683716,
+          "shellMs": 23.700000047683716,
+          "readyMs": 23.700000047683716,
+          "jsTaskMs": 11.006000000000071,
+          "backendRequestMs": 14.075957999999446,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 21.800000190734863,
+          "shellMs": 21.800000190734863,
+          "readyMs": 21.800000190734863,
+          "jsTaskMs": 10.58799999999982,
+          "backendRequestMs": 13.437541999999667,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 22.700000047683716,
+          "shellMs": 22.700000047683716,
+          "readyMs": 22.700000047683716,
+          "jsTaskMs": 11.437000000000141,
+          "backendRequestMs": 14.523542000000816,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 21.5,
+          "shellMs": 21.5,
+          "readyMs": 21.5,
+          "jsTaskMs": 11.079000000000061,
+          "backendRequestMs": 14.273000000000138,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 22.59999990463257,
+          "shellMs": 22.59999990463257,
+          "readyMs": 22.59999990463257,
+          "jsTaskMs": 10.887000000000091,
+          "backendRequestMs": 12.776458999999704,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 21.700000047683716,
+          "shellMs": 21.700000047683716,
+          "readyMs": 21.700000047683716,
+          "jsTaskMs": 10.369000000000073,
+          "backendRequestMs": 13.124749999999949,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 23.5,
+          "shellMs": 23.5,
+          "readyMs": 23.5,
+          "jsTaskMs": 10.368000000000155,
+          "backendRequestMs": 12.727125000000342,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 22.90000009536743,
+        "shellMs": 22.90000009536743,
+        "readyMs": 22.90000009536743,
+        "jsTaskMs": 10.832000000000175,
+        "backendRequestMs": 13.092332999999599,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 26.100000143051147,
+        "shellMs": 26.100000143051147,
+        "readyMs": 26.100000143051147,
+        "jsTaskMs": 11.68900000000006,
+        "backendRequestMs": 14.523542000000816
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "source-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 290,
+          "shellMs": 290,
+          "readyMs": 290,
+          "jsTaskMs": 20.380000000000067,
+          "backendRequestMs": 271.90287499999977,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 298.60000014305115,
+          "shellMs": 298.60000014305115,
+          "readyMs": 298.60000014305115,
+          "jsTaskMs": 28.229999999999976,
+          "backendRequestMs": 277.164667,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.7000000476837,
+          "shellMs": 281.7000000476837,
+          "readyMs": 281.7000000476837,
+          "jsTaskMs": 27.940000000000076,
+          "backendRequestMs": 269.9950000000008,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.60000014305115,
+          "shellMs": 283.60000014305115,
+          "readyMs": 283.60000014305115,
+          "jsTaskMs": 22.005999999999972,
+          "backendRequestMs": 272.88895799999955,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 294.60000014305115,
+          "shellMs": 294.60000014305115,
+          "readyMs": 294.60000014305115,
+          "jsTaskMs": 29.033000000000087,
+          "backendRequestMs": 273.52349999999933,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.2000000476837,
+          "shellMs": 281.2000000476837,
+          "readyMs": 281.2000000476837,
+          "jsTaskMs": 21.832000000000072,
+          "backendRequestMs": 269.13954100000046,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.09999990463257,
+          "shellMs": 287.09999990463257,
+          "readyMs": 287.09999990463257,
+          "jsTaskMs": 19.80999999999988,
+          "backendRequestMs": 270.66312500000095,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 300.2000000476837,
+          "shellMs": 300.2000000476837,
+          "readyMs": 300.2000000476837,
+          "jsTaskMs": 23.07199999999998,
+          "backendRequestMs": 274.9081249999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.39999985694885,
+          "shellMs": 283.39999985694885,
+          "readyMs": 283.39999985694885,
+          "jsTaskMs": 23.866999999999862,
+          "backendRequestMs": 272.77399999999943,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 298.90000009536743,
+          "shellMs": 298.90000009536743,
+          "readyMs": 298.90000009536743,
+          "jsTaskMs": 28.13700000000008,
+          "backendRequestMs": 276.95908300000156,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 295.40000009536743,
+          "shellMs": 295.40000009536743,
+          "readyMs": 295.40000009536743,
+          "jsTaskMs": 26.48499999999987,
+          "backendRequestMs": 273.46558299999924,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 301.60000014305115,
+          "shellMs": 301.60000014305115,
+          "readyMs": 301.60000014305115,
+          "jsTaskMs": 26.988000000000014,
+          "backendRequestMs": 276.2494999999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.7000000476837,
+          "shellMs": 281.7000000476837,
+          "readyMs": 281.7000000476837,
+          "jsTaskMs": 26.75300000000003,
+          "backendRequestMs": 271.5809169999993,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 298.09999990463257,
+          "shellMs": 298.09999990463257,
+          "readyMs": 298.09999990463257,
+          "jsTaskMs": 31.285000000000007,
+          "backendRequestMs": 276.46291700000074,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.59999990463257,
+          "shellMs": 281.59999990463257,
+          "readyMs": 281.59999990463257,
+          "jsTaskMs": 24.862999999999857,
+          "backendRequestMs": 268.58229200000096,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 548.7000000476837,
+          "shellMs": 548.7000000476837,
+          "readyMs": 548.7000000476837,
+          "jsTaskMs": 31.198999999999977,
+          "backendRequestMs": 525.2914170000004,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 289.7999999523163,
+          "shellMs": 289.7999999523163,
+          "readyMs": 289.7999999523163,
+          "jsTaskMs": 21.463000000000008,
+          "backendRequestMs": 275.0565830000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.7000000476837,
+          "shellMs": 283.7000000476837,
+          "readyMs": 283.7000000476837,
+          "jsTaskMs": 19.708999999999975,
+          "backendRequestMs": 269.05483300000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 288.7000000476837,
+          "shellMs": 288.7000000476837,
+          "readyMs": 288.7000000476837,
+          "jsTaskMs": 25.905999999999985,
+          "backendRequestMs": 272.3619170000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 295.90000009536743,
+          "shellMs": 295.90000009536743,
+          "readyMs": 295.90000009536743,
+          "jsTaskMs": 31.709999999999905,
+          "backendRequestMs": 273.99933299999975,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 289.7999999523163,
+        "shellMs": 289.7999999523163,
+        "readyMs": 289.7999999523163,
+        "jsTaskMs": 25.905999999999985,
+        "backendRequestMs": 272.88895799999955,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 301.60000014305115,
+        "shellMs": 301.60000014305115,
+        "readyMs": 301.60000014305115,
+        "jsTaskMs": 31.285000000000007,
+        "backendRequestMs": 277.164667
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "published-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 290,
+          "shellMs": 290,
+          "readyMs": 290,
+          "jsTaskMs": 25.630999999999958,
+          "backendRequestMs": 268.1018329999988,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.90000009536743,
+          "shellMs": 282.90000009536743,
+          "readyMs": 282.90000009536743,
+          "jsTaskMs": 28.178000000000036,
+          "backendRequestMs": 269.59941699999945,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 290.19999980926514,
+          "shellMs": 290.19999980926514,
+          "readyMs": 290.19999980926514,
+          "jsTaskMs": 26.173000000000002,
+          "backendRequestMs": 271.98470799999996,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.39999985694885,
+          "shellMs": 281.39999985694885,
+          "readyMs": 281.39999985694885,
+          "jsTaskMs": 23.277000000000214,
+          "backendRequestMs": 267.451833000001,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.5,
+          "shellMs": 283.5,
+          "readyMs": 283.5,
+          "jsTaskMs": 30.351000000000017,
+          "backendRequestMs": 268.010166,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.2999999523163,
+          "shellMs": 281.2999999523163,
+          "readyMs": 281.2999999523163,
+          "jsTaskMs": 23.07199999999998,
+          "backendRequestMs": 265.6944169999988,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.80000019073486,
+          "shellMs": 285.80000019073486,
+          "readyMs": 285.80000019073486,
+          "jsTaskMs": 19.093999999999944,
+          "backendRequestMs": 264.16791700000067,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 274.2999999523163,
+          "shellMs": 274.2999999523163,
+          "readyMs": 274.2999999523163,
+          "jsTaskMs": 23.541000000000256,
+          "backendRequestMs": 264.8266250000015,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.2000000476837,
+          "shellMs": 286.2000000476837,
+          "readyMs": 286.2000000476837,
+          "jsTaskMs": 23.919000000000246,
+          "backendRequestMs": 264.489458,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 270.59999990463257,
+          "shellMs": 270.59999990463257,
+          "readyMs": 270.59999990463257,
+          "jsTaskMs": 20.620000000000083,
+          "backendRequestMs": 263.851375000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.09999990463257,
+          "shellMs": 287.09999990463257,
+          "readyMs": 287.09999990463257,
+          "jsTaskMs": 25.9999999999998,
+          "backendRequestMs": 265.640333000003,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 541.1000001430511,
+          "shellMs": 541.1000001430511,
+          "readyMs": 541.1000001430511,
+          "jsTaskMs": 27.998999999999885,
+          "backendRequestMs": 522.0308330000007,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 278,
+          "shellMs": 278,
+          "readyMs": 278,
+          "jsTaskMs": 23.383000000000376,
+          "backendRequestMs": 264.7744590000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.7999999523163,
+          "shellMs": 284.7999999523163,
+          "readyMs": 284.7999999523163,
+          "jsTaskMs": 29.236999999999735,
+          "backendRequestMs": 264.6316250000018,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284,
+          "shellMs": 284,
+          "readyMs": 284,
+          "jsTaskMs": 20.630000000000148,
+          "backendRequestMs": 264.4783749999988,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.60000014305115,
+          "shellMs": 287.60000014305115,
+          "readyMs": 287.60000014305115,
+          "jsTaskMs": 23.19699999999969,
+          "backendRequestMs": 266.9925000000003,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.09999990463257,
+          "shellMs": 285.09999990463257,
+          "readyMs": 285.09999990463257,
+          "jsTaskMs": 27.969000000000133,
+          "backendRequestMs": 263.31204199999775,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 288.80000019073486,
+          "shellMs": 288.80000019073486,
+          "readyMs": 288.80000019073486,
+          "jsTaskMs": 25.631999999999877,
+          "backendRequestMs": 269.03562500000044,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 24.909999999999766,
+          "backendRequestMs": 266.7909580000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 280.40000009536743,
+          "shellMs": 280.40000009536743,
+          "readyMs": 280.40000009536743,
+          "jsTaskMs": 29.28799999999976,
+          "backendRequestMs": 265.4846660000003,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 284,
+        "shellMs": 284,
+        "readyMs": 284,
+        "jsTaskMs": 24.909999999999766,
+        "backendRequestMs": 265.640333000003,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 290.19999980926514,
+        "shellMs": 290.19999980926514,
+        "readyMs": 290.19999980926514,
+        "jsTaskMs": 29.28799999999976,
+        "backendRequestMs": 271.98470799999996
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "my-drafts",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 291.09999990463257,
+          "shellMs": 291.09999990463257,
+          "readyMs": 291.09999990463257,
+          "jsTaskMs": 17.766999999999644,
+          "backendRequestMs": 264.37191600000006,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277,
+          "shellMs": 277,
+          "readyMs": 277,
+          "jsTaskMs": 17.364999999999853,
+          "backendRequestMs": 264.3602920000012,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.7999999523163,
+          "shellMs": 285.7999999523163,
+          "readyMs": 285.7999999523163,
+          "jsTaskMs": 16.42600000000005,
+          "backendRequestMs": 263.5135829999999,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.69999980926514,
+          "shellMs": 284.69999980926514,
+          "readyMs": 284.69999980926514,
+          "jsTaskMs": 17.56599999999997,
+          "backendRequestMs": 260.7582079999993,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 271.59999990463257,
+          "shellMs": 271.59999990463257,
+          "readyMs": 271.59999990463257,
+          "jsTaskMs": 15.40600000000003,
+          "backendRequestMs": 263.78350000000137,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 294.90000009536743,
+          "shellMs": 294.90000009536743,
+          "readyMs": 294.90000009536743,
+          "jsTaskMs": 20.386000000000237,
+          "backendRequestMs": 272.0471660000003,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 279.09999990463257,
+          "shellMs": 279.09999990463257,
+          "readyMs": 279.09999990463257,
+          "jsTaskMs": 16.709000000000085,
+          "backendRequestMs": 264.4306250000009,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 541.7999999523163,
+          "shellMs": 541.7999999523163,
+          "readyMs": 541.7999999523163,
+          "jsTaskMs": 25.173000000000112,
+          "backendRequestMs": 523.3441669999993,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 277.09999990463257,
+          "shellMs": 277.09999990463257,
+          "readyMs": 277.09999990463257,
+          "jsTaskMs": 16.100000000000225,
+          "backendRequestMs": 263.6656669999975,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 270.2999999523163,
+          "shellMs": 270.2999999523163,
+          "readyMs": 270.2999999523163,
+          "jsTaskMs": 15.279000000000043,
+          "backendRequestMs": 262.7801670000008,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 269.2999999523163,
+          "shellMs": 269.2999999523163,
+          "readyMs": 269.2999999523163,
+          "jsTaskMs": 17.77899999999999,
+          "backendRequestMs": 262.2298750000009,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 272,
+          "shellMs": 272,
+          "readyMs": 272,
+          "jsTaskMs": 16.199999999999992,
+          "backendRequestMs": 264.36708299999736,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.5,
+          "shellMs": 284.5,
+          "readyMs": 284.5,
+          "jsTaskMs": 20.921999999999663,
+          "backendRequestMs": 262.9400830000013,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.2000000476837,
+          "shellMs": 281.2000000476837,
+          "readyMs": 281.2000000476837,
+          "jsTaskMs": 15.22800000000002,
+          "backendRequestMs": 263.1530419999981,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 274.7999999523163,
+          "shellMs": 274.7999999523163,
+          "readyMs": 274.7999999523163,
+          "jsTaskMs": 19.32799999999979,
+          "backendRequestMs": 263.15108300000065,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278.2999999523163,
+          "shellMs": 278.2999999523163,
+          "readyMs": 278.2999999523163,
+          "jsTaskMs": 15.565999999999747,
+          "backendRequestMs": 263.1627090000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 280.2999999523163,
+          "shellMs": 280.2999999523163,
+          "readyMs": 280.2999999523163,
+          "jsTaskMs": 17.02899999999996,
+          "backendRequestMs": 262.09008299999914,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 317.7000000476837,
+          "shellMs": 317.7000000476837,
+          "readyMs": 317.7000000476837,
+          "jsTaskMs": 16.157999999999895,
+          "backendRequestMs": 301.3795420000024,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 269.60000014305115,
+          "shellMs": 269.60000014305115,
+          "readyMs": 269.60000014305115,
+          "jsTaskMs": 16.916000000000153,
+          "backendRequestMs": 262.91437499999665,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277.7999999523163,
+          "shellMs": 277.7999999523163,
+          "readyMs": 277.7999999523163,
+          "jsTaskMs": 15.64600000000027,
+          "backendRequestMs": 264.4547910000001,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 278.2999999523163,
+        "shellMs": 278.2999999523163,
+        "readyMs": 278.2999999523163,
+        "jsTaskMs": 16.709000000000085,
+        "backendRequestMs": 263.5135829999999,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 317.7000000476837,
+        "shellMs": 317.7000000476837,
+        "readyMs": 317.7000000476837,
+        "jsTaskMs": 20.921999999999663,
+        "backendRequestMs": 301.3795420000024
+      }
+    },
+    {
+      "role": "admin",
+      "entry": "draft-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 294.2999999523163,
+          "shellMs": 294.2999999523163,
+          "readyMs": 294.2999999523163,
+          "jsTaskMs": 22.029999999999994,
+          "backendRequestMs": 269.2066670000022,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.2999999523163,
+          "shellMs": 285.2999999523163,
+          "readyMs": 285.2999999523163,
+          "jsTaskMs": 22.38300000000004,
+          "backendRequestMs": 263.0396249999976,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 290.60000014305115,
+          "shellMs": 290.60000014305115,
+          "readyMs": 290.60000014305115,
+          "jsTaskMs": 23.368000000000055,
+          "backendRequestMs": 271.23512499999924,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 549.1999998092651,
+          "shellMs": 549.1999998092651,
+          "readyMs": 549.1999998092651,
+          "jsTaskMs": 25.687000000000015,
+          "backendRequestMs": 528.2008330000026,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 285.59999990463257,
+          "shellMs": 285.59999990463257,
+          "readyMs": 285.59999990463257,
+          "jsTaskMs": 24.29900000000007,
+          "backendRequestMs": 265.265416000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 289.2000000476837,
+          "shellMs": 289.2000000476837,
+          "readyMs": 289.2000000476837,
+          "jsTaskMs": 20.34699999999967,
+          "backendRequestMs": 268.992166,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.39999985694885,
+          "shellMs": 287.39999985694885,
+          "readyMs": 287.39999985694885,
+          "jsTaskMs": 17.85099999999984,
+          "backendRequestMs": 266.58495799999946,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.40000009536743,
+          "shellMs": 287.40000009536743,
+          "readyMs": 287.40000009536743,
+          "jsTaskMs": 23.253999999999664,
+          "backendRequestMs": 266.0757909999993,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 272.2000000476837,
+          "shellMs": 272.2000000476837,
+          "readyMs": 272.2000000476837,
+          "jsTaskMs": 16.019000000000005,
+          "backendRequestMs": 264.7363750000004,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.89999985694885,
+          "shellMs": 286.89999985694885,
+          "readyMs": 286.89999985694885,
+          "jsTaskMs": 19.02399999999993,
+          "backendRequestMs": 265.8240000000005,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.40000009536743,
+          "shellMs": 287.40000009536743,
+          "readyMs": 287.40000009536743,
+          "jsTaskMs": 23.82799999999996,
+          "backendRequestMs": 264.47979100000157,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 289.09999990463257,
+          "shellMs": 289.09999990463257,
+          "readyMs": 289.09999990463257,
+          "jsTaskMs": 20.766000000000062,
+          "backendRequestMs": 266.1968330000018,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278.7000000476837,
+          "shellMs": 278.7000000476837,
+          "readyMs": 278.7000000476837,
+          "jsTaskMs": 19.149000000000083,
+          "backendRequestMs": 264.6956250000003,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.60000014305115,
+          "shellMs": 284.60000014305115,
+          "readyMs": 284.60000014305115,
+          "jsTaskMs": 23.848999999999787,
+          "backendRequestMs": 263.9845410000016,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 276.90000009536743,
+          "shellMs": 276.90000009536743,
+          "readyMs": 276.90000009536743,
+          "jsTaskMs": 17.959999999999976,
+          "backendRequestMs": 265.7904159999998,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 271.59999990463257,
+          "shellMs": 271.59999990463257,
+          "readyMs": 271.59999990463257,
+          "jsTaskMs": 16.013000000000055,
+          "backendRequestMs": 264.7649170000004,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 270.7000000476837,
+          "shellMs": 270.7000000476837,
+          "readyMs": 270.7000000476837,
+          "jsTaskMs": 16.755999999999993,
+          "backendRequestMs": 263.53683300000193,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 271,
+          "shellMs": 271,
+          "readyMs": 271,
+          "jsTaskMs": 17.25299999999974,
+          "backendRequestMs": 263.3510830000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.59999990463257,
+          "shellMs": 287.59999990463257,
+          "readyMs": 287.59999990463257,
+          "jsTaskMs": 18.677999999999972,
+          "backendRequestMs": 265.46137499999895,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 293.2000000476837,
+          "shellMs": 293.2000000476837,
+          "readyMs": 293.2000000476837,
+          "jsTaskMs": 22.943999999999853,
+          "backendRequestMs": 272.75691599999845,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 286.89999985694885,
+        "shellMs": 286.89999985694885,
+        "readyMs": 286.89999985694885,
+        "jsTaskMs": 20.34699999999967,
+        "backendRequestMs": 265.46137499999895,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 294.2999999523163,
+        "shellMs": 294.2999999523163,
+        "readyMs": 294.2999999523163,
+        "jsTaskMs": 24.29900000000007,
+        "backendRequestMs": 272.75691599999845
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "source-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 52.60000014305115,
+          "shellMs": 52.60000014305115,
+          "readyMs": 52.60000014305115,
+          "jsTaskMs": 15.32900000000001,
+          "backendRequestMs": 34.2265419999967,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 10.938000000000002,
+          "backendRequestMs": 21.024666999997862,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.10000014305115,
+          "shellMs": 32.10000014305115,
+          "readyMs": 32.10000014305115,
+          "jsTaskMs": 11.53599999999999,
+          "backendRequestMs": 22.850040999997873,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.5,
+          "shellMs": 34.5,
+          "readyMs": 34.5,
+          "jsTaskMs": 13.390999999999986,
+          "backendRequestMs": 21.095000000001164,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 11.404999999999998,
+          "backendRequestMs": 21.467750000003434,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 10.44299999999998,
+          "backendRequestMs": 21.876834000002418,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.19999980926514,
+          "shellMs": 32.19999980926514,
+          "readyMs": 32.19999980926514,
+          "jsTaskMs": 10.363999999999985,
+          "backendRequestMs": 21.317708000002312,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.90000009536743,
+          "shellMs": 31.90000009536743,
+          "readyMs": 31.90000009536743,
+          "jsTaskMs": 10.116999999999987,
+          "backendRequestMs": 21.47175000000425,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 11.083999999999982,
+          "backendRequestMs": 23.42029100000218,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 9.83400000000001,
+          "backendRequestMs": 21.6005839999998,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 9.790999999999993,
+          "backendRequestMs": 20.938874999999825,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 9.442000000000005,
+          "backendRequestMs": 21.726582999996026,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 9.66499999999998,
+          "backendRequestMs": 21.72466699999495,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.59999990463257,
+          "shellMs": 32.59999990463257,
+          "readyMs": 32.59999990463257,
+          "jsTaskMs": 9.531000000000011,
+          "backendRequestMs": 21.162499999998545,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 9.249000000000008,
+          "backendRequestMs": 20.85687499999767,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 9.616999999999987,
+          "backendRequestMs": 22.246375000002445,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 10.175999999999963,
+          "backendRequestMs": 22.469708000004175,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 12.638999999999957,
+          "backendRequestMs": 23.77187500000582,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 10.149999999999991,
+          "backendRequestMs": 21.279875000000175,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 9.841000000000044,
+          "backendRequestMs": 20.635708000001614,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 32.39999985694885,
+        "shellMs": 32.39999985694885,
+        "readyMs": 32.39999985694885,
+        "jsTaskMs": 10.149999999999991,
+        "backendRequestMs": 21.47175000000425,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 34.5,
+        "shellMs": 34.5,
+        "readyMs": 34.5,
+        "jsTaskMs": 13.390999999999986,
+        "backendRequestMs": 23.77187500000582
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "published-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 30.40000009536743,
+          "shellMs": 30.40000009536743,
+          "readyMs": 30.40000009536743,
+          "jsTaskMs": 9.58600000000004,
+          "backendRequestMs": 14.793082999996841,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.09999990463257,
+          "shellMs": 32.09999990463257,
+          "readyMs": 32.09999990463257,
+          "jsTaskMs": 9.568999999999994,
+          "backendRequestMs": 20.310999999994237,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 8.999000000000034,
+          "backendRequestMs": 20.87520900000527,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.59999990463257,
+          "shellMs": 33.59999990463257,
+          "readyMs": 33.59999990463257,
+          "jsTaskMs": 9.010999999999992,
+          "backendRequestMs": 21.127333999997063,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 9.099000000000023,
+          "backendRequestMs": 20.574749999999767,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 8.913000000000004,
+          "backendRequestMs": 21.177207999993698,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 9.164999999999978,
+          "backendRequestMs": 20.854249999996682,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 9.483999999999993,
+          "backendRequestMs": 21.082291999999143,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.5,
+          "shellMs": 31.5,
+          "readyMs": 31.5,
+          "jsTaskMs": 9.82700000000003,
+          "backendRequestMs": 20.469083000003593,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 9.301000000000004,
+          "backendRequestMs": 21.41649999999936,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.59999990463257,
+          "shellMs": 32.59999990463257,
+          "readyMs": 32.59999990463257,
+          "jsTaskMs": 9.998000000000062,
+          "backendRequestMs": 22.375874999997905,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.09999990463257,
+          "shellMs": 32.09999990463257,
+          "readyMs": 32.09999990463257,
+          "jsTaskMs": 10.43000000000005,
+          "backendRequestMs": 20.96162500000355,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.299999952316284,
+          "shellMs": 32.299999952316284,
+          "readyMs": 32.299999952316284,
+          "jsTaskMs": 9.355000000000002,
+          "backendRequestMs": 21.773000000001048,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.60000014305115,
+          "shellMs": 32.60000014305115,
+          "readyMs": 32.60000014305115,
+          "jsTaskMs": 9.347999999999912,
+          "backendRequestMs": 22.036958999997296,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 9.269000000000084,
+          "backendRequestMs": 21.74079200000415,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.700000047683716,
+          "shellMs": 32.700000047683716,
+          "readyMs": 32.700000047683716,
+          "jsTaskMs": 9.597999999999995,
+          "backendRequestMs": 21.25174999999581,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.60000014305115,
+          "shellMs": 32.60000014305115,
+          "readyMs": 32.60000014305115,
+          "jsTaskMs": 9.097000000000023,
+          "backendRequestMs": 21.74325000000681,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 30.700000047683716,
+          "shellMs": 30.700000047683716,
+          "readyMs": 30.700000047683716,
+          "jsTaskMs": 10.205999999999937,
+          "backendRequestMs": 21.582832999993116,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.59999990463257,
+          "shellMs": 33.59999990463257,
+          "readyMs": 33.59999990463257,
+          "jsTaskMs": 10.22500000000004,
+          "backendRequestMs": 22.17487500000425,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 10.457999999999966,
+          "backendRequestMs": 21.330417000004672,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 32.299999952316284,
+        "shellMs": 32.299999952316284,
+        "readyMs": 32.299999952316284,
+        "jsTaskMs": 9.355000000000002,
+        "backendRequestMs": 21.177207999993698,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 33.59999990463257,
+        "shellMs": 33.59999990463257,
+        "readyMs": 33.59999990463257,
+        "jsTaskMs": 10.43000000000005,
+        "backendRequestMs": 22.17487500000425
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "my-drafts",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 42.799999952316284,
+          "shellMs": 42.799999952316284,
+          "readyMs": 42.799999952316284,
+          "jsTaskMs": 9.074000000000026,
+          "backendRequestMs": 21.026167000003625,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 27.799999952316284,
+          "shellMs": 27.799999952316284,
+          "readyMs": 27.799999952316284,
+          "jsTaskMs": 11.944000000000067,
+          "backendRequestMs": 23.182165999998688,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.89999985694885,
+          "shellMs": 34.89999985694885,
+          "readyMs": 34.89999985694885,
+          "jsTaskMs": 12.221999999999955,
+          "backendRequestMs": 18.551375000002736,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.700000047683716,
+          "shellMs": 33.700000047683716,
+          "readyMs": 33.700000047683716,
+          "jsTaskMs": 12.45799999999997,
+          "backendRequestMs": 18.329083999997238,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.10000014305115,
+          "shellMs": 34.10000014305115,
+          "readyMs": 34.10000014305115,
+          "jsTaskMs": 12.562000000000072,
+          "backendRequestMs": 18.131750000000466,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.59999990463257,
+          "shellMs": 34.59999990463257,
+          "readyMs": 34.59999990463257,
+          "jsTaskMs": 12.898999999999994,
+          "backendRequestMs": 18.4853329999969,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 37.09999990463257,
+          "shellMs": 37.09999990463257,
+          "readyMs": 37.09999990463257,
+          "jsTaskMs": 22.73999999999998,
+          "backendRequestMs": 20.58033300000534,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35,
+          "shellMs": 35,
+          "readyMs": 35,
+          "jsTaskMs": 12.804000000000038,
+          "backendRequestMs": 17.78650000000198,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35,
+          "shellMs": 35,
+          "readyMs": 35,
+          "jsTaskMs": 12.210000000000054,
+          "backendRequestMs": 19.341832999998587,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.59999990463257,
+          "shellMs": 33.59999990463257,
+          "readyMs": 33.59999990463257,
+          "jsTaskMs": 11.109999999999953,
+          "backendRequestMs": 17.50245800000266,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.59999990463257,
+          "shellMs": 35.59999990463257,
+          "readyMs": 35.59999990463257,
+          "jsTaskMs": 11.970000000000036,
+          "backendRequestMs": 18.88945899999817,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.19999980926514,
+          "shellMs": 35.19999980926514,
+          "readyMs": 35.19999980926514,
+          "jsTaskMs": 11.977000000000015,
+          "backendRequestMs": 18.516709000003175,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.200000047683716,
+          "shellMs": 34.200000047683716,
+          "readyMs": 34.200000047683716,
+          "jsTaskMs": 11.962000000000028,
+          "backendRequestMs": 18.23762500000157,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.09999990463257,
+          "shellMs": 34.09999990463257,
+          "readyMs": 34.09999990463257,
+          "jsTaskMs": 12.260000000000048,
+          "backendRequestMs": 17.693417000002228,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.700000047683716,
+          "shellMs": 34.700000047683716,
+          "readyMs": 34.700000047683716,
+          "jsTaskMs": 11.390000000000011,
+          "backendRequestMs": 19.18850000000384,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.799999952316284,
+          "shellMs": 34.799999952316284,
+          "readyMs": 34.799999952316284,
+          "jsTaskMs": 11.35699999999995,
+          "backendRequestMs": 18.08929100000387,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34,
+          "shellMs": 34,
+          "readyMs": 34,
+          "jsTaskMs": 10.998999999999981,
+          "backendRequestMs": 17.33970799999952,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 35.59999990463257,
+          "shellMs": 35.59999990463257,
+          "readyMs": 35.59999990463257,
+          "jsTaskMs": 12.002000000000068,
+          "backendRequestMs": 18.0995000000039,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.59999990463257,
+          "shellMs": 33.59999990463257,
+          "readyMs": 33.59999990463257,
+          "jsTaskMs": 12.063999999999965,
+          "backendRequestMs": 17.65108400000463,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 34.30000019073486,
+          "shellMs": 34.30000019073486,
+          "readyMs": 34.30000019073486,
+          "jsTaskMs": 11.534000000000045,
+          "backendRequestMs": 18.518167000001995,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 34.59999990463257,
+        "shellMs": 34.59999990463257,
+        "readyMs": 34.59999990463257,
+        "jsTaskMs": 11.977000000000015,
+        "backendRequestMs": 18.329083999997238,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 37.09999990463257,
+        "shellMs": 37.09999990463257,
+        "readyMs": 37.09999990463257,
+        "jsTaskMs": 12.898999999999994,
+        "backendRequestMs": 21.026167000003625
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "draft-card",
+      "extraCallableDelayMs": 0,
+      "samples": [
+        {
+          "feedbackMs": 31.299999952316284,
+          "shellMs": 31.299999952316284,
+          "readyMs": 31.299999952316284,
+          "jsTaskMs": 9.047000000000027,
+          "backendRequestMs": 21.55174999999872,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 9.28300000000004,
+          "backendRequestMs": 20.795124999996915,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.299999952316284,
+          "shellMs": 31.299999952316284,
+          "readyMs": 31.299999952316284,
+          "jsTaskMs": 8.324999999999916,
+          "backendRequestMs": 20.849332999998296,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 8.96499999999989,
+          "backendRequestMs": 21.6905409999963,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.200000047683716,
+          "shellMs": 32.200000047683716,
+          "readyMs": 32.200000047683716,
+          "jsTaskMs": 9.052999999999978,
+          "backendRequestMs": 21.248875000004773,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33,
+          "shellMs": 33,
+          "readyMs": 33,
+          "jsTaskMs": 9.480000000000155,
+          "backendRequestMs": 21.83337500000198,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.10000014305115,
+          "shellMs": 32.10000014305115,
+          "readyMs": 32.10000014305115,
+          "jsTaskMs": 9.287000000000045,
+          "backendRequestMs": 22.337749999998778,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 9.033999999999986,
+          "backendRequestMs": 21.498790999998164,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.299999952316284,
+          "shellMs": 31.299999952316284,
+          "readyMs": 31.299999952316284,
+          "jsTaskMs": 9.587000000000012,
+          "backendRequestMs": 20.872167000001355,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 9.24899999999984,
+          "backendRequestMs": 20.959333999999217,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 8.736999999999995,
+          "backendRequestMs": 20.164542000005895,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 33.09999990463257,
+          "shellMs": 33.09999990463257,
+          "readyMs": 33.09999990463257,
+          "jsTaskMs": 11.40399999999997,
+          "backendRequestMs": 21.198708000003535,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.60000014305115,
+          "shellMs": 32.60000014305115,
+          "readyMs": 32.60000014305115,
+          "jsTaskMs": 8.880999999999917,
+          "backendRequestMs": 19.892541999994137,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.700000047683716,
+          "shellMs": 32.700000047683716,
+          "readyMs": 32.700000047683716,
+          "jsTaskMs": 8.65999999999989,
+          "backendRequestMs": 20.79754200000025,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.39999985694885,
+          "shellMs": 32.39999985694885,
+          "readyMs": 32.39999985694885,
+          "jsTaskMs": 8.610000000000007,
+          "backendRequestMs": 21.0581250000032,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.700000047683716,
+          "shellMs": 32.700000047683716,
+          "readyMs": 32.700000047683716,
+          "jsTaskMs": 8.755999999999986,
+          "backendRequestMs": 20.19870799999626,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.40000009536743,
+          "shellMs": 32.40000009536743,
+          "readyMs": 32.40000009536743,
+          "jsTaskMs": 9.171999999999958,
+          "backendRequestMs": 20.78387500000099,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 32.5,
+          "shellMs": 32.5,
+          "readyMs": 32.5,
+          "jsTaskMs": 9.218999999999866,
+          "backendRequestMs": 20.55120899999747,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.299999952316284,
+          "shellMs": 31.299999952316284,
+          "readyMs": 31.299999952316284,
+          "jsTaskMs": 9.278999999999815,
+          "backendRequestMs": 20.40545900000143,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 31.799999952316284,
+          "shellMs": 31.799999952316284,
+          "readyMs": 31.799999952316284,
+          "jsTaskMs": 8.879000000000081,
+          "backendRequestMs": 20.3804999999993,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 32.39999985694885,
+        "shellMs": 32.39999985694885,
+        "readyMs": 32.39999985694885,
+        "jsTaskMs": 9.047000000000027,
+        "backendRequestMs": 20.849332999998296,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 33,
+        "shellMs": 33,
+        "readyMs": 33,
+        "jsTaskMs": 9.587000000000012,
+        "backendRequestMs": 21.83337500000198
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "source-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 282.90000009536743,
+          "shellMs": 282.90000009536743,
+          "readyMs": 282.90000009536743,
+          "jsTaskMs": 20.28500000000011,
+          "backendRequestMs": 271.6711660000001,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 533.8999998569489,
+          "shellMs": 533.8999998569489,
+          "readyMs": 533.8999998569489,
+          "jsTaskMs": 29.446000000000083,
+          "backendRequestMs": 529.8362079999933,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 288.2999999523163,
+          "shellMs": 288.2999999523163,
+          "readyMs": 288.2999999523163,
+          "jsTaskMs": 28.215000000000103,
+          "backendRequestMs": 279.2152920000008,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 279,
+          "shellMs": 279,
+          "readyMs": 279,
+          "jsTaskMs": 29.465000000000074,
+          "backendRequestMs": 273.88637500000186,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.7000000476837,
+          "shellMs": 282.7000000476837,
+          "readyMs": 282.7000000476837,
+          "jsTaskMs": 27.599000000000153,
+          "backendRequestMs": 276.4881660000028,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 299.19999980926514,
+          "shellMs": 299.19999980926514,
+          "readyMs": 299.19999980926514,
+          "jsTaskMs": 34.99700000000017,
+          "backendRequestMs": 277.4017090000052,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 279.90000009536743,
+          "shellMs": 279.90000009536743,
+          "readyMs": 279.90000009536743,
+          "jsTaskMs": 23.303000000000075,
+          "backendRequestMs": 270.99366700000246,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.40000009536743,
+          "shellMs": 281.40000009536743,
+          "readyMs": 281.40000009536743,
+          "jsTaskMs": 22.159999999999958,
+          "backendRequestMs": 273.1076249999969,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 25.322999999999986,
+          "backendRequestMs": 269.6678329999995,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 279.30000019073486,
+          "shellMs": 279.30000019073486,
+          "readyMs": 279.30000019073486,
+          "jsTaskMs": 24.947000000000052,
+          "backendRequestMs": 274.606915999997,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.09999990463257,
+          "shellMs": 283.09999990463257,
+          "readyMs": 283.09999990463257,
+          "jsTaskMs": 31.03699999999998,
+          "backendRequestMs": 274.20533299999806,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.90000009536743,
+          "shellMs": 282.90000009536743,
+          "readyMs": 282.90000009536743,
+          "jsTaskMs": 33.04800000000019,
+          "backendRequestMs": 272.50125000000116,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.2999999523163,
+          "shellMs": 286.2999999523163,
+          "readyMs": 286.2999999523163,
+          "jsTaskMs": 28.203999999999894,
+          "backendRequestMs": 273.1523329999982,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.09999990463257,
+          "shellMs": 287.09999990463257,
+          "readyMs": 287.09999990463257,
+          "jsTaskMs": 31.039000000000037,
+          "backendRequestMs": 275.32258300000103,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.39999985694885,
+          "shellMs": 282.39999985694885,
+          "readyMs": 282.39999985694885,
+          "jsTaskMs": 28.799999999999937,
+          "backendRequestMs": 271.29916600000433,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.7999999523163,
+          "shellMs": 282.7999999523163,
+          "readyMs": 282.7999999523163,
+          "jsTaskMs": 32.32100000000004,
+          "backendRequestMs": 272.8367500000022,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.40000009536743,
+          "shellMs": 282.40000009536743,
+          "readyMs": 282.40000009536743,
+          "jsTaskMs": 25.739999999999874,
+          "backendRequestMs": 269.77266699999745,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 530.3999998569489,
+          "shellMs": 530.3999998569489,
+          "readyMs": 530.3999998569489,
+          "jsTaskMs": 26.1340000000001,
+          "backendRequestMs": 524.2607500000086,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 280,
+          "shellMs": 280,
+          "readyMs": 280,
+          "jsTaskMs": 30.974999999999973,
+          "backendRequestMs": 275.8580409999995,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.89999985694885,
+          "shellMs": 281.89999985694885,
+          "readyMs": 281.89999985694885,
+          "jsTaskMs": 28.044999999999874,
+          "backendRequestMs": 275.4800000000032,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 282.7000000476837,
+        "shellMs": 282.7000000476837,
+        "readyMs": 282.7000000476837,
+        "jsTaskMs": 28.203999999999894,
+        "backendRequestMs": 273.88637500000186,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 530.3999998569489,
+        "shellMs": 530.3999998569489,
+        "readyMs": 530.3999998569489,
+        "jsTaskMs": 33.04800000000019,
+        "backendRequestMs": 524.2607500000086
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "published-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 284.59999990463257,
+          "shellMs": 284.59999990463257,
+          "readyMs": 284.59999990463257,
+          "jsTaskMs": 31.39200000000009,
+          "backendRequestMs": 271.6538750000036,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.5,
+          "shellMs": 284.5,
+          "readyMs": 284.5,
+          "jsTaskMs": 34.087999999999894,
+          "backendRequestMs": 269.138291999996,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.2000000476837,
+          "shellMs": 283.2000000476837,
+          "readyMs": 283.2000000476837,
+          "jsTaskMs": 28.896000000000033,
+          "backendRequestMs": 270.85608299999876,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.39999985694885,
+          "shellMs": 281.39999985694885,
+          "readyMs": 281.39999985694885,
+          "jsTaskMs": 30.888000000000027,
+          "backendRequestMs": 266.812334000002,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 30.691999999999943,
+          "backendRequestMs": 266.4536250000019,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 26.276000000000188,
+          "backendRequestMs": 268.56237500000134,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.89999985694885,
+          "shellMs": 286.89999985694885,
+          "readyMs": 286.89999985694885,
+          "jsTaskMs": 27.290999999999954,
+          "backendRequestMs": 267.7508749999979,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 291.2999999523163,
+          "shellMs": 291.2999999523163,
+          "readyMs": 291.2999999523163,
+          "jsTaskMs": 32.286999999999956,
+          "backendRequestMs": 272.39633300000423,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 276.10000014305115,
+          "shellMs": 276.10000014305115,
+          "readyMs": 276.10000014305115,
+          "jsTaskMs": 28.337999999999752,
+          "backendRequestMs": 270.6440829999992,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.19999980926514,
+          "shellMs": 283.19999980926514,
+          "readyMs": 283.19999980926514,
+          "jsTaskMs": 28.810000000000002,
+          "backendRequestMs": 268.0698749999938,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 29.352999999999962,
+          "backendRequestMs": 267.31462499999907,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278.5,
+          "shellMs": 278.5,
+          "readyMs": 278.5,
+          "jsTaskMs": 36.32200000000019,
+          "backendRequestMs": 270.8313750000016,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282.5,
+          "shellMs": 282.5,
+          "readyMs": 282.5,
+          "jsTaskMs": 24.321000000000037,
+          "backendRequestMs": 265.89404099999956,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277.5,
+          "shellMs": 277.5,
+          "readyMs": 277.5,
+          "jsTaskMs": 27.668000000000248,
+          "backendRequestMs": 268.3454999999958,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 531.5999999046326,
+          "shellMs": 531.5999999046326,
+          "readyMs": 531.5999999046326,
+          "jsTaskMs": 37.329000000000164,
+          "backendRequestMs": 525.3454580000107,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 285.2000000476837,
+          "shellMs": 285.2000000476837,
+          "readyMs": 285.2000000476837,
+          "jsTaskMs": 29.36899999999998,
+          "backendRequestMs": 268.0972079999992,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278,
+          "shellMs": 278,
+          "readyMs": 278,
+          "jsTaskMs": 30.289999999999928,
+          "backendRequestMs": 271.74204199999804,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283,
+          "shellMs": 283,
+          "readyMs": 283,
+          "jsTaskMs": 30.719000000000385,
+          "backendRequestMs": 269.4434159999946,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 275.2000000476837,
+          "shellMs": 275.2000000476837,
+          "readyMs": 275.2000000476837,
+          "jsTaskMs": 29.09399999999973,
+          "backendRequestMs": 270.28566699999647,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 281.60000014305115,
+          "shellMs": 281.60000014305115,
+          "readyMs": 281.60000014305115,
+          "jsTaskMs": 21.761999999999837,
+          "backendRequestMs": 263.1501669999998,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 282,
+        "shellMs": 282,
+        "readyMs": 282,
+        "jsTaskMs": 29.352999999999962,
+        "backendRequestMs": 268.56237500000134,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 291.2999999523163,
+        "shellMs": 291.2999999523163,
+        "readyMs": 291.2999999523163,
+        "jsTaskMs": 36.32200000000019,
+        "backendRequestMs": 272.39633300000423
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "my-drafts",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 272.2000000476837,
+          "shellMs": 272.2000000476837,
+          "readyMs": 272.2000000476837,
+          "jsTaskMs": 18.43299999999992,
+          "backendRequestMs": 262.14508399999613,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278.09999990463257,
+          "shellMs": 278.09999990463257,
+          "readyMs": 278.09999990463257,
+          "jsTaskMs": 14.501999999999793,
+          "backendRequestMs": 263.5724160000027,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 276,
+          "shellMs": 276,
+          "readyMs": 276,
+          "jsTaskMs": 14.68500000000006,
+          "backendRequestMs": 262.4471249999988,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 275.2999999523163,
+          "shellMs": 275.2999999523163,
+          "readyMs": 275.2999999523163,
+          "jsTaskMs": 13.263999999999943,
+          "backendRequestMs": 262.75404100000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 271,
+          "shellMs": 271,
+          "readyMs": 271,
+          "jsTaskMs": 16.526000000000263,
+          "backendRequestMs": 263.9107909999948,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 268.7999999523163,
+          "shellMs": 268.7999999523163,
+          "readyMs": 268.7999999523163,
+          "jsTaskMs": 11.166999999999927,
+          "backendRequestMs": 262.36679199999344,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 275.2000000476837,
+          "shellMs": 275.2000000476837,
+          "readyMs": 275.2000000476837,
+          "jsTaskMs": 13.15400000000011,
+          "backendRequestMs": 262.89520800000173,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 271.7000000476837,
+          "shellMs": 271.7000000476837,
+          "readyMs": 271.7000000476837,
+          "jsTaskMs": 18.64700000000008,
+          "backendRequestMs": 263.7441250000047,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 266.7000000476837,
+          "shellMs": 266.7000000476837,
+          "readyMs": 266.7000000476837,
+          "jsTaskMs": 11.590999999999685,
+          "backendRequestMs": 263.00800000000163,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 268,
+          "shellMs": 268,
+          "readyMs": 268,
+          "jsTaskMs": 18.45299999999961,
+          "backendRequestMs": 262.5604170000006,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 279.19999980926514,
+          "shellMs": 279.19999980926514,
+          "readyMs": 279.19999980926514,
+          "jsTaskMs": 13.911999999999924,
+          "backendRequestMs": 262.94820799999434,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 530.4000000953674,
+          "shellMs": 530.4000000953674,
+          "readyMs": 530.4000000953674,
+          "jsTaskMs": 26.980000000000004,
+          "backendRequestMs": 522.9968339999978,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 269.19999980926514,
+          "shellMs": 269.19999980926514,
+          "readyMs": 269.19999980926514,
+          "jsTaskMs": 14.92400000000016,
+          "backendRequestMs": 262.13291699999536,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 265.7000000476837,
+          "shellMs": 265.7000000476837,
+          "readyMs": 265.7000000476837,
+          "jsTaskMs": 13.535000000000075,
+          "backendRequestMs": 263.6599169999972,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 268.69999980926514,
+          "shellMs": 268.69999980926514,
+          "readyMs": 268.69999980926514,
+          "jsTaskMs": 18.40099999999989,
+          "backendRequestMs": 262.73475000000326,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 269.80000019073486,
+          "shellMs": 269.80000019073486,
+          "readyMs": 269.80000019073486,
+          "jsTaskMs": 11.347000000000218,
+          "backendRequestMs": 262.3611250000031,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277.09999990463257,
+          "shellMs": 277.09999990463257,
+          "readyMs": 277.09999990463257,
+          "jsTaskMs": 17.879999999999896,
+          "backendRequestMs": 264.4357499999969,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 269,
+          "shellMs": 269,
+          "readyMs": 269,
+          "jsTaskMs": 13.786000000000076,
+          "backendRequestMs": 262.10491699999693,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277.90000009536743,
+          "shellMs": 277.90000009536743,
+          "readyMs": 277.90000009536743,
+          "jsTaskMs": 17.519000000000062,
+          "backendRequestMs": 261.922040999998,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 263.89999985694885,
+          "shellMs": 263.89999985694885,
+          "readyMs": 263.89999985694885,
+          "jsTaskMs": 13.294999999999835,
+          "backendRequestMs": 261.5197499999995,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 271,
+        "shellMs": 271,
+        "readyMs": 271,
+        "jsTaskMs": 14.501999999999793,
+        "backendRequestMs": 262.73475000000326,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 279.19999980926514,
+        "shellMs": 279.19999980926514,
+        "readyMs": 279.19999980926514,
+        "jsTaskMs": 18.64700000000008,
+        "backendRequestMs": 264.4357499999969
+      }
+    },
+    {
+      "role": "pm",
+      "entry": "draft-card",
+      "extraCallableDelayMs": 250,
+      "samples": [
+        {
+          "feedbackMs": 277,
+          "shellMs": 277,
+          "readyMs": 277,
+          "jsTaskMs": 21.535999999999778,
+          "backendRequestMs": 270.6479169999948,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.2999999523163,
+          "shellMs": 286.2999999523163,
+          "readyMs": 286.2999999523163,
+          "jsTaskMs": 29.387000000000274,
+          "backendRequestMs": 269.1840420000008,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 287.10000014305115,
+          "shellMs": 287.10000014305115,
+          "readyMs": 287.10000014305115,
+          "jsTaskMs": 26.065000000000005,
+          "backendRequestMs": 268.2048330000034,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284,
+          "shellMs": 284,
+          "readyMs": 284,
+          "jsTaskMs": 26.0170000000004,
+          "backendRequestMs": 268.7675420000014,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.7000000476837,
+          "shellMs": 285.7000000476837,
+          "readyMs": 285.7000000476837,
+          "jsTaskMs": 30.70700000000004,
+          "backendRequestMs": 269.7245830000029,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 290.40000009536743,
+          "shellMs": 290.40000009536743,
+          "readyMs": 290.40000009536743,
+          "jsTaskMs": 27.693999999999885,
+          "backendRequestMs": 272.2992499999964,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 282,
+          "shellMs": 282,
+          "readyMs": 282,
+          "jsTaskMs": 16.610000000000014,
+          "backendRequestMs": 265.6057910000018,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 544,
+          "shellMs": 544,
+          "readyMs": 544,
+          "jsTaskMs": 24.809000000000303,
+          "backendRequestMs": 524.0360000000001,
+          "backendRequests": 2
+        },
+        {
+          "feedbackMs": 281.5,
+          "shellMs": 281.5,
+          "readyMs": 281.5,
+          "jsTaskMs": 32.35499999999991,
+          "backendRequestMs": 270.64050000000134,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 288.2999999523163,
+          "shellMs": 288.2999999523163,
+          "readyMs": 288.2999999523163,
+          "jsTaskMs": 25.368999999999975,
+          "backendRequestMs": 268.3700000000026,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 284.39999985694885,
+          "shellMs": 284.39999985694885,
+          "readyMs": 284.39999985694885,
+          "jsTaskMs": 25.76400000000012,
+          "backendRequestMs": 267.6081669999985,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285.7999999523163,
+          "shellMs": 285.7999999523163,
+          "readyMs": 285.7999999523163,
+          "jsTaskMs": 31.120000000000037,
+          "backendRequestMs": 268.29120899999543,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 291.2000000476837,
+          "shellMs": 291.2000000476837,
+          "readyMs": 291.2000000476837,
+          "jsTaskMs": 25.798999999999683,
+          "backendRequestMs": 270.45087500000227,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 283.5,
+          "shellMs": 283.5,
+          "readyMs": 283.5,
+          "jsTaskMs": 26.182999999999623,
+          "backendRequestMs": 270.07966699999815,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 285,
+          "shellMs": 285,
+          "readyMs": 285,
+          "jsTaskMs": 24.086000000000052,
+          "backendRequestMs": 269.20908300000156,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 290.7999999523163,
+          "shellMs": 290.7999999523163,
+          "readyMs": 290.7999999523163,
+          "jsTaskMs": 33.504000000000204,
+          "backendRequestMs": 270.0712500000009,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 278.2000000476837,
+          "shellMs": 278.2000000476837,
+          "readyMs": 278.2000000476837,
+          "jsTaskMs": 25.4559999999997,
+          "backendRequestMs": 273.08629199999996,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 277.30000019073486,
+          "shellMs": 277.30000019073486,
+          "readyMs": 277.30000019073486,
+          "jsTaskMs": 24.13199999999982,
+          "backendRequestMs": 271.0614579999965,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 273.10000014305115,
+          "shellMs": 273.10000014305115,
+          "readyMs": 273.10000014305115,
+          "jsTaskMs": 30.470999999999915,
+          "backendRequestMs": 268.57866700000886,
+          "backendRequests": 1
+        },
+        {
+          "feedbackMs": 286.90000009536743,
+          "shellMs": 286.90000009536743,
+          "readyMs": 286.90000009536743,
+          "jsTaskMs": 25.929999999999787,
+          "backendRequestMs": 270.72554200000013,
+          "backendRequests": 1
+        }
+      ],
+      "median": {
+        "feedbackMs": 285,
+        "shellMs": 285,
+        "readyMs": 285,
+        "jsTaskMs": 25.929999999999787,
+        "backendRequestMs": 269.7245830000029,
+        "backendRequests": 1
+      },
+      "p95": {
+        "feedbackMs": 291.2000000476837,
+        "shellMs": 291.2000000476837,
+        "readyMs": 291.2000000476837,
+        "jsTaskMs": 32.35499999999991,
+        "backendRequestMs": 273.08629199999996
+      }
+    }
+  ]
+}
