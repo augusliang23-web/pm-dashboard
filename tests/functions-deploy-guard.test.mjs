@@ -362,11 +362,51 @@ test('an anchor with no keys, the wrong schema, bad key ids or non-Ed25519 keys 
   await assert.rejects(load(withContent(anchorJson([{ keyId: 'sha256:' + '0'.repeat(64), publicKeyPem: ec }]))), /Only Ed25519/);
 });
 
+// A trust anchor that this user created under the OS temp directory is refused by the ancestor-chain / ownership
+// validation, but WHICH check fires first depends on the platform's temp layout: macOS has a per-user temp directory
+// (the user-owned ancestor is "not owned by root"), Linux has a root-owned, sticky, world-writable /tmp ("writable by
+// group or others"). Only these named refusals of the trust-anchor validation are accepted, each with the Owner
+// bootstrap hint; success, a different error or any other refusal text fails the test.
+const USER_CREATED_ANCHOR_REFUSALS = [
+  /^Trust anchor rejected: .+ is not owned by root, so its owner could replace the trust anchor\. Owner bootstrap required/s,
+  /^Trust anchor rejected: .+ is writable by group or others, so the trust anchor could be replaced\. Owner bootstrap required/s,
+  /^Trust anchor rejected: .+ is writable by the executing user\. Owner bootstrap required/s,
+  /^Trust anchor rejected: .+ is not owned by root, so the executing user could rewrite it\. Owner bootstrap required/s
+];
+const refusedAsUserCreatedAnchor = promise => assert.rejects(promise, error => {
+  assert.ok(error instanceof ApprovalError, `not a trust-anchor refusal: ${error?.message}`);
+  assert.ok(USER_CREATED_ANCHOR_REFUSALS.some(pattern => pattern.test(error.message)), `unexpected trust-anchor refusal: ${error.message}`);
+  return true;
+});
+
+test('the user-created-anchor matcher accepts only trust-anchor refusals, never success or an unrelated failure', async () => {
+  await assert.rejects(refusedAsUserCreatedAnchor(Promise.resolve([])), /Missing expected rejection/);
+  await assert.rejects(refusedAsUserCreatedAnchor(Promise.reject(new Error('boom'))), /not a trust-anchor refusal: boom/);
+  await assert.rejects(refusedAsUserCreatedAnchor(Promise.reject(new ApprovalError('Trust anchor rejected: /x does not exist or cannot be resolved.'))), /unexpected trust-anchor refusal/);
+  await assert.rejects(refusedAsUserCreatedAnchor(Promise.reject(new ApprovalError('Trust anchor rejected: /x is writable by group or others. Owner bootstrap required'))), /unexpected trust-anchor refusal/);
+});
+
+test('macOS and Linux temp layouts both refuse a user-created anchor, each for its own deterministic reason', async () => {
+  const anchor = { type: 'file', uid: 501, mode: 0o100644, content: anchorJson() };
+  const options = path => ({ path, forbiddenRoots: [repoRoot], ambientRoots: [] });
+  // Linux: root-owned /tmp that anyone can write to (sticky bit), user-owned directory below it.
+  const linux = fakeFs({ '/tmp': { ...DIR, mode: 0o041777 }, '/tmp/trust-anchor-x': { ...DIR, uid: 501, mode: 0o040700 }, '/tmp/trust-anchor-x/trust.json': anchor });
+  await assert.rejects(loadTrustAnchor({ ...options('/tmp/trust-anchor-x/trust.json'), io: linux }), /^ApprovalError: Trust anchor rejected: \/tmp is writable by group or others, so the trust anchor could be replaced\./);
+  await refusedAsUserCreatedAnchor(loadTrustAnchor({ ...options('/tmp/trust-anchor-x/trust.json'), io: linux }));
+  // macOS: root-owned /private/var/folders/xx, user-owned per-user temp directory below it.
+  const mac = fakeFs({
+    '/private': DIR, '/private/var': DIR, '/private/var/folders': DIR, '/private/var/folders/xx': DIR,
+    '/private/var/folders/xx/yy': { ...DIR, uid: 501, mode: 0o040700 }, '/private/var/folders/xx/yy/trust.json': anchor
+  });
+  await assert.rejects(loadTrustAnchor({ ...options('/private/var/folders/xx/yy/trust.json'), io: mac }), /^ApprovalError: Trust anchor rejected: \/private\/var\/folders\/xx\/yy is not owned by root, so its owner could replace the trust anchor\./);
+  await refusedAsUserCreatedAnchor(loadTrustAnchor({ ...options('/private/var/folders/xx/yy/trust.json'), io: mac }));
+});
+
 test('the REAL filesystem: a file this (non-root) process created, or a missing path, can never be an anchor', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'trust-anchor-'));
   try {
     writeFileSync(join(dir, 'trust.json'), anchorJson());
-    await assert.rejects(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot], ambientRoots: [] }), process.getuid?.() === 0 ? /Trust anchor rejected/ : /not owned by root/);
+    await refusedAsUserCreatedAnchor(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot], ambientRoots: [] }));
     await assert.rejects(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot] }), /stored outside/, 'the temp directory is an ambient, agent-writable root');
     await assert.rejects(loadTrustAnchor({ path: join(dir, 'missing', 'trust.json'), forbiddenRoots: [repoRoot], ambientRoots: [] }), /does not exist/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -626,7 +666,7 @@ test('an absent, same-user or ancestor-replaceable trust anchor fails closed eve
   const realIo = { realpath, lstat, access: async () => { throw eacces(); }, getuid: () => 501, readFile: async path => readFileSync(path, 'utf8') };
   const options = { run: async (...call) => { calls.push(call); return 0; }, io: realIo };
   // Real filesystem: the anchor file and its parent directories belong to this user.
-  await rejectsWith(drive(w, args(w, '--execute'), { options }), /Trust anchor rejected: .*not owned by root.*Owner bootstrap required/s);
+  await refusedAsUserCreatedAnchor(drive(w, args(w, '--execute'), { options }));
   await rejectsWith(drive(w, ['--env', 'uat', '--project', UAT, '--approval', w.approvalPath, '--trust-anchor', join(w.base, 'missing.json'), '--execute'], { options }), /Trust anchor rejected/);
   // The default path is absent here: nothing may run.
   const absent = { run: options.run, io: { ...realIo, realpath: async path => { if (path === DEFAULT_TRUST_ANCHOR_PATH) throw enoent(); return realpath(path); } } };
