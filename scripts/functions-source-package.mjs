@@ -3,15 +3,17 @@
 // The deployment source is NEVER the developer working tree. It is rebuilt from the exact approved Git commit:
 // every entry of the commit's tree under PACKAGE_PATHS is written into a fresh private directory straight from its
 // blob object, so untracked files, untracked or ignored symlinks, node_modules and local edits cannot enter the
-// package. The export is then re-read and compared with the commit tree (paths, modes, object ids). Symlinks and
-// submodules in the commit are refused. The user's working tree is never modified or cleaned.
-import { execFile } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+// package. Git objects (commit, trees, blobs) are re-hashed, the export is re-read and compared with the commit tree,
+// and AFTER dependency installation the whole tree is scanned again: only regular files and directories are allowed,
+// no link may leave the package, every approved file must be byte-identical, and the only thing installation may add is
+// functions/node_modules/. The user's working tree is never modified or cleaned.
+import { createHash } from 'node:crypto';
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
+import { makeGit, openRepository } from './git-sandbox.mjs';
 
-const execFileAsync = promisify(execFile);
+export { makeGit, openRepository };
 
 export class PackageIntegrityError extends Error {
   constructor(message) {
@@ -23,21 +25,22 @@ export class PackageIntegrityError extends Error {
 // The only tracked paths a Functions release needs: the Firebase config and the Functions source directory.
 export const PACKAGE_PATHS = Object.freeze(['firebase.json', 'functions']);
 export const PACKAGE_PREFIX = 'pmdash-functions-package-';
+export const GENERATED_DIRECTORY = 'functions/node_modules';
 const REQUIRED_FILES = Object.freeze(['firebase.json', 'functions/index.js', 'functions/package.json', 'functions/package-lock.json']);
 const SAFE_PATH = /^[A-Za-z0-9._@+-]+(?:\/[A-Za-z0-9._@+-]+)*$/;
 const ALLOWED_MODES = new Set(['100644', '100755']);
 
-// git runner bound to one repository; returns stdout as a Buffer. Replace refs are disabled so a local `git replace`
-// cannot make an approved object id resolve to different content.
-export function makeGit(repositoryRoot) {
-  const env = { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' };
-  return async args => (await execFileAsync('git', args, { cwd: repositoryRoot, env, encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 })).stdout;
-}
-
 const text = buffer => buffer.toString('utf8').trim();
 
-// Confirms the approved commit exists locally and returns its tree id. Never falls back to HEAD or the working tree.
-export async function resolveSourceCommit(git, sha) {
+// Git object id of `content` as `type`, for the repository's object format.
+export function objectId(type, content, objectFormat = 'sha1') {
+  const header = Buffer.from(`${type} ${content.length}\0`);
+  return createHash(objectFormat === 'sha256' ? 'sha256' : 'sha1').update(header).update(content).digest('hex');
+}
+
+// Confirms the approved commit exists locally, that the commit object really hashes to its id, and returns its tree id.
+// Never falls back to HEAD or the working tree.
+export async function resolveSourceCommit(git, sha, objectFormat = 'sha1') {
   if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha)) throw new PackageIntegrityError('The source commit must be a full 40-character SHA.');
   let commit; let tree;
   try {
@@ -45,6 +48,8 @@ export async function resolveSourceCommit(git, sha) {
     tree = text(await git(['rev-parse', '--verify', '--quiet', `${sha}^{tree}`]));
   } catch { throw new PackageIntegrityError(`The approved source commit ${sha} does not exist in this repository.`); }
   if (commit !== sha || !tree) throw new PackageIntegrityError(`The approved source commit ${sha} does not resolve to itself.`);
+  const commitBytes = await git(['cat-file', 'commit', sha]);
+  if (objectId('commit', commitBytes, objectFormat) !== sha) throw new PackageIntegrityError(`The commit object for ${sha} does not match its id (corrupt or substituted object).`);
   return { sha: commit, tree };
 }
 
@@ -64,14 +69,24 @@ export function assertPackageFirebaseConfig(firebaseJson) {
   return config;
 }
 
-// The exact, validated entries of the approved tree under PACKAGE_PATHS.
-export async function listSourceEntries(git, sha) {
-  const raw = (await git(['ls-tree', '-r', '-z', '--full-tree', sha, '--', ...PACKAGE_PATHS])).toString('utf8');
-  const entries = raw.split('\0').filter(Boolean).map(line => {
+// The exact, validated entries of the approved tree under PACKAGE_PATHS. Every tree object that names them (root and
+// intermediate) is re-hashed, so a substituted tree object cannot present different entries under the approved id.
+export async function listSourceEntries(git, sha, { objectFormat = 'sha1', tree } = {}) {
+  const raw = (await git(['ls-tree', '-r', '-t', '-z', '--full-tree', sha, '--', ...PACKAGE_PATHS])).toString('utf8');
+  const all = raw.split('\0').filter(Boolean).map(line => {
     const match = /^(\d{6}) (\w+) ([0-9a-f]{40,64})\t(.+)$/s.exec(line);
     if (!match) throw new PackageIntegrityError('Unrecognised git tree entry.');
     return { mode: match[1], type: match[2], oid: match[3], path: match[4] };
   });
+  if (tree) {
+    const rootBytes = await git(['cat-file', 'tree', tree]);
+    if (objectId('tree', rootBytes, objectFormat) !== tree) throw new PackageIntegrityError(`The root tree object ${tree} does not match its id (corrupt or substituted object).`);
+  }
+  for (const subtree of all.filter(entry => entry.type === 'tree')) {
+    const bytes = await git(['cat-file', 'tree', subtree.oid]);
+    if (objectId('tree', bytes, objectFormat) !== subtree.oid) throw new PackageIntegrityError(`The tree object for ${subtree.path} does not match its id (corrupt or substituted object).`);
+  }
+  const entries = all.filter(entry => entry.type !== 'tree');
   for (const entry of entries) {
     if (entry.type !== 'blob' || !ALLOWED_MODES.has(entry.mode)) throw new PackageIntegrityError(`"${entry.path}" is a ${entry.mode === '120000' ? 'symbolic link' : entry.mode === '160000' ? 'submodule' : `non-regular entry (${entry.mode} ${entry.type})`}; refusing to package it.`);
     if (!SAFE_PATH.test(entry.path) || entry.path.split('/').some(part => part === '.' || part === '..' || part === '.git')) throw new PackageIntegrityError(`Unexpected path in the approved tree: ${JSON.stringify(entry.path)}.`);
@@ -87,46 +102,108 @@ async function trustedTempParent() {
 }
 
 // Writes the approved entries into a new private directory and returns it. Nothing is read from the working tree.
-export async function exportSourcePackage({ git, entries, makeTempDir = async () => mkdtemp(join(await trustedTempParent(), PACKAGE_PREFIX)) }) {
+export async function exportSourcePackage({ git, entries, objectFormat = 'sha1', makeTempDir = async () => mkdtemp(join(await trustedTempParent(), PACKAGE_PREFIX)) }) {
   const root = await makeTempDir();
   if (!basename(root).startsWith(PACKAGE_PREFIX)) throw new PackageIntegrityError('Refusing an unexpected package directory.');
   for (const entry of entries) {
     const target = resolve(root, entry.path);
     if (target !== root && !target.startsWith(root + sep)) throw new PackageIntegrityError(`Path escape refused: ${entry.path}.`);
     await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, await git(['cat-file', 'blob', entry.oid]), { flag: 'wx', mode: entry.mode === '100755' ? 0o755 : 0o644 });
+    const content = await git(['cat-file', 'blob', entry.oid]);
+    if (objectId('blob', content, objectFormat) !== entry.oid) throw new PackageIntegrityError(`The blob for ${entry.path} does not match its id (corrupt or substituted object).`);
+    await writeFile(target, content, { flag: 'wx', mode: entry.mode === '100755' ? 0o755 : 0o644 });
   }
   return root;
 }
 
-async function walk(root, directory = root) {
-  const found = [];
-  for (const item of await readdir(directory, { withFileTypes: true })) {
-    const full = join(directory, item.name);
+// Identity of the staging directory, captured right after creation and re-checked before the CLI starts.
+export async function capturePackageIdentity(root) {
+  const stat = await lstat(root);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new PackageIntegrityError('The staging directory is not a real directory.');
+  if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new PackageIntegrityError('The staging directory is not owned by the executing user.');
+  if ((stat.mode & 0o077) !== 0) throw new PackageIntegrityError('The staging directory is accessible to other users.');
+  return { dev: stat.dev, ino: stat.ino, uid: stat.uid };
+}
+
+export async function assertPackageIdentity(root, identity) {
+  const current = await capturePackageIdentity(root);
+  if (current.dev !== identity.dev || current.ino !== identity.ino || current.uid !== identity.uid) {
+    throw new PackageIntegrityError('The staging directory was replaced after it was verified.');
+  }
+}
+
+// Full, non-following walk. Returns { files, directories, symlinks } with package-relative POSIX paths.
+async function walk(root, directory = root, found = { files: [], directories: [], symlinks: [] }) {
+  for (const item of await readdir(directory)) {
+    const full = join(directory, item);
+    const rel = relative(root, full).split(sep).join('/');
     const stat = await lstat(full);
-    if (stat.isSymbolicLink()) throw new PackageIntegrityError(`A symbolic link is present in the package: ${relative(root, full)}.`);
-    if (stat.isDirectory()) found.push(...await walk(root, full));
-    else if (stat.isFile()) found.push(relative(root, full).split(sep).join('/'));
-    else throw new PackageIntegrityError(`An unexpected filesystem object is present in the package: ${relative(root, full)}.`);
+    if (stat.isSymbolicLink()) found.symlinks.push(rel);
+    else if (stat.isDirectory()) { found.directories.push(rel); await walk(root, full, found); }
+    else if (stat.isFile()) {
+      if (stat.nlink > 1) throw new PackageIntegrityError(`${rel} is a hard link (it could alias a file outside the package).`);
+      found.files.push(rel);
+    } else throw new PackageIntegrityError(`${rel} is a special file or unexpected filesystem object.`);
   }
   return found;
 }
 
-// Re-reads the export and proves it IS the approved tree: same file set, same object ids, no links or extras.
-export async function verifyExportedPackage({ git, root, entries, extraForbiddenFiles = [] }) {
-  const present = (await walk(root)).sort();
+// A symlink is only ever permitted when it is on the explicit reviewed list AND fully resolves inside the package.
+async function assertSymlinksContained(root, symlinks, allowedSymlinks) {
+  const realRoot = await realpath(root);
+  for (const link of symlinks) {
+    if (!allowedSymlinks.includes(link)) throw new PackageIntegrityError(`A symbolic link is present in the package and is not on the reviewed in-package list: ${link}.`);
+    let real;
+    try { real = await realpath(join(root, link)); } catch { throw new PackageIntegrityError(`The symbolic link ${link} is broken or circular.`); }
+    if (real !== realRoot && !real.startsWith(realRoot + sep)) throw new PackageIntegrityError(`The symbolic link ${link} resolves outside the package.`);
+  }
+}
+
+async function assertApprovedFilesIntact({ git, root, entries, objectFormat }) {
+  for (const entry of entries) {
+    const stat = await lstat(join(root, entry.path)).catch(() => null);
+    if (!stat || !stat.isFile()) throw new PackageIntegrityError(`${entry.path} is missing from the package or is no longer a regular file.`);
+    const oid = objectId('blob', await readFile(join(root, entry.path)), objectFormat);
+    if (oid !== entry.oid) throw new PackageIntegrityError(`${entry.path} differs from the approved commit (expected object ${entry.oid}, found ${oid}).`);
+  }
+}
+
+// Pre-install check: the package IS the approved tree and nothing else.
+export async function verifyExportedPackage({ git, root, entries, objectFormat = 'sha1', extraForbiddenFiles = [], allowedSymlinks = [] }) {
+  const found = await walk(root);
+  await assertSymlinksContained(root, found.symlinks, allowedSymlinks);
+  const present = found.files.sort();
   const expected = entries.map(entry => entry.path).sort();
   const extra = present.filter(path => !expected.includes(path));
   const missing = expected.filter(path => !present.includes(path));
   if (extra.length || missing.length) throw new PackageIntegrityError(`The package differs from the approved commit tree (extra: ${extra.join(', ') || 'none'}; missing: ${missing.join(', ') || 'none'}).`);
-  for (const entry of entries) {
-    const oid = text(await git(['hash-object', '--no-filters', '--', join(root, entry.path)]));
-    if (oid !== entry.oid) throw new PackageIntegrityError(`${entry.path} differs from the approved commit (expected object ${entry.oid}, found ${oid}).`);
-  }
+  await assertApprovedFilesIntact({ git, root, entries, objectFormat });
   for (const forbidden of extraForbiddenFiles) {
     if (present.includes(forbidden)) throw new PackageIntegrityError(`${forbidden} must never be part of the deployment package.`);
   }
   return present;
+}
+
+// Post-install check over the COMPLETE upload tree. Installation may add only functions/node_modules/ (regular files and
+// directories); every approved file must be byte-identical; links, hard links and special files are refused.
+export async function verifyInstalledPackage({ git, root, entries, objectFormat = 'sha1', extraForbiddenFiles = [], allowedSymlinks = [] }) {
+  const found = await walk(root);
+  await assertSymlinksContained(root, found.symlinks, allowedSymlinks);
+  const approved = new Set(entries.map(entry => entry.path));
+  const ancestors = new Set();
+  for (const path of approved) for (let dir = dirname(path); dir && dir !== '.'; dir = dirname(dir)) ancestors.add(dir);
+  const inGenerated = path => path === GENERATED_DIRECTORY || path.startsWith(`${GENERATED_DIRECTORY}/`);
+  const unexpectedFiles = found.files.filter(path => !approved.has(path) && !inGenerated(path));
+  const unexpectedDirectories = found.directories.filter(path => !ancestors.has(path) && !inGenerated(path));
+  const unexpectedLinks = found.symlinks.filter(path => !allowedSymlinks.includes(path));
+  if (unexpectedFiles.length || unexpectedDirectories.length || unexpectedLinks.length) {
+    throw new PackageIntegrityError(`Unexpected content in the package after installation (files: ${unexpectedFiles.slice(0, 5).join(', ') || 'none'}; directories: ${unexpectedDirectories.slice(0, 5).join(', ') || 'none'}; links: ${unexpectedLinks.slice(0, 5).join(', ') || 'none'}); only ${GENERATED_DIRECTORY}/ may be generated.`);
+  }
+  await assertApprovedFilesIntact({ git, root, entries, objectFormat });
+  for (const forbidden of extraForbiddenFiles) {
+    if (found.files.includes(forbidden)) throw new PackageIntegrityError(`${forbidden} must never be part of the deployment package.`);
+  }
+  return { files: found.files.length, generated: found.files.filter(inGenerated).length };
 }
 
 // Removes ONLY a package directory this module created.

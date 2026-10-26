@@ -13,8 +13,10 @@
 // operator with unrestricted cloud credentials from calling the Firebase CLI directly, and it cannot prove who holds
 // the key. Keep the private key offline/hardware-backed and never give it to an agent.
 import { createHash, createPrivateKey, createPublicKey, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto';
-import { lstat, readFile } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { constants } from 'node:fs';
+import { access, lstat, readFile, realpath } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { isAbsolute, relative, resolve } from 'node:path';
 
 export class ApprovalError extends Error {
   constructor(message) {
@@ -123,29 +125,78 @@ export function assertOutside(file, roots, what) {
   }
 }
 
-const defaultIo = { lstat, readFile: path => readFile(path, 'utf8') };
+const defaultIo = {
+  lstat, realpath, access, readFile: path => readFile(path, 'utf8'),
+  getuid: () => (typeof process.getuid === 'function' ? process.getuid() : -1)
+};
 
-function assertProtected(stat, label) {
-  if (stat.isSymbolicLink()) throw new ApprovalError(`${label} is a symbolic link.`);
-  if (stat.uid !== 0) throw new ApprovalError(`${label} is not owned by root, so the executing user could rewrite it.`);
-  if ((stat.mode & 0o022) !== 0) throw new ApprovalError(`${label} is writable by group or others.`);
+function isRootOwnedAndClosed(stat) {
+  return stat.uid === 0 && (stat.mode & 0o022) === 0;
+}
+
+function ancestorPaths(absolutePath) {
+  const parts = absolutePath.split('/').filter(Boolean);
+  const out = ['/'];
+  for (let index = 1; index <= parts.length; index += 1) out.push(`/${parts.slice(0, index).join('/')}`);
+  return out;
+}
+
+async function writableByCurrentUser(io, path) {
+  if (typeof io.access !== 'function') return false;
+  try { await io.access(path, constants.W_OK); return true; } catch { return false; }
+}
+
+// Validates the COMPLETE chain from the filesystem root to the trust-anchor file, before the key is used:
+//  1. Every symlink used to reach the file (e.g. macOS /etc -> /private/etc) must itself be root-owned.
+//  2. After resolving all links, every directory from "/" down must be a real directory owned by root and not writable
+//     by group or others, and must not be writable by the executing user (catches ACLs and ownership surprises).
+//  3. The file must be a regular file owned by root, not group/other-writable and not writable by the executing user.
+// An attacker who can replace any ancestor can replace the file, so the file's own ownership proves nothing alone.
+async function assertTrustPath(path, io, refuse) {
+  let real;
+  try { real = await io.realpath(path); } catch { throw refuse(`${path} does not exist or cannot be resolved.`); }
+  for (const step of ancestorPaths(path)) {
+    let stat;
+    try { stat = await io.lstat(step); } catch { throw refuse(`${step} cannot be inspected.`); }
+    if (stat.isSymbolicLink() && stat.uid !== 0) throw refuse(`${step} is a symbolic link not owned by root (it could be re-pointed).`);
+  }
+  const chain = ancestorPaths(real);
+  const asRoot = io.getuid?.() === 0;
+  for (const step of chain.slice(0, -1)) {
+    let stat;
+    try { stat = await io.lstat(step); } catch { throw refuse(`${step} cannot be inspected.`); }
+    if (stat.isSymbolicLink()) throw refuse(`${step} is a symbolic link in the resolved path.`);
+    if (!stat.isDirectory()) throw refuse(`${step} is not a directory.`);
+    if (stat.uid !== 0) throw refuse(`${step} is not owned by root, so its owner could replace the trust anchor.`);
+    if ((stat.mode & 0o022) !== 0) throw refuse(`${step} is writable by group or others, so the trust anchor could be replaced.`);
+    if (!asRoot && await writableByCurrentUser(io, step)) throw refuse(`${step} is writable by the executing user.`);
+  }
+  let file;
+  try { file = await io.lstat(real); } catch { throw refuse(`${real} cannot be inspected.`); }
+  if (file.isSymbolicLink()) throw refuse(`${real} is a symbolic link.`);
+  if (!file.isFile()) throw refuse(`${real} is not a regular file.`);
+  if (file.uid !== 0) throw refuse(`${real} is not owned by root, so the executing user could rewrite it.`);
+  if ((file.mode & 0o022) !== 0) throw refuse(`${real} is writable by group or others.`);
+  if (!asRoot && await writableByCurrentUser(io, real)) throw refuse(`${real} is writable by the executing user.`);
+  return { real, stat: file };
+}
+
+function sameFile(before, after) {
+  return before.dev === after.dev && before.ino === after.ino && before.size === after.size && before.mtimeMs === after.mtimeMs && before.uid === after.uid && before.mode === after.mode;
 }
 
 // Loads the pinned verification keys. Every failure is a refusal that includes the Owner bootstrap instructions.
-export async function loadTrustAnchor({ path = DEFAULT_TRUST_ANCHOR_PATH, forbiddenRoots = [], io = defaultIo } = {}) {
+// `ambientRoots` are locations the agent's user can normally write (home, temp, current directory); a trust anchor
+// under any of them is refused even before the metadata checks.
+export async function loadTrustAnchor({ path = DEFAULT_TRUST_ANCHOR_PATH, forbiddenRoots = [], ambientRoots = defaultAmbientRoots(), io = defaultIo } = {}) {
   const refuse = reason => new ApprovalError(`Trust anchor rejected: ${reason} ${OWNER_BOOTSTRAP_HINT}`);
   if (typeof path !== 'string' || !isAbsolute(path)) throw refuse('the trust anchor path must be absolute.');
-  try { assertOutside(path, forbiddenRoots, 'The trust anchor'); } catch (error) { throw refuse(error.message); }
-  let stat; let directory; let text;
-  try { stat = await io.lstat(path); } catch { throw refuse(`${path} does not exist or cannot be read.`); }
-  try {
-    if (!stat.isFile()) throw new ApprovalError(`${path} is not a regular file.`);
-    assertProtected(stat, path);
-    directory = await io.lstat(dirname(path));
-    if (!directory.isDirectory()) throw new ApprovalError(`${dirname(path)} is not a directory.`);
-    assertProtected(directory, dirname(path));
-    text = await io.readFile(path);
-  } catch (error) { throw refuse(error.message); }
+  try { assertOutside(path, [...forbiddenRoots, ...ambientRoots], 'The trust anchor'); } catch (error) { throw refuse(error.message); }
+  const { real, stat: before } = await assertTrustPath(path, io, refuse);
+  try { assertOutside(real, [...forbiddenRoots, ...ambientRoots], 'The resolved trust anchor'); } catch (error) { throw refuse(error.message); }
+  let text; let after;
+  try { text = await io.readFile(real); after = await io.lstat(real); } catch (error) { throw refuse(`the file could not be read (${error.message}).`); }
+  if (!sameFile(before, after)) throw refuse('the file changed while it was being read.');
   let parsed;
   try { parsed = JSON.parse(text); } catch { throw refuse('the file is not valid JSON.'); }
   if (!plainObject(parsed) || Object.keys(parsed).sort().join(',') !== 'keys,schema' || parsed.schema !== TRUST_SCHEMA) throw refuse(`the file must be {"schema": "${TRUST_SCHEMA}", "keys": [...]} and nothing else.`);
@@ -161,4 +212,10 @@ export async function loadTrustAnchor({ path = DEFAULT_TRUST_ANCHOR_PATH, forbid
     return { keyId: entry.keyId, publicKeyPem: entry.publicKeyPem };
   });
   return trustedKeys;
+}
+
+export function defaultAmbientRoots() {
+  const roots = [process.cwd(), tmpdir()];
+  try { roots.push(homedir()); } catch { /* no home directory */ }
+  return roots.filter(Boolean);
 }

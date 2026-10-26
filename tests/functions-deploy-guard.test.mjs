@@ -5,23 +5,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
+import { deflateSync, inflateSync } from 'node:zlib';
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync
+  chmodSync, cpSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync
 } from 'node:fs';
 import { lstat, mkdtemp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { basename, join, dirname } from 'node:path';
 import {
-  CONTRACT_KEYS, ReleaseGuardError, assertReleaseContract, assertScopedFunctionsDeployArgs, buildScopedFirebaseArgs,
-  parseDeploymentManifestText, parseGuardArguments, readFunctionSourceText, runFunctionsDeploy
+  CONTRACT_KEYS, INSTALL_ARGUMENTS, ReleaseGuardError, assertReleaseContract, assertScopedFunctionsDeployArgs, buildScopedFirebaseArgs,
+  parseDeploymentManifestText, parseGuardArguments, readFunctionSourceText, runFunctionsDeploy, sanitizedToolEnv
 } from '../scripts/functions-release-guard.mjs';
 import {
-  ApprovalError, DEFAULT_TRUST_ANCHOR_PATH, canonicalPayload, loadTrustAnchor, parseApprovalArtifact, payloadDigest,
+  ApprovalError, DEFAULT_TRUST_ANCHOR_PATH, canonicalPayload, defaultAmbientRoots, loadTrustAnchor, parseApprovalArtifact, payloadDigest,
   publicKeyFingerprint, signApproval, verifyApproval
 } from '../scripts/release-approval.mjs';
 import {
-  PACKAGE_PREFIX, PackageIntegrityError, disposePackage, exportSourcePackage, listSourceEntries, makeGit, verifyExportedPackage
+  PACKAGE_PREFIX, PackageIntegrityError, disposePackage, exportSourcePackage, listSourceEntries, openRepository, verifyExportedPackage,
+  verifyInstalledPackage, capturePackageIdentity, assertPackageIdentity, objectId, resolveSourceCommit
 } from '../scripts/functions-source-package.mjs';
+import {
+  GIT_GLOBAL_OPTIONS, GitSandboxError, assertSafeGitArguments, gitEnvironment, makeGit, resolveGitBinary
+} from '../scripts/git-sandbox.mjs';
 import { buildPlan } from '../scripts/release-approval-cli.mjs';
 import { functionsAllowlistFor } from '../scripts/deployment-manifest.mjs';
 
@@ -240,58 +245,134 @@ test('an approval signed by a different key, or with a corrupted signature, is r
   assert.throws(() => verifyApproval({ artifact: good, trustedKeys: [] }), /No trusted Owner key/);
 });
 
-// ===================== trust anchor (pinned, root-owned, outside the repository) =====================
+// ===================== trust anchor: the COMPLETE ancestor chain (synthetic filesystem) =====================
 const anchorJson = (keys = trusted, schema = 'pmdash-release-trust/v1') => JSON.stringify({ schema, keys });
-const fakeStat = ({ uid = 0, mode = 0o100644, file = true, dir = false, link = false } = {}) => ({ uid, mode, isFile: () => file, isDirectory: () => dir, isSymbolicLink: () => link });
-const anchorIo = ({ content = anchorJson(), fileStat = fakeStat(), dirStat = fakeStat({ mode: 0o040755, file: false, dir: true }), missing = false } = {}) => ({
-  lstat: async path => { if (missing) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); return path.endsWith('.json') ? fileStat : dirStat; },
-  readFile: async () => content
-});
 const ANCHOR = '/etc/pmdash/functions-release-trust.json';
-const load = (io, extra = {}) => loadTrustAnchor({ path: ANCHOR, forbiddenRoots: [repoRoot], io, ...extra });
+const DIR = { type: 'dir', uid: 0, mode: 0o040755 };
+const enoent = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+const eacces = () => Object.assign(new Error('EACCES'), { code: 'EACCES' });
+// A tiny in-memory filesystem: lstat/realpath/access/readFile with symlink resolution. `writable` lists paths the
+// executing user can write (as reported by access()); `uid` is the executing user.
+function fakeFs(overrides = {}, { uid = 501, writable = [], onRead } = {}) {
+  const entries = { '/': DIR, '/etc': DIR, '/etc/pmdash': DIR, [ANCHOR]: { type: 'file', uid: 0, mode: 0o100644, content: anchorJson() }, ...overrides };
+  const get = path => { const entry = entries[path]; if (!entry) throw enoent(); return entry; };
+  const stat = entry => ({
+    uid: entry.uid, mode: entry.mode, dev: 1, ino: entry.ino ?? 7, size: (entry.content ?? '').length, mtimeMs: entry.mtimeMs ?? 1,
+    isFile: () => entry.type === 'file', isDirectory: () => entry.type === 'dir', isSymbolicLink: () => entry.type === 'link'
+  });
+  const fs = {
+    entries,
+    // lstat follows intermediate links (like the OS) but never the final component.
+    lstat: async path => (path === '/' ? stat(get('/')) : stat(get(join(await fs.realpath(dirname(path)), basename(path))))),
+    realpath: async path => {
+      let resolved = '';
+      for (const part of path.split('/').filter(Boolean)) {
+        resolved += `/${part}`;
+        for (let hops = 0; get(resolved).type === 'link'; hops += 1) { if (hops > 20) throw Object.assign(new Error('ELOOP'), { code: 'ELOOP' }); resolved = get(resolved).target; }
+      }
+      return resolved || '/';
+    },
+    access: async path => { if (!writable.includes(path)) throw eacces(); },
+    readFile: async path => { const entry = get(path); onRead?.(entry); return entry.content; },
+    getuid: () => uid
+  };
+  return fs;
+}
+const load = (fs, extra = {}) => loadTrustAnchor({ path: ANCHOR, forbiddenRoots: [repoRoot], ambientRoots: [], io: fs, ...extra });
+const macOsLayout = (extra = {}) => ({
+  '/etc': { type: 'link', uid: 0, mode: 0o120755, target: '/private/etc' }, '/private': DIR, '/private/etc': DIR, '/private/etc/pmdash': DIR,
+  '/private/etc/pmdash/functions-release-trust.json': { type: 'file', uid: 0, mode: 0o100644, content: anchorJson() }, ...extra
+});
 
-test('a root-owned, not group/other-writable anchor outside the repository is accepted', async () => {
-  const keys = await load(anchorIo());
-  assert.deepEqual(keys, trusted);
+test('a root-owned anchor under a root-owned, closed ancestor chain is accepted', async () => {
+  assert.deepEqual(await load(fakeFs()), trusted);
+});
+
+test('the macOS layout (root-owned /etc -> /private/etc alias) is accepted', async () => {
+  const fs = fakeFs(macOsLayout());
+  delete fs.entries['/etc/pmdash']; delete fs.entries[ANCHOR];
+  assert.deepEqual(await load(fs), trusted);
 });
 
 test('an absent trust anchor fails closed and tells the Owner how to bootstrap', async () => {
-  await assert.rejects(load(anchorIo({ missing: true })), /Trust anchor rejected: .*does not exist.*Owner bootstrap required/s);
-  await assert.rejects(loadTrustAnchor({ forbiddenRoots: [repoRoot], io: anchorIo({ missing: true }) }), /Owner bootstrap required/);
+  const fs = fakeFs(); delete fs.entries[ANCHOR];
+  await assert.rejects(load(fs), /Trust anchor rejected: .*does not exist.*Owner bootstrap required/s);
+  await assert.rejects(loadTrustAnchor({ forbiddenRoots: [repoRoot], ambientRoots: [], io: fs }), /Owner bootstrap required/);
   assert.equal(DEFAULT_TRUST_ANCHOR_PATH, '/etc/pmdash/functions-release-trust.json');
 });
 
-test('an anchor the executing user can rewrite is not a trust anchor', async () => {
-  await assert.rejects(load(anchorIo({ fileStat: fakeStat({ uid: 501 }) })), /not owned by root/);
-  await assert.rejects(load(anchorIo({ fileStat: fakeStat({ mode: 0o100664 }) })), /writable by group or others/);
-  await assert.rejects(load(anchorIo({ fileStat: fakeStat({ mode: 0o100666 }) })), /writable by group or others/);
-  await assert.rejects(load(anchorIo({ dirStat: fakeStat({ uid: 501, mode: 0o040755, file: false, dir: true }) })), /not owned by root/);
-  await assert.rejects(load(anchorIo({ dirStat: fakeStat({ mode: 0o040777, file: false, dir: true }) })), /writable by group or others/);
-  await assert.rejects(load(anchorIo({ fileStat: fakeStat({ link: true }) })), /symbolic link/);
-  await assert.rejects(load(anchorIo({ fileStat: fakeStat({ file: false }) })), /not a regular file/);
-  // The real filesystem: a file created by this (non-root) test process can never qualify.
-  const dir = mkdtempSync(join(tmpdir(), 'trust-anchor-'));
-  try {
-    writeFileSync(join(dir, 'trust.json'), anchorJson());
-    await assert.rejects(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot] }), process.getuid?.() === 0 ? /Trust anchor rejected/ : /not owned by root/);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+test('a replaceable ancestor directory invalidates the anchor even when the file itself looks root-owned', async () => {
+  for (const [path, replacement, pattern] of [
+    ['/etc/pmdash', { ...DIR, uid: 501 }, /\/etc\/pmdash is not owned by root/],
+    ['/etc', { ...DIR, uid: 501 }, /\/etc is not owned by root/],
+    ['/', { ...DIR, uid: 501 }, /\/ is not owned by root/],
+    ['/etc/pmdash', { ...DIR, mode: 0o040775 }, /writable by group or others/],
+    ['/etc', { ...DIR, mode: 0o040757 }, /writable by group or others/],
+    ['/etc', { ...DIR, mode: 0o041777 }, /writable by group or others/],
+    ['/etc/pmdash', { type: 'file', uid: 0, mode: 0o100644 }, /is not a directory/]
+  ]) {
+    await assert.rejects(load(fakeFs({ [path]: replacement })), pattern, `${path} ${pattern}`);
+  }
+  // Ownership/mode can look fine while the executing user can still write (ACLs, group membership): access() says so.
+  await assert.rejects(load(fakeFs({}, { writable: ['/etc/pmdash'] })), /\/etc\/pmdash is writable by the executing user/);
+  await assert.rejects(load(fakeFs({}, { writable: ['/etc'] })), /\/etc is writable by the executing user/);
 });
 
-test('an anchor inside the repository or at a relative path is refused', async () => {
-  await assert.rejects(loadTrustAnchor({ path: join(repoRoot, 'config', 'trust.json'), forbiddenRoots: [repoRoot], io: anchorIo() }), /stored outside/);
-  await assert.rejects(loadTrustAnchor({ path: 'trust.json', forbiddenRoots: [repoRoot], io: anchorIo() }), /must be absolute/);
+test('a symlink anywhere on the path must be root-owned and every directory behind it is validated', async () => {
+  await assert.rejects(load(fakeFs(macOsLayout({ '/etc': { type: 'link', uid: 501, mode: 0o120755, target: '/private/etc' } }))), /symbolic link not owned by root/);
+  await assert.rejects(load(fakeFs(macOsLayout({ '/private': { ...DIR, uid: 501 } }))), /\/private is not owned by root/);
+  await assert.rejects(load(fakeFs(macOsLayout({ '/private/etc': { ...DIR, mode: 0o040777 } }))), /writable by group or others/);
+  await assert.rejects(load(fakeFs({ [ANCHOR]: { type: 'link', uid: 501, mode: 0o120755, target: '/etc/pmdash/other.json' }, '/etc/pmdash/other.json': { type: 'file', uid: 0, mode: 0o100644, content: anchorJson() } })), /symbolic link not owned by root/);
+});
+
+test('a same-user writable trust file is not a trust anchor', async () => {
+  await assert.rejects(load(fakeFs({ [ANCHOR]: { type: 'file', uid: 501, mode: 0o100644, content: anchorJson() } })), /not owned by root/);
+  await assert.rejects(load(fakeFs({ [ANCHOR]: { type: 'file', uid: 0, mode: 0o100664, content: anchorJson() } })), /writable by group or others/);
+  await assert.rejects(load(fakeFs({ [ANCHOR]: { type: 'file', uid: 0, mode: 0o100666, content: anchorJson() } })), /writable by group or others/);
+  await assert.rejects(load(fakeFs({}, { writable: [ANCHOR] })), /writable by the executing user/);
+  await assert.rejects(load(fakeFs({ [ANCHOR]: { type: 'dir', uid: 0, mode: 0o040755 } })), /not a regular file/);
+});
+
+test('an anchor under an agent-writable location (repository, home, temp, working directory) is refused', async () => {
+  const under = root => ({ path: `${root}/trust.json`, io: fakeFs({ [`${root}/trust.json`]: { type: 'file', uid: 0, mode: 0o100644, content: anchorJson() }, [root]: DIR }) });
+  const inRepo = under(join(repoRoot, 'config'));
+  await assert.rejects(loadTrustAnchor({ path: inRepo.path, forbiddenRoots: [repoRoot], ambientRoots: [], io: inRepo.io }), /stored outside/);
+  const home = under('/home/agent');
+  await assert.rejects(loadTrustAnchor({ path: home.path, forbiddenRoots: [], ambientRoots: ['/home/agent'], io: home.io }), /stored outside/);
+  await assert.rejects(loadTrustAnchor({ path: ANCHOR, forbiddenRoots: [], ambientRoots: ['/etc'], io: fakeFs() }), /stored outside/);
+  await assert.rejects(loadTrustAnchor({ path: 'trust.json', forbiddenRoots: [repoRoot], ambientRoots: [], io: fakeFs() }), /must be absolute/);
+  assert.ok(defaultAmbientRoots().includes(process.cwd()) && defaultAmbientRoots().includes(tmpdir()));
+});
+
+test('a trust file that changes while it is being read is refused', async () => {
+  await assert.rejects(load(fakeFs({}, { onRead: entry => { entry.mtimeMs = 99; } })), /changed while it was being read/);
 });
 
 test('an anchor with no keys, the wrong schema, bad key ids or non-Ed25519 keys is refused', async () => {
-  await assert.rejects(load(anchorIo({ content: anchorJson([]) })), /lists no trusted keys/);
-  await assert.rejects(load(anchorIo({ content: anchorJson(trusted, 'other/v1') })), /must be/);
-  await assert.rejects(load(anchorIo({ content: 'not json' })), /not valid JSON/);
-  await assert.rejects(load(anchorIo({ content: JSON.stringify({ schema: 'pmdash-release-trust/v1', keys: trusted, extra: 1 }) })), /must be/);
-  await assert.rejects(load(anchorIo({ content: anchorJson([{ keyId: OTHER.keyId, publicKeyPem: OWNER.publicKeyPem }]) })), /not the fingerprint/);
-  await assert.rejects(load(anchorIo({ content: anchorJson([...trusted, ...trusted]) })), /duplicate key/);
-  await assert.rejects(load(anchorIo({ content: anchorJson([{ keyId: OWNER.keyId, publicKeyPem: 'not a key' }]) })), /not a valid PEM/);
+  const withContent = content => fakeFs({ [ANCHOR]: { type: 'file', uid: 0, mode: 0o100644, content } });
+  await assert.rejects(load(withContent(anchorJson([]))), /lists no trusted keys/);
+  await assert.rejects(load(withContent(anchorJson(trusted, 'other/v1'))), /must be/);
+  await assert.rejects(load(withContent('not json')), /not valid JSON/);
+  await assert.rejects(load(withContent(JSON.stringify({ schema: 'pmdash-release-trust/v1', keys: trusted, extra: 1 }))), /must be/);
+  await assert.rejects(load(withContent(anchorJson([{ keyId: OTHER.keyId, publicKeyPem: OWNER.publicKeyPem }]))), /not the fingerprint/);
+  await assert.rejects(load(withContent(anchorJson([...trusted, ...trusted]))), /duplicate key/);
+  await assert.rejects(load(withContent(anchorJson([{ keyId: OWNER.keyId, publicKeyPem: 'not a key' }]))), /not a valid PEM/);
   const ec = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey.export({ type: 'spki', format: 'pem' });
-  await assert.rejects(load(anchorIo({ content: anchorJson([{ keyId: 'sha256:' + '0'.repeat(64), publicKeyPem: ec }]) })), /Only Ed25519/);
+  await assert.rejects(load(withContent(anchorJson([{ keyId: 'sha256:' + '0'.repeat(64), publicKeyPem: ec }]))), /Only Ed25519/);
+});
+
+test('the REAL filesystem: a file this (non-root) process created, or a missing path, can never be an anchor', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'trust-anchor-'));
+  try {
+    writeFileSync(join(dir, 'trust.json'), anchorJson());
+    await assert.rejects(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot], ambientRoots: [] }), process.getuid?.() === 0 ? /Trust anchor rejected/ : /not owned by root/);
+    await assert.rejects(loadTrustAnchor({ path: join(dir, 'trust.json'), forbiddenRoots: [repoRoot] }), /stored outside/, 'the temp directory is an ambient, agent-writable root');
+    await assert.rejects(loadTrustAnchor({ path: join(dir, 'missing', 'trust.json'), forbiddenRoots: [repoRoot], ambientRoots: [] }), /does not exist/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('no real Owner trust anchor is configured on this machine, so the default path is refused (skipped once the Owner bootstraps)', { skip: existsSync(DEFAULT_TRUST_ANCHOR_PATH) }, async () => {
+  await assert.rejects(loadTrustAnchor({ forbiddenRoots: [repoRoot] }), /does not exist or cannot be resolved.*Owner bootstrap required/s);
 });
 
 // ===================== real throw-away repository: SOURCE COMMIT -> OWNER APPROVAL -> VALIDATION -> COMMAND =====================
@@ -334,25 +415,32 @@ const payloadFor = (w, overrides = {}) => contract24({ sourceSha: w.sha, sourceT
 function approve(w, payload = payloadFor(w), privateKeyPem = OWNER.privateKeyPem) {
   writeFileSync(w.approvalPath, JSON.stringify(signApproval({ payload, privateKeyPem })));
 }
-// io where only the Owner-bootstrapped trust anchor (and its directory) is presented as root-owned.
-const worldIo = w => ({
-  realpath,
-  lstat: async path => (path === w.trustAnchor ? fakeStat() : path === dirname(w.trustAnchor) ? fakeStat({ mode: 0o040755, file: false, dir: true }) : lstat(path)),
-  readFile: async path => readFileSync(path, 'utf8')
-});
+// io where the whole ancestor chain of the Owner-bootstrapped trust anchor is presented as root-owned and closed
+// (a synthetic stand-in for the sudo bootstrap); everything else is the real filesystem. The executing user is 501.
+const FAKE_STAT = type => ({ uid: 0, mode: type === 'dir' ? 0o040755 : 0o100644, dev: 1, ino: 11, size: 100, mtimeMs: 5, isFile: () => type === 'file', isDirectory: () => type === 'dir', isSymbolicLink: () => false });
+const worldIo = w => {
+  const chain = new Set();
+  for (let path = w.trustAnchor; ; path = dirname(path)) { chain.add(path); if (path === '/') break; }
+  return {
+    realpath, access: async () => { throw eacces(); }, getuid: () => 501, readFile: async path => readFileSync(path, 'utf8'),
+    lstat: async path => (chain.has(path) ? FAKE_STAT(path === w.trustAnchor ? 'file' : 'dir') : lstat(path))
+  };
+};
 
 async function drive(w, argv, extra = {}) {
-  const calls = []; const logs = []; const snapshots = [];
+  const calls = extra.calls ?? []; const logs = []; const snapshots = [];
   let packagePath = null;
   const makeTempDir = async () => (packagePath = await mkdtemp(join(await realpath(tmpdir()), PACKAGE_PREFIX)));
   const runner = async (command, args, context) => {
     calls.push([command, args, context]);
     snapshots.push(listFiles(context.cwd));
+    if (command === 'npm') await extra.onInstall?.({ packageRoot: dirname(context.cwd), functionsDir: context.cwd });
     return extra.exitCode ?? 0;
   };
-  const code = await runFunctionsDeploy(argv, { rootDir: w.root, run: runner, log: line => logs.push(line), io: worldIo(w), now: () => NOW, makeTempDir, ...extra.options });
+  const code = await runFunctionsDeploy(argv, { rootDir: w.root, run: runner, log: line => logs.push(line), io: worldIo(w), ambientRoots: [], now: () => NOW, makeTempDir, ...extra.options });
   return { code, calls, logs, snapshots, packagePath };
 }
+const firebaseCalls = calls => calls.filter(([command]) => command === 'firebase');
 function listFiles(root, directory = root) {
   const out = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -383,7 +471,8 @@ test('SYNTHETIC FLOW: source commit -> external Owner approval -> validation -> 
   const { code, calls, logs } = await drive(w, args(w, '--execute'));
   assert.equal(code, 0);
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].slice(0, 2), ['npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund']]);
+  assert.deepEqual(calls[0].slice(0, 2), ['npm', ['ci', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund']]);
+  assert.deepEqual(calls[0][1], [...INSTALL_ARGUMENTS]);
   assert.equal(calls[1][0], 'firebase');
   assert.deepEqual(calls[1][1], buildScopedFirebaseArgs(plan));
   assert.equal(calls[1][1][2].split(',').length, 24);
@@ -519,14 +608,20 @@ test('a validly signed payload that breaks the rules is still rejected (extra sc
   await rejectsWith(drive(w, args(w, '--execute')), /expired at/);
 });
 
-test('an absent or user-writable trust anchor fails closed even with a perfectly signed approval', async () => {
+test('an absent, same-user or ancestor-replaceable trust anchor fails closed even with a perfectly signed approval', async () => {
   const w = world(); approve(w);
   const calls = [];
-  const options = { run: async (...call) => { calls.push(call); return 0; }, io: { realpath, lstat, readFile: async path => readFileSync(path, 'utf8') } };
+  const realIo = { realpath, lstat, access: async () => { throw eacces(); }, getuid: () => 501, readFile: async path => readFileSync(path, 'utf8') };
+  const options = { run: async (...call) => { calls.push(call); return 0; }, io: realIo };
+  // Real filesystem: the anchor file and its parent directories belong to this user.
   await rejectsWith(drive(w, args(w, '--execute'), { options }), /Trust anchor rejected: .*not owned by root.*Owner bootstrap required/s);
   await rejectsWith(drive(w, ['--env', 'uat', '--project', UAT, '--approval', w.approvalPath, '--trust-anchor', join(w.base, 'missing.json'), '--execute'], { options }), /Trust anchor rejected/);
-  const absent = { run: options.run, io: { realpath, lstat: async path => { if (path === DEFAULT_TRUST_ANCHOR_PATH) throw new Error('ENOENT'); return lstat(path); }, readFile: options.io.readFile } };
-  await rejectsWith(drive(w, ['--env', 'uat', '--project', UAT, '--approval', w.approvalPath, '--execute'], { options: absent }), /does not exist or cannot be read.*Owner bootstrap required/s);
+  // The default path is absent here: nothing may run.
+  const absent = { run: options.run, io: { ...realIo, realpath: async path => { if (path === DEFAULT_TRUST_ANCHOR_PATH) throw enoent(); return realpath(path); } } };
+  await rejectsWith(drive(w, ['--env', 'uat', '--project', UAT, '--approval', w.approvalPath, '--execute'], { options: absent }), /does not exist or cannot be resolved.*Owner bootstrap required/s);
+  // A root-owned file whose DIRECTORY is replaceable by the executing user (anchor chain is not closed).
+  const replaceable = { run: options.run, io: { ...worldIo(w), lstat: async path => (path === dirname(w.trustAnchor) ? { ...FAKE_STAT('dir'), uid: 501 } : worldIo(w).lstat(path)) } };
+  await rejectsWith(drive(w, args(w, '--execute'), { options: replaceable }), /is not owned by root, so its owner could replace the trust anchor/);
   assert.deepEqual(calls, [], 'no tool is ever started without a valid trust anchor');
 });
 
@@ -604,6 +699,327 @@ test('firebase.json hooks or a redirected source directory are refused', async (
   }
 });
 
+// ===================== hardening 3, blocker 1: controlled Git execution =====================
+const withEnv = async (vars, fn) => {
+  const saved = Object.fromEntries(Object.keys(vars).map(key => [key, process.env[key]]));
+  Object.assign(process.env, vars);
+  try { return await fn(); } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
+};
+const executable = (path, body) => { writeFileSync(path, `#!/bin/sh\n${body}\n`, { mode: 0o755 }); return path; };
+
+test('the git environment is an allow-list: no inherited GIT_*, HOME or XDG configuration, trusted PATH', () => {
+  const env = gitEnvironment();
+  assert.deepEqual(Object.keys(env).filter(key => key.startsWith('GIT_')).sort(), ['GIT_ATTR_NOSYSTEM', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_SYSTEM', 'GIT_NO_REPLACE_OBJECTS', 'GIT_OPTIONAL_LOCKS', 'GIT_TERMINAL_PROMPT']);
+  for (const bad of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'GIT_CONFIG_PARAMETERS', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SSH_COMMAND', 'GIT_TEMPLATE_DIR', 'GIT_EXEC_PATH']) assert.ok(!(bad in env), bad);
+  assert.equal(env.HOME, '/nonexistent');
+  assert.equal(env.XDG_CONFIG_HOME, '/nonexistent');
+  assert.equal(env.PATH, '/usr/bin:/bin:/usr/sbin:/sbin');
+  assert.equal(env.GIT_CONFIG_GLOBAL, '/dev/null');
+  for (const option of ['core.hooksPath=/dev/null', 'core.fsmonitor=false', 'core.pager=cat', 'credential.helper=', 'core.sshCommand=false']) assert.ok(GIT_GLOBAL_OPTIONS.includes(option), option);
+});
+
+test('every git child gets exactly that environment and global options, whatever the parent environment holds', async () => {
+  const seen = [];
+  const recorder = (binary, args, options) => { seen.push({ binary, args, options }); return Object.assign(Promise.resolve({ stdout: Buffer.from('ok\n') }), { child: null }); };
+  await withEnv({ GIT_DIR: '/decoy/.git', GIT_WORK_TREE: '/decoy', GIT_INDEX_FILE: '/decoy/index', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.fsmonitor', GIT_CONFIG_VALUE_0: '/evil', GIT_OBJECT_DIRECTORY: '/decoy/objects', GIT_ALTERNATE_OBJECT_DIRECTORIES: '/decoy/objects', GIT_SSH_COMMAND: 'evil', GIT_TEMPLATE_DIR: '/decoy/t', HOME: '/home/agent', XDG_CONFIG_HOME: '/home/agent/.config' }, async () => {
+    const git = makeGit('/some/root', { binary: '/usr/bin/git', run: recorder });
+    assert.equal(textOfBuffer(await git(['rev-parse', 'HEAD'])), 'ok');
+  });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].binary, '/usr/bin/git');
+  assert.deepEqual(seen[0].options.env, { ...gitEnvironment() });
+  assert.equal(seen[0].options.cwd, '/some/root');
+  assert.deepEqual(seen[0].args.slice(0, GIT_GLOBAL_OPTIONS.length), [...GIT_GLOBAL_OPTIONS]);
+  assert.deepEqual(seen[0].args.slice(GIT_GLOBAL_OPTIONS.length), ['rev-parse', 'HEAD']);
+});
+const textOfBuffer = buffer => buffer.toString('utf8').trim();
+
+test('git arguments are allow-listed: no option injection, no unknown subcommands, no unsafe paths', () => {
+  const sha = 'a'.repeat(40);
+  for (const good of [['rev-parse', 'HEAD'], ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], ['ls-tree', '-r', '-t', '-z', '--full-tree', sha, '--', 'firebase.json', 'functions'], ['cat-file', 'blob', sha], ['show', `${sha}:functions/index.js`], ['hash-object', '--no-filters', '--stdin'], ['status', '--porcelain', '--untracked-files=no']]) {
+    assert.doesNotThrow(() => assertSafeGitArguments(good), good.join(' '));
+  }
+  for (const bad of [
+    ['config', 'core.fsmonitor', '/evil'], ['fetch', 'origin'], ['clone', 'x'], ['rev-parse', '--git-dir'], ['rev-parse', '--exec-path=/evil'],
+    ['cat-file', 'blob', '--output=/tmp/x'], ['cat-file', 'blob', `${sha};rm -rf /`], ['cat-file', 'blob', 'HEAD:../../etc/passwd'], ['show', `${sha}:../x`],
+    ['show', `${sha}:/etc/passwd`], ['ls-tree', sha, '--', '../escape'], ['ls-tree', sha, '--', '/abs'], ['ls-tree', sha, '--', 'a b'], ['ls-tree', sha, '--', '.git/config'],
+    ['rev-parse', '-c', 'core.hooksPath=/evil'], ['rev-parse', `--upload-pack=/evil`], ['rev-parse', 'HEAD\0evil'], [], 'rev-parse', ['--version'], ['rev-parse', 42]
+  ]) assert.throws(() => assertSafeGitArguments(bad), GitSandboxError, JSON.stringify(bad));
+});
+
+test('git is found by absolute path in OS directories only', async () => {
+  assert.equal(await resolveGitBinary({ candidates: ['/a/git', '/b/git'], probe: async path => path === '/b/git' }), '/b/git');
+  await assert.rejects(resolveGitBinary({ candidates: ['/a/git'], probe: async () => false }), /No trusted git executable/);
+});
+
+test('redirecting git through the inherited environment has no effect: the approved repository and content are used', async () => {
+  const w = world(); approve(w);
+  const decoy = makeRepo();
+  cleanups.push(() => rmSync(decoy.root, { recursive: true, force: true }));
+  writeFileSync(join(decoy.root, 'functions', 'helper.js'), 'module.exports = "DECOY";\n');
+  run(decoy.root, 'commit', '-q', '-am', 'decoy');
+  const marker = join(w.base, 'fsmonitor-ran');
+  const evil = executable(join(w.base, 'evil.sh'), `touch '${marker}'`);
+  const redirect = {
+    GIT_DIR: join(decoy.root, '.git'), GIT_WORK_TREE: decoy.root, GIT_INDEX_FILE: join(decoy.root, '.git', 'index'),
+    GIT_OBJECT_DIRECTORY: join(decoy.root, '.git', 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: join(decoy.root, '.git', 'objects'),
+    GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_0: 'core.fsmonitor', GIT_CONFIG_VALUE_0: evil, GIT_CONFIG_KEY_1: 'core.hooksPath', GIT_CONFIG_VALUE_1: join(w.base, 'hooks'),
+    GIT_SSH_COMMAND: evil, GIT_TEMPLATE_DIR: join(w.base, 'templates'), HOME: w.base, XDG_CONFIG_HOME: w.base
+  };
+  // Prove the attack is real: with this environment an unprotected `git status` would run the injected fsmonitor command.
+  withEnvSync(redirect, () => { try { execFileSync('git', ['status'], { cwd: w.root, stdio: 'ignore' }); } catch { /* the decoy may fail; only the marker matters */ } });
+  assert.ok(existsSync(marker), 'the injected config really executes through unprotected git');
+  rmSync(marker);
+  const { snapshots, calls } = await withEnv(redirect, () => drive(w, args(w, '--execute')));
+  assert.equal(calls.length, 2);
+  assert.ok(!existsSync(marker), 'the injected fsmonitor command was NOT executed');
+  assert.ok(snapshots[1].includes('functions/helper.js'));
+});
+function withEnvSync(vars, fn) {
+  const saved = Object.fromEntries(Object.keys(vars).map(key => [key, process.env[key]]));
+  Object.assign(process.env, vars);
+  try { return fn(); } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
+}
+
+test('repository-local git config and hooks cannot execute code during guard operations', async () => {
+  const w = world(); approve(w);
+  const marker = join(w.base, 'ran');
+  const evil = executable(join(w.base, 'evil.sh'), `touch '${marker}'`);
+  run(w.root, 'config', 'core.fsmonitor', evil);
+  mkdirSync(join(w.base, 'hooks'));
+  executable(join(w.base, 'hooks', 'post-index-change'), `touch '${marker}'`);
+  executable(join(w.root, '.git', 'hooks', 'post-index-change'), `touch '${marker}'`);
+  run(w.root, 'config', 'core.hooksPath', join(w.base, 'hooks'));
+  writeFileSync(join(w.root, 'functions', 'helper.js'), 'module.exports = 1;\n'); // touch the file so the index needs a refresh
+  utimesSync(join(w.root, 'functions', 'helper.js'), new Date(), new Date(Date.now() + 5000));
+  try { execFileSync('git', ['status'], { cwd: w.root, stdio: 'ignore' }); } catch { /* ignore */ }
+  assert.ok(existsSync(marker), 'the repository-local configuration really executes through unprotected git');
+  rmSync(marker);
+  utimesSync(join(w.root, 'functions', 'helper.js'), new Date(), new Date(Date.now() + 9000));
+  const { calls } = await drive(w, args(w, '--execute'));
+  assert.equal(calls.length, 2);
+  assert.ok(!existsSync(marker), 'neither the fsmonitor command nor any hook was executed by the guard');
+});
+
+test('the intended repository is verified: wrong top level, bare repository, symlinked .git and alternate object databases are refused', async () => {
+  const w = world();
+  const real = makeGit(w.root);
+  const lie = (command, answer) => async args => (args.join(' ') === command ? Buffer.from(`${answer}\n`) : real(args));
+  const other = realpathSync(mkdtempSync(join(tmpdir(), 'other-repo-')));
+  cleanups.push(() => rmSync(other, { recursive: true, force: true }));
+  await assert.rejects(openRepository(w.root, { git: lie('rev-parse --show-toplevel', other) }), /not the intended repository/);
+  await assert.rejects(openRepository(w.root, { git: lie('rev-parse --is-bare-repository', 'true') }), /bare repository/);
+  await assert.rejects(openRepository(w.root, { git: lie('rev-parse --show-object-format', 'md5') }), /Unsupported object format/);
+  assert.equal((await openRepository(w.root)).root, w.root);
+  // alternates configured through the repository itself
+  mkdirSync(join(w.root, '.git', 'objects', 'info'), { recursive: true });
+  writeFileSync(join(w.root, '.git', 'objects', 'info', 'alternates'), `${other}\n`);
+  await assert.rejects(openRepository(w.root), /alternate object database/);
+  rmSync(join(w.root, '.git', 'objects', 'info', 'alternates'));
+  // a symlinked .git
+  const moved = join(other, 'moved-git');
+  cpSync(join(w.root, '.git'), moved, { recursive: true }); rmSync(join(w.root, '.git'), { recursive: true });
+  symlinkSync(moved, join(w.root, '.git'));
+  await assert.rejects(openRepository(w.root), /\.git is a symbolic link|not the intended repository/);
+  await assert.rejects(openRepository(join(w.base, 'does-not-exist')), Error);
+});
+
+test('an alternate object database from the environment cannot substitute approved content', async () => {
+  const w = world(); approve(w);
+  const alt = realpathSync(mkdtempSync(join(tmpdir(), 'alt-objects-')));
+  cleanups.push(() => rmSync(alt, { recursive: true, force: true }));
+  const evil = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: w.root, input: 'module.exports = "alt";\n', encoding: 'utf8', env: { ...process.env, GIT_OBJECT_DIRECTORY: alt } }).trim();
+  assert.match(evil, /^[0-9a-f]{40}$/);
+  const { calls, snapshots } = await withEnv({ GIT_ALTERNATE_OBJECT_DIRECTORIES: alt, GIT_OBJECT_DIRECTORY: alt }, () => drive(w, args(w, '--execute')));
+  assert.equal(calls.length, 2);
+  assert.ok(snapshots[1].includes('functions/helper.js'));
+});
+
+function looseObjectPath(root, oid) { return join(root, '.git', 'objects', oid.slice(0, 2), oid.slice(2)); }
+function rewriteLooseObject(root, oid, mutate) {
+  const path = looseObjectPath(root, oid);
+  const raw = inflateSync(readFileSync(path));
+  const nul = raw.indexOf(0);
+  const type = raw.subarray(0, raw.indexOf(32)).toString();
+  const body = mutate(Buffer.from(raw.subarray(nul + 1)));
+  chmodSync(path, 0o644);
+  writeFileSync(path, deflateSync(Buffer.concat([Buffer.from(`${type} ${body.length}\0`), body])));
+}
+
+test('substituted commit, tree or blob objects are detected because every object is re-hashed', async () => {
+  const w = world(); approve(w);
+  const git = makeGit(w.root);
+  const blob = run(w.root, 'rev-parse', `${w.sha}:functions/helper.js`);
+  const subtree = run(w.root, 'rev-parse', `${w.sha}:functions`);
+  // a corrupt/substituted BLOB under its approved id
+  rewriteLooseObject(w.root, blob, body => Buffer.from('substituted\n'));
+  await rejectsWith(drive(w, args(w, '--execute')), /does not match its id|hash mismatch|corrupt/);
+  // a substituted subtree (same id, different listing): swap the helper entry's object id
+  const w2 = world();
+  const subtree2 = run(w2.root, 'rev-parse', `${w2.sha}:functions`);
+  rewriteLooseObject(w2.root, subtree2, body => { const copy = Buffer.from(body); copy[copy.length - 1] ^= 0xff; return copy; });
+  await assert.rejects(listSourceEntries(makeGit(w2.root), w2.sha, { tree: w2.tree }), /does not match its id|hash mismatch|not a tree object/);
+  // a substituted root tree
+  const w3 = world();
+  rewriteLooseObject(w3.root, w3.tree, body => { const copy = Buffer.from(body); copy[copy.length - 1] ^= 0xff; return copy; });
+  await assert.rejects(listSourceEntries(makeGit(w3.root), w3.sha, { tree: w3.tree }), /root tree object .* does not match its id|hash mismatch|not a tree object/);
+  // a substituted commit object
+  const w4 = world();
+  rewriteLooseObject(w4.root, w4.sha, body => Buffer.from(body.toString().replace('source', 'SOURCE')));
+  await assert.rejects(resolveSourceCommit(makeGit(w4.root), w4.sha), /commit object .* does not match its id|hash mismatch|corrupt|does not exist in this repository/);
+  assert.ok(git && subtree);
+  // our object-id computation agrees with Git's own for the same bytes
+  assert.equal(objectId('blob', Buffer.from('x\n')), execFileSync('git', ['hash-object', '--stdin'], { input: 'x\n', encoding: 'utf8' }).trim());
+});
+
+test('our own re-hashing rejects forged commit and tree bytes even when git itself does not complain', async () => {
+  const w = world();
+  const real = makeGit(w.root);
+  const forge = (oid, type) => async (args, options) => (args[0] === 'cat-file' && args[1] === type && args[2] === oid ? Buffer.from('forged bytes') : real(args, options));
+  await assert.rejects(resolveSourceCommit(forge(w.sha, 'commit'), w.sha), /commit object .* does not match its id/);
+  await assert.rejects(listSourceEntries(forge(w.tree, 'tree'), w.sha, { tree: w.tree }), /root tree object .* does not match its id/);
+  const subtree = run(w.root, 'rev-parse', `${w.sha}:functions`);
+  await assert.rejects(listSourceEntries(forge(subtree, 'tree'), w.sha, { tree: w.tree }), /tree object for functions does not match its id/);
+  const blob = run(w.root, 'rev-parse', `${w.sha}:functions/helper.js`);
+  const entries = await listSourceEntries(real, w.sha, { tree: w.tree });
+  await assert.rejects(exportSourcePackage({ git: forge(blob, 'blob'), entries }), /blob for functions\/helper\.js does not match its id/);
+  assert.equal((await listSourceEntries(real, w.sha, { tree: w.tree })).length, 5, 'the real objects verify');
+});
+
+test('tool children (npm, Firebase CLI) lose code-injection variables but keep operator credentials', () => {
+  const env = sanitizedToolEnv({ PATH: '/usr/bin', HOME: '/home/u', GOOGLE_APPLICATION_CREDENTIALS: '/home/u/adc.json', NODE_OPTIONS: '--require /evil.js', NODE_PATH: '/evil', GIT_DIR: '/decoy', GIT_SSH_COMMAND: 'evil', BASH_ENV: '/evil', LD_PRELOAD: '/evil.so', DYLD_INSERT_LIBRARIES: '/evil', npm_config_registry: 'http://evil', NPM_CONFIG_REGISTRY: 'http://evil', npm_config_ignore_scripts: 'false' });
+  assert.equal(env.PATH, '/usr/bin'); assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, '/home/u/adc.json');
+  for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'GIT_DIR', 'GIT_SSH_COMMAND', 'BASH_ENV', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'npm_config_registry']) assert.ok(!(key in env), key);
+  assert.equal(env.npm_config_ignore_scripts, 'true');
+  assert.equal(env.npm_config_userconfig, '/dev/null');
+});
+
+// ===================== hardening 3, blocker 2: post-install integrity =====================
+const blocked = async (w, extra, pattern) => {
+  const calls = [];
+  await rejectsWith(drive(w, args(w, '--execute'), { ...extra, calls }), pattern);
+  assert.deepEqual(firebaseCalls(calls), [], 'the Firebase CLI is never started after a failed post-install check');
+  return calls;
+};
+const nm = ({ functionsDir }) => join(functionsDir, 'node_modules');
+const installWith = effect => ({ onInstall: async context => { mkdirSync(nm(context), { recursive: true }); await effect(context); } });
+
+test('a clean, legitimate install passes: only files under functions/node_modules appear and the CLI runs after verification', async () => {
+  const w = world(); approve(w);
+  const { calls, snapshots } = await drive(w, args(w, '--execute'), installWith(({ functionsDir }) => {
+    mkdirSync(join(nm({ functionsDir }), 'dep'), { recursive: true });
+    writeFileSync(join(nm({ functionsDir }), 'dep', 'index.js'), 'module.exports = 1;\n');
+    writeFileSync(join(nm({ functionsDir }), '.package-lock.json'), '{}\n');
+  }));
+  assert.equal(calls.length, 2);
+  assert.ok(snapshots[1].includes('functions/node_modules/dep/index.js'));
+  assert.ok(snapshots[1].includes('functions/helper.js'));
+});
+
+test('absolute /etc, relative-escape and nested-escape symlinks injected by installation are refused (never on the list, and never allowed to leave)', async () => {
+  for (const [name, target, nested] of [['abs', '/etc', false], ['rel', '../../../../../../../..', false], ['nested', '../../../../../../../../..', true]]) {
+    const inject = ({ functionsDir }) => {
+      const base = nm({ functionsDir });
+      const parent = nested ? join(base, 'a', 'b') : base;
+      mkdirSync(parent, { recursive: true });
+      symlinkSync(target, join(parent, `evil-${name}`));
+    };
+    const linkPath = `functions/node_modules/${nested ? 'a/b/' : ''}evil-${name}`;
+    await blocked(withWorld(), { ...installWith(inject) }, /not on the reviewed in-package list/);
+    // even when someone lists it as "reviewed", a target outside the package is never accepted
+    await blocked(withWorld(), { ...installWith(inject), options: { allowedSymlinks: [linkPath] } }, /resolves outside the package/);
+  }
+});
+function withWorld() { const w = world(); approve(w); w.args = args(w, '--execute'); return w; }
+
+test('a symlink inserted AFTER installation verification (just before the CLI) is caught by the final re-scan', async () => {
+  const w = withWorld();
+  await blocked(w, { options: { beforeCli: async ({ packageRoot }) => { mkdirSync(join(packageRoot, 'functions', 'node_modules'), { recursive: true }); symlinkSync('/etc', join(packageRoot, 'functions', 'node_modules', 'late')); } } }, /not on the reviewed in-package list/);
+  const w2 = withWorld();
+  await blocked(w2, { options: { beforeCli: async ({ packageRoot }) => { writeFileSync(join(packageRoot, 'functions', 'index.js'), 'require("child_process");\n'); } } }, /differs from the approved commit/);
+});
+
+test('broken and circular symlinks are refused even when listed', async () => {
+  const broken = ({ functionsDir }) => symlinkSync('does-not-exist', join(nm({ functionsDir }), 'broken'));
+  await blocked(withWorld(), installWith(broken), /not on the reviewed in-package list/);
+  await blocked(withWorld(), { ...installWith(broken), options: { allowedSymlinks: ['functions/node_modules/broken'] } }, /broken or circular/);
+  const circular = ({ functionsDir }) => { symlinkSync('b', join(nm({ functionsDir }), 'a')); symlinkSync('a', join(nm({ functionsDir }), 'b')); };
+  await blocked(withWorld(), { ...installWith(circular), options: { allowedSymlinks: ['functions/node_modules/a', 'functions/node_modules/b'] } }, /broken or circular/);
+});
+
+test('a reviewed in-package symlink is permitted; the same link unreviewed is refused', async () => {
+  const link = ({ functionsDir }) => {
+    mkdirSync(join(nm({ functionsDir }), 'pkg'), { recursive: true });
+    writeFileSync(join(nm({ functionsDir }), 'pkg', 'real.js'), 'x\n');
+    symlinkSync('real.js', join(nm({ functionsDir }), 'pkg', 'alias.js'));
+  };
+  const w = withWorld();
+  const { calls } = await drive(w, args(w, '--execute'), { ...installWith(link), options: { allowedSymlinks: ['functions/node_modules/pkg/alias.js'] } });
+  assert.equal(calls.length, 2);
+  await blocked(withWorld(), installWith(link), /not on the reviewed in-package list/);
+});
+
+test('installation cannot modify approved source or add unexpected generated source', async () => {
+  await blocked(withWorld(), installWith(({ functionsDir }) => writeFileSync(join(functionsDir, 'index.js'), 'module.exports = {};\n')), /differs from the approved commit/);
+  await blocked(withWorld(), installWith(({ functionsDir }) => writeFileSync(join(functionsDir, 'package.json'), '{"scripts":{"postinstall":"evil"}}\n')), /differs from the approved commit/);
+  await blocked(withWorld(), installWith(({ functionsDir }) => writeFileSync(join(functionsDir, 'generated.js'), 'evil\n')), /Unexpected content in the package after installation/);
+  await blocked(withWorld(), installWith(({ functionsDir }) => writeFileSync(join(functionsDir, '.npmrc'), 'registry=http://evil\n')), /Unexpected content/);
+  await blocked(withWorld(), installWith(({ packageRoot }) => writeFileSync(join(packageRoot, 'postinstall.js'), 'evil\n')), /Unexpected content/);
+  await blocked(withWorld(), installWith(({ packageRoot }) => mkdirSync(join(packageRoot, 'extra-dir'))), /Unexpected content/);
+  await blocked(withWorld(), installWith(({ functionsDir }) => rmSync(join(functionsDir, 'helper.js'))), /missing from the package/);
+});
+
+test('special files and hard links are refused', async () => {
+  await blocked(withWorld(), installWith(({ functionsDir }) => execFileSync('mkfifo', [join(nm({ functionsDir }), 'pipe')])), /special file or unexpected filesystem object/);
+  const outside = join(tmpdir(), `outside-${process.pid}-${Date.now()}.txt`);
+  writeFileSync(outside, 'secret\n');
+  try {
+    await blocked(withWorld(), installWith(({ functionsDir }) => linkSync(outside, join(nm({ functionsDir }), 'hardlink'))), /hard link/);
+  } finally { rmSync(outside, { force: true }); }
+});
+
+test('the staging directory cannot be replaced between verification and the CLI', async () => {
+  for (const replace of ['directory', 'symlink']) {
+    const w = withWorld();
+    const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'swap-')));
+    cleanups.push(() => rmSync(elsewhere, { recursive: true, force: true }));
+    await blocked(w, { options: { beforeCli: async ({ packageRoot }) => {
+      renameSync(packageRoot, `${packageRoot}-moved`);
+      cleanups.push(() => rmSync(`${packageRoot}-moved`, { recursive: true, force: true }));
+      if (replace === 'symlink') symlinkSync(elsewhere, packageRoot); else { mkdirSync(packageRoot, { mode: 0o700 }); cpSync(`${packageRoot}-moved`, packageRoot, { recursive: true }); }
+    } } }, replace === 'symlink' ? /not a real directory/ : /replaced after it was verified/);
+  }
+});
+
+test('staging identity checks: symlinks, foreign owners and group/other access are refused', async () => {
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'identity-')));
+  cleanups.push(() => rmSync(parent, { recursive: true, force: true }));
+  const dir = join(parent, 'd'); mkdirSync(dir, { mode: 0o700 });
+  const identity = await capturePackageIdentity(dir);
+  await assertPackageIdentity(dir, identity);
+  await assert.rejects(assertPackageIdentity(dir, { ...identity, ino: identity.ino + 1 }), /replaced after it was verified/);
+  const link = join(parent, 'link'); symlinkSync(dir, link);
+  await assert.rejects(capturePackageIdentity(link), /not a real directory/);
+  const open = join(parent, 'open'); mkdirSync(open, { mode: 0o755 }); chmodSync(open, 0o755);
+  await assert.rejects(capturePackageIdentity(open), /accessible to other users/);
+});
+
+test('verifyInstalledPackage accepts only the approved files plus generated node_modules content', async () => {
+  const w = world();
+  const { git, objectFormat } = await openRepository(w.root);
+  const entries = await listSourceEntries(git, w.sha, { objectFormat, tree: w.tree });
+  const root = await exportSourcePackage({ git, entries, objectFormat });
+  try {
+    const clean = await verifyInstalledPackage({ git, root, entries, objectFormat });
+    assert.equal(clean.generated, 0);
+    mkdirSync(join(root, 'functions', 'node_modules', 'x'), { recursive: true });
+    writeFileSync(join(root, 'functions', 'node_modules', 'x', 'a.js'), 'a\n');
+    assert.equal((await verifyInstalledPackage({ git, root, entries, objectFormat })).generated, 1);
+    writeFileSync(join(root, 'functions', 'sneaky.js'), 'a\n');
+    await assert.rejects(verifyInstalledPackage({ git, root, entries, objectFormat }), /Unexpected content/);
+  } finally { await disposePackage(root); }
+});
+
 // ===================== Owner tooling (plan / sign / trust) =====================
 test('the Owner workflow tooling: plan prints a reviewable digest, sign needs that digest and an external key, trust refuses private keys', async () => {
   const { main } = await import('../scripts/release-approval-cli.mjs');
@@ -629,7 +1045,7 @@ test('the Owner workflow tooling: plan prints a reviewable digest, sign needs th
   // `trust` converts a PUBLIC key into the anchor content and refuses a private key.
   const pubFile = join(w.base, 'owner.pub.pem'); writeFileSync(pubFile, OWNER.publicKeyPem);
   const trustLines = []; await main(['trust', '--public-key', pubFile], { rootDir: w.root, log: line => trustLines.push(line) });
-  assert.deepEqual(await load(anchorIo({ content: trustLines.join('\n') })), trusted);
+  assert.deepEqual(await load(fakeFs({ [ANCHOR]: { type: 'file', uid: 0, mode: 0o100644, content: trustLines.join('\n') } })), trusted);
   await assert.rejects(main(['trust', '--public-key', keyFile], { rootDir: w.root, log }), /contains a private key/);
   // A plan that breaks the rules cannot even be proposed.
   await assert.rejects(main(['plan', '--env', 'uat', '--project', UAT, '--source-sha', w.sha, '--functions', [...CALLABLES_24, SCHEDULER].join(','), '--release-id', 's02-uat-25'], { rootDir: w.root, log }), /scheduled Function and is not listed in scheduledFunctionsApproved/);

@@ -31,8 +31,7 @@ scheduledFunctionsApproved, notBefore, expiresAt` (window at most 14 days). Chan
 ## Rules enforced before anything runs
 
 1. The approval file exists, is **outside the repository**, and is exactly `{schema, payload, keyId, signature}` (no free-text fields).
-2. The trust anchor is an absolute path outside the repository, a regular file (no symlink), **owned by root, not
-   group/other-writable, in a root-owned non-writable directory**, and lists only Ed25519 keys whose `keyId` equals the key fingerprint.
+2. The trust anchor passes **full-ancestor validation** (see "Trust anchor path" below) and lists only Ed25519 keys whose `keyId` equals the key fingerprint.
 3. The signature verifies for a key in the anchor over the canonical payload.
 4. The approved **source commit exists locally**; the manifest, `functions/index.js` and `firebase.json` are read **from that commit**.
 5. `sourceSha` equals the checked-out `HEAD`, `sourceTree` equals that commit's tree, and there are no uncommitted tracked changes.
@@ -44,14 +43,57 @@ scheduledFunctionsApproved, notBefore, expiresAt` (window at most 14 days). Chan
 11. Production `--execute` additionally needs `--confirm-production`.
 12. The generated argument list is re-validated: individually named `functions:<name>` only, one explicit `--project`, no `--force`, `--except`, wildcards or other targets.
 
+## Controlled Git execution (hardening 3)
+
+Every Git child process (`scripts/git-sandbox.mjs`) gets an environment **built from an allow-list**: nothing is inherited, so
+`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_CONFIG_COUNT`/`KEY_*`/`VALUE_*`, `GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_SSH_COMMAND`, `GIT_TEMPLATE_DIR` and every other `GIT_*` are dropped. `HOME` and `XDG_CONFIG_HOME` point
+at `/nonexistent`, global/system configuration is disabled, `PATH` is the OS directories, replace refs are disabled, and each command
+is run with `core.hooksPath=/dev/null` and `core.fsmonitor=false` (plus no pager/ssh/askpass/credential helper). `git` is found by absolute
+path in OS directories, not through the user's PATH. Arguments are allow-listed (known subcommands, literal flags, full object ids,
+`<oid>^{commit|tree}`, `<oid>:<safe path>`, and safe relative paths after `--`); no shell is involved and no startup file is read.
+The intended repository is resolved and verified (git top level equals the repository root, not bare, `.git` is not a symlink, no
+`objects/info/alternates`), and the commit, the root tree, every intermediate tree and every blob are **re-hashed**, so a substituted object
+cannot present different content under an approved id. Repository-local `.git/config` is still read by Git; the dangerous keys are
+overridden per command, unknown future keys are not.
+
 ## Immutable source package
 
 `git ls-tree` of the approved tree under `firebase.json` and `functions/` is the **only** input. Every blob is written into a
 fresh `0700` temp directory (`pmdash-functions-package-*`); symlinks, submodules, odd paths and `.git` segments in the commit
 are refused; `firebase.json` must keep `functions.source = "functions"` and may not define `predeploy`/`postdeploy` hooks.
 The export is re-read and must equal the tree (paths, object ids, no extra files, no links); the approval file name must not
-appear in it. Dependencies are installed **inside the package** with `npm ci --ignore-scripts`; the Firebase CLI runs with the package as
-its working directory. The user's working tree is never modified or cleaned, and only the package directory this tool created is removed.
+appear in it. Dependencies are installed **inside the package** with `npm ci --ignore-scripts --no-bin-links` (lockfile-only, no lifecycle
+scripts, no `.bin` symlinks, user/global npm config disabled, `NODE_OPTIONS`/`NODE_PATH`/`GIT_*`/`npm_config_*` stripped from the child environment);
+the Firebase CLI runs with the package as its working directory. The user's working tree is never modified or cleaned, and only the
+package directory this tool created is removed.
+
+### Post-install integrity
+
+1. **Before** installation the package must equal the approved tree exactly.
+2. **After** installation the **whole upload tree** is walked without following links: only regular files and directories are allowed;
+   hard links, FIFOs/sockets/devices and any symlink are refused unless the link is on an explicit, reviewed in-package list **and** fully
+   resolves inside the package (no absolute/`..` escapes, no chains leaving the package, no broken or circular links; the list is empty
+   by default and there is no switch that allows external targets).
+3. Every approved file is re-hashed and must be byte-identical; the only thing installation may add is `functions/node_modules/`; any other
+   new file or directory (for example `functions/generated.js`, `.npmrc`, a new top-level directory) is refused.
+4. The staging directory's identity (device/inode/owner, real `0700` directory, not a symlink) is captured at creation and re-checked, and
+   the scan is **repeated immediately before the Firebase CLI starts**; the CLI runs only if everything passed. A same-user actor can
+   still race the final instant: the window is narrowed, not removed.
+
+## Trust anchor path (hardening 3)
+
+The anchor is validated **before the key is used**, along the complete path from `/` to the file:
+
+- every symlink used to reach it (for example macOS `/etc` -> `/private/etc`) must be **root-owned**;
+- after resolving all links, every directory from `/` down must be a real directory **owned by root**, **not group/other-writable** (sticky
+  or not), and **not writable by the executing user** (`access(W_OK)`, which also catches ACL/group surprises);
+- the file must be a regular file, owned by root, not group/other-writable, not writable by the executing user, and unchanged while read;
+- the path may not be under the repository, the home directory, the temp directory or the current directory.
+
+A file that merely looks root-owned is not trusted if any ancestor could be replaced by the agent's user. Real limits: ACLs and extended
+attributes beyond `access()`, mount options and a compromised root are not evaluated; Windows is unsupported (fails closed). If no safe
+anchor can be established under the current permissions (the case today), release execution stays **blocked**.
 
 ## Commands
 
@@ -81,13 +123,18 @@ and `--execute` — is refused with the bootstrap instructions. No approval evid
 
 ## Future release procedure
 
-1. **Source prepared by the Agent** and committed locally (nothing is deployed).
-2. **Independent QA completed** (not an Agent self-review) on that commit.
-3. **Exact source commit frozen** (full SHA recorded; no further commits for the release).
-4. **Owner reviews the scope**: the Agent runs `plan` and shows the environment, project, SHA/tree, Function list, exclusions and digest.
-5. **Owner provides an independently verifiable approval**: signs the reviewed plan with the offline key (`sign --expect-digest`). Approvals expire (14 days at most).
-6. **Guard validates** the approval, the anchor, the commit, the tree and the scope (dry-run shows the exact command and package size).
-7. **Scoped deployment executes only under a new, separate authorisation** (`--execute`; Production adds `--confirm-production`).
+1. **Agent prepares the source** and commits it locally (nothing is deployed).
+2. **Independent QA** (Codex or another independent reviewer; an Agent self-review does not count) on that exact commit.
+3. **Exact source commit frozen**: full SHA recorded, no further commits for the release.
+4. **Owner approves the exact scope**: the Agent runs `plan`; the Owner reads the environment, project, SHA/tree, Function list, exclusions, scheduled approvals, validity window and digest.
+5. **Owner approval signature created outside the source repository**, with the offline key (`sign --expect-digest`); approvals expire (14 days at most).
+6. **Guard verifies the trust anchor** (full ancestor chain) and the signature over the exact payload.
+7. **Immutable source exported** from the approved commit into the isolated package (sanitized Git, every object re-hashed).
+8. **Dependencies installed safely** inside the package (`npm ci --ignore-scripts --no-bin-links`, stripped environment).
+9. **Post-install verification** of the whole upload tree, repeated immediately before the CLI starts.
+10. **Explicit scoped deployment** (`--execute`; Production adds `--confirm-production`) with only the individually named `functions:<name>` selectors — and only under a new, separate authorisation to deploy.
+
+If any step is unavailable (for example no Owner trust anchor), execution stays blocked; there is no override flag.
 
 ## Limitations (read these)
 
@@ -102,6 +149,13 @@ and `--execute` — is refused with the bootstrap instructions. No approval evid
   no names (pinned by existing tests). Release tooling must use this guard and never call it without an explicit list.
 - A Firebase `predeploy` hook cannot see `--only`, so it cannot enforce this; hooks are refused in the packaged `firebase.json`.
 - Windows is not supported by the root-ownership check (it fails closed).
+- **No real Owner trust anchor is configured yet**, so this guard is not operationally ready: `--execute` (and dry-run) are blocked until the Owner bootstraps one.
+- **Same-user agent privileges:** an actor with the same OS privileges as the runner can alter the guard, Node, user-owned PATH entries and the
+  tools it finds, or call the Firebase CLI directly. Stronger assurance needs enforcement outside the machine (least-privilege deploy
+  identities, a deploy service the agent cannot modify, required reviews on the guard code, IAM that rejects unapproved deployments).
+- The repository-local `.git/config` is read by Git; dangerous keys are overridden per command, unknown keys are not. `npm`, the registry
+  and the locked packages' content are trusted to honour the lockfile integrity hashes.
+- Deployment credentials (ADC, `FIREBASE_TOKEN`) are inherited by the Firebase CLI and are not controlled; see `docs/functions-release-threat-model.md`.
 
 ## What this does not touch
 

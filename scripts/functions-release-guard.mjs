@@ -22,15 +22,16 @@
 // repository-managed releases and makes the approval independently verifiable.
 // Nothing here starts the Firebase CLI unless the wrapper is run with --execute; tests inject a mock runner.
 import { spawn } from 'node:child_process';
-import { lstat, readFile, realpath } from 'node:fs/promises';
+import { access, lstat, readFile, realpath } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ENVIRONMENTS, functionsAllowlistFor, functionsPreservedFor } from './deployment-manifest.mjs';
 import { ApprovalError, DEFAULT_TRUST_ANCHOR_PATH, assertOutside, loadTrustAnchor, verifyApproval } from './release-approval.mjs';
 import {
-  PackageIntegrityError, assertPackageFirebaseConfig, disposePackage, exportSourcePackage, listSourceEntries, makeGit,
-  readFromCommit, resolveSourceCommit, verifyExportedPackage
+  PackageIntegrityError, assertPackageFirebaseConfig, assertPackageIdentity, capturePackageIdentity, disposePackage, exportSourcePackage,
+  listSourceEntries, openRepository, readFromCommit, resolveSourceCommit, verifyExportedPackage, verifyInstalledPackage
 } from './functions-source-package.mjs';
+import { GitSandboxError } from './git-sandbox.mjs';
 
 export class ReleaseGuardError extends Error {
   constructor(message) {
@@ -235,7 +236,27 @@ export function parseGuardArguments(argv) {
   return parsed;
 }
 
-const defaultIo = { lstat, realpath, readFile: path => readFile(path, 'utf8') };
+const defaultIo = {
+  lstat, realpath, access, readFile: path => readFile(path, 'utf8'),
+  getuid: () => (typeof process.getuid === 'function' ? process.getuid() : -1)
+};
+
+// Environment for npm / Firebase CLI children: the operator's credentials and PATH are kept (they are needed), but every
+// variable that can inject code into a child process or redirect Git/npm configuration is removed.
+const STRIPPED_EXACT = new Set(['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'BASH_ENV', 'ENV']);
+export function sanitizedToolEnv(base = process.env) {
+  const env = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (value === undefined) continue;
+    if (key.startsWith('GIT_') || key.startsWith('DYLD_') || key.toLowerCase().startsWith('npm_config_') || STRIPPED_EXACT.has(key)) continue;
+    env[key] = value;
+  }
+  // Deterministic, script-free installs that ignore user/global npm configuration.
+  return { ...env, npm_config_userconfig: '/dev/null', npm_config_globalconfig: '/dev/null', npm_config_ignore_scripts: 'true', npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false' };
+}
+
+// Deterministic, lockfile-only, script-free installation arguments (no .bin symlinks are created).
+export const INSTALL_ARGUMENTS = Object.freeze(['ci', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund']);
 
 // Runs one tool. Firebase is started from the isolated package (cwd) using the tool installed in the repository
 // (toolRoot); npm is only used to install the package's own dependencies without lifecycle scripts.
@@ -252,7 +273,7 @@ async function defaultRun(command, args, { cwd, toolRoot }) {
   } else {
     throw new ReleaseGuardError(`Refusing to run "${command}".`);
   }
-  const child = spawn(executable, executableArgs, { cwd, stdio: 'inherit' });
+  const child = spawn(executable, executableArgs, { cwd, stdio: 'inherit', env: sanitizedToolEnv() });
   return new Promise((resolveExit, reject) => {
     child.on('error', reject);
     child.on('close', code => resolveExit(code ?? 1));
@@ -267,7 +288,10 @@ const textOf = buffer => buffer.toString('utf8').trim();
 export async function runFunctionsDeploy(argv, options = {}) {
   const {
     rootDir = resolve(fileURLToPath(new URL('..', import.meta.url))),
-    run = defaultRun, log = console.log, io = defaultIo, now = () => new Date(), createGit = makeGit, makeTempDir
+    run = defaultRun, log = console.log, io = defaultIo, now = () => new Date(), makeTempDir,
+    // Test seams only: ambient roots for the trust-anchor location check, the reviewed in-package symlink list
+    // (empty by default; external targets are never allowed) and a hook that runs between the last verification and the CLI.
+    ambientRoots, allowedSymlinks = [], beforeCli = null
   } = options;
   const parsed = parseGuardArguments(argv);
   const realRoot = await io.realpath(rootDir);
@@ -281,12 +305,14 @@ export async function runFunctionsDeploy(argv, options = {}) {
   try { artifact = JSON.parse(await io.readFile(approvalFile)); } catch (error) { throw new ReleaseGuardError(`The release approval is not readable JSON: ${error.message}`); }
 
   // 2. Independently verifiable: pinned, root-owned trust anchor + signature over the exact payload.
-  const trustedKeys = await loadTrustAnchor({ path: parsed.trustAnchor ? resolve(parsed.trustAnchor) : DEFAULT_TRUST_ANCHOR_PATH, forbiddenRoots: [realRoot], io });
+  const trustedKeys = await loadTrustAnchor({ path: parsed.trustAnchor ? resolve(parsed.trustAnchor) : DEFAULT_TRUST_ANCHOR_PATH, forbiddenRoots: [realRoot], io, ...(ambientRoots ? { ambientRoots } : {}) });
   const payload = verifyApproval({ artifact, trustedKeys });
 
-  // 3. The approved source commit must exist; everything below is read from IT, not from the working tree.
-  const git = createGit(realRoot);
-  const source = await resolveSourceCommit(git, payload.sourceSha);
+  // 3. The intended repository (sanitized Git environment, no alternates) and the approved source commit. Everything
+  //    below is read from THAT commit, not from the working tree.
+  const repository = await openRepository(realRoot);
+  const { git, objectFormat } = repository;
+  const source = await resolveSourceCommit(git, payload.sourceSha, objectFormat);
   const manifest = parseDeploymentManifestText(await readFromCommit(git, source.sha, 'config/deployment-manifest.json'));
   const functionSource = readFunctionSourceText(await readFromCommit(git, source.sha, 'functions/index.js'));
   assertPackageFirebaseConfig(await readFromCommit(git, source.sha, 'firebase.json'));
@@ -304,10 +330,12 @@ export async function runFunctionsDeploy(argv, options = {}) {
   assertScopedFunctionsDeployArgs(args, payload);
 
   // 4. Immutable package from the approved tree (no working-tree files, no links), verified against that tree.
-  const entries = await listSourceEntries(git, source.sha);
-  const packageRoot = await exportSourcePackage({ git, entries, makeTempDir });
+  const entries = await listSourceEntries(git, source.sha, { objectFormat, tree: source.tree });
+  const packageRoot = await exportSourcePackage({ git, entries, objectFormat, makeTempDir });
   try {
-    await verifyExportedPackage({ git, root: packageRoot, entries, extraForbiddenFiles: [basename(realApproval)] });
+    const identity = await capturePackageIdentity(packageRoot);
+    const forbidden = { extraForbiddenFiles: [basename(realApproval)], allowedSymlinks, objectFormat };
+    await verifyExportedPackage({ git, root: packageRoot, entries, ...forbidden });
     log(`Release ${payload.releaseId} (${parsed.environment}, ${payload.firebaseProjectId}): ${payload.functions.length} Functions, ${payload.exclusions.length} explicitly excluded.`);
     log(`Approved source commit ${source.sha} (tree ${source.tree}) verified; isolated package of ${entries.length} tracked files built from it. Approval signed by ${artifact.keyId}.`);
     log(`> ${['firebase', ...args].join(' ')}`);
@@ -315,8 +343,16 @@ export async function runFunctionsDeploy(argv, options = {}) {
       log('Dry run: the Firebase CLI was not started and the isolated package was removed. Re-run with --execute to deploy.');
       return 0;
     }
-    const installed = await run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: join(packageRoot, 'functions'), toolRoot: realRoot });
+    const installed = await run('npm', [...INSTALL_ARGUMENTS], { cwd: join(packageRoot, 'functions'), toolRoot: realRoot });
     if (installed !== 0) throw new ReleaseGuardError(`Installing the isolated package dependencies failed with code ${installed}; nothing was deployed.`);
+    // Post-install: the staging directory is the same one, the whole upload tree is scanned again (no link may leave
+    // it, no unexpected file appeared, every approved file is byte-identical) and the scan is repeated immediately
+    // before the CLI starts. A same-user actor can still race the last instant; that window is narrowed, not removed.
+    await assertPackageIdentity(packageRoot, identity);
+    await verifyInstalledPackage({ git, root: packageRoot, entries, ...forbidden });
+    if (typeof beforeCli === 'function') await beforeCli({ packageRoot });
+    await assertPackageIdentity(packageRoot, identity);
+    await verifyInstalledPackage({ git, root: packageRoot, entries, ...forbidden });
     const code = await run('firebase', args, { cwd: packageRoot, toolRoot: realRoot });
     if (code !== 0) throw new ReleaseGuardError(`The Firebase CLI exited with code ${code}; nothing was verified as deployed.`);
     return 0;
@@ -325,4 +361,4 @@ export async function runFunctionsDeploy(argv, options = {}) {
   }
 }
 
-export { ApprovalError, PackageIntegrityError };
+export { ApprovalError, GitSandboxError, PackageIntegrityError };
