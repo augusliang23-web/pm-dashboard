@@ -354,7 +354,7 @@ button[aria-busy="true"] { cursor:wait; }
 .card-stripe.yellow { background: var(--yellow); }
 .card-stripe.red { background: var(--red); }
 .card-body { padding: 20px 22px 22px; flex: 1; display:flex; flex-direction:column; }
-.card-actions { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; z-index: 2; }
+.card-actions { display:flex; flex:none; align-items:center; gap:6px; }
 .card-actions .action-icon { background: var(--s1); border: 1px solid var(--border2); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 .card-actions .action-icon svg { width: 13px; height: 13px; }
 .card-actions .action-icon:hover { color: var(--text); border-color: var(--muted); background: var(--s2); }
@@ -363,9 +363,9 @@ button[aria-busy="true"] { cursor:wait; }
 .locked-project-edit { position:relative; display:inline-flex; }
 .locked-project-edit::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:12; width:min(290px, 66vw); padding:8px 9px; border-radius:7px; background:var(--text); color:#fff; box-shadow:0 8px 18px rgba(30,41,59,.18); font-size:10px; font-weight:600; line-height:1.38; opacity:0; pointer-events:none; transform:translateY(-3px); transition:opacity .16s ease, transform .16s ease; }
 .locked-project-edit:hover::after, .locked-project-edit:focus-within::after { opacity:1; transform:translateY(0); }
-.card-summary { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom: 16px; padding-right: 44px; }
-.card-summary-left { min-width: 0; flex:1; }
-.card-summary-right { min-width: 96px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+.card-summary { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+.card-summary-left { min-width:0; flex:1; overflow-wrap:anywhere; }
+.card-summary-right { min-width:0; max-width:100%; flex:none; text-align:right; display:flex; flex-direction:column; flex-wrap:wrap; align-items:flex-end; gap:8px; }
 .proj-name { font-size: 18px; font-weight: 800; color: var(--text); line-height: 1.25; letter-spacing: -0.01em; }
 .proj-code { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); background: var(--bg); padding: 4px 7px; border-radius: 6px; margin-top: 8px; display: inline-block; }
 .card-status { font-size: 10px; font-weight: 800; padding: 5px 10px; border-radius: 999px; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid transparent; }
@@ -3171,6 +3171,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 <script type="module">
+import "./js/project-assignment-eligibility.js";
+const {projectAssignmentOptions}=globalThis.PMProjectAssignment;
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
@@ -5755,7 +5757,7 @@ onAuthStateChanged(auth, async user => {
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
       const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
-      projectDraftDirectory = { authGeneration, options: nextDirectory.accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
+      projectDraftDirectory = { authGeneration, options: projectAssignmentOptions(nextDirectory.accounts,{role:currentRole,email:authEmail}) };
       applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data());
       PM_LIST = [...new Set(nextDirectory.accounts
         .filter(account => normalizeRole(account.role) !== 'vip')
@@ -5848,7 +5850,7 @@ function startProjectManagerSubscription(isCurrentSession) {
     projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
       if (!isCurrentSession()) return;
       const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
-      projectDraftDirectory = { authGeneration:authSessionGeneration, options:accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
+      projectDraftDirectory = { authGeneration:authSessionGeneration, options:projectAssignmentOptions(accounts,{role:currentRole,email:getEmailKey(currentUser)}) };
       displayNameDirectory.replace(accounts);
       PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);
       syncProjectManagerFilterOptions();
@@ -10325,6 +10327,13 @@ function renderNormal(projs) {
     return `
     <div class="proj-card" data-project-code="${escHtml(p.code)}" title="Double click for details">
       <div class="card-stripe ${status}"></div>
+      <div class="card-body">
+        <div class="card-summary">
+          <div class="card-summary-left">
+            <div class="proj-name">${escHtml(p.name)}<span class="project-level-badge">${escHtml(getOverviewProjectBadgeLabel(p, 'all'))}</span>${visibility ? `<span class="muted-badge">[${visibility.toUpperCase()}]</span>` : ''}</div>
+            <div class="proj-code">${escHtml(p.code)}</div>
+          </div>
+          <div class="card-summary-right">
       ${canEdit ? (isReleased ? `
         <div class="card-actions">
           <span class="locked-project-edit" tabindex="0" role="note" title="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" aria-label="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" data-tooltip="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}">
@@ -10334,13 +10343,6 @@ function renderNormal(projs) {
         <div class="card-actions">
           <button class="action-icon" data-project-action="edit" data-project-code="${escHtml(p.code)}" title="Project edit">${editIcon}</button>
         </div>`) : ''}
-      <div class="card-body">
-        <div class="card-summary">
-          <div class="card-summary-left">
-            <div class="proj-name">${escHtml(p.name)}<span class="project-level-badge">${escHtml(getOverviewProjectBadgeLabel(p, 'all'))}</span>${visibility ? `<span class="muted-badge">[${visibility.toUpperCase()}]</span>` : ''}</div>
-            <div class="proj-code">${escHtml(p.code)}</div>
-          </div>
-          <div class="card-summary-right">
             <span class="card-status ${status}">${escHtml(statusLabel)}</span>
             <div>
               <div class="card-progress-label">Progress</div>
@@ -14342,13 +14344,10 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpening) {
     for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
       const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
       options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
-      if (key === 'ownerEmail' && !options.some(user => user.email === opening.email)) {
-        select.add(new Option(`${getUserDisplayName(opening.email) || opening.email} (${opening.email})`,opening.email));
-      }
       const assigned = draft.assignment[key] || '';
       if (assigned && ![...select.options].some(option => option.value === assigned)) {
         const preserved = new Option(`${draft.project[key === 'ownerEmail' ? 'owner' : 'deputy'] || assigned} (current assignment)`,assigned);
-        preserved.disabled = key === 'ownerEmail'; select.add(preserved);
+        preserved.disabled = true; select.add(preserved);
       }
       select.value = assigned;
     }
