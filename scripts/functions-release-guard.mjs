@@ -32,6 +32,7 @@ import {
   listSourceEntries, openRepository, readFromCommit, resolveSourceCommit, verifyExportedPackage, verifyInstalledPackage
 } from './functions-source-package.mjs';
 import { GitSandboxError } from './git-sandbox.mjs';
+import { assertNpmSandbox, createNpmSandbox, disposeNpmSandbox, npmInstallEnvironment, sanitizedToolEnv } from './npm-sandbox.mjs';
 
 export class ReleaseGuardError extends Error {
   constructor(message) {
@@ -241,26 +242,17 @@ const defaultIo = {
   getuid: () => (typeof process.getuid === 'function' ? process.getuid() : -1)
 };
 
-// Environment for npm / Firebase CLI children: the operator's credentials and PATH are kept (they are needed), but every
-// variable that can inject code into a child process or redirect Git/npm configuration is removed.
-const STRIPPED_EXACT = new Set(['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'BASH_ENV', 'ENV']);
-export function sanitizedToolEnv(base = process.env) {
-  const env = {};
-  for (const [key, value] of Object.entries(base)) {
-    if (value === undefined) continue;
-    if (key.startsWith('GIT_') || key.startsWith('DYLD_') || key.toLowerCase().startsWith('npm_config_') || STRIPPED_EXACT.has(key)) continue;
-    env[key] = value;
-  }
-  // Deterministic, script-free installs that ignore user/global npm configuration.
-  return { ...env, npm_config_userconfig: '/dev/null', npm_config_globalconfig: '/dev/null', npm_config_ignore_scripts: 'true', npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false' };
-}
+export { sanitizedToolEnv };
 
-// Deterministic, lockfile-only, script-free installation arguments (no .bin symlinks are created).
-export const INSTALL_ARGUMENTS = Object.freeze(['ci', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund']);
+// Deterministic, lockfile-only, script-free installation arguments. npm-created `.bin` links are kept (`--bin-links`):
+// the Firebase CLI discovers the Functions SDK through functions/node_modules/.bin/firebase-functions. Those links are
+// never trusted blindly: the post-install scan accepts only validated single-hop links inside node_modules/.bin.
+export const INSTALL_ARGUMENTS = Object.freeze(['ci', '--ignore-scripts', '--bin-links', '--no-audit', '--no-fund']);
 
 // Runs one tool. Firebase is started from the isolated package (cwd) using the tool installed in the repository
-// (toolRoot); npm is only used to install the package's own dependencies without lifecycle scripts.
-async function defaultRun(command, args, { cwd, toolRoot }) {
+// (toolRoot); npm is only used to install the package's own dependencies without lifecycle scripts, inside the private
+// npm sandbox (two distinct empty config files, private home and cache).
+async function defaultRun(command, args, { cwd, toolRoot, npmSandbox }) {
   let executable; let executableArgs;
   if (command === 'firebase') {
     const packageDir = join(toolRoot, 'node_modules', 'firebase-tools');
@@ -273,7 +265,9 @@ async function defaultRun(command, args, { cwd, toolRoot }) {
   } else {
     throw new ReleaseGuardError(`Refusing to run "${command}".`);
   }
-  const child = spawn(executable, executableArgs, { cwd, stdio: 'inherit', env: sanitizedToolEnv() });
+  if (command === 'npm') await assertNpmSandbox(npmSandbox);
+  const env = command === 'npm' ? npmInstallEnvironment(npmSandbox) : sanitizedToolEnv();
+  const child = spawn(executable, executableArgs, { cwd, stdio: 'inherit', env });
   return new Promise((resolveExit, reject) => {
     child.on('error', reject);
     child.on('close', code => resolveExit(code ?? 1));
@@ -343,16 +337,27 @@ export async function runFunctionsDeploy(argv, options = {}) {
       log('Dry run: the Firebase CLI was not started and the isolated package was removed. Re-run with --execute to deploy.');
       return 0;
     }
-    const installed = await run('npm', [...INSTALL_ARGUMENTS], { cwd: join(packageRoot, 'functions'), toolRoot: realRoot });
+    // npm gets a private sandbox: two DISTINCT empty config files (npm refuses one path in both roles), an empty home
+    // and a private cache. Both config files exist before `npm ci` starts and are removed afterwards.
+    const npmSandbox = await createNpmSandbox();
+    let installed;
+    try {
+      await assertNpmSandbox(npmSandbox);
+      installed = await run('npm', [...INSTALL_ARGUMENTS], { cwd: join(packageRoot, 'functions'), toolRoot: realRoot, npmSandbox });
+    } finally {
+      await disposeNpmSandbox(npmSandbox);
+    }
     if (installed !== 0) throw new ReleaseGuardError(`Installing the isolated package dependencies failed with code ${installed}; nothing was deployed.`);
     // Post-install: the staging directory is the same one, the whole upload tree is scanned again (no link may leave
-    // it, no unexpected file appeared, every approved file is byte-identical) and the scan is repeated immediately
-    // before the CLI starts. A same-user actor can still race the last instant; that window is narrowed, not removed.
+    // it, no unexpected file appeared, every approved file is byte-identical, the Firebase Functions SDK entry the CLI
+    // needs is present and genuine) and the scan is repeated immediately before the CLI starts. A same-user actor can
+    // still race the last instant; that window is narrowed, not removed.
+    const installedChecks = { git, root: packageRoot, entries, ...forbidden, requireSdkEntry: true };
     await assertPackageIdentity(packageRoot, identity);
-    await verifyInstalledPackage({ git, root: packageRoot, entries, ...forbidden });
+    await verifyInstalledPackage(installedChecks);
     if (typeof beforeCli === 'function') await beforeCli({ packageRoot });
     await assertPackageIdentity(packageRoot, identity);
-    await verifyInstalledPackage({ git, root: packageRoot, entries, ...forbidden });
+    await verifyInstalledPackage(installedChecks);
     const code = await run('firebase', args, { cwd: packageRoot, toolRoot: realRoot });
     if (code !== 0) throw new ReleaseGuardError(`The Firebase CLI exited with code ${code}; nothing was verified as deployed.`);
     return 0;

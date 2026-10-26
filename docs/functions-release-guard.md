@@ -63,18 +63,27 @@ overridden per command, unknown future keys are not.
 fresh `0700` temp directory (`pmdash-functions-package-*`); symlinks, submodules, odd paths and `.git` segments in the commit
 are refused; `firebase.json` must keep `functions.source = "functions"` and may not define `predeploy`/`postdeploy` hooks.
 The export is re-read and must equal the tree (paths, object ids, no extra files, no links); the approval file name must not
-appear in it. Dependencies are installed **inside the package** with `npm ci --ignore-scripts --no-bin-links` (lockfile-only, no lifecycle
-scripts, no `.bin` symlinks, user/global npm config disabled, `NODE_OPTIONS`/`NODE_PATH`/`GIT_*`/`npm_config_*` stripped from the child environment);
-the Firebase CLI runs with the package as its working directory. The user's working tree is never modified or cleaned, and only the
+appear in it. Dependencies are installed **inside the package** with `npm ci --ignore-scripts --bin-links --no-audit --no-fund`
+(exact lockfile, no lifecycle scripts). npm runs in a private **npm sandbox** (`scripts/npm-sandbox.mjs`): `userconfig` and `globalconfig` are two
+**distinct, empty, private files that exist before `npm ci`** (npm refuses to load one path in both roles, so `/dev/null` for both fails with
+`double-loading config`), `HOME`/`XDG_CONFIG_HOME` point at an empty private directory, the npm cache is private, and `NPM_TOKEN`, `NODE_AUTH_TOKEN`,
+`NODE_OPTIONS`, `NODE_PATH`, `GIT_*` and every inherited `npm_config_*` are removed. The real `~/.npmrc` is never read or written; a project `.npmrc`
+inside the approved tree would still apply. The sandbox is removed afterwards (also when npm fails). The Firebase CLI runs with the package as its working directory. The user's working tree is never modified or cleaned, and only the
 package directory this tool created is removed.
 
 ### Post-install integrity
 
 1. **Before** installation the package must equal the approved tree exactly.
 2. **After** installation the **whole upload tree** is walked without following links: only regular files and directories are allowed;
-   hard links, FIFOs/sockets/devices and any symlink are refused unless the link is on an explicit, reviewed in-package list **and** fully
-   resolves inside the package (no absolute/`..` escapes, no chains leaving the package, no broken or circular links; the list is empty
-   by default and there is no switch that allows external targets).
+   hard links and FIFOs/sockets/devices are refused. A symlink is permitted only if it is
+   (a) an **npm-created dependency link** `functions/node_modules[/<pkg>/node_modules]*/.bin/<name>` that is a **relative, single-hop** link to a
+   **regular file** whose fully resolved path is inside the same `node_modules` directory (never a chain, a directory, another `.bin` entry, an
+   absolute target, a target outside `functions/node_modules/`, or broken/circular); or (b) on an explicit, reviewed in-package list **and** fully
+   resolving inside the package (the list is empty by default and there is no switch that allows external targets). Any other link is refused.
+   The link text is never trusted; the resolved path is checked. `--bin-links` is required because the Firebase CLI discovers the Functions SDK
+   **only** through `functions/node_modules/.bin/firebase-functions` (`findFunctionsBinary` in `firebase-tools`): that entry must exist at that exact
+   path, be the npm-created link, resolve to the executable the installed `firebase-functions` package declares as its `firebase-functions` bin, and stay
+   inside the package. A regular launcher, a re-pointed link, a missing or non-executable entry is refused.
 3. Every approved file is re-hashed and must be byte-identical; the only thing installation may add is `functions/node_modules/`; any other
    new file or directory (for example `functions/generated.js`, `.npmrc`, a new top-level directory) is refused.
 4. The staging directory's identity (device/inode/owner, real `0700` directory, not a symlink) is captured at creation and re-checked, and
@@ -130,7 +139,7 @@ and `--execute` — is refused with the bootstrap instructions. No approval evid
 5. **Owner approval signature created outside the source repository**, with the offline key (`sign --expect-digest`); approvals expire (14 days at most).
 6. **Guard verifies the trust anchor** (full ancestor chain) and the signature over the exact payload.
 7. **Immutable source exported** from the approved commit into the isolated package (sanitized Git, every object re-hashed).
-8. **Dependencies installed safely** inside the package (`npm ci --ignore-scripts --no-bin-links`, stripped environment).
+8. **Dependencies installed safely** inside the package (`npm ci --ignore-scripts --bin-links`, private npm sandbox with two distinct empty config files, stripped environment).
 9. **Post-install verification** of the whole upload tree, repeated immediately before the CLI starts.
 10. **Explicit scoped deployment** (`--execute`; Production adds `--confirm-production`) with only the individually named `functions:<name>` selectors — and only under a new, separate authorisation to deploy.
 

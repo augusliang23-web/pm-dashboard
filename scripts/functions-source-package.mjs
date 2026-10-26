@@ -8,9 +8,9 @@
 // no link may leave the package, every approved file must be byte-identical, and the only thing installation may add is
 // functions/node_modules/. The user's working tree is never modified or cleaned.
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { makeGit, openRepository } from './git-sandbox.mjs';
 
 export { makeGit, openRepository };
@@ -148,15 +148,66 @@ async function walk(root, directory = root, found = { files: [], directories: []
   return found;
 }
 
-// A symlink is only ever permitted when it is on the explicit reviewed list AND fully resolves inside the package.
+// npm-created executable links: functions/node_modules[/<pkg>/node_modules]*/.bin/<name>
+const BIN_LINK = /^functions\/node_modules\/(?:(?:@[^/]+\/)?[^/]+\/node_modules\/)*\.bin\/[^/]+$/;
+
+// A dependency `.bin` link is permitted only when it is a SINGLE-hop, relative link whose target is a regular file that
+// lives inside the same node_modules directory the `.bin` belongs to (so inside the package, never a chain, never a
+// directory, never another link, never outside). The link text is not trusted: the resolved path is checked.
+async function assertDependencyBinLink(root, realRoot, link) {
+  const full = join(root, link);
+  let text;
+  try { text = await readlink(full); } catch { throw new PackageIntegrityError(`The symbolic link ${link} cannot be read.`); }
+  if (!text || text.includes('\0') || isAbsolute(text)) throw new PackageIntegrityError(`The dependency link ${link} must be a relative link.`);
+  const hop = resolve(dirname(full), text);
+  let hopStat;
+  try { hopStat = await lstat(hop); } catch { throw new PackageIntegrityError(`The dependency link ${link} is broken (its target does not exist).`); }
+  if (hopStat.isSymbolicLink()) throw new PackageIntegrityError(`The dependency link ${link} points at another link (chains are refused).`);
+  if (!hopStat.isFile()) throw new PackageIntegrityError(`The dependency link ${link} does not point at a regular file.`);
+  let realTarget; let realModules;
+  try { realTarget = await realpath(hop); realModules = await realpath(dirname(dirname(full))); } catch { throw new PackageIntegrityError(`The dependency link ${link} is broken or circular.`); }
+  const generated = join(realRoot, GENERATED_DIRECTORY);
+  if (!realTarget.startsWith(`${generated}${sep}`)) throw new PackageIntegrityError(`The dependency link ${link} resolves outside ${GENERATED_DIRECTORY}/ (${realTarget}).`);
+  if (!realTarget.startsWith(`${realModules}${sep}`) || realTarget.split(sep).includes('.bin')) throw new PackageIntegrityError(`The dependency link ${link} does not resolve to a package inside its own node_modules.`);
+}
+
+// A symlink is only ever permitted when it is (a) an npm-created `.bin` link that passes assertDependencyBinLink, or (b) on
+// the explicit reviewed list AND fully resolving inside the package. Everything else is refused.
 async function assertSymlinksContained(root, symlinks, allowedSymlinks) {
   const realRoot = await realpath(root);
   for (const link of symlinks) {
-    if (!allowedSymlinks.includes(link)) throw new PackageIntegrityError(`A symbolic link is present in the package and is not on the reviewed in-package list: ${link}.`);
+    if (BIN_LINK.test(link) && !allowedSymlinks.includes(link)) { await assertDependencyBinLink(root, realRoot, link); continue; }
+    if (!allowedSymlinks.includes(link)) throw new PackageIntegrityError(`A symbolic link is present in the package and is not a validated dependency link or on the reviewed in-package list: ${link}.`);
     let real;
     try { real = await realpath(join(root, link)); } catch { throw new PackageIntegrityError(`The symbolic link ${link} is broken or circular.`); }
     if (real !== realRoot && !real.startsWith(realRoot + sep)) throw new PackageIntegrityError(`The symbolic link ${link} resolves outside the package.`);
   }
+}
+
+export const SDK_PACKAGE = 'functions/node_modules/firebase-functions';
+export const SDK_BIN_LINK = 'functions/node_modules/.bin/firebase-functions';
+
+// The Firebase CLI finds the Functions SDK ONLY through functions/node_modules/.bin/firebase-functions (see
+// findFunctionsBinary in firebase-tools). Confirm that entry exists at exactly that path, is an npm-created link, and
+// resolves to the executable file the SDK's own package.json declares as its `firebase-functions` bin, inside the package.
+export async function assertFunctionsSdkEntry(root) {
+  const link = join(root, SDK_BIN_LINK);
+  const stat = await lstat(link).catch(() => null);
+  if (!stat) throw new PackageIntegrityError(`${SDK_BIN_LINK} is missing: the Firebase CLI cannot discover Functions without it.`);
+  if (!stat.isSymbolicLink()) throw new PackageIntegrityError(`${SDK_BIN_LINK} must be the npm-created link, not a regular file or directory.`);
+  let sdk;
+  try { sdk = JSON.parse(await readFile(join(root, SDK_PACKAGE, 'package.json'), 'utf8')); } catch { throw new PackageIntegrityError(`${SDK_PACKAGE}/package.json is missing or unreadable.`); }
+  const declared = sdk?.bin?.['firebase-functions'];
+  if (typeof declared !== 'string' || !declared) throw new PackageIntegrityError('The installed firebase-functions package declares no "firebase-functions" bin.');
+  const realRoot = await realpath(root);
+  const sdkDirectory = join(realRoot, SDK_PACKAGE);
+  let expected; let actual;
+  try { expected = await realpath(resolve(root, SDK_PACKAGE, declared)); actual = await realpath(link); } catch { throw new PackageIntegrityError(`${SDK_BIN_LINK} is broken or the SDK's declared bin is missing.`); }
+  if (!expected.startsWith(`${sdkDirectory}${sep}`)) throw new PackageIntegrityError('The SDK bin declared by firebase-functions resolves outside the package of firebase-functions itself.');
+  if (actual !== expected) throw new PackageIntegrityError(`${SDK_BIN_LINK} resolves to ${relative(realRoot, actual)} instead of the SDK's declared bin ${relative(realRoot, expected)}.`);
+  const target = await lstat(expected);
+  if (!target.isFile() || (target.mode & 0o111) === 0) throw new PackageIntegrityError('The SDK bin is not an executable regular file.');
+  return { link: SDK_BIN_LINK, target: relative(realRoot, expected) };
 }
 
 async function assertApprovedFilesIntact({ git, root, entries, objectFormat }) {
@@ -186,7 +237,7 @@ export async function verifyExportedPackage({ git, root, entries, objectFormat =
 
 // Post-install check over the COMPLETE upload tree. Installation may add only functions/node_modules/ (regular files and
 // directories); every approved file must be byte-identical; links, hard links and special files are refused.
-export async function verifyInstalledPackage({ git, root, entries, objectFormat = 'sha1', extraForbiddenFiles = [], allowedSymlinks = [] }) {
+export async function verifyInstalledPackage({ git, root, entries, objectFormat = 'sha1', extraForbiddenFiles = [], allowedSymlinks = [], requireSdkEntry = false }) {
   const found = await walk(root);
   await assertSymlinksContained(root, found.symlinks, allowedSymlinks);
   const approved = new Set(entries.map(entry => entry.path));
@@ -195,15 +246,16 @@ export async function verifyInstalledPackage({ git, root, entries, objectFormat 
   const inGenerated = path => path === GENERATED_DIRECTORY || path.startsWith(`${GENERATED_DIRECTORY}/`);
   const unexpectedFiles = found.files.filter(path => !approved.has(path) && !inGenerated(path));
   const unexpectedDirectories = found.directories.filter(path => !ancestors.has(path) && !inGenerated(path));
-  const unexpectedLinks = found.symlinks.filter(path => !allowedSymlinks.includes(path));
-  if (unexpectedFiles.length || unexpectedDirectories.length || unexpectedLinks.length) {
-    throw new PackageIntegrityError(`Unexpected content in the package after installation (files: ${unexpectedFiles.slice(0, 5).join(', ') || 'none'}; directories: ${unexpectedDirectories.slice(0, 5).join(', ') || 'none'}; links: ${unexpectedLinks.slice(0, 5).join(', ') || 'none'}); only ${GENERATED_DIRECTORY}/ may be generated.`);
+  // Links were already validated one by one (assertSymlinksContained): only validated dependency .bin links or reviewed links remain.
+  if (unexpectedFiles.length || unexpectedDirectories.length) {
+    throw new PackageIntegrityError(`Unexpected content in the package after installation (files: ${unexpectedFiles.slice(0, 5).join(', ') || 'none'}; directories: ${unexpectedDirectories.slice(0, 5).join(', ') || 'none'}); only ${GENERATED_DIRECTORY}/ may be generated.`);
   }
   await assertApprovedFilesIntact({ git, root, entries, objectFormat });
   for (const forbidden of extraForbiddenFiles) {
     if (found.files.includes(forbidden)) throw new PackageIntegrityError(`${forbidden} must never be part of the deployment package.`);
   }
-  return { files: found.files.length, generated: found.files.filter(inGenerated).length };
+  const sdk = requireSdkEntry ? await assertFunctionsSdkEntry(root) : null;
+  return { files: found.files.length, generated: found.files.filter(inGenerated).length, sdk };
 }
 
 // Removes ONLY a package directory this module created.

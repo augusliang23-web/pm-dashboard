@@ -7,11 +7,11 @@ import { execFileSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { deflateSync, inflateSync } from 'node:zlib';
 import {
-  chmodSync, cpSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync
+  chmodSync, cpSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync
 } from 'node:fs';
 import { lstat, mkdtemp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, dirname } from 'node:path';
+import { basename, join, dirname, relative } from 'node:path';
 import {
   CONTRACT_KEYS, INSTALL_ARGUMENTS, ReleaseGuardError, assertReleaseContract, assertScopedFunctionsDeployArgs, buildScopedFirebaseArgs,
   parseDeploymentManifestText, parseGuardArguments, readFunctionSourceText, runFunctionsDeploy, sanitizedToolEnv
@@ -24,6 +24,7 @@ import {
   PACKAGE_PREFIX, PackageIntegrityError, disposePackage, exportSourcePackage, listSourceEntries, openRepository, verifyExportedPackage,
   verifyInstalledPackage, capturePackageIdentity, assertPackageIdentity, objectId, resolveSourceCommit
 } from '../scripts/functions-source-package.mjs';
+import { NPM_SANDBOX_PREFIX, NpmSandboxError, assertNpmSandbox, createNpmSandbox, disposeNpmSandbox, npmInstallEnvironment } from '../scripts/npm-sandbox.mjs';
 import {
   GIT_GLOBAL_OPTIONS, GitSandboxError, assertSafeGitArguments, gitEnvironment, makeGit, resolveGitBinary
 } from '../scripts/git-sandbox.mjs';
@@ -427,6 +428,16 @@ const worldIo = w => {
   };
 };
 
+// What a legitimate `npm ci --ignore-scripts --bin-links` leaves behind for the SDK the Firebase CLI needs.
+async function legitInstall(functionsDir) {
+  const modules = join(functionsDir, 'node_modules');
+  mkdirSync(join(modules, 'firebase-functions', 'lib', 'bin'), { recursive: true });
+  mkdirSync(join(modules, '.bin'), { recursive: true });
+  writeFileSync(join(modules, 'firebase-functions', 'package.json'), JSON.stringify({ name: 'firebase-functions', version: '6.6.0', bin: { 'firebase-functions': './lib/bin/firebase-functions.js' } }));
+  writeFileSync(join(modules, 'firebase-functions', 'lib', 'bin', 'firebase-functions.js'), '#!/usr/bin/env node\nconsole.log("sdk");\n', { mode: 0o755 });
+  symlinkSync('../firebase-functions/lib/bin/firebase-functions.js', join(modules, '.bin', 'firebase-functions'));
+}
+
 async function drive(w, argv, extra = {}) {
   const calls = extra.calls ?? []; const logs = []; const snapshots = [];
   let packagePath = null;
@@ -434,7 +445,7 @@ async function drive(w, argv, extra = {}) {
   const runner = async (command, args, context) => {
     calls.push([command, args, context]);
     snapshots.push(listFiles(context.cwd));
-    if (command === 'npm') await extra.onInstall?.({ packageRoot: dirname(context.cwd), functionsDir: context.cwd });
+    if (command === 'npm') { await legitInstall(context.cwd); await extra.onInstall?.({ packageRoot: dirname(context.cwd), functionsDir: context.cwd }); }
     return extra.exitCode ?? 0;
   };
   const code = await runFunctionsDeploy(argv, { rootDir: w.root, run: runner, log: line => logs.push(line), io: worldIo(w), ambientRoots: [], now: () => NOW, makeTempDir, ...extra.options });
@@ -471,7 +482,7 @@ test('SYNTHETIC FLOW: source commit -> external Owner approval -> validation -> 
   const { code, calls, logs } = await drive(w, args(w, '--execute'));
   assert.equal(code, 0);
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].slice(0, 2), ['npm', ['ci', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund']]);
+  assert.deepEqual(calls[0].slice(0, 2), ['npm', ['ci', '--ignore-scripts', '--bin-links', '--no-audit', '--no-fund']]);
   assert.deepEqual(calls[0][1], [...INSTALL_ARGUMENTS]);
   assert.equal(calls[1][0], 'firebase');
   assert.deepEqual(calls[1][1], buildScopedFirebaseArgs(plan));
@@ -498,7 +509,8 @@ test('the CLI runs against the isolated package, never the working tree', async 
     assert.ok(context.cwd.startsWith(join(realpathSync(tmpdir()), PACKAGE_PREFIX)));
   }
   assert.equal(calls[1][2].toolRoot, w.root, 'only the tool binary comes from the repository');
-  assert.deepEqual(snapshots[1], ['firebase.json', 'functions/helper.js', 'functions/index.js', 'functions/package-lock.json', 'functions/package.json']);
+  assert.deepEqual(snapshots[1].filter(file => !file.startsWith('functions/node_modules/')), ['firebase.json', 'functions/helper.js', 'functions/index.js', 'functions/package-lock.json', 'functions/package.json']);
+  assert.ok(snapshots[1].includes('functions/node_modules/.bin/firebase-functions (symlink)'), 'the npm-created SDK link is present');
   assert.ok(!existsSync(packagePath), 'removed afterwards');
 });
 
@@ -510,7 +522,7 @@ test('untracked malicious Functions source, node_modules and credentials never e
   writeFileSync(join(w.root, 'functions', 'node_modules', 'bad', 'index.js'), 'evil\n');
   const { snapshots } = await drive(w, args(w, '--execute'));
   for (const files of snapshots) {
-    assert.ok(!files.some(file => /evil|runtimeconfig|node_modules|unrelated/.test(file)), files.join(','));
+    assert.ok(!files.some(file => /evil|runtimeconfig|node_modules\/bad|unrelated/.test(file)), files.join(','));
   }
   assert.ok(existsSync(join(w.root, 'functions', 'evil.js')), 'the working tree is never cleaned');
 });
@@ -521,7 +533,7 @@ test('untracked symlinks (to files, directories or outside paths) never enter th
   symlinkSync(join(w.root, 'unrelated-secret.txt'), join(w.root, 'functions', 'secret-link.js'));
   symlinkSync('../../..', join(w.root, 'functions', 'escape'));
   const { snapshots } = await drive(w, args(w, '--execute'));
-  for (const files of snapshots) assert.ok(!files.some(file => /leak|secret-link|escape|symlink/.test(file)), files.join(','));
+  for (const files of snapshots) assert.ok(!files.some(file => /leak|secret-link|escape/.test(file)) && files.filter(file => file.endsWith('(symlink)')).every(file => file === 'functions/node_modules/.bin/firebase-functions (symlink)'), files.join(','));
   assert.ok(lstatSync(join(w.root, 'functions', 'leak')).isSymbolicLink(), 'the working tree is left untouched');
 });
 
@@ -642,7 +654,7 @@ test('a Production execute needs --confirm-production; a failing install or CLI 
   approve(w);
   await rejectsWith(drive(w, args(w, '--execute'), { exitCode: 3 }), /Installing the isolated package dependencies failed with code 3/);
   let n = 0;
-  await rejectsWith(drive(w, args(w, '--execute'), { options: { run: async () => (n++ === 0 ? 0 : 7) } }), /exited with code 7/);
+  await rejectsWith(drive(w, args(w, '--execute'), { options: { run: async (command, args, context) => { if (command === 'npm') await legitInstall(context.cwd); return n++ === 0 ? 0 : 7; } } }), /exited with code 7/);
 });
 
 // ===================== immutable package integrity (unit level) =====================
@@ -888,10 +900,8 @@ test('our own re-hashing rejects forged commit and tree bytes even when git itse
 
 test('tool children (npm, Firebase CLI) lose code-injection variables but keep operator credentials', () => {
   const env = sanitizedToolEnv({ PATH: '/usr/bin', HOME: '/home/u', GOOGLE_APPLICATION_CREDENTIALS: '/home/u/adc.json', NODE_OPTIONS: '--require /evil.js', NODE_PATH: '/evil', GIT_DIR: '/decoy', GIT_SSH_COMMAND: 'evil', BASH_ENV: '/evil', LD_PRELOAD: '/evil.so', DYLD_INSERT_LIBRARIES: '/evil', npm_config_registry: 'http://evil', NPM_CONFIG_REGISTRY: 'http://evil', npm_config_ignore_scripts: 'false' });
-  assert.equal(env.PATH, '/usr/bin'); assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, '/home/u/adc.json');
-  for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'GIT_DIR', 'GIT_SSH_COMMAND', 'BASH_ENV', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'npm_config_registry']) assert.ok(!(key in env), key);
-  assert.equal(env.npm_config_ignore_scripts, 'true');
-  assert.equal(env.npm_config_userconfig, '/dev/null');
+  assert.equal(env.PATH, '/usr/bin'); assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, '/home/u/adc.json'); assert.equal(env.HOME, '/home/u');
+  for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'GIT_DIR', 'GIT_SSH_COMMAND', 'BASH_ENV', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'npm_config_registry', 'NPM_CONFIG_REGISTRY', 'npm_config_ignore_scripts']) assert.ok(!(key in env), key);
 });
 
 // ===================== hardening 3, blocker 2: post-install integrity =====================
@@ -925,7 +935,7 @@ test('absolute /etc, relative-escape and nested-escape symlinks injected by inst
       symlinkSync(target, join(parent, `evil-${name}`));
     };
     const linkPath = `functions/node_modules/${nested ? 'a/b/' : ''}evil-${name}`;
-    await blocked(withWorld(), { ...installWith(inject) }, /not on the reviewed in-package list/);
+    await blocked(withWorld(), { ...installWith(inject) }, /not a validated dependency link or on the reviewed in-package list/);
     // even when someone lists it as "reviewed", a target outside the package is never accepted
     await blocked(withWorld(), { ...installWith(inject), options: { allowedSymlinks: [linkPath] } }, /resolves outside the package/);
   }
@@ -934,14 +944,14 @@ function withWorld() { const w = world(); approve(w); w.args = args(w, '--execut
 
 test('a symlink inserted AFTER installation verification (just before the CLI) is caught by the final re-scan', async () => {
   const w = withWorld();
-  await blocked(w, { options: { beforeCli: async ({ packageRoot }) => { mkdirSync(join(packageRoot, 'functions', 'node_modules'), { recursive: true }); symlinkSync('/etc', join(packageRoot, 'functions', 'node_modules', 'late')); } } }, /not on the reviewed in-package list/);
+  await blocked(w, { options: { beforeCli: async ({ packageRoot }) => { mkdirSync(join(packageRoot, 'functions', 'node_modules'), { recursive: true }); symlinkSync('/etc', join(packageRoot, 'functions', 'node_modules', 'late')); } } }, /not a validated dependency link or on the reviewed in-package list/);
   const w2 = withWorld();
   await blocked(w2, { options: { beforeCli: async ({ packageRoot }) => { writeFileSync(join(packageRoot, 'functions', 'index.js'), 'require("child_process");\n'); } } }, /differs from the approved commit/);
 });
 
 test('broken and circular symlinks are refused even when listed', async () => {
   const broken = ({ functionsDir }) => symlinkSync('does-not-exist', join(nm({ functionsDir }), 'broken'));
-  await blocked(withWorld(), installWith(broken), /not on the reviewed in-package list/);
+  await blocked(withWorld(), installWith(broken), /not a validated dependency link or on the reviewed in-package list/);
   await blocked(withWorld(), { ...installWith(broken), options: { allowedSymlinks: ['functions/node_modules/broken'] } }, /broken or circular/);
   const circular = ({ functionsDir }) => { symlinkSync('b', join(nm({ functionsDir }), 'a')); symlinkSync('a', join(nm({ functionsDir }), 'b')); };
   await blocked(withWorld(), { ...installWith(circular), options: { allowedSymlinks: ['functions/node_modules/a', 'functions/node_modules/b'] } }, /broken or circular/);
@@ -956,7 +966,7 @@ test('a reviewed in-package symlink is permitted; the same link unreviewed is re
   const w = withWorld();
   const { calls } = await drive(w, args(w, '--execute'), { ...installWith(link), options: { allowedSymlinks: ['functions/node_modules/pkg/alias.js'] } });
   assert.equal(calls.length, 2);
-  await blocked(withWorld(), installWith(link), /not on the reviewed in-package list/);
+  await blocked(withWorld(), installWith(link), /not a validated dependency link or on the reviewed in-package list/);
 });
 
 test('installation cannot modify approved source or add unexpected generated source', async () => {
@@ -1018,6 +1028,197 @@ test('verifyInstalledPackage accepts only the approved files plus generated node
     writeFileSync(join(root, 'functions', 'sneaky.js'), 'a\n');
     await assert.rejects(verifyInstalledPackage({ git, root, entries, objectFormat }), /Unexpected content/);
   } finally { await disposePackage(root); }
+});
+
+// ===================== npm compatibility: distinct sanitized configs and validated dependency .bin links =====================
+test('the npm sandbox gives userconfig and globalconfig two DISTINCT, existing, empty, private files', async () => {
+  const sandbox = await createNpmSandbox();
+  try {
+    await assertNpmSandbox(sandbox);
+    assert.notEqual(sandbox.userconfig, sandbox.globalconfig);
+    for (const file of [sandbox.userconfig, sandbox.globalconfig]) {
+      assert.ok(file.startsWith(`${sandbox.root}/`) && file !== '/dev/null');
+      assert.equal(lstatSync(file).isFile(), true);
+      assert.equal(readFileSync(file).length, 0);
+      assert.equal(lstatSync(file).mode & 0o077, 0, 'private file');
+    }
+    assert.equal(lstatSync(sandbox.root).mode & 0o077, 0, 'private directory');
+    assert.ok(existsSync(sandbox.home) && existsSync(sandbox.cache));
+    assert.ok(sandbox.root.startsWith(realpathSync(tmpdir())) && basename(sandbox.root).startsWith(NPM_SANDBOX_PREFIX));
+  } finally { await disposeNpmSandbox(sandbox); }
+  assert.ok(!existsSync(sandbox.root), 'removed afterwards');
+});
+
+test('an npm sandbox that would recreate the collision, carry configuration or credentials, or escape its directory is refused', async () => {
+  const sandbox = await createNpmSandbox();
+  try {
+    await assert.rejects(assertNpmSandbox({ ...sandbox, globalconfig: sandbox.userconfig }), /two different files/);
+    await assert.rejects(assertNpmSandbox({ ...sandbox, userconfig: '/dev/null' }), /not inside the private sandbox/);
+    await assert.rejects(assertNpmSandbox({ ...sandbox, userconfig: join(homedirForTest(), '.npmrc') }), /not inside the private sandbox/);
+    await assert.rejects(assertNpmSandbox(undefined), /npm sandbox is required/);
+    writeFileSync(sandbox.userconfig, '//registry.npmjs.org/:_authToken=secret\n');
+    await assert.rejects(assertNpmSandbox(sandbox), /not empty; the sandbox must not carry configuration or credentials/);
+    writeFileSync(sandbox.userconfig, '');
+    rmSync(sandbox.globalconfig);
+    await assert.rejects(assertNpmSandbox(sandbox), /does not exist as a regular file before installation/);
+    symlinkSync('/dev/null', sandbox.globalconfig);
+    await assert.rejects(assertNpmSandbox(sandbox), /regular file/);
+    rmSync(sandbox.globalconfig); writeFileSync(sandbox.globalconfig, '');
+    chmodSync(sandbox.root, 0o755);
+    await assert.rejects(assertNpmSandbox(sandbox), /private real directory/);
+    chmodSync(sandbox.root, 0o700);
+  } finally { await disposeNpmSandbox(sandbox); }
+  await assert.rejects(disposeNpmSandbox({ root: tmpdir() }), NpmSandboxError);
+  await assert.rejects(disposeNpmSandbox({ root: mkdtempSync(join(realpathSync(tmpdir()), 'not-npm-')) }), /not one of our npm sandboxes/);
+});
+const homedirForTest = () => process.env.HOME || '/home/user';
+
+test('the npm environment is deterministic: sandbox configs/home/cache, no inherited npm configuration, tokens or HOME/XDG', async () => {
+  const sandbox = await createNpmSandbox();
+  try {
+    const env = npmInstallEnvironment(sandbox, {
+      PATH: '/usr/bin', HOME: '/home/u', XDG_CONFIG_HOME: '/home/u/.config', NPM_TOKEN: 'tok', NODE_AUTH_TOKEN: 'tok2', NPM_CONFIG_REGISTRY: 'http://evil', npm_config_userconfig: '/home/u/.npmrc',
+      'npm_config_//registry.npmjs.org/:_authToken': 'secret', NODE_OPTIONS: '--require /evil.js', GIT_DIR: '/decoy', GOOGLE_APPLICATION_CREDENTIALS: '/adc.json'
+    });
+    assert.equal(env.npm_config_userconfig, sandbox.userconfig);
+    assert.equal(env.npm_config_globalconfig, sandbox.globalconfig);
+    assert.notEqual(env.npm_config_userconfig, env.npm_config_globalconfig);
+    assert.equal(env.npm_config_cache, sandbox.cache);
+    assert.equal(env.HOME, sandbox.home); assert.equal(env.XDG_CONFIG_HOME, sandbox.home);
+    assert.equal(env.npm_config_ignore_scripts, 'true');
+    for (const key of ['NPM_TOKEN', 'NODE_AUTH_TOKEN', 'NPM_CONFIG_REGISTRY', 'npm_config_//registry.npmjs.org/:_authToken', 'NODE_OPTIONS', 'GIT_DIR']) assert.ok(!(key in env), key);
+    assert.equal(env.PATH, '/usr/bin');
+  } finally { await disposeNpmSandbox(sandbox); }
+});
+
+test('REAL npm accepts the sandbox environment: both config roles load without collision (no network, no install)', async () => {
+  const sandbox = await createNpmSandbox();
+  const cwd = mkdtempSync(join(tmpdir(), 'npm-smoke-'));
+  try {
+    const env = npmInstallEnvironment(sandbox);
+    const out = execFileSync('npm', ['config', 'get', 'userconfig', 'globalconfig', 'ignore-scripts'], { cwd, env, encoding: 'utf8' }).trim().split('\n');
+    assert.deepEqual(out, [`userconfig=${sandbox.userconfig}`, `globalconfig=${sandbox.globalconfig}`, 'ignore-scripts=true']);
+  } finally { rmSync(cwd, { recursive: true, force: true }); await disposeNpmSandbox(sandbox); }
+});
+
+test('the guard hands npm two distinct, existing, empty config files at install time and removes them afterwards', async () => {
+  const w = world(); approve(w);
+  let seen = null;
+  const { calls } = await drive(w, args(w, '--execute'), { options: { run: async (command, args, context) => {
+    if (command === 'npm') {
+      await legitInstall(context.cwd);
+      seen = { ...context.npmSandbox, userExists: existsSync(context.npmSandbox.userconfig), globalExists: existsSync(context.npmSandbox.globalconfig), userSize: readFileSync(context.npmSandbox.userconfig).length, globalSize: readFileSync(context.npmSandbox.globalconfig).length };
+    }
+    return 0;
+  } } });
+  assert.equal(calls.length, 0, 'custom runner replaces the recorder');
+  assert.ok(seen && seen.userExists && seen.globalExists && seen.userSize === 0 && seen.globalSize === 0);
+  assert.notEqual(seen.userconfig, seen.globalconfig);
+  assert.ok(!existsSync(seen.root), 'the sandbox is removed after installation');
+});
+
+test('the sandbox is removed even when npm fails', async () => {
+  const w = world(); approve(w);
+  let root = null;
+  await rejectsWith(drive(w, args(w, '--execute'), { options: { run: async (command, args, context) => { if (command === 'npm') root = context.npmSandbox.root; return 9; } } }), /failed with code 9/);
+  assert.ok(root && !existsSync(root));
+});
+
+test('SDK entry: the genuine npm-created link to the SDK\'s declared bin is required and accepted', async () => {
+  const w = world();
+  const { git, objectFormat } = await openRepository(w.root);
+  const entries = await listSourceEntries(git, w.sha, { objectFormat, tree: w.tree });
+  const root = await exportSourcePackage({ git, entries, objectFormat });
+  try {
+    await assert.rejects(verifyInstalledPackage({ git, root, entries, objectFormat, requireSdkEntry: true }), /\.bin\/firebase-functions is missing/);
+    await legitInstall(join(root, 'functions'));
+    const result = await verifyInstalledPackage({ git, root, entries, objectFormat, requireSdkEntry: true });
+    assert.deepEqual(result.sdk, { link: 'functions/node_modules/.bin/firebase-functions', target: 'functions/node_modules/firebase-functions/lib/bin/firebase-functions.js' });
+    assert.ok(statSync(join(root, 'functions/node_modules/firebase-functions/lib/bin/firebase-functions.js')).mode & 0o111);
+  } finally { await disposePackage(root); }
+});
+
+const binLink = (name, target, { nested } = {}) => ({ functionsDir }) => {
+  const dir = nested ? join(nm({ functionsDir }), 'a', 'node_modules', '.bin') : join(nm({ functionsDir }), '.bin');
+  mkdirSync(dir, { recursive: true });
+  symlinkSync(target, join(dir, name));
+};
+
+test('legitimate npm-created .bin links (relative, single hop, into the same node_modules, incl. nested and scoped) are accepted', async () => {
+  const w = withWorld();
+  const { calls } = await drive(w, args(w, '--execute'), installWith(({ functionsDir }) => {
+    const modules = nm({ functionsDir });
+    mkdirSync(join(modules, 'tool', 'bin'), { recursive: true }); writeFileSync(join(modules, 'tool', 'bin', 'cli.js'), 'x\n', { mode: 0o755 });
+    symlinkSync('../tool/bin/cli.js', join(modules, '.bin', 'tool'));
+    mkdirSync(join(modules, '@scope', 'pkg', 'dist'), { recursive: true }); writeFileSync(join(modules, '@scope', 'pkg', 'dist', 'run.js'), 'x\n', { mode: 0o755 });
+    symlinkSync('../@scope/pkg/dist/run.js', join(modules, '.bin', 'scoped'));
+    mkdirSync(join(modules, 'a', 'node_modules', 'inner'), { recursive: true }); writeFileSync(join(modules, 'a', 'node_modules', 'inner', 'main.js'), 'x\n');
+    mkdirSync(join(modules, 'a', 'node_modules', '.bin'), { recursive: true });
+    symlinkSync('../inner/main.js', join(modules, 'a', 'node_modules', '.bin', 'inner'));
+  }));
+  assert.equal(calls.length, 2);
+});
+
+test('unsafe dependency links are refused: external absolute, relative escape, nested escape, broken, circular, chains, directories, absolute-inside', async () => {
+  const outside = join(tmpdir(), `bin-outside-${process.pid}.js`); writeFileSync(outside, 'x\n', { mode: 0o755 });
+  try {
+    for (const [name, effect, pattern] of [
+      ['absolute external', binLink('evil', '/bin/sh'), /must be a relative link/],
+      ['absolute /etc', binLink('evil', '/etc/passwd'), /must be a relative link/],
+      ['relative escape', ({ functionsDir }) => binLink('evil', relative(join(nm({ functionsDir }), '.bin'), outside))({ functionsDir }), /resolves outside/],
+      ['nested escape', binLink('evil', '../../../../../../../../../../../../etc/passwd', { nested: true }), /resolves outside|broken/],
+      ['broken', binLink('evil', '../missing/nothing.js'), /broken \(its target does not exist\)/],
+      ['circular', ({ functionsDir }) => { binLink('a', 'b')({ functionsDir }); binLink('b', 'a')({ functionsDir }); }, /points at another link|broken/],
+      ['directory', ({ functionsDir }) => { mkdirSync(join(nm({ functionsDir }), 'dir'), { recursive: true }); binLink('evil', '../dir')({ functionsDir }); }, /regular file/],
+      ['chain', ({ functionsDir }) => { writeFileSync(join(nm({ functionsDir }), 'real.js'), 'x\n'); symlinkSync('real.js', join(nm({ functionsDir }), 'hop')); binLink('evil', '../hop')({ functionsDir }); }, /another link \(chains are refused\)|not a validated dependency link/],
+      ['nested link into a sibling package', ({ functionsDir }) => { mkdirSync(join(nm({ functionsDir }), 'sibling'), { recursive: true }); writeFileSync(join(nm({ functionsDir }), 'sibling', 'x.js'), 'x\n'); binLink('evil', '../../../sibling/x.js', { nested: true })({ functionsDir }); }, /own node_modules/],
+      ['link to another .bin entry', ({ functionsDir }) => { writeFileSync(join(nm({ functionsDir }), '.bin', 'plain'), 'x\n'); binLink('evil', 'plain')({ functionsDir }); }, /own node_modules/]
+    ]) {
+      const w = withWorld();
+      const calls = [];
+      await assert.rejects(drive(w, args(w, '--execute'), { ...installWith(effect), calls }), pattern, name);
+      assert.deepEqual(firebaseCalls(calls), [], `${name}: the CLI is never started`);
+    }
+  } finally { rmSync(outside, { force: true }); }
+});
+
+test('a link that is not an npm .bin link stays refused unless reviewed (no global symlink trust)', async () => {
+  await blocked(withWorld(), installWith(({ functionsDir }) => { mkdirSync(join(nm({ functionsDir }), 'pkg'), { recursive: true }); writeFileSync(join(nm({ functionsDir }), 'pkg', 'real.js'), 'x\n'); symlinkSync('real.js', join(nm({ functionsDir }), 'pkg', 'alias.js')); }), /not a validated dependency link or on the reviewed in-package list/);
+  await blocked(withWorld(), installWith(({ functionsDir }) => { mkdirSync(join(functionsDir, '.bin'), { recursive: true }); writeFileSync(join(functionsDir, 'real.js'), 'x\n'); symlinkSync('../real.js', join(functionsDir, '.bin', 'tool')); }), /not a validated dependency link|Unexpected content/);
+});
+
+test('a malicious replacement of the Firebase Functions SDK entry is refused (regular launcher, re-pointed link, external target, removed or non-executable entry)', async () => {
+  const sdk = ({ functionsDir }) => join(nm({ functionsDir }), '.bin', 'firebase-functions');
+  for (const [name, effect, pattern] of [
+    ['regular launcher script', context => { rmSync(sdk(context)); writeFileSync(sdk(context), '#!/bin/sh\ncurl evil\n', { mode: 0o755 }); }, /must be the npm-created link/],
+    ['external target', context => { rmSync(sdk(context)); symlinkSync('/bin/sh', sdk(context)); }, /must be a relative link/],
+    ['re-pointed to another internal file', context => { mkdirSync(join(nm(context), 'evil-pkg'), { recursive: true }); writeFileSync(join(nm(context), 'evil-pkg', 'x.js'), '#!/usr/bin/env node\n', { mode: 0o755 }); rmSync(sdk(context)); symlinkSync('../evil-pkg/x.js', sdk(context)); }, /instead of the SDK's declared bin/],
+    ['link removed', context => rmSync(sdk(context)), /\.bin\/firebase-functions is missing/],
+    ['target not executable', context => chmodSync(join(nm(context), 'firebase-functions', 'lib', 'bin', 'firebase-functions.js'), 0o644), /not an executable regular file/],
+    ['SDK bin declaration removed', context => writeFileSync(join(nm(context), 'firebase-functions', 'package.json'), '{"name":"firebase-functions"}'), /declares no "firebase-functions" bin/],
+    ['SDK declares another package\'s file and the link follows it', context => { mkdirSync(join(nm(context), 'other'), { recursive: true }); writeFileSync(join(nm(context), 'other', 'x.js'), '#!/usr/bin/env node\n', { mode: 0o755 }); writeFileSync(join(nm(context), 'firebase-functions', 'package.json'), JSON.stringify({ bin: { 'firebase-functions': '../other/x.js' } })); rmSync(sdk(context)); symlinkSync('../other/x.js', sdk(context)); }, /declared by firebase-functions resolves outside the package/],
+    ['SDK declares a bin outside itself', context => writeFileSync(join(nm(context), 'firebase-functions', 'package.json'), JSON.stringify({ bin: { 'firebase-functions': '../../.bin/x' } })), /resolves outside the package|broken or the SDK's declared bin is missing/]
+  ]) {
+    const calls = [];
+    const w = withWorld();
+    await assert.rejects(drive(w, args(w, '--execute'), { ...installWith(effect), calls }), pattern, name);
+    assert.deepEqual(firebaseCalls(calls), [], `${name}: the CLI is never started`);
+  }
+});
+
+test('an external link injected after the SDK entry was verified is still caught by the final scan', async () => {
+  const w = withWorld();
+  await blocked(w, { options: { beforeCli: async ({ packageRoot }) => { symlinkSync('/etc/passwd', join(packageRoot, 'functions', 'node_modules', '.bin', 'late-evil')); } } }, /must be a relative link/);
+  const w2 = withWorld();
+  await blocked(w2, { options: { beforeCli: async ({ packageRoot }) => { rmSync(join(packageRoot, 'functions', 'node_modules', '.bin', 'firebase-functions')); symlinkSync('../../index.js', join(packageRoot, 'functions', 'node_modules', '.bin', 'firebase-functions')); } } }, /resolves outside|does not resolve to a package|instead of the SDK/);
+});
+
+test('OPTIONAL real end-to-end npm ci probe (set PMDASH_REAL_NPM_TEST=1; needs registry access)', { skip: process.env.PMDASH_REAL_NPM_TEST !== '1' }, () => {
+  const output = execFileSync('node', [join(repoRoot, 'scripts', 'verification', 'functions-package-npm-compat.mjs')], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const report = JSON.parse(output);
+  assert.equal(report.verdict, 'PASS');
+  assert.equal(report.steps.npmCi.exitCode, 0);
+  assert.equal(report.steps.firebaseCliDiscovery.insideNodeModules, true);
 });
 
 // ===================== Owner tooling (plan / sign / trust) =====================
