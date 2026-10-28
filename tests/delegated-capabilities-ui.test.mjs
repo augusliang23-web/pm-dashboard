@@ -321,7 +321,7 @@ test('deleteProject and saveProjEdit honor the capability and the delete-only mo
         showProjectMutationError() {}, confirm: () => { calls.confirm += 1; return false; },
         collectEditorResources: () => { calls.collect += 1; return null; }, canCurrentUser: capabilityFor(rawRole, overrides),
       });
-      vm.runInContext(`${sliceBody(source, 'window.deleteProject = async () => {', '\n};\n')}\n${sliceBody(source, 'window.saveProjEdit = async () => {', '\n};\n')}`, context);
+      vm.runInContext(`${sliceBody(source, 'window.deleteProject = async () => {', '\n};\n')}\n${sliceBody(source, 'window.saveProjEdit = async (permit) => {', '\n};\n')}`, context);
       await context.window.deleteProject();
       await context.window.saveProjEdit();
       return calls;

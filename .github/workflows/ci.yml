@@ -24,6 +24,10 @@ jobs:
       - run: npm ci
         working-directory: functions
       - run: node scripts/package-delivery-trends.mjs --check
+      - name: Fetch pinned historical source for integrity verification
+        run: |
+          git cat-file -e bed827f5196cd74f9bfcddb917ecc60793345a52:index.html || git fetch --no-tags --depth=1 origin bed827f5196cd74f9bfcddb917ecc60793345a52
+          git cat-file -e bed827f5196cd74f9bfcddb917ecc60793345a52:index.html
       - run: npm run test:all
 
   firestore-rules:
