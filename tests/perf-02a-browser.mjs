@@ -23,14 +23,13 @@ if(baseline){
 }
 
 const harness=`
-let draftSaveProgress=null, projectMutationInFlight=false, projectMutationInFlightToken=null;
+let draftSaveProgress=null, activeDraftSavePermit=null, projectMutationInFlight=false, projectMutationInFlightToken=null;
 ${progressSource}
 ${progressHelper}
 let currentUser={uid:'synthetic'},currentRole='pm',draftEditorSaveIntent='',draftEditorTargetWeekId='';
 let draftEditorRecord={draftId:'synthetic',revision:1,project:{},assignment:{ownerEmail:'',deputyEmail:''}};
 let projectEditorSession={token:1,authUid:'synthetic',originalProject:{}};
 let allWeeks=[],delay=250, outcome='success',requests=0,toast='',shownError='',preparationState=null;
-const draftSavePermit=Symbol('draft save preparation');
 function isProjectEditorSessionCurrent(s){return s===projectEditorSession && currentUser?.uid===s?.authUid;}
 function clearProjectMutationError(){document.querySelector('#error').textContent='';}
 function setProjectMutationControlsDisabled(x){for(const id of ['pe_btn_save','pe_btn_publish','pe_btn_close'])document.getElementById(id).disabled=x;}
@@ -56,8 +55,8 @@ const api=createProjectDraftsApi({functions:{},httpsCallable:(_,name)=>input=>{
 const draftController={save:input=>api.save(input),publish:input=>api.publish(input)};
 ${save}\n${start}\n${publish}\n${editor}
 window.synthetic={get:()=>({requests,toast,shownError,preparationState,inFlight:projectMutationInFlight,token:projectMutationInFlightToken,baseline:document.querySelector('#projEditOverlay').dataset.editorBaseline,recordRevision:draftEditorRecord?.revision}),
- configure:(d,o)=>{delay=d;outcome=o;},changeSession:()=>{projectEditorSession={token:2,authUid:'synthetic',originalProject:{}};projectMutationInFlight=true;projectMutationInFlightToken=2;draftEditorRecord={draftId:'new',revision:9,project:{},assignment:{}};document.querySelector('#pe_name').value='new session';},
- cancel:()=>{projectEditorSession=null;projectMutationInFlight=false;projectMutationInFlightToken=null;},
+ configure:(d,o)=>{delay=d;outcome=o;},changeSession:()=>{projectEditorSession={token:2,authUid:'synthetic',originalProject:{}};activeDraftSavePermit={session:projectEditorSession};projectMutationInFlight=true;projectMutationInFlightToken=2;draftEditorRecord={draftId:'new',revision:9,project:{},assignment:{}};document.querySelector('#pe_name').value='new session';},
+ cancel:()=>{projectEditorSession=null;activeDraftSavePermit=null;projectMutationInFlight=false;projectMutationInFlightToken=null;},
  marks:()=>Object.fromEntries(performance.getEntriesByType('mark').filter(x=>x.name.startsWith('pm-draft-save:')).map(x=>[x.name,x.startTime]))};
 `;
 const ids=['pe_name','pe_code','pe_owner','pe_deputy','pe_customer','pe_location','pe_visibility','pe_status','pe_progress','pe_attention','pe_highlight','pe_weekly_actions','pe_budget_currency','pe_budget_total'];
@@ -65,7 +64,7 @@ const dom=`<div id="projEditOverlay" class="open" data-editor-baseline="original
 const browser=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-sandbox','--disable-gpu']});
 async function pageFor(delay=250,outcome='success') {const page=await browser.newPage();await page.setRequestInterception(true);page.on('request',r=>r.abort());await page.setContent(dom);await page.addScriptTag({content:harness});await page.evaluate((d,o)=>{window.synthetic.configure(d,o);document.getElementById('pe_btn_save').onclick=()=>window.saveDraftProject();document.getElementById('pe_btn_publish').onclick=()=>window.saveAndPublishProjectDraft();},delay,outcome);return page;}
 async function waitDone(page){await page.waitForFunction(()=>!window.synthetic.get().inFlight,{timeout:10000});}
-const results={conditions:{browser:await browser.version(),fixture:'synthetic DOM using extracted real Save Draft/editor code and callable adapter; mocked backend; local headless browser',viewport:'800x600',network:'all real requests blocked',injectedMs:[250,3000],paint:'T1 is second animation-frame opportunity, not proof of paint; T6 is DOM mutation',sampleCount:20,baseline,baselineInstrumentation:baseline?'test-only T0, T2, T6 marks plus same mock-callable adapter; no Saving state exists':undefined},scenarios:{},timings:{}};
+const results={conditions:{browser:await browser.version(),fixture:'synthetic DOM using extracted real Save Draft/editor code and callable adapter; mocked backend; local headless browser',viewport:'800x600',network:'all real requests blocked',injectedMs:[250,3000],paint:'DOM updates only; no actual paint is measured and save does not await animation frames',sampleCount:process.argv.includes('--smoke-only')?0:20,baseline,baselineInstrumentation:baseline?'test-only T0, T2, T6 marks plus same mock-callable adapter; no Saving state exists':undefined},scenarios:{},timings:{}};
 try {
  let p, after;
  if(!baseline){

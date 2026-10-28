@@ -385,7 +385,7 @@ test('renaming a team member preserves metadata by ID and legacy row IDs are det
 });
 
 test('project save and delete use protected callables and commit UI state only after await', () => {
-  const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
+  const saveStart = dashboard.indexOf('window.saveProjEdit = async (permit) =>');
   const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
   const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
   const saveSource = dashboard.slice(saveStart, deleteStart);
@@ -409,7 +409,10 @@ test('project save and delete use protected callables and commit UI state only a
   assert.match(dashboard, /id="pe_btn_delete"[^>]+onclick="deleteProject\(\)"/);
   assert.ok(dashboard.includes('let projectMutationInFlight = false;'));
   assert.ok(dashboard.includes('function setProjectMutationControlsDisabled(disabled)'));
-  assert.ok(saveSource.includes('if (projectMutationInFlight) return;'));
+  assert.ok(saveSource.includes('if (projectMutationInFlight && permit === undefined) return;'));
+  assert.ok(saveSource.includes('permit !== activeDraftSavePermit'));
+  assert.ok(saveSource.includes('permit?.session !== projectEditorSession'));
+  assert.ok(saveSource.includes('projectMutationInFlightToken !== projectEditorSession?.token'));
   assert.ok(deleteSource.includes('if (projectMutationInFlight) return;'));
   assert.doesNotMatch(
     saveSource.slice(0, saveSource.indexOf('await projectDashboardApi.saveProject')),
@@ -422,7 +425,7 @@ test('project save and delete use protected callables and commit UI state only a
 });
 
 test('project editor pins week and identity session and stale completions cannot close a newer modal', () => {
-  const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
+  const saveStart = dashboard.indexOf('window.saveProjEdit = async (permit) =>');
   const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
   const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
   const saveSource = dashboard.slice(saveStart, deleteStart);
@@ -482,7 +485,7 @@ test('editable project row renderers and collectors persist stable DOM identitie
     dashboard.indexOf('function getSelectedBudgetMode()'),
   );
   const saveSource = dashboard.slice(
-    dashboard.indexOf('window.saveProjEdit = async () =>'),
+    dashboard.indexOf('window.saveProjEdit = async (permit) =>'),
     dashboard.indexOf('window.deleteProject = async () =>'),
   );
   assert.ok(riskCollector.includes('id: row.dataset.riskActionId'));

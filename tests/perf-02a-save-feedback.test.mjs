@@ -19,7 +19,7 @@ test('Save Draft gives feedback and blocks a second action before form preparati
     document: {getElementById: id => id === 'pe_btn_save' ? button : status},
     clearProjectMutationError() {}, setProjectMutationControlsDisabled() {}, configureDraftEditor() {},
     performance: {mark(){}, measure(){}}, draftSaveProgress:null,
-    draftSavePermit: Symbol('draft'),
+    activeDraftSavePermit:null,
   });
   let release;const pending=new Promise(resolve=>release=resolve);
   context.beginDraftSaveProgress=()=>context.draftSaveProgress={completed:false,stop(){}};

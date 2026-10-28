@@ -3368,6 +3368,7 @@ const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
 let editingProjCode = null;
 let isCreatingNew = false;
 let draftSaveProgress = null;
+let activeDraftSavePermit = null;
 let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
@@ -12806,6 +12807,7 @@ function assertProjectEditorSessionCurrent(session) {
 }
 
 function invalidateProjectEditorSession() {
+  activeDraftSavePermit = null;
   draftSaveProgress?.stop(); draftSaveProgress = null;
   const progress = document.getElementById('draftSaveProgress'); if (progress) progress.hidden = true;
   ++draftEditorOpenGeneration;
@@ -13031,9 +13033,9 @@ function collectEditorResources(previousResources = {}) {
   return resources;
 }
 
-const draftSavePermit = Symbol('draft save preparation');
 window.saveProjEdit = async (permit) => {
-  if (projectMutationInFlight && (permit !== draftSavePermit || projectMutationInFlightToken !== projectEditorSession?.token)) return;
+  if (permit !== undefined && (!projectMutationInFlight || permit !== activeDraftSavePermit || permit?.session !== projectEditorSession || projectMutationInFlightToken !== projectEditorSession?.token)) return;
+  if (projectMutationInFlight && permit === undefined) return;
   const session = projectEditorSession;
   if (!isProjectEditorSessionCurrent(session)) {
     showProjectMutationError(
@@ -14448,14 +14450,16 @@ window.saveDraftProject = async () => {
   if (!isProjectEditorSessionCurrent(session)) { await window.saveProjEdit(); return; }
   draftEditorSaveIntent = 'draft';
   projectMutationInFlight = true; projectMutationInFlightToken = session.token;
+  const permit = Object.freeze({session}); activeDraftSavePermit = permit;
   clearProjectMutationError(); setProjectMutationControlsDisabled(true);
   const saveButton = document.getElementById('pe_btn_save');
   saveButton.textContent = 'Saving…'; saveButton.setAttribute('aria-label', 'Saving draft');
   document.getElementById('projectDraftStatus').textContent = 'Saving draft…';
   const progress = beginDraftSaveProgress();
   try {
-    await window.saveProjEdit(draftSavePermit);
+    await window.saveProjEdit(permit);
   } finally {
+    if (activeDraftSavePermit === permit) activeDraftSavePermit = null;
     if (draftSaveProgress === progress && !progress.completed) {
       progress.stop(); draftSaveProgress = null;
       const box = document.getElementById('draftSaveProgress'); if (box) box.hidden = true;
