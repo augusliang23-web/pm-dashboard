@@ -18,10 +18,12 @@ export async function serveProfile(profile) {
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      if (pathname === '/favicon.ico') { response.writeHead(204).end(); return; }
       const file = resolve(outDir, `.${pathname === '/' ? '/index.html' : pathname}`);
       if (!file.startsWith(outDir + sep)) { response.writeHead(403).end(); return; }
+      const body = await readFile(file);
       response.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-      response.end(await readFile(file));
+      response.end(body);
     } catch { response.writeHead(404).end(); }
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));

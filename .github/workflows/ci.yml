@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - release/perf-02a-prod-isolated-45490ff
 
 permissions:
   contents: read

@@ -227,6 +227,15 @@ button[aria-busy="true"] { cursor:wait; }
 #projEditOverlay .project-save-actions { flex-wrap:wrap; justify-content:flex-end; gap:10px !important; }
 #projEditOverlay #pe_btn_save, #projEditOverlay #pe_btn_publish { width:auto; min-width:120px; min-height:42px; height:auto; padding:10px 16px; white-space:nowrap; flex-shrink:0; }
 #projEditOverlay .project-publication-guide { display:grid; gap:10px; margin:0 0 20px; padding:14px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+#draftSaveProgress[hidden] { display:none; }
+#draftSaveProgress { display:grid; gap:6px; }
+#draftSaveProgress .draft-saving-head { display:flex; align-items:center; gap:8px; }
+#draftSaveProgress .draft-save-spinner { width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+#draftSaveProgress .draft-save-track { height:7px; border-radius:4px; overflow:hidden; background:var(--border); }
+#draftSaveProgress .draft-save-bar { height:100%; width:0%; background:var(--accent); transition:width .2s linear; position:relative; overflow:hidden; }
+#draftSaveProgress .draft-save-bar::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,#ffffff80,transparent); animation:draft-save-shimmer 1.2s linear infinite; }
+#draftSaveProgress.completed .draft-save-spinner, #draftSaveProgress.completed .draft-save-bar::after { display:none; }
+@keyframes draft-save-shimmer { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
 #projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 #projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
 #projEditOverlay #projectDraftManage { justify-self:start; }
@@ -3202,6 +3211,7 @@ import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs"
 import { buildPromptContext, buildWeeklyCopilotPrompt, copyTextToClipboard } from "./js/copilot-weekly-update-prompt.mjs";
 import { isWeeklyUpdateDraftCurrent, parseWeeklyUpdateResponse, validateWeeklyUpdateValues, weeklyFieldsDiffer } from "./js/weekly-update-paste.mjs";
 import { createProjectCapabilitiesController, DISABLED_PROJECT_CAPABILITIES } from "./js/project-capabilities.mjs";
+import { createDraftSaveProgress } from "./js/draft-save-progress.mjs";
 import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-scope-3";
 import { createProjectDraftsController, isProjectDraftAccessLoss } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
 import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
@@ -3355,6 +3365,8 @@ const isVipPerspective = IS_UAT_PROFILE ? isVipPerspective__uat : isVipPerspecti
 const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
 let editingProjCode = null;
 let isCreatingNew = false;
+let draftSaveProgress = null;
+let activeDraftSavePermit = null;
 let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
@@ -12793,6 +12805,9 @@ function assertProjectEditorSessionCurrent(session) {
 }
 
 function invalidateProjectEditorSession() {
+  activeDraftSavePermit = null;
+  draftSaveProgress?.stop(); draftSaveProgress = null;
+  const progress = document.getElementById('draftSaveProgress'); if (progress) progress.hidden = true;
   ++draftEditorOpenGeneration;
   draftEditorRecord = undefined;
   document.getElementById('projectEditorFields').disabled = false;
@@ -13016,8 +13031,9 @@ function collectEditorResources(previousResources = {}) {
   return resources;
 }
 
-window.saveProjEdit = async () => {
-  if (projectMutationInFlight) return;
+window.saveProjEdit = async (permit) => {
+  if (permit !== undefined && (!projectMutationInFlight || permit !== activeDraftSavePermit || permit?.session !== projectEditorSession || projectMutationInFlightToken !== projectEditorSession?.token)) return;
+  if (projectMutationInFlight && permit === undefined) return;
   const session = projectEditorSession;
   if (!isProjectEditorSessionCurrent(session)) {
     showProjectMutationError(
@@ -14386,7 +14402,7 @@ function configureDraftEditor(draftMode) {
     banner = document.createElement('section'); banner.id = 'projectDraftPublicationStatus'; banner.className = 'project-publication-guide';
     const status = document.createElement('div'); status.id = 'projectDraftStatus'; status.setAttribute('role','status'); banner.append(status);
     overlay.querySelector('.modal-hdr').after(banner);
-    overlay.addEventListener('input',()=>{if(draftEditorRecord)document.getElementById('projectDraftStatus').textContent = 'Unsaved changes. Choose Save Draft or Save & Publish.';});
+    overlay.addEventListener('input',()=>{if(draftSaveProgress?.completed){document.getElementById('draftSaveProgress').hidden=true;draftSaveProgress=null;}if(draftEditorRecord)document.getElementById('projectDraftStatus').textContent = 'Unsaved changes. Choose Save Draft or Save & Publish.';});
   }
   banner.style.display = '';
   // No week selector: Save & Publish always uses the latest applicable reporting week (same eligibility rules as before; never a released or historical week).
@@ -14407,9 +14423,54 @@ function configureDraftEditor(draftMode) {
   document.getElementById('pe_btn_delete').style.display = 'none';
   document.getElementById('adminProjActions').style.display = 'none';
 }
+function beginDraftSaveProgress() {
+  draftSaveProgress?.stop();
+  const banner = document.getElementById('projectDraftPublicationStatus');
+  let box = document.getElementById('draftSaveProgress');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'draftSaveProgress';
+    box.innerHTML = '<div class="draft-saving-head"><span class="draft-save-spinner" aria-hidden="true"></span><span class="draft-save-label"></span></div><div class="draft-save-track"><div class="draft-save-bar" role="progressbar" aria-label="Estimated saving progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div><div class="draft-save-slow" role="status"></div>';
+    banner.append(box);
+  }
+  box.hidden = false; box.classList.remove('completed');
+  const label = box.querySelector('.draft-save-label'), bar = box.querySelector('.draft-save-bar'), slow = box.querySelector('.draft-save-slow');
+  const progress = createDraftSaveProgress({onUpdate: ({percent,slow:longWait,active}) => {
+    label.textContent = percent === 100 ? 'Draft saved — 100%' : `Saving… Estimated progress ${percent}%`;
+    bar.style.width = `${percent}%`; bar.setAttribute('aria-valuenow', String(percent));
+    bar.setAttribute('aria-valuetext', percent === 100 ? 'Save confirmed, 100%' : `Estimated progress ${percent}%`);
+    slow.textContent = longWait ? 'Taking longer than expected. Still waiting for confirmation.' : '';
+    box.classList.toggle('completed', !active && percent === 100);
+  }});
+  draftSaveProgress = progress;
+  return progress;
+}
 window.saveDraftProject = async () => {
-  if(projectMutationInFlight)return;
-  draftEditorSaveIntent = 'draft'; await window.saveProjEdit();
+  if (projectMutationInFlight) return;
+  performance.mark('pm-draft-save:t0');
+  const session = projectEditorSession;
+  if (!isProjectEditorSessionCurrent(session)) { await window.saveProjEdit(); return; }
+  draftEditorSaveIntent = 'draft';
+  projectMutationInFlight = true; projectMutationInFlightToken = session.token;
+  const permit = Object.freeze({session}); activeDraftSavePermit = permit;
+  clearProjectMutationError(); setProjectMutationControlsDisabled(true);
+  const saveButton = document.getElementById('pe_btn_save');
+  saveButton.textContent = 'Saving…'; saveButton.setAttribute('aria-label', 'Saving draft');
+  document.getElementById('projectDraftStatus').textContent = 'Saving draft…';
+  const progress = beginDraftSaveProgress();
+  try {
+    await window.saveProjEdit(permit);
+  } finally {
+    if (activeDraftSavePermit === permit) activeDraftSavePermit = null;
+    if (draftSaveProgress === progress && !progress.completed) {
+      progress.stop(); draftSaveProgress = null;
+      const box = document.getElementById('draftSaveProgress'); if (box) box.hidden = true;
+    }
+    if (projectMutationInFlightToken === session.token && currentUser?.uid === session.authUid) {
+      projectMutationInFlight = false; projectMutationInFlightToken = null;
+      setProjectMutationControlsDisabled(false);
+      if (projectEditorSession?.token === session.token) configureDraftEditor(true);
+    }
+  }
 };
 window.saveAndPublishProjectDraft = async () => {
   if(projectMutationInFlight)return;
@@ -14429,6 +14490,7 @@ async function saveEditorProjectDraft(project, session) {
   }
   const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
   const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
+  if (!publishing) performance.mark('pm-draft-save:t2');
   clearProjectMutationError(); projectMutationInFlight = true; projectMutationInFlightToken = session.token; setProjectMutationControlsDisabled(true);
   const publishButton = document.getElementById('pe_btn_publish');
   const fields = document.getElementById('projectEditorFields');
@@ -14445,8 +14507,18 @@ async function saveEditorProjectDraft(project, session) {
       projectMutationInFlight = false;
       closeModal('projEditOverlay', { force:true });
     }
+    if (!publishing) draftSaveProgress?.finish();
     showSaveToast(publishing?'Saved and published. Overview and PDF use this official content.':'Draft saved. Overview and PDF are unchanged.');
-  } catch(error) { if (isProjectEditorSessionCurrent(session)) showProjectMutationError(error,publishing?'Save & Publish failed. Your input remains in the editor.':'Draft was not saved. Your input remains in the editor.'); }
+    if (!publishing) performance.mark('pm-draft-save:t6-dom');
+  } catch(error) {
+    if (isProjectEditorSessionCurrent(session)) {
+      const displayError = !publishing && error instanceof Error
+        ? new Error(`${error.message} The save result may be uncertain. Check the draft before retrying.`)
+        : error;
+      showProjectMutationError(displayError,publishing?'Save & Publish failed. Your input remains in the editor.':'Save could not be confirmed. Check the draft before retrying; your input remains in the editor.');
+      if (!publishing) performance.mark('pm-draft-save:t6-dom');
+    }
+  }
   finally {
     if (projectMutationInFlightToken === session.token && currentUser?.uid === session.authUid) {
       projectMutationInFlight = false; projectMutationInFlightToken = null;
