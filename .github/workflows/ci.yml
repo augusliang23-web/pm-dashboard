@@ -28,6 +28,9 @@ jobs:
         run: |
           git cat-file -e bed827f5196cd74f9bfcddb917ecc60793345a52:index.html || git fetch --no-tags --depth=1 origin bed827f5196cd74f9bfcddb917ecc60793345a52
           git cat-file -e bed827f5196cd74f9bfcddb917ecc60793345a52:index.html
+          git cat-file -e ee4e45bb833a0c3294247ce626c76d3e9b19b2d7:index.html || git fetch --no-tags --depth=1 origin ee4e45bb833a0c3294247ce626c76d3e9b19b2d7
+          git cat-file -e ee4e45bb833a0c3294247ce626c76d3e9b19b2d7^{commit}
+          git cat-file -e ee4e45bb833a0c3294247ce626c76d3e9b19b2d7:index.html
       - run: npm run test:all
 
   firestore-rules:

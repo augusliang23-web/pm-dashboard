@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{normalizeS02aForBaseline}from'./helpers/s02a-editor-source-baseline.mjs';
+const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');const hunks=JSON.parse(readFileSync(new URL('./fixtures/s02a-editor-source-delta.json',import.meta.url),'utf8'));
+test('S02A exact reversal restores the approved main source',()=>assert.equal(normalizeS02aForBaseline(source),execFileSync('git',['show','ee4e45bb833a0c3294247ce626c76d3e9b19b2d7:index.html'],{encoding:'utf8'})));
+for(const [i,h]of hunks.entries())test(`S02A hunk ${i} detects mutation, removal and duplication`,()=>{for(const bad of [source.replace(h.after,h.after.replace(/\S/,'!')),source.replace(h.after,''),source+h.after])assert.throws(()=>normalizeS02aForBaseline(bad));});

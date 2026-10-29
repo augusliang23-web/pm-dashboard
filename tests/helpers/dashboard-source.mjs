@@ -68,6 +68,12 @@ export function rawDashboardSource() { return readText('index.html'); }
 // Source-baseline tests permit only the reviewed presentation-copy change from Owner to Project Manager.
 // Keep exact occurrence checks so this helper cannot mask unrelated Production/UAT drift.
 export function normalizeProjectManagerLabelsForBaseline(source) {
+  const labels = source.match(/<label\b[^>]*>Project Manager<\/label>/g) || [];
+  const legacyLabel = '<label class="fl">Project Manager</label>';
+  const accessibleLabel = '<label class="fl" for="pe_owner">Project Manager</label>';
+  if (labels.length !== 1 || ![legacyLabel, accessibleLabel].includes(labels[0])) {
+    throw new Error('Project Manager label invariant failed: expected exactly one approved editor label');
+  }
   const approved = [
     ['<div class="info-lbl">Project Manager</div>', '<div class="info-lbl">Owner</div>', 2],
     ['<label class="fl">Project Manager</label>', '<label class="fl">Owner</label>', 1],
@@ -76,7 +82,7 @@ export function normalizeProjectManagerLabelsForBaseline(source) {
     ['<dt>Project Manager</dt>', '<dt>Owner</dt>', 1],
     ['; project manager: ${p.owner', '; owner: ${p.owner', 1]
   ];
-  let normalized = source;
+  let normalized = source.replace(accessibleLabel, legacyLabel);
   for (const [updated, previous, expected] of approved) {
     const actual = normalized.split(updated).length - 1;
     if (actual !== expected) {
