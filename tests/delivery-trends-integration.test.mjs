@@ -1,3 +1,4 @@
+import {normalizeProdS02ForBaseline} from './helpers/prod-s02-source-baseline.mjs';
 import {normalizeDraftWorkspaceForBaseline} from './helpers/draft-workspace-source-baseline.mjs';
 import {normalizeSprintEditorForBaseline} from './helpers/sprint-editor-source-baseline.mjs';
 import test from 'node:test';
@@ -117,7 +118,7 @@ test('redundant standalone navigation entry is removed from UAT', () => {
 test('Production inventory has no new exception: the shared print functions equal the approved baseline', () => {
   // Uses the committed baseline fixture (no Git history needed, so it also runs on a shallow CI checkout).
   const baselines = JSON.parse(readFileSync(new URL('./fixtures/dashboard-baselines.json', import.meta.url), 'utf8'));
-  const view = functionInventory(normalizeProjectManagerLabelsForBaseline(production));
+  const view = functionInventory(normalizeProjectManagerLabelsForBaseline(renderProfile(normalizeProdS02ForBaseline(rawDashboardSource()), 'production', environmentFor('production'))));
   for (const name of ['renderOverviewPrintReport', 'cloneOverviewSectionForPrint', 'renderPresentationReportPage', 'finalizePresentationReport']) {
     assert.ok(name in baselines.productionFunctions, `${name} must exist in the approved baseline fixture`);
     assert.ok(name in view, `${name} must exist in the Production view`);

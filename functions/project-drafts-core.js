@@ -1,3 +1,4 @@
+const {canAssignProjectAccount}=require('./project-assignment-eligibility');
 const { createHash } = require('node:crypto');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { can } = require('./permission-registry');
@@ -47,8 +48,7 @@ function resolveAssignment({actor,existing,input,assignmentUsers={}}) {
   for (const [key,email] of Object.entries(assignment)) {
     if (!email) { labels[key]=''; continue; }
     const user=assignmentUsers[email];
-    const adminSelf = key === 'ownerEmail' && actor.role === 'admin' && email === emailKey(actor.email) && user?.role === 'admin';
-    if (user?.role !== 'pm' && !adminSelf) fail('assignment-forbidden','Assignment must select an existing PM account.');
+    if (!canAssignProjectAccount(actor,email,user)) fail('assignment-forbidden','Select an active PM account or your own active Admin account.');
     labels[key]=user.displayName?.trim() || email;
   }
   return {assignment,editorEmails:[...new Set(Object.values(assignment).filter(Boolean))],owner:labels.ownerEmail,deputy:labels.deputyEmail};

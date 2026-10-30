@@ -42,10 +42,10 @@ test('first publication locks the code without falsely marking saved fields dirt
 });
 test('official management keeps all original Admin visibility choices outside Draft actions',async()=>{
  for(const visibility of ['active','hidden','archived']){
-  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{style:{},value:'',disabled:false});return nodes.get(id);};let saved;
+  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{style:{},value:'',disabled:false,focus(){}});return nodes.get(id);};let saved;
   const context=vm.createContext({
     projectWriteCapabilities: {draftsEnabled:true,archiveRecoveryEnabled:true},
-    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},IS_UAT_PROFILE:true,currentUser:{uid:'admin'},currentRole:'admin',canCurrentUser:()=>true,authSessionGeneration:1,
+    loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},IS_UAT_PROFILE:true,currentUser:{uid:'admin'},currentRole:'admin',canCurrentUser:()=>true,authSessionGeneration:1,projectEditorSession:{token:'s',authUid:'admin'},projectMutationInFlight:false,projectMutationInFlightToken:null,publishedProjectActionInFlight:false,isProjectEditorSessionCurrent:()=>true,setProjectMutationControlsDisabled(){},
    allWeeks:[{__documentId:'W1',weekLabel:'W1 2026',projects:[{code:'OLD',name:'Existing',visibility:'active'}]}],document:{getElementById:node},projectRevisionFingerprint:()=> 'current-official',projectDashboardApi:{saveProject:async data=>{saved=data;}},closeModal(){},openAccessibleModal(){},showSaveToast(){}});
   vm.runInContext(fn('openPublishedProjectActions'),context);context.openPublishedProjectActions('OLD','W1');node('projectVisibilitySelect').value=visibility;
   node('projectVisibilityAction').onclick();await new Promise(resolve=>setImmediate(resolve));

@@ -238,7 +238,15 @@ button[aria-busy="true"] { cursor:wait; }
 @keyframes draft-save-shimmer { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
 #projEditOverlay .project-publication-guide label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 #projEditOverlay .project-publication-guide select { width:auto; min-width:160px; }
-#projEditOverlay #projectDraftManage { justify-self:start; }
+#projEditOverlay #projectDraftManage { justify-self:start; white-space:normal; min-height:42px; }
+#projEditOverlay #projectDraftManage[hidden] { display:none !important; }
+#projEditOverlay .project-assignment-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+#projEditOverlay .project-summary-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+#projEditOverlay .project-assignment-fields .fg, #projEditOverlay .project-setting-fields .fg, #projEditOverlay .project-summary-fields .fg { min-width:0; }
+#projEditOverlay .project-assignment-fields select, #projEditOverlay .project-setting-fields .fi, #projEditOverlay .project-setting-fields .fs, #projEditOverlay .project-summary-fields .fi, #projEditOverlay .project-summary-fields .fs { box-sizing:border-box; width:100%; min-width:0; max-width:100%; }
+@media (max-width:480px) {
+  #projEditOverlay .project-assignment-fields, #projEditOverlay .project-setting-fields, #projEditOverlay .project-summary-fields { display:grid !important; grid-template-columns:minmax(0,1fr); gap:0 !important; }
+}
 #projectEditorLoading { display:none; padding:24px 0; color:var(--text-light); }
 #projEditOverlay.editor-loading #projectEditorLoading { display:block; }
 #projEditOverlay.editor-loading .modal > :not(.modal-hdr):not(#projectEditorLoading) { display:none !important; }
@@ -363,7 +371,7 @@ button[aria-busy="true"] { cursor:wait; }
 .card-stripe.yellow { background: var(--yellow); }
 .card-stripe.red { background: var(--red); }
 .card-body { padding: 20px 22px 22px; flex: 1; display:flex; flex-direction:column; }
-.card-actions { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; z-index: 2; }
+.card-actions { display:flex; flex:none; align-items:center; gap:6px; }
 .card-actions .action-icon { background: var(--s1); border: 1px solid var(--border2); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 .card-actions .action-icon svg { width: 13px; height: 13px; }
 .card-actions .action-icon:hover { color: var(--text); border-color: var(--muted); background: var(--s2); }
@@ -372,9 +380,9 @@ button[aria-busy="true"] { cursor:wait; }
 .locked-project-edit { position:relative; display:inline-flex; }
 .locked-project-edit::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:12; width:min(290px, 66vw); padding:8px 9px; border-radius:7px; background:var(--text); color:#fff; box-shadow:0 8px 18px rgba(30,41,59,.18); font-size:10px; font-weight:600; line-height:1.38; opacity:0; pointer-events:none; transform:translateY(-3px); transition:opacity .16s ease, transform .16s ease; }
 .locked-project-edit:hover::after, .locked-project-edit:focus-within::after { opacity:1; transform:translateY(0); }
-.card-summary { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom: 16px; padding-right: 44px; }
-.card-summary-left { min-width: 0; flex:1; }
-.card-summary-right { min-width: 96px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+.card-summary { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+.card-summary-left { min-width:0; flex:1; overflow-wrap:anywhere; }
+.card-summary-right { min-width:0; max-width:100%; flex:none; text-align:right; display:flex; flex-direction:column; flex-wrap:wrap; align-items:flex-end; gap:8px; }
 .proj-name { font-size: 18px; font-weight: 800; color: var(--text); line-height: 1.25; letter-spacing: -0.01em; }
 .proj-code { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); background: var(--bg); padding: 4px 7px; border-radius: 6px; margin-top: 8px; display: inline-block; }
 .card-status { font-size: 10px; font-weight: 800; padding: 5px 10px; border-radius: 999px; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid transparent; }
@@ -2665,12 +2673,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <div class="overlay" id="projEditOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Project editor" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:850px">
-  <div class="modal-hdr">
+  <div class="modal-hdr unified-project-header">
     <h3 id="peTitle">Edit Project</h3>
-    <div style="display:flex; align-items:center; gap:6px;">
+    <div class="project-save-actions" style="display:flex; align-items:center; gap:6px;">
       <button class="btn-icon" id="pe_btn_save" onclick="saveProjEdit()" title="Save Project" aria-label="Save Project">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       </button>
+      <button class="btn btn-ghost" id="projectDraftManage" type="button" hidden aria-haspopup="dialog" aria-controls="publishedProjectActionsOverlay" onclick="openEditorPublishedProjectActions()">Published project actions</button>
       <button class="modal-x" id="pe_btn_close" onclick="closeModal('projEditOverlay')" title="Close without saving" aria-label="Close without saving">×</button>
     </div>
   </div>
@@ -2678,7 +2687,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div id="projectEditorLoading" role="status" aria-live="polite">Loading project…</div>
   <div class="resource-validation error" id="projectMutationError" role="alert" aria-live="assertive"></div>
   <fieldset id="projectEditorFields" style="border:0;padding:0;margin:0;min-width:0">
-  <div style="display:flex; gap:16px;">
+  <div class="project-summary-fields">
     <div class="fg"><label class="fl">RAG Status</label><select class="fs" id="pe_status"><option value="green">🟢 On Track</option><option value="yellow">🟡 At Risk</option><option value="red">🔴 Critical</option></select></div>
     <div class="fg"><label class="fl">Overall Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100" placeholder="0–100" title="Overall project completion from 0% to 100%"></div>
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention" title="Executive priority used in Overview"></select></div>
@@ -2727,19 +2736,19 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <span style="font-size:10px; color:var(--muted2);">▼ Click to expand</span>
     </summary>
     <div class="settings-content">
-      <div style="display:flex; gap:16px; margin-bottom:10px;">
+      <div class="project-setting-fields" style="display:flex; gap:16px; margin-bottom:10px;">
         <div class="fg" style="flex:2"><label class="fl">Project Name</label><input class="fi" id="pe_name" placeholder="e.g. 60kW Dual Gun"></div>
         <div class="fg"><label class="fl">Code</label><input class="fi" id="pe_code" placeholder="e.g. SYS-001"></div>
       </div>
-      <div style="display:flex; gap:16px;">
-        <div class="fg"><label class="fl">Project Manager</label><select class="fs" id="pe_owner"></select></div>
-        <div class="fg"><label class="fl">Deputy</label><select class="fs" id="pe_deputy"></select></div>
+      <div class="project-assignment-fields">
+        <div class="fg"><label class="fl" for="pe_owner">Project Manager</label><select class="fs" id="pe_owner"></select></div>
+        <div class="fg"><label class="fl" for="pe_deputy">Deputy</label><select class="fs" id="pe_deputy"></select></div>
       </div>
-      <div style="display:flex; gap:16px; margin-top:10px;">
+      <div class="project-setting-fields" style="display:flex; gap:16px; margin-top:10px;">
         <div class="fg"><label class="fl">Customer</label><input class="fi" id="pe_customer" placeholder="e.g. Internal or customer name"></div>
         <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location" placeholder="e.g. Taiwan or Texas, US"></div>
       </div>
-      <div style="display:flex; gap:16px; margin-top:10px;">
+      <div class="project-setting-fields" style="display:flex; gap:16px; margin-top:10px;">
         <div class="fg"><label class="fl">Project Level</label><select class="fs" id="pe_project_level"><option value="system">System</option><option value="hardware-module">Hardware Module</option><option value="software">Software</option></select></div>
         <div class="fg"><label class="fl">Lifecycle</label><select class="fs" id="pe_lifecycle"><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select></div>
       </div>
@@ -3180,6 +3189,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 <script type="module">
+import "./js/project-assignment-eligibility.js";
+const {projectAssignmentOptions}=globalThis.PMProjectAssignment;
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { applyDisplayNameDirectoryLoad, createDisplayNameDirectory } from "./js/display-name-directory.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
@@ -3368,6 +3379,7 @@ let isCreatingNew = false;
 let draftSaveProgress = null;
 let activeDraftSavePermit = null;
 let projectMutationInFlight = false;
+let publishedProjectActionInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
@@ -5767,7 +5779,7 @@ onAuthStateChanged(auth, async user => {
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
       const nextDirectory = await fetchDynamicPMList();
       if (!isCurrentAuthInitialization()) return;
-      projectDraftDirectory = { authGeneration, options: nextDirectory.accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
+      projectDraftDirectory = { authGeneration, options: projectAssignmentOptions(nextDirectory.accounts,{role:currentRole,email:authEmail}) };
       applyDisplayNameDirectoryLoad(displayNameDirectory, nextDirectory, authEmail, userDoc.data());
       PM_LIST = [...new Set(nextDirectory.accounts
         .filter(account => normalizeRole(account.role) !== 'vip')
@@ -5826,7 +5838,7 @@ async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
     return {
-      accounts: snap.docs.map(entry => ({ id: entry.id, ...entry.data() })),
+      accounts: snap.docs.map(entry => ({ ...entry.data(), id: entry.id })),
       available: true,
     };
   } catch(e) {
@@ -5859,8 +5871,8 @@ function startProjectManagerSubscription(isCurrentSession) {
     let initial = true;
     projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
       if (!isCurrentSession()) return;
-      const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
-      projectDraftDirectory = { authGeneration:authSessionGeneration, options:accounts.filter(account => normalizeDashboardRole(account.role) === 'pm').map(account => ({email:account.id,name:account.displayName || account.id})) };
+      const accounts = snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }));
+      projectDraftDirectory = { authGeneration:authSessionGeneration, options:projectAssignmentOptions(accounts,{role:currentRole,email:getEmailKey(currentUser)}) };
       displayNameDirectory.replace(accounts);
       PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);
       syncProjectManagerFilterOptions();
@@ -10337,15 +10349,6 @@ function renderNormal(projs) {
     return `
     <div class="proj-card" data-project-code="${escHtml(p.code)}" title="Double click for details">
       <div class="card-stripe ${status}"></div>
-      ${canEdit ? (isReleased ? `
-        <div class="card-actions">
-          <span class="locked-project-edit" tabindex="0" role="note" title="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" aria-label="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" data-tooltip="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}">
-            <button class="action-icon" data-project-action="edit-locked" disabled aria-disabled="true" title="Project edit unavailable">${editIcon}</button>
-          </span>
-        </div>` : `
-        <div class="card-actions">
-          <button class="action-icon" data-project-action="edit" data-project-code="${escHtml(p.code)}" title="Project edit">${editIcon}</button>
-        </div>`) : ''}
       <div class="card-body">
         <div class="card-summary">
           <div class="card-summary-left">
@@ -10353,6 +10356,15 @@ function renderNormal(projs) {
             <div class="proj-code">${escHtml(p.code)}</div>
           </div>
           <div class="card-summary-right">
+      ${canEdit ? (isReleased ? `
+        <div class="card-actions">
+          <span class="locked-project-edit" tabindex="0" role="note" title="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" aria-label="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" data-tooltip="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}">
+            <button class="action-icon" data-project-action="edit-locked" disabled aria-disabled="true" title="Project edit unavailable">${editIcon}</button>
+          </span>
+        </div>` : `
+        <div class="card-actions">
+          <button class="action-icon" data-project-action="edit" data-project-code="${escHtml(p.code)}" title="Project edit" aria-label="Edit project ${escHtml(p.name)}">${editIcon}</button>
+        </div>`) : ''}
             <span class="card-status ${status}">${escHtml(statusLabel)}</span>
             <div>
               <div class="card-progress-label">Progress</div>
@@ -10429,19 +10441,6 @@ function renderNormal(projs) {
       openProjEdit(button.dataset.projectCode);
     });
   });
-  if (projectWriteCapabilities.draftsEnabled && !isReleased && (currentRole === 'admin' || canCurrentUser('project.manage'))) {
-    grid.querySelectorAll('.proj-card[data-project-code] .card-actions').forEach(actions => {
-      const card = actions.closest('.proj-card');
-      const manage = document.createElement('button');
-      manage.type = 'button'; manage.className = 'btn-icon project-more-actions no-print'; manage.textContent = '⋯';
-      manage.setAttribute('aria-label', `Published project actions for ${card.dataset.projectCode}`);
-      manage.setAttribute('aria-haspopup', 'dialog'); manage.setAttribute('aria-controls','publishedProjectActionsOverlay');
-      manage.title = 'Published project actions';
-      manage.addEventListener('dblclick',event => event.stopPropagation());
-      manage.onclick = event => { event.stopPropagation(); const week = allWeeks[currentIdx]; openPublishedProjectActions(card.dataset.projectCode, week.__documentId || week.weekLabel.replace(/\s+/g,'-')); };
-      actions.append(manage);
-    });
-  }
   if (typeof updateProjectCapabilityUi === 'function') updateProjectCapabilityUi();
   if (typeof decorateDraftCards === 'function') decorateDraftCards();
 }
@@ -12987,6 +12986,7 @@ window.openProjEdit = (code, isNew = false) => {
   openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
   configureDraftEditor(draftMode);
+  document.getElementById('projectDraftManage').hidden = !getEditorPublishedProjectTarget();
 };
 
 function getEditorPortfolioValue(id, fallback = '') {
@@ -14358,13 +14358,10 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpening) {
     for (const [id,key] of [['pe_owner','ownerEmail'],['pe_deputy','deputyEmail']]) {
       const select = document.getElementById(id); select.replaceChildren(new Option('Unassigned',''));
       options.forEach(user => select.add(new Option(`${user.name} (${user.email})`,user.email)));
-      if (key === 'ownerEmail' && !options.some(user => user.email === opening.email)) {
-        select.add(new Option(`${getUserDisplayName(opening.email) || opening.email} (${opening.email})`,opening.email));
-      }
       const assigned = draft.assignment[key] || '';
       if (assigned && ![...select.options].some(option => option.value === assigned)) {
         const preserved = new Option(`${draft.project[key === 'ownerEmail' ? 'owner' : 'deputy'] || assigned} (current assignment)`,assigned);
-        preserved.disabled = key === 'ownerEmail'; select.add(preserved);
+        preserved.disabled = true; select.add(preserved);
       }
       select.value = assigned;
     }
@@ -14529,8 +14526,24 @@ async function saveEditorProjectDraft(project, session) {
     }
   }
 }
+function getEditorPublishedProjectTarget() {
+  if (!projectWriteCapabilities.draftsEnabled || !currentUser || projectMutationInFlight || !isProjectEditorSessionCurrent(projectEditorSession)) return null;
+  if (currentRole !== 'admin' && !canCurrentUser('project.manage')) return null;
+  const week = allWeeks[currentIdx];
+  if (!week || isWeekReleased(week)) return null;
+  const weekId = week.__documentId || week.weekLabel.replace(/\s+/g,'-');
+  const project = draftEditorRecord
+    ? week.projects?.find(p => (p.publication?.draftId && p.publication.draftId === draftEditorRecord.draftId)
+      || (draftEditorRecord.source?.weekId === weekId && draftEditorRecord.source.projectCode === p.code))
+    : week.projects?.find(p => p.code === projectEditorSession.code);
+  return project ? {projectCode:project.code, weekId} : null;
+}
+window.openEditorPublishedProjectActions = () => {
+  const target = getEditorPublishedProjectTarget();
+  if (target) openPublishedProjectActions(target.projectCode, target.weekId);
+};
 function openPublishedProjectActions(projectCode, weekId) {
-  if (!projectWriteCapabilities.draftsEnabled || !currentUser || (currentRole !== 'admin' && !canCurrentUser('project.manage'))) return;
+  if (!projectWriteCapabilities.draftsEnabled || !currentUser || publishedProjectActionInFlight || projectMutationInFlight || (currentRole !== 'admin' && !canCurrentUser('project.manage'))) return;
   const week = allWeeks.find(w => (w.__documentId || w.weekLabel.replace(/\s+/g,'-')) === weekId);
   const project = week?.projects?.find(p => p.code === projectCode);
   if (!project || week.isReleased === true) { showSaveToast('Select an unpublished week containing this project.'); return; }
@@ -14545,11 +14558,25 @@ function openPublishedProjectActions(projectCode, weekId) {
   selection.value = project.visibility || 'active';
   selection.style.display = currentRole === 'admin' ? '' : 'none';
   document.getElementById('projectVisibilityLabel').style.display = selection.style.display;
+  const editorSession = projectEditorSession;
   async function mutate(operation) {
+    if (publishedProjectActionInFlight || projectMutationInFlight || !isProjectEditorSessionCurrent(editorSession)) return;
+    publishedProjectActionInFlight = true;
+    projectMutationInFlight = true; projectMutationInFlightToken = editorSession.token;
+    setProjectMutationControlsDisabled(true);
     visibility.disabled = true; remove.disabled = true; selection.disabled = true;
-    try { await operation(); if (authGeneration === authSessionGeneration) { closeModal('publishedProjectActionsOverlay',{force:true}); showSaveToast('Published project action saved.'); } }
+    let restoreFocus = false;
+    try { await operation(); if (authGeneration === authSessionGeneration) { closeModal('publishedProjectActionsOverlay',{force:true}); restoreFocus = true; showSaveToast('Published project action saved.'); } }
     catch(error) { if (authGeneration === authSessionGeneration) message.textContent = error.message || 'Action failed. No successful change was confirmed.'; }
-    finally { visibility.disabled = false; remove.disabled = false; selection.disabled = false; }
+    finally {
+      publishedProjectActionInFlight = false;
+      visibility.disabled = false; remove.disabled = false; selection.disabled = false;
+      if (projectMutationInFlightToken === editorSession.token && currentUser?.uid === editorSession.authUid) {
+        projectMutationInFlight = false; projectMutationInFlightToken = null;
+        setProjectMutationControlsDisabled(false);
+        if (restoreFocus && isProjectEditorSessionCurrent(editorSession)) document.getElementById('projectDraftManage')?.focus();
+      }
+    }
   }
   visibility.onclick = () => { if (currentRole !== 'admin') return; mutate(() => projectDashboardApi.saveProject({weekId,originalCode:project.code,projectCode:project.code,project:{code:project.code,visibility:selection.value},expectedRevision:revision})); };
   remove.onclick = () => { if (!canCurrentUser('project.manage') || !confirm('Permanently delete this project from this reporting week?')) return; mutate(() => projectDashboardApi.deleteProject({weekId,originalCode:project.code})); };

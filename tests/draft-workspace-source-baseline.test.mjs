@@ -1,6 +1,7 @@
+import {normalizeProdS02ForBaseline} from './helpers/prod-s02-source-baseline.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{createHash}from'node:crypto';
 import {normalizeDraftWorkspaceForBaseline} from './helpers/draft-workspace-source-baseline.mjs';
-const raw=readFileSync(new URL('../index.html',import.meta.url),'utf8'),changes=JSON.parse(readFileSync(new URL('./fixtures/draft-workspace-source-delta.json',import.meta.url),'utf8'));
+const raw=normalizeProdS02ForBaseline(readFileSync(new URL('../index.html',import.meta.url),'utf8')),changes=JSON.parse(readFileSync(new URL('./fixtures/draft-workspace-source-delta.json',import.meta.url),'utf8'));
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const verifiedPr74Hash='f2e2d4c51f3fdf4c67daffcfab7ac51ed26b4531af2d040cc0f9cb961fb977c1';
 test('exact table/lifecycle reversal reproduces verified PR74 bytes',()=>assert.equal(hash(normalizeDraftWorkspaceForBaseline(raw)),verifiedPr74Hash));

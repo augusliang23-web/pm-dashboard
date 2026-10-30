@@ -1,3 +1,4 @@
+const {resolveProjectAccount}=require('./project-assignment-eligibility');
 const { onCall } = require('firebase-functions/v2/https');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { buildAuthenticatedActor, canRestoreArchivedProject, assertAllowedKeys, assertBoundedJson } = require('./project-dashboard-writes');
@@ -6,6 +7,7 @@ const { sortWeeksChronologically, latestValidWeekIndex } = require('./week-order
 const { emailKey, fail, assertDraftAccess, buildDraftRecord, publicDraft, publicationDigest } = require('./project-drafts-core');
 const { sourceDraftId, sourceProject, assertSourceOwnership, buildSourceDraft } = require('./project-draft-origin');
 const OPTIONS={serviceAccount:'pmdash-project-drafts@',maxInstances:20};
+const MAX_ASSIGNMENT_DIRECTORY_USERS=1000;
 function safeId(value,label='Draft') {
   if(typeof value!=='string'||!value||value.length>128||/[\/\x00-\x1f]/.test(value)||['.','..','__proto__','constructor','prototype'].includes(value))fail('invalid-payload',`${label} identifier is invalid.`,'invalid-argument');
   return value;
@@ -85,10 +87,14 @@ async function assignmentDirectory(tx,db,actor,data) {
   if(data.assignment){
     if(actor.role!=='admin')fail('assignment-forbidden','Only Admin has permission to change assignment.');
     assertAllowedKeys(data.assignment,['ownerEmail','deputyEmail'],'Assignment');
-    for(const value of Object.values(data.assignment)){
-      const email=emailKey(value);if(!email)continue;
-      if(!email.includes('@')||email.includes('/')||email.length>320)fail('invalid-payload','Assignment email is invalid.','invalid-argument');
-      const user=await tx.get(db.collection('users').doc(email));assignmentUsers[email]=user.exists?user.data():null;
+    if(Object.values(data.assignment).some(value=>typeof value!=='string'))fail('invalid-payload','Assignment email must be text.','invalid-argument');
+    const emails=[...new Set(Object.values(data.assignment).map(emailKey).filter(Boolean))];
+    for(const email of emails)if(!email.includes('@')||email.includes('/')||email.length>320)fail('invalid-payload','Assignment email is invalid.','invalid-argument');
+    if(emails.length){
+      const snapshot=await tx.get(db.collection('users').limit(MAX_ASSIGNMENT_DIRECTORY_USERS+1));
+      if(snapshot.size>MAX_ASSIGNMENT_DIRECTORY_USERS)fail('assignment-directory-too-large','User directory exceeds the safe assignment validation limit. Contact Admin.','failed-precondition');
+      const documents=snapshot.docs.map(doc=>({id:doc.id,data:doc.data()}));
+      for(const email of emails)assignmentUsers[email]=resolveProjectAccount(documents,email);
     }
   }
   return assignmentUsers;
