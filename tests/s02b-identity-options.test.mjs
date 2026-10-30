@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),{projectAssignmentOptions}=require('../functions/project-assignment-eligibility.js');
+const actor={role:'admin',email:'admin@example.test'};
+test('duplicate matching and conflicting identities are excluded',()=>{for(const role of ['pm','vip']) assert.deepEqual(projectAssignmentOptions([{id:'pm@example.test',role:'pm'},{id:' PM@example.test ',role}],actor),[]);});
+test('embedded conflicting email and malformed activation fail closed',()=>{for(const extra of [{email:'other@example.test'},{active:'false'},{disabled:'true'}])assert.deepEqual(projectAssignmentOptions([{id:'pm@example.test',role:'pm',...extra}],actor),[]);});
+test('directory mapping keeps Firestore document IDs authoritative',async()=>{const {readFileSync}=await import('node:fs');const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(source,/accounts: snap\.docs\.map\(entry => \(\{ \.\.\.entry\.data\(\), id: entry\.id \}\)\)/);assert.match(source,/const accounts = snapshot\.docs\.map\(entry => \(\{ \.\.\.entry\.data\(\), id: entry\.id \}\)\)/);});
