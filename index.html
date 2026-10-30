@@ -5838,7 +5838,7 @@ async function fetchDynamicPMList() {
   try {
     const snap = await getDocs(collection(db, "users"));
     return {
-      accounts: snap.docs.map(entry => ({ id: entry.id, ...entry.data() })),
+      accounts: snap.docs.map(entry => ({ ...entry.data(), id: entry.id })),
       available: true,
     };
   } catch(e) {
@@ -5871,7 +5871,7 @@ function startProjectManagerSubscription(isCurrentSession) {
     let initial = true;
     projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
       if (!isCurrentSession()) return;
-      const accounts = snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }));
+      const accounts = snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }));
       projectDraftDirectory = { authGeneration:authSessionGeneration, options:projectAssignmentOptions(accounts,{role:currentRole,email:getEmailKey(currentUser)}) };
       displayNameDirectory.replace(accounts);
       PM_LIST = buildProjectManagerList(accounts, getUserDisplayName);

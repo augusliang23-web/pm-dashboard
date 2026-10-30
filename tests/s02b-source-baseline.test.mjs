@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {normalizeS02bForBaseline,changes} from './helpers/s02b-source-baseline.mjs';
+const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('S02B reversal restores the exact main index',()=>assert.equal(normalizeS02bForBaseline(source),execFileSync('git',['show','15a9e51fba6e1466c4ef7154d8b525ead0bcd398:index.html'],{encoding:'utf8'})));
+for(const [i,[,after]] of changes.entries())test(`S02B hunk ${i} rejects mutation, missing and duplication`,()=>{for(const bad of [source.replace(after,after.replace('entry.id','changed.id')),source.replace(after,''),source+after])assert.throws(()=>normalizeS02bForBaseline(bad));});
