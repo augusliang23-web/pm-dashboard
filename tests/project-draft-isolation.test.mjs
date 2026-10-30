@@ -8,7 +8,7 @@ const {state,db}=createStore(),firestorePath=createRequire(new URL('../functions
 const real=require(firestorePath);require.cache[firestorePath]={id:firestorePath,filename:firestorePath,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../functions/project-drafts');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const email='owner@example.com',call=(name,data)=>api[name].run({auth:{uid:'owner',token:{email}},data});
+const email='owner@example.com',call=(name,data)=>api[name].run({auth:{uid:'owner',token:{email}},data:{...data,...(name==='publishDashboardProjectDraft'?{selectedWeekId:data.weekId}:{})}});
 function setup(projects=[]){state.docs.clear();state.docs.set('users/'+email,{role:'pm',displayName:'Owner'});state.docs.set('userPermissions/'+email,{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,projects});}
 const official=()=>state.docs.get('weeks/W1');
 const report=extra=>loadAuthorizedReport({request:{mode:'overview',weekId:'W1',sections:['weekly-trend'],overviewScope:'all',...extra},idToken:email,adapters:{verifyIdToken:async()=>({email}),getUserByEmail:async()=>({role:'pm'}),getWeekById:async()=>structuredClone(official()),getTrendWeeks:async()=>[structuredClone(official())]}});

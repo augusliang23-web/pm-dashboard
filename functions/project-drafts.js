@@ -146,9 +146,12 @@ module.exports={safeId,requestData,readActor,readDraft,OPTIONS,getDashboardProje
 
 const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
   assertBoundedJson(request.data,{maxStringLength:256*1024});
-  assertAllowedKeys(request.data,['draftId','expectedRevision','weekId','expectedPublishedRevision','project','assignment','source'],'Publish request');
+  assertAllowedKeys(request.data,['draftId','expectedRevision','weekId','expectedPublishedRevision','project','assignment','source','selectedWeekId','historicalCorrection'],'Publish request');
   const data=request.data,db=getFirestore(),withForm=Object.hasOwn(data,'project');
   const weekId=safeId(data.weekId,'Week');
+  if(data.selectedWeekId!==undefined && data.selectedWeekId!==weekId)fail('week-target-mismatch','Selected week and publish target do not match.','failed-precondition');
+  if(data.historicalCorrection!==undefined && data.historicalCorrection!==true)fail('invalid-payload','Historical correction confirmation must be explicit.','invalid-argument');
+  if(withForm && data.selectedWeekId!==weekId)fail('week-target-mismatch','Reopen the editor to confirm the selected reporting week.','failed-precondition');
   if(withForm) safeId(data.draftId); // Stable identity makes first-publication retries safe.
   if(data.expectedPublishedRevision!==null && typeof data.expectedPublishedRevision!=='string')fail('invalid-payload','Official revision is required.','invalid-argument');
   const requestDigest=withForm?publicationDigest(JSON.stringify({actorUid:request.auth?.uid || '',data})):null;
@@ -160,6 +163,32 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
     const ordered=sortWeeksChronologically(weeksSnapshot.docs.map(doc=>({...doc.data(),__documentId:doc.id})));
     const latest=ordered[latestValidWeekIndex(ordered)];
     const {planDraftPublication}=require('./project-drafts-core');
+    const historical=Boolean(latest && latest.__documentId!==weekId);
+    if(!historical && data.historicalCorrection===true)fail('week-target-mismatch','This is not a historical target. Reopen the editor.','failed-precondition');
+    if(historical && (!withForm || data.historicalCorrection!==true || data.selectedWeekId!==weekId))fail('historical-week','Confirm the selected historical reporting week before publishing.','failed-precondition');
+    if(historical){
+      const original=found.draft;
+      if(!original || data.expectedRevision!==original.revision)fail('conflict','Draft revision conflict. Reload before publishing.','aborted');
+      const live=(week?.projects||[]).filter(p=>p.publication?.draftId===original.draftId || (original.source?.weekId===weekId && p.code===original.source.projectCode));
+      if(live.length!==1)fail('conflict','The selected historical project is missing or ambiguous.','aborted');
+      assertSourceOwnership(actor,live[0]);
+      if(week.isReleased===true)fail('released-week','Released reporting weeks cannot be corrected.','failed-precondition');
+      const fingerprint=require('./project-dashboard-writes').projectRevisionFingerprint(live[0]);
+      const prior=original.publicationTargets?.[weekId];
+      if(prior?.correctionRequestDigest===requestDigest && prior.correctionActorUid===actor.uid && prior.projectRevision===publicationDigest(fingerprint))return {weekId,project:live[0],projectRevision:fingerprint,draftRevision:original.revision,publishedAt:live[0].publication.publishedAt,alreadyPublished:true,draft:publicDraft(original)};
+      const assignmentUsers=await assignmentDirectory(tx,db,actor,data);
+      const {weekId:ignoredWeek,selectedWeekId:ignoredSelected,historicalCorrection:ignoredCorrection,expectedPublishedRevision:ignoredRevision,...saveInput}=data;
+      const {PROJECT_KEYS}=require('./project-drafts-core');
+      const baselineProject=Object.fromEntries(PROJECT_KEYS.filter(k=>Object.hasOwn(live[0],k)).map(k=>[k,live[0][k]]));
+      const staged=buildDraftRecord({actor,existing:{...original,project:baselineProject},input:saveInput,assignmentUsers,draftId:found.ref.id,nowIso:new Date().toISOString()});
+      staged.revision=original.revision;
+      const result=planDraftPublication({actor,draft:staged,week,input:{...data,historicalCorrection:true},nowIso:new Date().toISOString()});
+      const target={...result.draftPatch.publicationTargets[weekId],historicalCorrection:true,correctionRequestDigest:requestDigest,correctionActorUid:actor.uid};
+      tx.update(weekRef,result.weekPatch);
+      tx.update(found.ref,{publicationTargets:{...original.publicationTargets,[weekId]:target}});
+      tx.create(db.collection('projectDraftPublicationAudit').doc(),{...result.audit,historicalCorrection:true,requestDigest,previousProjectRevision:publicationDigest(fingerprint),projectRevision:target.projectRevision});
+      return {weekId,project:result.project,projectRevision:result.projectRevision,draftRevision:original.revision,publishedAt:result.publishedAt,alreadyPublished:false,draft:publicDraft(original)};
+    }
     const retry=found.draft?.lastSaveAndPublish;
     if(withForm && retry?.requestDigest===requestDigest && retry.actorUid===actor.uid && retry.draftRevision===found.draft.revision){
       const result=planDraftPublication({actor,draft:found.draft,week,input:{...data,expectedRevision:found.draft.revision},nowIso:new Date().toISOString()});
@@ -170,11 +199,11 @@ const publishDashboardProjectDraft=onCall(OPTIONS,async request=>{
     const nowIso=new Date().toISOString();
     if(withForm){
       const assignmentUsers=await assignmentDirectory(tx,db,actor,data);
-      const {weekId:ignoredWeek,expectedPublishedRevision:ignoredRevision,...saveInput}=data;
+      const {weekId:ignoredWeek,selectedWeekId:ignoredSelected,historicalCorrection:ignoredCorrection,expectedPublishedRevision:ignoredRevision,...saveInput}=data;
       draft=buildDraftRecord({actor,existing:draft,input:saveInput,assignmentUsers,draftId:found.ref.id,nowIso});
     }
     const result=planDraftPublication({actor,draft,week,input:{...data,expectedRevision:withForm?draft.revision:data.expectedRevision},nowIso});
-    if(!result.alreadyPublished && (!latest || latest.__documentId!==weekId))fail('historical-week','Publish only to the latest reporting week.','failed-precondition');
+    if(!latest)fail('historical-week','No valid reporting week exists.','failed-precondition');
     if(!result.alreadyPublished){
       tx.update(weekRef,result.weekPatch);
       if(withForm){

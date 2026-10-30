@@ -1,3 +1,4 @@
+import {selectedPublishWeekId,isHistoricalPublishWeek} from '../js/project-drafts-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -9,7 +10,7 @@ function extract(name){const start=source.indexOf(`function ${name}(`);assert.ok
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 test('typing while Save Draft is pending remains dirty after the submitted revision is saved',async()=>{
  const pending=deferred(),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};
- const context=vm.createContext({performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
   isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},
   document:{getElementById:()=>overlay},serializeEditorState:()=>context.form,captureEditorBaseline:()=>{overlay.dataset.editorBaseline=context.form;},
   draftController:{save:()=>pending.promise},form:'submitted'});
@@ -20,14 +21,14 @@ test('typing while Save Draft is pending remains dirty after the submitted revis
 });
 for (const change of ['auth','role','generation','week','closed']) test(`pending opening cannot hydrate after ${change} changes`,()=>{
  const opening={generation:1,authGeneration:1,uid:'u',email:'u@ex.com',role:'admin',weekId:'W43'};
- const context=vm.createContext({draftEditorOpenGeneration:1,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],getEmailKey:u=>u?.email,document:{getElementById:()=>({classList:{contains:()=>change!=='closed'}})}});
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,draftEditorOpenGeneration:1,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],getEmailKey:u=>u?.email,document:{getElementById:()=>({classList:{contains:()=>change!=='closed'}})}});
  vm.runInContext(extract('isDraftEditorOpeningCurrent'),context);
  if(change==='auth')context.authSessionGeneration=2;if(change==='role')context.currentRole='engineering';if(change==='generation')context.draftEditorOpenGeneration=2;if(change==='week')context.allWeeks=[{__documentId:'W42'}];
  assert.equal(context.isDraftEditorOpeningCurrent(opening),false);
 });
 test('zero persisted week documents stay an empty official portfolio without demo fallback',()=>{
  let callback;const select={};
- const context=vm.createContext({weeksUnsub:null,executiveTimelineConfigUnsub:null,executiveLiveTimelineUnsub:null,executivePendingMilestoneUnsub:null,
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,weeksUnsub:null,executiveTimelineConfigUnsub:null,executiveLiveTimelineUnsub:null,executivePendingMilestoneUnsub:null,
   collection:()=>null,doc:()=>null,query:()=>null,orderBy:()=>null,where:()=>null,db:{},currentRole:'pm',canReadDraftWeeks:()=>true,canCurrentUser:()=>false,
   getEmailKey:u=>u.email,authSessionGeneration:1,currentUser:{uid:'u',email:'u@ex.com'},isAuthInitializationCurrent:()=>true,
   deliveryTrendsRawWeeks:[],deliveryTrendsHistoryState:{source:null,complete:false},

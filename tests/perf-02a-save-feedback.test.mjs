@@ -1,3 +1,4 @@
+import {selectedPublishWeekId,isHistoricalPublishWeek} from '../js/project-drafts-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -13,7 +14,7 @@ test('Save Draft gives feedback and blocks a second action before form preparati
   const button = {textContent: 'Save Draft', setAttribute() {}};
   const status = {textContent: ''};
   let preparations = 0;
-  const context = vm.createContext({window: {}, projectMutationInFlight: false, projectMutationInFlightToken: null,
+  const context = vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,window: {}, projectMutationInFlight: false, projectMutationInFlightToken: null,
     projectEditorSession: session, currentUser: {uid: 'synthetic'}, draftEditorSaveIntent: '',
     isProjectEditorSessionCurrent: candidate => candidate === session,
     document: {getElementById: id => id === 'pe_btn_save' ? button : status},
@@ -45,7 +46,7 @@ test('a lost response shows no success, preserves input, and does not retry', as
   const session = {token: 1, authUid: 'synthetic'};
   const fields = {}, button = {}, overlay = {dataset: {editorBaseline: 'original'}};
   let requests = 0, toast = 0, shown = '';
-  const context = vm.createContext({performance, Error,
+  const context = vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,performance, Error,
     draftSaveProgress:null, draftEditorRecord: {draftId: 'synthetic', revision: 1}, draftEditorSaveIntent: 'draft', draftEditorTargetWeekId: '',
     projectEditorSession: session, projectMutationInFlight: false, currentRole: 'pm', currentUser: {uid:'synthetic'}, allWeeks: [],
     latestPublishWeekId: () => '', buildDraftSaveInput: () => ({}), serializeEditorState: () => 'changed',

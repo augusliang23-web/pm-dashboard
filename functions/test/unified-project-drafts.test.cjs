@@ -4,7 +4,7 @@ const firestorePath=require.resolve('firebase-admin/firestore'),real=require(fir
 require.cache[firestorePath]={id:firestorePath,filename:firestorePath,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../project-drafts'),{projectRevisionFingerprint}=require('../project-dashboard-writes');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const email='owner@example.com';const call=(name,data,who=email)=>api[name].run({auth:{uid:who,token:{email:who}},data});
+const email='owner@example.com';const call=(name,data,who=email)=>api[name].run({auth:{uid:who,token:{email:who}},data:{...data,...(name==='publishDashboardProjectDraft'?{selectedWeekId:data.weekId}:{})}});
 const reason=key=>error=>error.details?.reason===key;
 function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/'+email,{role:'pm',displayName:'Owner'});state.docs.set('users/admin@example.com',{role:'admin',displayName:'Admin'});state.docs.set('users/other@example.com',{role:'pm',displayName:'Other'});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,version:1,projects:[{name:'Existing',code:'OLD',owner:'Owner',deputy:'',visibility:'active',projectLevel:'system',progress:40,futureMetadata:{keep:true}}]});}
 const source={weekId:'W1',projectCode:'OLD'};

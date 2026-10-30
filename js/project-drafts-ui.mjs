@@ -19,7 +19,7 @@ export function newProjectDrafts(drafts,email,weeks,currentWeekId){return visibl
 export function draftForProject(drafts,email,weekId,project){return visibleDraftsFor(drafts,email).find(d=>draftNeedsPublish(d)&&(d.source||d.lastPublication)&&(project?.publication?.draftId===d.draftId||(d.source?.weekId===weekId&&d.source?.projectCode===project?.code)))||null;}
 export function buildDraftPublicationInput(draft,weekId,week) {
   const target=week?.projects?.find(p=>p.publication?.draftId===draft.draftId || (draft.source?.weekId===weekId && p.code===draft.source.projectCode && !p.publication?.draftId));
-  return {draftId:draft.draftId,expectedRevision:draft.revision,weekId,expectedPublishedRevision:target?(target.__revisionFingerprint || projectRevisionFingerprint(target)):null};
+  return {draftId:draft.draftId,expectedRevision:draft.revision,weekId,selectedWeekId:weekId,expectedPublishedRevision:target?(target.__revisionFingerprint || projectRevisionFingerprint(target)):null};
 }
 export function buildDraftSaveInput({draft,project,assignment,weekId,week}) {
   const {owner,deputy,...content}=project;
@@ -76,3 +76,7 @@ export function mountProjectDraftsUi({root,controller,onEdit,onOpen,onNew}) {
   }
   return {render,dispose:()=>root.replaceChildren()};
 }
+
+// A missing/released selected week never falls back to a different reporting week.
+export function selectedPublishWeekId(weeks,selectedId){return weeks.some(w=>(w.__documentId||w.weekLabel.replace(/\s+/g,'-'))===selectedId&&w.isReleased!==true)?selectedId:'';}
+export function isHistoricalPublishWeek(weeks,selectedId){const ordered=weeks.filter(w=>/^W(\d{1,2})\s+(\d{4})$/i.test(w.weekLabel||''));return Boolean(ordered.length&&(ordered.at(-1).__documentId||ordered.at(-1).weekLabel.replace(/\s+/g,'-'))!==selectedId);}

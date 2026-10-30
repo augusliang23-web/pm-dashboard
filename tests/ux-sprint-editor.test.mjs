@@ -1,3 +1,4 @@
+import {selectedPublishWeekId,isHistoricalPublishWeek} from '../js/project-drafts-ui.mjs';
 import '../js/project-assignment-eligibility.js';
 const {projectAssignmentOptions}=globalThis.PMProjectAssignment;
 import test from 'node:test';
@@ -9,8 +10,8 @@ const source=dashboardSource('production');
 const extract=name=>{const start=source.indexOf(`function ${name}(`);assert.ok(start>=0,name);return(source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);};
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return{promise,resolve,reject};};
 function saveHarness(publishing=true){
- const pending=deferred(),events=[],session={token:'one',authUid:'u'},button={textContent:'Save & Publish'},overlay={dataset:{editorBaseline:'old'},querySelectorAll:()=>[]};
- const context=vm.createContext({performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:publishing?'publish':'draft',draftEditorTargetWeekId:'W43',allWeeks:[{__documentId:'W43',weekLabel:'W43 2026',projects:[]}],draftEditorRecord:{draftId:'a',revision:1,project:{}},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,projectMutationInFlightToken:null,
+ const pending=deferred(),events=[],session={token:'one',authUid:'u',weekId:'W43'},button={textContent:'Save & Publish'},overlay={dataset:{editorBaseline:'old'},querySelectorAll:()=>[]};
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:publishing?'publish':'draft',draftEditorTargetWeekId:'W43',allWeeks:[{__documentId:'W43',weekLabel:'W43 2026',projects:[]}],draftEditorRecord:{draftId:'a',revision:1,project:{}},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,projectMutationInFlightToken:null,
  isProjectEditorSessionCurrent:s=>context.projectEditorSession===s,clearProjectMutationError(){},setProjectMutationControlsDisabled:value=>events.push(['disabled',value]),configureDraftEditor(){},showSaveToast:text=>events.push(['toast',text]),showProjectMutationError:error=>events.push(['error',error?.message]),
  closeModal:id=>{assert.equal(context.projectMutationInFlight,false);events.push(['close',id]);context.projectEditorSession=null;},
  document:{getElementById:id=>id==='pe_btn_publish'?button:overlay},serializeEditorState:()=> 'submitted',
@@ -49,7 +50,7 @@ function adminOpeningHarness(assigned='') {
  const select=()=>({options:[],replaceChildren(...items){this.options=items;},add(item){this.options.push(item);},value:''});
  const owner=select(),deputy=select(),overlay={classList:{remove(){}},setAttribute(){}};
  const opening={email:'admin@example.test'};
- const context=vm.createContext({Option,projectDraftDirectory:{authGeneration:1,options:projectAssignmentOptions([{id:'pm@example.test',role:'pm',displayName:'PM'},{id:'admin@example.test',role:'admin',displayName:'Current Admin'}],{role:'admin',email:'admin@example.test'})},authSessionGeneration:1,currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],draftEditorRecord:undefined,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',draftOpening:false,
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,Option,projectDraftDirectory:{authGeneration:1,options:projectAssignmentOptions([{id:'pm@example.test',role:'pm',displayName:'PM'},{id:'admin@example.test',role:'admin',displayName:'Current Admin'}],{role:'admin',email:'admin@example.test'})},authSessionGeneration:1,currentRole:'admin',currentIdx:0,allWeeks:[{__documentId:'W43'}],draftEditorRecord:undefined,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',draftOpening:false,
   startDraftEditorOpening:()=>opening,isDraftEditorOpeningCurrent:()=>true,performance:{mark(){},measure(){}},window:{openProjEdit(){}},captureEditorBaseline(){},getUserDisplayName:email=>email==='admin@example.test'?'Current Admin':'',
   document:{getElementById:id=>id==='pe_owner'?owner:id==='pe_deputy'?deputy:overlay}});
  vm.runInContext(extract('beginDraftEditor'),context);
