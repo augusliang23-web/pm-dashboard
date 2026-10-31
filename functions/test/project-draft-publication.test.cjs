@@ -3,7 +3,7 @@ const {createStore}=require('./helpers/draft-store.cjs');const {state,db}=create
 const path=require.resolve('firebase-admin/firestore');const real=require(path);require.cache[path]={id:path,filename:path,loaded:true,exports:{...real,getFirestore:()=>db}};
 const api=require('../project-drafts');const {projectRevisionFingerprint}=require('../project-dashboard-writes');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
-const call=(fn,data,email='owner@example.com')=>api[fn].run({data,auth:{uid:email,token:{email}}});
+const call=(fn,data,email='owner@example.com')=>api[fn].run({data:{...data,...(fn==='publishDashboardProjectDraft'&&data.project?{selectedWeekId:data.weekId}:{})},auth:{uid:email,token:{email}}});
 async function setup(){state.docs.clear();state.failAudit=false;state.docs.set('users/owner@example.com',{role:'pm',displayName:'Owner'});state.docs.set('userPermissions/owner@example.com',{overrides:{'project.manage':true}});state.docs.set('weeks/W1',{weekLabel:'W1 2026',projects:[],version:1,isReleased:false});const {draft}=await call('saveDashboardProjectDraft',{expectedRevision:0,project:{name:'Alpha',code:'ALPHA',progress:40}});return draft;}
 const publish=(d,extra={})=>call('publishDashboardProjectDraft',{draftId:d.draftId,expectedRevision:d.revision,weekId:'W1',expectedPublishedRevision:null,...extra});
 const reason=wanted=>e=>e.details?.reason===wanted;
@@ -18,8 +18,8 @@ test('later publication prevents rewriting an earlier unreleased reporting week'
  let draft=await setup();const first=await publish(draft);
  state.docs.set('weeks/W2',{...structuredClone(state.docs.get('weeks/W1')),weekLabel:'W2 2026'});
  await publish(draft,{weekId:'W2',expectedPublishedRevision:first.projectRevision});
- // A harmless retry of the earlier snapshot is still idempotent.
- assert.equal((await publish(draft)).alreadyPublished,true);
+ // Historical requests now require explicit confirmation, including old clients.
+ await assert.rejects(publish(draft),reason('historical-week'));
  ({draft}=await call('saveDashboardProjectDraft',{draftId:draft.draftId,expectedRevision:1,project:{progress:65}}));
  await assert.rejects(publish(draft,{expectedPublishedRevision:first.projectRevision}),reason('historical-week'));
  assert.equal(state.docs.get('weeks/W1').projects[0].progress,40);

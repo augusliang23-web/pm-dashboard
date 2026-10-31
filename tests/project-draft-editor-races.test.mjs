@@ -1,3 +1,4 @@
+import { selectedPublishWeekId, isHistoricalPublishWeek } from '../js/project-drafts-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -9,7 +10,7 @@ function extract(name){const start=source.indexOf(`function ${name}(`);assert.ok
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 test('typing while Save Draft is pending remains dirty after the submitted revision is saved',async()=>{
  const pending=deferred(),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};
- const context=vm.createContext({performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,performance,draftSaveProgress:null,buildDraftSaveInput,latestPublishWeekId,draftEditorSaveIntent:'draft',draftEditorTargetWeekId:'',allWeeks:[],draftEditorRecord:{draftId:'a',revision:1},currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,
   isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},
   document:{getElementById:()=>overlay},serializeEditorState:()=>context.form,captureEditorBaseline:()=>{overlay.dataset.editorBaseline=context.form;},
   draftController:{save:()=>pending.promise},form:'submitted'});

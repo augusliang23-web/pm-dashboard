@@ -21,7 +21,7 @@ function createStore() {
       },
     };
   }
-  const db={collection:query,async runTransaction(fn){const writes=[];let writing=false;const tx={get:async ref=>{if(writing)throw Error('read after write');return ref.get?ref.get():snap(ref.path);},set:(ref,data)=>{writing=true;writes.push(()=>state.docs.set(ref.path,clone(data)));},update:(ref,patch)=>{writing=true;writes.push(()=>state.docs.set(ref.path,{...state.docs.get(ref.path),...clone(patch)}));},create:(ref,data)=>{writing=true;if(state.failAudit&&ref.path.startsWith('projectDraftPublicationAudit/'))throw Error('audit unavailable');if(state.docs.has(ref.path))throw Error('exists');writes.push(()=>state.docs.set(ref.path,clone(data)));}};const result=await fn(tx);writes.forEach(fn=>fn());return result;}};
+  const db={collection:query,async runTransaction(fn){const writes=[];let writing=false;const tx={get:async ref=>{if(writing)throw Error('read after write');return ref.get?ref.get():snap(ref.path);},set:(ref,data)=>{writing=true;writes.push(()=>state.docs.set(ref.path,clone(data)));},update:(ref,patch)=>{writing=true;if(!state.docs.has(ref.path))throw Error('5 NOT_FOUND: no entity to update: '+ref.path);writes.push(()=>state.docs.set(ref.path,{...state.docs.get(ref.path),...clone(patch)}));},create:(ref,data)=>{writing=true;if(state.failAudit&&ref.path.startsWith('projectDraftPublicationAudit/'))throw Error('audit unavailable');if(state.docs.has(ref.path))throw Error('exists');writes.push(()=>state.docs.set(ref.path,clone(data)));}};const result=await fn(tx);writes.forEach(fn=>fn());return result;}};
   return {state,db};
 }
 module.exports={createStore};

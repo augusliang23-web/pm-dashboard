@@ -102,15 +102,15 @@ function planDraftPublication({actor,draft,week,input,nowIso}) {
   if(live && actor.role!=='admin' && !ownerOrDeputyMatches(live,actor))fail('ownership-forbidden','The official project is no longer assigned to you.');
   if(live && live.visibility && live.visibility!=='active')fail('visibility-admin-only','Hidden or archived projects cannot be republished through Drafts.');
   const fingerprint=live?projectRevisionFingerprint(live):null;
-  if(target?.draftRevision===draft.revision && live && target.projectRevision===publicationDigest(fingerprint)) {
+  if(!input.historicalCorrection && !target?.historicalCorrection && target?.draftRevision===draft.revision && live && target.projectRevision===publicationDigest(fingerprint)) {
     return {alreadyPublished:true,project:structuredClone(live),projectRevision:fingerprint,publishedAt:live.publication.publishedAt};
   }
   const weekOrder=reportingWeekOrder(week);
-  if(draft.lastPublication && (!Number.isSafeInteger(draft.lastPublication.weekOrder) || weekOrder<draft.lastPublication.weekOrder)) fail('historical-week','Publish to the latest published reporting week or a later week.','failed-precondition');
+  if(!input.historicalCorrection && draft.lastPublication && (!Number.isSafeInteger(draft.lastPublication.weekOrder) || weekOrder<draft.lastPublication.weekOrder)) fail('historical-week','Publish to the latest published reporting week or a later week.','failed-precondition');
   if(target && (!live || target.projectRevision!==publicationDigest(fingerprint))) fail('conflict','The published target was changed or restored. Contact Admin before publishing.','aborted');
   if(input.expectedPublishedRevision!==fingerprint)fail('conflict','The official project changed. Reload before publishing.','aborted');
   // Metadata outside the editable project contract belongs to the server / future schema.
-  const publication={draftId:draft.draftId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email};
+  const publication={...(input.historicalCorrection?{historicalCorrection:true}:{}),draftId:draft.draftId,draftRevision:draft.revision,publishedAt:nowIso,publishedBy:actor.email};
   const project={...(live||{}),...withProjectEditorRowIds(source),code:source.code.trim(),publication};
   const sectionUpdatedAt=updateProjectSectionMetadata(live||{},project,{editorName:actor.displayName,savedAt:nowIso});
   if(sectionUpdatedAt)project.sectionUpdatedAt=sectionUpdatedAt;

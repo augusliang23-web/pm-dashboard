@@ -5,7 +5,7 @@ const firestore=require.resolve('firebase-admin/firestore');const real=require(f
 const api=require('../project-drafts');
 process.env.GCLOUD_PROJECT='demo-pm-dashboard-v22t';process.env.FUNCTIONS_EMULATOR='true';delete process.env.GOOGLE_CLOUD_PROJECT;
 const admin='admin@example.test',pm='pm@example.test',other='other@example.test';
-const call=(name,data,email=admin)=>api[name].run({data,auth:{uid:'synthetic-'+email,token:{email}}});
+const call=(name,data,email=admin)=>api[name].run({data:{...data,...(name==='publishDashboardProjectDraft'?{selectedWeekId:data.weekId}:{})},auth:{uid:'synthetic-'+email,token:{email}}});
 function reset(){state.docs.clear();directoryReads=0;state.docs.set('users/'+admin,{role:'admin',displayName:'Admin'});state.docs.set('users/'+pm,{role:'pm',displayName:'PM'});state.docs.set('users/'+other,{role:'admin',displayName:'Other'});state.docs.set('weeks/W1',{weekLabel:'W1 2026',isReleased:false,version:1,projects:[]});}
 const save=(assignment,extra={})=>call('saveDashboardProjectDraft',{draftId:'synthetic',expectedRevision:0,project:{name:'Synthetic',code:'SYN',projectLevel:'system'},assignment,...extra});
 const denied=e=>e.details?.reason==='assignment-forbidden';
