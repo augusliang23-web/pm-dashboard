@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "status": "BLOCKED_NOT_AUTHORIZATION_READY",
+  "executable": false,
+  "authorizedNow": false,
+  "project": {
+    "id": "pm-dashboard-uat-20260820-a7f3",
+    "number": "317352278230",
+    "region": "us-central1"
+  },
+  "source": "4be45fb07dfc6656fcfebedb4874e2488b41e801",
+  "apiEnablementRequested": [
+    "workflows.googleapis.com",
+    "workflowexecutions.googleapis.com"
+  ],
+  "existingApisReused": [
+    "cloudbuild.googleapis.com",
+    "storage.googleapis.com",
+    "cloudfunctions.googleapis.com",
+    "run.googleapis.com",
+    "firebasehosting.googleapis.com",
+    "firebaserules.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com"
+  ],
+  "resourcesToCreate": [
+    {
+      "type": "workflow",
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/workflows/pr54-uat-recovery-watchdog",
+      "serviceAccount": "pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com"
+    },
+    {
+      "type": "serviceAccount",
+      "name": "pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "keys": false
+    },
+    {
+      "type": "serviceAccount",
+      "name": "pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "keys": false
+    },
+    {
+      "type": "bucket",
+      "name": "pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "location": "us-central1",
+      "storageClass": "STANDARD",
+      "uniformBucketLevelAccess": true,
+      "publicAccessPrevention": "enforced",
+      "retentionLock": false,
+      "automaticAuditDeletion": false
+    },
+    {
+      "type": "customRole",
+      "names": [
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateCas",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54AppendOnly",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54BuildLaunch",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54ApiConsumer",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54UatRestorePointers",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54RunConfig",
+        "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54RunRead"
+      ],
+      "note": "Every role/binding requires explicit approval; blocked entries must not be applied"
+    },
+    {
+      "type": "CloudBuildExecution",
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/builds/<provider-generated-id>",
+      "serviceAccount": "projects/pm-dashboard-uat-20260820-a7f3/serviceAccounts/pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "pool": "existing default pool",
+      "triggerCreation": false
+    },
+    {
+      "type": "loggingMetric",
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/metrics/pr54_recovery_incident",
+      "status": "BLOCKED_PENDING_APPROVED_ALERT_ROUTE_AND_FILTER_REVIEW"
+    },
+    {
+      "type": "monitoringAlertPolicy",
+      "displayName": "PR54 UAT recovery incident",
+      "name": null,
+      "status": "BLOCKED_PENDING_APPROVED_EXISTING_NOTIFICATION_CHANNEL"
+    }
+  ],
+  "resourcesToModify": [
+    {
+      "name": "sites/pm-dashboard-uat-20260820-a7f3",
+      "operation": "restore exact reviewed finalized Hosting version"
+    },
+    {
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/releases/cloud.firestore",
+      "operation": "restore reviewed ruleset pointer"
+    },
+    {
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/functions/saveDashboardProject",
+      "operation": "original-source rebuild; blocked IAM path"
+    },
+    {
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/functions/setDashboardProjectAttention",
+      "operation": "original-source rebuild; blocked IAM path"
+    },
+    {
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/savedashboardproject",
+      "operation": "restore reviewed invocation setting only if drift; no IAM binding mutation"
+    },
+    {
+      "name": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/setdashboardprojectattention",
+      "operation": "restore reviewed invocation setting only if drift; no IAM binding mutation"
+    }
+  ],
+  "customRolePermissions": {
+    "pr54StateReader": [
+      "storage.objects.get"
+    ],
+    "pr54StateCas": [
+      "storage.objects.get",
+      "storage.objects.create",
+      "storage.objects.delete"
+    ],
+    "pr54AppendOnly": [
+      "storage.objects.create"
+    ],
+    "pr54BuildLaunch": [
+      "cloudbuild.builds.create",
+      "cloudbuild.builds.get"
+    ],
+    "pr54ApiConsumer": [
+      "resourcemanager.projects.get",
+      "serviceusage.services.use"
+    ],
+    "pr54UatRestorePointers": [
+      "firebasehosting.sites.get",
+      "firebasehosting.sites.update",
+      "firebaserules.releases.get",
+      "firebaserules.releases.update",
+      "firebaserules.rulesets.get"
+    ],
+    "pr54FunctionRestoreUnapproved": [
+      "cloudfunctions.functions.get",
+      "cloudfunctions.functions.update",
+      "cloudfunctions.functions.sourceCodeSet",
+      "cloudfunctions.operations.get",
+      "cloudfunctions.operations.list"
+    ],
+    "pr54RunConfig": [
+      "run.services.get",
+      "run.services.getIamPolicy",
+      "run.services.update"
+    ],
+    "pr54RunRead": [
+      "run.services.get",
+      "run.services.getIamPolicy"
+    ]
+  },
+  "proposedBindings": [
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateCas",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "coordinator-only",
+        "expression": "resource.name == \"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/coord/active.json\""
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-events",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/events/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-receipts",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/receipts/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-manifests",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/manifests/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-artifacts",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/artifacts/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54AppendOnly",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "worker-events-only",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/events/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-coord",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/coord/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-manifests",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/manifests/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54StateReader",
+      "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+      "condition": {
+        "title": "read-artifacts",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/artifacts/\")"
+      },
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/logging.logWriter",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54ApiConsumer",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/logging.logWriter",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54ApiConsumer",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54BuildLaunch",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/iam.serviceAccountUser",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/serviceAccounts/pmdash-pr54-release@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "condition": null,
+      "status": "PROPOSED_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54UatRestorePointers",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "condition": null,
+      "status": "BLOCKED_UNTIL_PROJECT_SCOPE_REVIEW"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54RunConfig",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/savedashboardproject",
+      "condition": null,
+      "status": "PROPOSED_RESOURCE_POLICY_REQUIRES_LIVE_VALIDATION_AND_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54RunConfig",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/setdashboardprojectattention",
+      "condition": null,
+      "status": "PROPOSED_RESOURCE_POLICY_REQUIRES_LIVE_VALIDATION_AND_AUTHORIZATION"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/iam.serviceAccountUser",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/serviceAccounts/pmdash-save-project@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "condition": null,
+      "status": "BLOCKED_WITH_FUNCTION_RESTORE"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/iam.serviceAccountUser",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/serviceAccounts/pmdash-project-attn@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "condition": null,
+      "status": "BLOCKED_WITH_FUNCTION_RESTORE"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "roles/iam.serviceAccountUser",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/serviceAccounts/317352278230-compute@developer.gserviceaccount.com",
+      "condition": null,
+      "status": "BLOCKED_WITH_FUNCTION_RESTORE"
+    },
+    {
+      "member": "serviceAccount:pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54RunRead",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/pm-dashboard-uat-pdf",
+      "condition": null,
+      "status": "PROPOSED_READ_ONLY_PRESERVATION_CHECK; REQUIRES_AUTHORIZATION"
+    }
+  ],
+  "unapprovedBindingsNotToGenerate": [
+    {
+      "principal": "pmdash-pr54-watchdog@pm-dashboard-uat-20260820-a7f3.iam.gserviceaccount.com",
+      "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54FunctionRestoreUnapproved",
+      "scope": "projects/pm-dashboard-uat-20260820-a7f3",
+      "reason": "Functions v2 per-function administration not supported by official docs; this project grant reaches unrelated functions. No unsupported resource.name condition or broad fallback is authorized."
+    }
+  ],
+  "missingDecisions": {
+    "functionAdministrationScope": "Control Plane decision needed; do not replace Functions restoration with Cloud Run-only rollback",
+    "receiptWriterPrincipal": null,
+    "releaseStarterPrincipal": null,
+    "approvedNotificationChannel": null,
+    "immutableRunnerBundleGeneration": null,
+    "pinnedBuildImageDigest": null,
+    "approvedSyntheticRecordIds": null,
+    "cloudRunPerServiceCustomRoleValidation": "Proposed service-local policy must be tested after authorization; no project-wide fallback.",
+    "sourceBuildActAsEscalation": "Watchdog build-launch plus actAs compute can allow arbitrary build as data identity; no such combination may be applied without resolved review."
+  },
+  "rollbackSourceSnapshot": [
+    {
+      "function": "saveDashboardProject",
+      "bucket": "gcf-v2-sources-317352278230-us-central1",
+      "object": "saveDashboardProject/function-source.zip",
+      "generation": "1792148717337026",
+      "runtime": "nodejs22"
+    },
+    {
+      "function": "setDashboardProjectAttention",
+      "bucket": "gcf-v2-sources-317352278230-us-central1",
+      "object": "setDashboardProjectAttention/function-source.zip",
+      "generation": "1792148841465989",
+      "runtime": "nodejs20"
+    }
+  ],
+  "snapshotFreshness": "Historical read-only capture 2026-10-16T12:07:08.925613Z; revalidation/approval mandatory before use",
+  "protectedResources": {
+    "pdfService": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/services/pm-dashboard-uat-pdf",
+    "pdfRevision": "pm-dashboard-uat-pdf-pr60-a560292",
+    "production": "No identifiers, bindings or target calls permitted",
+    "otherFunctions": "No changes",
+    "businessFirestore": "No writes under this task",
+    "archiveAndHistory": "No mutation",
+    "runtime": "Attention nodejs20/maxInstances20; preserve full baseline"
+  },
+  "timingSeconds": {
+    "rollbackOnMissingAcceptance": 1800,
+    "forwardStop": 2700,
+    "maintenanceMaximum": 3600
+  },
+  "sequence": [
+    "G0 resolve blocked IAM/auth/artifact decisions and compile live workflow/adapter",
+    "G1 separate exact infrastructure approval then provision only named resources",
+    "G2 read-only effective runtime permission tests and independent alert delivery",
+    "G3 remote mock state/timeout drill without UAT serving changes",
+    "G4 separately authorized real UAT restoration drill; approved synthetic records only",
+    "G5 actual normal-login Admin/PM checks and evidence closure"
+  ],
+  "cleanup": [
+    "Wait for no outstanding provider operation; do not cancel an execution needed for recovery",
+    "Verify legacy Save/Attention and protected PDF before revoking temporary access",
+    "Remove only bindings/resources created by drill and explicitly approved for cleanup; never restore whole IAM policy blindly",
+    "Retain immutable recovery evidence and publication audit records; no blanket bucket/data delete",
+    "Clean only separately approved synthetic test IDs; no historical/Archive writes",
+    "Leave APIs enabled unless disabling dependencies is separately reviewed and approved"
+  ],
+  "passEvidence": [
+    "workflow/build IDs and CAS object generations",
+    "server-origin immutable deadlines and release ownership",
+    "single-operation ledger and provider LRO reconciliation",
+    "actual restored Hosting/Rules/Functions source and runtime fingerprints",
+    "authenticated PM Save and Attention success",
+    "Admin and PM role/ownership and anonymous/forged-token rejection",
+    "PDF revision/config/traffic unchanged",
+    "no historical writes; synthetic record cleanup and audit retention",
+    "independent escalation delivered",
+    "no Production-targeted operations"
+  ],
+  "immediateStop": [
+    "Project/source/baseline/artifact mismatch",
+    "Blocked or missing role binding/principal",
+    "Unpinned build image or mutable source",
+    "No armed watchdog or no functioning alert route",
+    "Attempt to grant project admin or unsupported function-only policy",
+    "Unknown in-flight operation outcome: fence; no competing rollback",
+    "Unreviewed runtime/maxInstances/IAM/PDF change",
+    "Unexpected business/Archive/history data write",
+    "Missing verified success at30m: rollback; no forward45m; incomplete60m: incident"
+  ],
+  "cost": {
+    "currency": "USD",
+    "monthlyRuns": 10,
+    "internalWorkflowStepsPerRun": 5000,
+    "buildMinutesPerRun": [
+      30,
+      60
+    ],
+    "workflowGrossMonthly": 0.5,
+    "buildGrossMonthly": [
+      0.9,
+      1.8
+    ],
+    "planningOverheadMonthly": [
+      2,
+      4
+    ],
+    "excludes": "Function source rebuilds, smoke calls, artifacts/logging volume beyond assumptions and incidents; no assumed free credits"
+  },
+  "platformManagedDependencies": [
+    {
+      "serviceAccount": "service-317352278230@gcp-sa-workflows.iam.gserviceaccount.com",
+      "role": "roles/workflows.serviceAgent",
+      "note": "May be automatically provisioned with API/service activation; must be included in separate setup authorization, never grant service-agent role to worker/watchdog"
+    }
+  ],
+  "setupOperatorPermissionsRequested": [
+    "serviceusage.services.enable",
+    "iam.serviceAccounts.create",
+    "iam.roles.create",
+    "resourcemanager.projects.getIamPolicy",
+    "resourcemanager.projects.setIamPolicy",
+    "iam.serviceAccounts.getIamPolicy",
+    "iam.serviceAccounts.setIamPolicy",
+    "storage.buckets.create",
+    "storage.buckets.getIamPolicy",
+    "storage.buckets.setIamPolicy",
+    "workflows.workflows.create",
+    "workflows.workflows.get",
+    "workflows.workflows.setIamPolicy",
+    "iam.serviceAccounts.actAs",
+    "logging.logMetrics.create",
+    "monitoring.alertPolicies.create"
+  ],
+  "setupPermissionsNote": "Capabilities for a separately authorized existing human setup operator, not permissions to grant to runtime identities; no setup performed. Runtime scopes remain blocked where specified.",
+  "receiptWriterBinding": {
+    "principal": null,
+    "role": "projects/pm-dashboard-uat-20260820-a7f3/roles/pr54AppendOnly",
+    "scope": "gs://pm-dashboard-uat-20260820-a7f3-pr54-recovery",
+    "condition": {
+      "expression": "resource.name.startsWith(\"projects/_/buckets/pm-dashboard-uat-20260820-a7f3-pr54-recovery/objects/receipts/\")"
+    },
+    "status": "BLOCKED_UNTIL_NAMED_NORMAL_LOGIN_ATTESTER_APPROVED"
+  },
+  "releaseStarterBinding": {
+    "principal": null,
+    "role": "roles/workflows.invoker",
+    "scope": "projects/pm-dashboard-uat-20260820-a7f3/locations/us-central1/workflows/pr54-uat-recovery-watchdog",
+    "status": "BLOCKED_UNTIL_NAMED_STARTER_APPROVED",
+    "note": "Read/observe execution permissions reviewed separately; no workflow edit permission to release worker."
+  },
+  "runtimeDependencyReadiness": {
+    "existingFunctionServiceAgent": "Verify effective existing permissions; no silent regrant",
+    "existingManagedSourceBuildIdentity": "Verify read pinned source/write existing gcf-artifacts with existing rights; no reuse as release worker",
+    "operatorReadOnlyBaselineEvidence": "Verify Hosting/Rules/function/Run policy fingerprints and PDF readback; no data reconstruction"
+  }
+}
