@@ -1,3 +1,4 @@
+import {selectedPublishWeekId,isHistoricalPublishWeek} from '../js/project-drafts-ui.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';
 import {dashboardSource} from './helpers/dashboard-source.mjs';
 import * as ui from '../js/project-drafts-ui.mjs';
@@ -16,8 +17,8 @@ test('controller loads a source project and keeps the committed form revision af
  assert.ok(requests.some(x=>x.source?.projectCode==='OLD'));assert.equal(requests.at(-1).selected.revision,1);assert.equal(requests.at(-1).drafts[0].project.progress,85);
 });
 test('same editor offers atomic publishing, locks fields and closes after confirmation',async()=>{
- let resolve;const pending=new Promise(r=>resolve=r),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u'};let sent;
- const context=vm.createContext({
+ let resolve;const pending=new Promise(r=>resolve=r),overlay={dataset:{editorBaseline:'old'}},session={token:1,authUid:'u',weekId:'W1'};let sent;
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,
     projectWriteCapabilities: {draftsEnabled:true,archiveRecoveryEnabled:true},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},draftEditorRecord:{draftId:'a',revision:2,assignment:{}},draftEditorSaveIntent:'publish',draftEditorTargetWeekId:'W1',allWeeks:[{__documentId:'W1',projects:[]}],currentRole:'pm',currentUser:{uid:'u'},projectEditorSession:session,projectMutationInFlight:false,projectMutationInFlightToken:null,closeModal(){context.closed=true;},
   buildDraftSaveInput:ui.buildDraftSaveInput,latestPublishWeekId:ui.latestPublishWeekId,isProjectEditorSessionCurrent:()=>true,clearProjectMutationError(){},setProjectMutationControlsDisabled(){},configureDraftEditor(){},showSaveToast(){},showProjectMutationError(){},serializeEditorState:()=>context.form,
@@ -29,7 +30,7 @@ test('first publication locks the code without falsely marking saved fields dirt
  const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{id,style:{},dataset:{},classList:{add(){}},setAttribute(){},hasAttribute:()=>false,replaceChildren(){},add(){},value:'',tagName:'INPUT',type:'text',disabled:false});return nodes.get(id);};
  const code=node('pe_code');code.value='NEW';const overlay=node('projEditOverlay');overlay.hasAttribute=()=>true;overlay.querySelector=()=>node('header');overlay.querySelectorAll=()=>[code];node('pe_btn_save').parentElement=node('actions');
  const record={draftId:'new-id',revision:1,assignment:{},project:{},lastPublication:null};
- const context=vm.createContext({
+ const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,
     projectWriteCapabilities: {draftsEnabled:true,archiveRecoveryEnabled:true},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},document:{getElementById:node},draftEditorRecord:record,draftEditorTargetWeekId:'W30',allWeeks:[{__documentId:'W30',weekLabel:'W30 2026',projects:[]}],currentRole:'admin',eligibleDraftWeeks:ui.eligibleDraftWeeks,latestPublishWeekId:ui.latestPublishWeekId,draftPublicationState:ui.draftPublicationState,canCurrentUser:()=>true,window:{saveProjEdit:()=>{context.originalSaveCalls=(context.originalSaveCalls||0)+1;}},Option:class{constructor(label,value){this.value=value;}}});
  vm.runInContext(fn('configureDraftEditor')+'\n'+fn('serializeEditorState'),context);
@@ -43,7 +44,7 @@ test('first publication locks the code without falsely marking saved fields dirt
 test('official management keeps all original Admin visibility choices outside Draft actions',async()=>{
  for(const visibility of ['active','hidden','archived']){
   const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{style:{},value:'',disabled:false,focus(){}});return nodes.get(id);};let saved;
-  const context=vm.createContext({
+  const context=vm.createContext({selectedPublishWeekId,isHistoricalPublishWeek,currentIdx:0,confirm:()=>true,
     projectWriteCapabilities: {draftsEnabled:true,archiveRecoveryEnabled:true},
     loadProjectWriteCapabilities:async()=>{}, configureDraftEditor(){},IS_UAT_PROFILE:true,currentUser:{uid:'admin'},currentRole:'admin',canCurrentUser:()=>true,authSessionGeneration:1,projectEditorSession:{token:'s',authUid:'admin'},projectMutationInFlight:false,projectMutationInFlightToken:null,publishedProjectActionInFlight:false,isProjectEditorSessionCurrent:()=>true,setProjectMutationControlsDisabled(){},
    allWeeks:[{__documentId:'W1',weekLabel:'W1 2026',projects:[{code:'OLD',name:'Existing',visibility:'active'}]}],document:{getElementById:node},projectRevisionFingerprint:()=> 'current-official',projectDashboardApi:{saveProject:async data=>{saved=data;}},closeModal(){},openAccessibleModal(){},showSaveToast(){}});

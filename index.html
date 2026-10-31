@@ -3225,7 +3225,7 @@ import { createProjectCapabilitiesController, DISABLED_PROJECT_CAPABILITIES } fr
 import { createDraftSaveProgress } from "./js/draft-save-progress.mjs";
 import { createProjectDraftsApi } from "./js/project-drafts-api.mjs?v=archive-scope-3";
 import { createProjectDraftsController, isProjectDraftAccessLoss } from "./js/project-drafts-controller.mjs?v=archive-scope-3";
-import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
+import { mountProjectDraftsUi, buildDraftSaveInput, eligibleDraftWeeks, latestPublishWeekId, selectedPublishWeekId, isHistoricalPublishWeek, newProjectDrafts, draftForProject, draftPublicationState } from "./js/project-drafts-ui.mjs?v=archive-scope-3";
 import * as deliveryTrendsPageModule from "./js/delivery-trends-page.mjs";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { applyProductionSyncButtonState, applyProductionSyncResultState, bindProductionSyncActions, createUatProductionSyncApi, createUatProductionSyncController, canUseProductionWeekSync, getLatestSuccessfulOperation, hideInlineProductionSyncConfirmation, showInlineProductionSyncConfirmation, submitInlineUatProductionSyncConfirmation, submitUatProductionRestoreConfirmation } from "./js/uat-production-sync.mjs?v=sync-spinner-1";
@@ -12968,6 +12968,7 @@ window.openProjEdit = (code, isNew = false) => {
 
   projectEditorSession = Object.freeze({
     token: `project-editor-${++projectEditorSessionSequence}`,
+    publishWeekId: draftMode ? draftEditorTargetWeekId : (week.__documentId || week.weekLabel.replace(/\s+/g, '-')),
     weekId: week.__documentId || week.weekLabel.replace(/\s+/g, '-'),
     weekLabel: week.weekLabel,
     authUid: currentUser?.uid || '',
@@ -14344,7 +14345,14 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpening) {
   performance.mark('pm-editor:data'); performance.measure('pm-editor:backend','pm-editor:click','pm-editor:data');
   const options = projectDraftDirectory.authGeneration === authSessionGeneration ? projectDraftDirectory.options : [];
   draftEditorRecord = draft; draftEditorSaveIntent = 'draft';
-  draftEditorTargetWeekId = targetWeekId || draft.source?.weekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  draftEditorTargetWeekId = targetWeekId || allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-') || '';
+  if(isHistoricalPublishWeek(allWeeks,draftEditorTargetWeekId)){
+    const selected=allWeeks.find(w=>(w.__documentId||w.weekLabel.replace(/\s+/g,'-'))===draftEditorTargetWeekId);
+    const matches=selected?.projects?.filter(p=>p.publication?.draftId===draft.draftId || (draft.source?.weekId===draftEditorTargetWeekId&&p.code===draft.source.projectCode))||[];
+    if(matches.length!==1)throw Error('The selected historical project is missing or ambiguous.');
+    draftEditorRecord={...draft,project:structuredClone(matches[0])};
+    draft=draftEditorRecord;
+  }
   const overlay = document.getElementById('projEditOverlay');
   performance.mark('pm-editor:hydrate-start');
   overlay.classList.remove('editor-loading'); overlay.setAttribute('aria-busy','false');
@@ -14364,6 +14372,11 @@ async function beginDraftEditor(draft, targetWeekId, expectedOpening) {
         preserved.disabled = true; select.add(preserved);
       }
       select.value = assigned;
+    }
+  }
+  if(isHistoricalPublishWeek(allWeeks,draftEditorTargetWeekId)){
+    for(const [id,key,field] of [['pe_owner','ownerEmail','owner'],['pe_deputy','deputyEmail','deputy']]){
+      const select=document.getElementById(id);select.replaceChildren(new Option(draft.project[field] || 'Unassigned',draft.assignment[key] || ''));select.disabled=true;
     }
   }
   captureEditorBaseline(overlay);
@@ -14399,18 +14412,20 @@ function configureDraftEditor(draftMode) {
     banner = document.createElement('section'); banner.id = 'projectDraftPublicationStatus'; banner.className = 'project-publication-guide';
     const status = document.createElement('div'); status.id = 'projectDraftStatus'; status.setAttribute('role','status'); banner.append(status);
     overlay.querySelector('.modal-hdr').after(banner);
-    overlay.addEventListener('input',()=>{if(draftSaveProgress?.completed){document.getElementById('draftSaveProgress').hidden=true;draftSaveProgress=null;}if(draftEditorRecord)document.getElementById('projectDraftStatus').textContent = 'Unsaved changes. Choose Save Draft or Save & Publish.';});
+    overlay.addEventListener('input',()=>{if(draftSaveProgress?.completed){document.getElementById('draftSaveProgress').hidden=true;draftSaveProgress=null;}if(draftEditorRecord){const target=allWeeks.find(w=>(w.__documentId||w.weekLabel.replace(/\s+/g,'-'))===draftEditorTargetWeekId);document.getElementById('projectDraftStatus').textContent=isHistoricalPublishWeek(allWeeks,draftEditorTargetWeekId)?`Unsaved historical correction. Target: ${target?.weekLabel || draftEditorTargetWeekId}. Save & Publish requires confirmation; later weeks and the working draft are preserved.`:`Unsaved changes. Target: ${target?.weekLabel || draftEditorTargetWeekId}. Choose Save Draft or Save & Publish.`;}});
   }
   banner.style.display = '';
-  // No week selector: Save & Publish always uses the latest applicable reporting week (same eligibility rules as before; never a released or historical week).
+  // The editor keeps its explicit selected week; publishing must never redirect to a newer week.
   const weeks = eligibleDraftWeeks(allWeeks,record);
-  draftEditorTargetWeekId = latestPublishWeekId(allWeeks,record);
-  const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===draftEditorTargetWeekId);
+  const selectedTarget = selectedPublishWeekId(allWeeks,draftEditorTargetWeekId);
+  const target = allWeeks.find(week=>(week.__documentId || week.weekLabel.replace(/\s+/g,'-'))===selectedTarget);
   const live = target?.projects?.find(project=>project.publication?.draftId===record.draftId || (record.source?.weekId===draftEditorTargetWeekId && project.code===record.source.projectCode));
   const canPublish = Boolean(target) && (!record.lastPublication || Boolean(live)) && record.project.visibility !== 'archived' && (!live?.visibility || live.visibility==='active');
   publish.disabled = !canPublish;
-  const state = draftPublicationState(record), where = target ? ` Save & Publish uses ${target.weekLabel}.` : '';
-  document.getElementById('projectDraftStatus').textContent = !weeks.length ? 'Draft: no reporting week is open for publishing. You can still Save Draft.' : state === 'Published' ? 'Published. Save new changes as a draft when needed.' + where : state === 'Unpublished changes' ? 'Draft: unpublished changes. Overview and PDF keep the last published content.' + where : 'Draft: not published yet. Only you can see it.' + where;
+  const historical = isHistoricalPublishWeek(allWeeks,draftEditorTargetWeekId);
+  save.disabled = historical; save.title = historical ? 'Historical corrections use Save & Publish; the later working draft is preserved.' : 'Save working content without updating Overview or PDF';
+  const state = draftPublicationState(record), where = target ? ` Target: ${target.weekLabel}.${historical?' Historical correction: confirmation required. Later weeks and the working draft remain unchanged.':''}` : '';
+  document.getElementById('projectDraftStatus').textContent = !target ? 'The selected reporting week is unavailable or released. Reopen the editor.' : state === 'Published' ? 'Published. Save new changes as a draft when needed.' + where : state === 'Unpublished changes' ? 'Draft: unpublished changes. Overview and PDF keep the last published content.' + where : 'Draft: not published yet. Only you can see it.' + where;
   document.getElementById('peTitle').textContent = state === 'Never published' && !record.source ? 'New Project (Draft)' : state === 'Published' ? 'Edit Project' : 'Edit Project (Draft)';
   if(record.revision===0 && !record.source)document.getElementById('pe_details').open = true;
   document.getElementById('pe_code').disabled = false;
@@ -14477,15 +14492,20 @@ async function saveEditorProjectDraft(project, session) {
   const record = draftEditorRecord;
   if (!record || !isProjectEditorSessionCurrent(session)) return;
   const publishing = draftEditorSaveIntent === 'publish';
-  const weekId = latestPublishWeekId(allWeeks, record) || draftEditorTargetWeekId;   // re-evaluated at publish time: a newer week may have opened since the draft was loaded
+  const weekId = draftEditorTargetWeekId;
+  const selectedId = allWeeks[currentIdx]?.__documentId || allWeeks[currentIdx]?.weekLabel?.replace(/\s+/g,'-');
+  if (publishing && (selectedId!==weekId || (session.publishWeekId || session.weekId)!==weekId)) {showProjectMutationError(null,'Selected week changed. Reopen the editor before publishing.');return;}
+  const historical = isHistoricalPublishWeek(allWeeks,weekId);
+  if(!publishing && historical){showProjectMutationError(null,'Use Save & Publish for a historical correction. The later working draft is preserved.');return;}
   const week = allWeeks.find(item=>(item.__documentId || item.weekLabel.replace(/\s+/g,'-'))===weekId);
-  if(publishing && !week){showProjectMutationError(null,'No eligible reporting week. You can still Save Draft.');return;}
+  if(publishing && (!week || !selectedPublishWeekId(allWeeks,weekId))){showProjectMutationError(null,'The selected reporting week is unavailable or released.');return;}
+  if(publishing && historical && !confirm(`Correct ${week.weekLabel}? Only this reporting week will change. Later weeks and the working draft will be preserved.`))return;
   let assignment;
-  if(currentRole==='admin'){
+  if(currentRole==='admin' && !historical){
     const selected={ownerEmail:document.getElementById('pe_owner').value,deputyEmail:document.getElementById('pe_deputy').value};
     if((record.revision===0 && !record.source) || selected.ownerEmail!==record.assignment.ownerEmail || selected.deputyEmail!==record.assignment.deputyEmail)assignment=selected;
   }
-  const input = buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})});
+  const input = {...buildDraftSaveInput({draft:record,project,assignment,...(publishing?{weekId,week}:{})}),...(publishing&&historical?{historicalCorrection:true}:{})};
   const submittedBaseline = serializeEditorState(document.getElementById('projEditOverlay'));
   if (!publishing) performance.mark('pm-draft-save:t2');
   clearProjectMutationError(); projectMutationInFlight = true; projectMutationInFlightToken = session.token; setProjectMutationControlsDisabled(true);
